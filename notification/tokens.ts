@@ -18,3 +18,10 @@ export const USER_CONTACT_RESOLVER = Symbol('USER_CONTACT_RESOLVER');
  * to this binding alone.
  */
 export const NOTIFICATION_SENDER = Symbol('NOTIFICATION_SENDER');
+
+/** The event-type -> channel(s) decision. Data, not code — see StaticNotificationChannelPolicy. */
+export const NOTIFICATION_CHANNEL_POLICY = Symbol('NOTIFICATION_CHANNEL_POLICY');
+/** The raw config object StaticNotificationChannelPolicy reads — consumer-owned, e.g. { 'invoice.sent': ['email'] }. */
+export const NOTIFICATION_CHANNEL_CONFIG = Symbol('NOTIFICATION_CHANNEL_CONFIG');
+/** A Map<NotificationChannel, NotificationSender> — which concrete sender backs each channel, consumer-assembled. */
+export const NOTIFICATION_CHANNEL_SENDERS = Symbol('NOTIFICATION_CHANNEL_SENDERS');

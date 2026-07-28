@@ -15,7 +15,33 @@ export interface NotificationRequest {
   variables: Record<string, string | number>;
 }
 
-export type NotificationResult = { status: 'sent' | 'failed'; reason?: string };
+/**
+ * A single channel — one entry in the set NotificationRouter can fan out to.
+ * Adding a real channel (e.g. WhatsApp) means adding it here, building a
+ * NotificationSender implementation for it, and registering it where a
+ * consumer assembles its NOTIFICATION_CHANNEL_SENDERS map — nothing about
+ * NotificationRouter itself changes.
+ */
+export type NotificationChannel = 'email' | 'log';
+
+/** A single channel's own outcome — always binary; only the aggregate above can be 'partial'. */
+export interface NotificationChannelResult {
+  status: 'sent' | 'failed';
+  reason?: string;
+}
+
+export interface NotificationResult {
+  status: 'sent' | 'partial' | 'failed';
+  reason?: string;
+  /**
+   * Present when this result came from NotificationRouter fanning out to more
+   * than one channel — one entry per channel attempted. Absent from a
+   * single-channel sender's own result (LogNotificationSender,
+   * EmailNotificationSender): those only ever return 'sent' or 'failed', never
+   * 'partial', and have nothing to break down.
+   */
+  channels?: Partial<Record<NotificationChannel, NotificationChannelResult>>;
+}
 
 /**
  * Feature code never calls this directly — it raises a domain event, and a
