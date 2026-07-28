@@ -105,8 +105,8 @@ For the log-only path, import `NotificationModule` as-is — no bindings needed:
 export class AppModule {}
 ```
 
-For real email delivery, bind the three tokens in the consumer's own module
-alongside `EmailNotificationSender`:
+For real email delivery, bind the three consumer-owned interfaces plus
+`NOTIFICATION_SENDER` itself in the consumer's own module:
 
 ```typescript
 @Module({
@@ -115,8 +115,41 @@ alongside `EmailNotificationSender`:
     { provide: USER_CONTACT_RESOLVER, useClass: DrizzleUserResolver }, // consumer-owned
     { provide: NOTIFICATION_TEMPLATE_REPOSITORY, useClass: DrizzleTemplateRepository }, // consumer-owned
     EmailNotificationSender,
+    { provide: NOTIFICATION_SENDER, useExisting: EmailNotificationSender }, // overrides NotificationModule's binding
   ],
-  exports: [EmailNotificationSender],
+  exports: [NOTIFICATION_SENDER],
 })
 export class AppNotificationModule {}
 ```
+
+### How feature/listener code actually consumes it
+
+`NotificationSender` is an interface — it has no runtime representation, so
+nothing can be injected "as `NotificationSender`" without a token. Every listener
+depends on `NOTIFICATION_SENDER`, never on a concrete class:
+
+```typescript
+@Injectable()
+export class InvoiceVoidedNotifier {
+  constructor(@Inject(NOTIFICATION_SENDER) private readonly notifications: NotificationSender) {}
+
+  @OnEvent(InvoiceEvents.VOIDED)
+  async onInvoiceVoided(event: InvoiceVoided) {
+    const result = await this.notifications.send({
+      recipient: { type: 'raw', email: event.payerEmail },
+      eventType: 'invoice.voided',
+      variables: { invoiceNumber: event.invoiceNumber, reason: event.reason },
+    });
+    if (result.status === 'failed') {
+      // log it, never rethrow — this listener's own contract, independent of
+      // which concrete sender NOTIFICATION_SENDER happens to be bound to
+    }
+  }
+}
+```
+
+This listener never imports `LogNotificationSender` or `EmailNotificationSender`
+— which one actually runs is decided entirely by which class the app's own
+module binds `NOTIFICATION_SENDER` to. Switching from log-only to real email is
+a one-line change to that binding, exactly as promised above — not a change to
+this file.
