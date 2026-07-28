@@ -1,10 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { NotificationRecipient } from './notification.types';
+import { RenderedMessage } from './channel-transport';
 
 export interface NotificationLogEntry {
-  recipient: NotificationRecipient;
-  eventType: string;
-  variables: Record<string, string | number>;
+  to: string;
+  message: RenderedMessage;
   recordedAt: Date;
 }
 
@@ -14,9 +13,10 @@ export interface NotificationLogStore {
 
 /**
  * A real, working, zero-external-dependency default — suitable for a project's
- * very first stage, or for tests. A consuming project that wants persistence
- * across restarts implements NotificationLogStore against its own DB and binds
- * that instead; nothing about LogNotificationSender changes either way.
+ * very first stage, or for tests. Records the actual rendered message, not the
+ * raw request — since template lookup/rendering already happened by the time
+ * LogChannelTransport calls this, this is what actually confirms a channel's
+ * templates render correctly, even before that channel has a real provider.
  */
 @Injectable()
 export class InMemoryNotificationLogStore implements NotificationLogStore {

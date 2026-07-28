@@ -2,28 +2,39 @@ export type {
   NotificationRecipient,
   NotificationRequest,
   NotificationResult,
-  NotificationSender,
   NotificationChannel,
   NotificationChannelResult,
-} from './notification.types';
+  Notifier,
+} from './notifier';
+
 export type { NotificationTemplate, NotificationTemplateRepository } from './notification-template';
 export { renderTemplate } from './notification-template';
+
 export type { NotificationLogEntry, NotificationLogStore } from './notification-log-store';
 export { InMemoryNotificationLogStore } from './notification-log-store';
-export { LogNotificationSender } from './log-notification-sender';
-export type { EmailClient, UserContactResolver } from './email-notification-sender';
-export { EmailNotificationSender } from './email-notification-sender';
-export type { NotificationChannelPolicy, NotificationChannelConfig } from './notification-channel-policy';
-export { StaticNotificationChannelPolicy } from './notification-channel-policy';
-export { NotificationRouter } from './notification-router';
-export { NotificationModule } from './notification.module';
+
+export type { UserContactResolver, ChannelAddressResolver } from './channel-address-resolver';
+export { EmailAddressResolver, PhoneAddressResolver } from './channel-address-resolver';
+
+export type { RenderedMessage, ChannelTransport, EmailClient } from './channel-transport';
+export { LogChannelTransport, EmailChannelTransport } from './channel-transport';
+
+export { ChannelNotifier } from './channel-notifier';
+
+export type { NotifierChannelPolicy, NotifierChannelConfig } from './notifier-channel-policy';
+export { StaticNotifierChannelPolicy } from './notifier-channel-policy';
+
+export { NotifierRouter } from './notifier-router';
+
 export {
-  NOTIFICATION_TEMPLATE_REPOSITORY,
-  NOTIFICATION_LOG_STORE,
-  EMAIL_CLIENT,
   USER_CONTACT_RESOLVER,
-  NOTIFICATION_SENDER,
-  NOTIFICATION_CHANNEL_POLICY,
-  NOTIFICATION_CHANNEL_CONFIG,
-  NOTIFICATION_CHANNEL_SENDERS,
+  EMAIL_CLIENT,
+  NOTIFICATION_LOG_STORE,
+  EMAIL_TEMPLATE_REPOSITORY,
+  WHATSAPP_TEMPLATE_REPOSITORY,
+  SMS_TEMPLATE_REPOSITORY,
+  NOTIFIER_CHANNEL_POLICY,
+  NOTIFIER_CHANNEL_CONFIG,
+  NOTIFIER_CHANNELS,
+  NOTIFIER,
 } from './tokens';

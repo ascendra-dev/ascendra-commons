@@ -1,264 +1,146 @@
 # Notification Pattern
 
+> Structure-only pass — no tests yet. This README describes the shape so it can
+> be reviewed before tests and further wiring examples are added.
+
 ## Overview
 
 A project must inform users of events (invoice sent, payment received, reminders
-due) without embedding notification logic in feature code, and without building a
-full multi-channel delivery system before it's needed. This pattern defines
-notifications as a standalone, swappable module triggered by domain events, never
-called inline — and lets one event type fan out to one or more channels,
-configurably, without the caller ever knowing how many channels are involved.
+due) without embedding notification logic in feature code. One event type can
+fan out to one or more channels (email, WhatsApp, SMS), configurably — and a
+channel's *identity* is fixed by business intent from day one, independent of
+whether that channel's actual delivery mechanism exists yet. Today, every
+channel can be a log statement; swapping one channel to real delivery later is
+one binding change, never a change to routing, templates, or feature code.
 
-## The pattern
+## The pieces, in dependency order
 
-### `NotificationSender` — defined once, never the implementation
+### `Notifier` — the one interface everything implements
 
 ```typescript
-export type NotificationRecipient =
-  | { type: 'user'; id: string }
-  | { type: 'raw'; email?: string; phone?: string };
-
-export interface NotificationRequest {
-  recipient: NotificationRecipient;
-  eventType: string;
-  variables: Record<string, string | number>;
-}
-
-export interface NotificationSender {
-  send(request: NotificationRequest): Promise<NotificationResult>;
+export interface Notifier {
+  notify(request: NotificationRequest): Promise<NotificationResult>;
 }
 ```
 
-Feature code never calls `NotificationSender` directly — it raises a domain event
-(see the `domain-events` pattern), and a listener depending only on this interface
-reacts to it:
+A single channel and a router fanning out to several both satisfy this exact
+interface — a caller of `notify()` cannot tell which it's talking to. Feature
+code never calls this directly — it raises a domain event, and a listener
+depending only on this interface reacts to it (see the `domain-events` pattern).
+
+### `ChannelAddressResolver` — how a channel gets its own address out of a recipient
 
 ```typescript
-// In a listener — see domain-events' README for the full raise/listen shape
-@Injectable()
-export class InvoiceVoidedNotifier {
-  constructor(@Inject(NOTIFICATION_SENDER) private readonly notifications: NotificationSender) {}
+export interface ChannelAddressResolver {
+  resolve(recipient: NotificationRecipient): Promise<string | null>;
+}
+```
 
-  @OnEvent(InvoiceEvents.VOIDED)
-  async onInvoiceVoided(event: InvoiceVoided) {
-    const result = await this.notifications.send({
-      recipient: { type: 'raw', email: event.payerEmail },
-      eventType: 'invoice.voided',
-      variables: { invoiceNumber: event.invoiceNumber, reason: event.reason },
-    });
-    if (result.status === 'failed') {
-      // log it, never rethrow
-    }
+One implementation per *address type*, not per channel: `EmailAddressResolver`
+reads `.email`, `PhoneAddressResolver` reads `.phone` — WhatsApp and SMS share
+`PhoneAddressResolver`, since both address by phone number. Both read from the
+same consumer-supplied `UserContactResolver` for `'user'` recipients.
+
+### `ChannelTransport` — the one thing that's actually a stub today
+
+```typescript
+export interface ChannelTransport {
+  deliver(params: { to: string; message: RenderedMessage }): Promise<void>;
+}
+```
+
+`LogChannelTransport` records the rendered message without delivering it — any
+channel can be bound to this today. `EmailChannelTransport` is the one real
+transport built so far, shown as the worked example of what "swap this one
+binding" looks like once a channel goes from stub to real.
+
+### `NotificationTemplateRepository` / `renderTemplate` — unchanged, reused per channel
+
+Each channel gets its **own token** (`EMAIL_TEMPLATE_REPOSITORY`,
+`WHATSAPP_TEMPLATE_REPOSITORY`, `SMS_TEMPLATE_REPOSITORY`) even though they
+currently share the same `{ subject, body }` shape — "each channel maintains its
+own set of templates" is about storage/ownership, not necessarily a different
+TypeScript shape. **Known limitation, flagged deliberately:** a real WhatsApp
+provider (e.g. Meta's Business API) typically requires pre-approved template
+names with structured params, not free-form `{{variable}}` text — the shared
+shape will likely need to split apart once a real WhatsApp provider is chosen.
+Not a reason to avoid the shared shape today; just don't be surprised later.
+
+### `ChannelNotifier` — composes the three pieces above into one `Notifier`
+
+```typescript
+export class ChannelNotifier implements Notifier {
+  constructor(
+    private readonly addressResolver: ChannelAddressResolver,
+    private readonly templates: NotificationTemplateRepository,
+    private readonly transport: ChannelTransport,
+  ) {}
+
+  async notify(request: NotificationRequest): Promise<NotificationResult> {
+    const address = await this.addressResolver.resolve(request.recipient);
+    if (!address) return { status: 'failed', reason: 'no_address_available' };
+
+    const template = await this.templates.findByEventType(request.eventType);
+    if (!template) return { status: 'failed', reason: 'template_not_found' };
+
+    const rendered = renderTemplate(template, request.variables);
+    // ...deliver via transport, never throws — see the actual file for the full body
   }
 }
 ```
 
-This listener never imports `LogNotificationSender`, `EmailNotificationSender`, or
-`NotificationRouter` — it only knows `NOTIFICATION_SENDER` and the interface.
-Whether "the notification sender" turns out to be one channel or five is decided
-entirely by what the app's own module binds that token to (see "Consuming this
-module" below) — never by anything in this listener.
+Email, WhatsApp, and SMS are all just *different configurations* of this one
+class — not three separate implementations. Resolve address → look up own
+template → render → deliver is real for every channel from the start; only
+`deliver()`'s actual behavior (log vs. real) differs per configuration.
 
-Call this from a listener registered via `domainEvents.emit()` (best-effort), or
-have the listener itself catch its own errors if it shares an event name with a
-must-not-fail listener — see the domain-events pattern's reliability-tiering
-section for why that distinction matters.
+Not `@Injectable()` with token-based constructor params, because three
+differently-configured instances of the same class can't come from one fixed
+provider registration — each channel's instance is built via a `useFactory` in
+the consumer's own module (worked example below).
 
-### `NotificationResult` — an honest answer even when multiple channels were involved
-
-```typescript
-export interface NotificationChannelResult {
-  status: 'sent' | 'failed';
-  reason?: string;
-}
-
-export interface NotificationResult {
-  status: 'sent' | 'partial' | 'failed';
-  reason?: string;
-  channels?: Partial<Record<NotificationChannel, NotificationChannelResult>>;
-}
-```
-
-A single-channel sender (`LogNotificationSender`, `EmailNotificationSender`) only
-ever returns `'sent'` or `'failed'`, with no `channels` breakdown — there's only
-one channel, nothing to break down. `NotificationRouter` (below) is the only thing
-that can return `'partial'`, always with the full per-channel detail attached, so
-a caller checking only `status` gets a safe answer and a caller that wants to know
-exactly which channel failed can look.
-
-### Templates are data, not code — per channel, since channel shapes differ
-
-A lookup table maps `eventType -> template` with `{{variable}}` placeholders
-(`renderTemplate`, shipped here). Each channel owns its own template repository
-and its own injection token — `EmailNotificationSender` uses
-`NOTIFICATION_TEMPLATE_REPOSITORY` (`{ subject, body }`); a future WhatsApp sender
-would define its own token and its own shape (no `subject` — likely a pre-approved
-template name and structured params, not free-form text), rather than forcing
-every channel into one artificial shared template shape.
-
-### Which channel(s) an event type uses — also data, not code
+### `NotifierChannelPolicy` — which channel(s) an event type uses, as data
 
 ```typescript
-export interface NotificationChannelPolicy {
+export interface NotifierChannelPolicy {
   channelsFor(eventType: string): Promise<NotificationChannel[]>;
 }
 ```
 
-Exactly the same discipline as templates, applied one level up: `{ 'invoice.sent':
-['email'], 'payment.overdue.reminder': ['email', 'log'] }` is a config row, not an
-`if/else` per event type. An event type with no entry resolves to zero channels —
-fails closed and visibly (`NotificationRouter` reports `'no_channel_configured'`)
-rather than guessing a default that might silently be wrong.
+`{ 'invoice.sent': ['email'], 'payment.overdue.reminder': ['email', 'whatsapp'] }`
+is a config row, not an `if/else` per event type — the business decision "what
+channels does this event use," independent of whether each channel's transport
+is a stub or real. `StaticNotifierChannelPolicy` is the Model 1 implementation;
+a DB-backed one is a future target, same interface. An event type with no entry
+resolves to zero channels — fails closed and visibly, rather than guessing.
 
-### `NotificationRouter` — implements the same interface, fans out internally
+### `NotifierRouter` — implements `Notifier`, fans out internally
 
-```typescript
-export class NotificationRouter implements NotificationSender {
-  async send(request: NotificationRequest): Promise<NotificationResult> {
-    const channels = await this.policy.channelsFor(request.eventType);
-    // dispatch to each channel's own sender in parallel, aggregate:
-    // 'sent' only if every channel sent; 'failed' only if every channel failed;
-    // 'partial' otherwise — always with the full per-channel breakdown attached.
-  }
-}
-```
+Asks the policy which channels apply, dispatches to each channel's own
+`Notifier` in parallel, aggregates: `'sent'` only if every channel sent,
+`'failed'` only if every channel failed, `'partial'` otherwise — always with
+the full per-channel breakdown attached.
 
-The router doesn't know how to send email or how to log anything — it only knows
-how to ask the policy which channels apply, and delegate to whichever
-`NotificationSender` is registered for each one. A channel configured by the
-policy but never registered in the sender map fails that one channel with
-`'channel_not_registered'` rather than crashing the whole request — a realistic
-misconfiguration (policy and sender map are assembled separately by the
-consumer), so it degrades to a per-channel failure like any other.
+## Assembling three channels, all currently stubbed as logs
 
-## Implementations
+This is the shape a consumer's own module would wire — not yet written up as a
+full worked example in this pass, since the point right now is reviewing the
+structure itself. In outline: bind `USER_CONTACT_RESOLVER` and
+`NOTIFICATION_LOG_STORE` once; construct three `ChannelNotifier` instances via
+`useFactory` (email using `EmailAddressResolver` + `EMAIL_TEMPLATE_REPOSITORY` +
+`LogChannelTransport`, whatsapp using `PhoneAddressResolver` +
+`WHATSAPP_TEMPLATE_REPOSITORY` + `LogChannelTransport`, sms likewise); assemble
+`NOTIFIER_CHANNELS` as a `Map` from those three; bind `NOTIFIER_CHANNEL_CONFIG`
+to the real per-event-type channel list; bind `NOTIFIER` to `NotifierRouter`.
+Going from "whatsapp is a log" to "whatsapp is real" later is exactly one
+change: swap `LogChannelTransport` for a real WhatsApp transport in the
+whatsapp `ChannelNotifier`'s factory — nothing else in this list moves.
 
-- **`LogNotificationSender`** — records intent without sending anything. Backed by
-  `NotificationLogStore`; ships with `InMemoryNotificationLogStore` (zero external
-  dependency) and wired into `NotificationModule` out of the box.
-- **`EmailNotificationSender`** — one real email channel. Needs three bindings
-  only the consuming project can supply: `EmailClient`, `UserContactResolver`,
-  `NotificationTemplateRepository`.
-- **`NotificationRouter`** — not a channel itself; composes any number of the
-  above (or future channels) behind the same `NotificationSender` interface.
-- Future channels (SMS, WhatsApp, push) — added only when a specific story
-  requires them: define the channel in `NotificationChannel`, build a
-  `NotificationSender` implementation for it, register it in the consumer's
-  `NOTIFICATION_CHANNEL_SENDERS` map. Nothing about `NotificationRouter` itself
-  changes.
+## What's deliberately not here yet
 
-Every implementation satisfies the same interface — swapping which one(s) are
-behind `NOTIFICATION_SENDER` is a binding change in the consumer's own module,
-never a call-site change.
-
-## Model 1 — Interchangeable Single Channels, Plus Configurable Multi-Channel Routing (current)
-
-Both single-channel senders and the router are real, shipped, tested code — not
-deferred. Which shape a project actually binds is project-specific: a project
-needing exactly one channel binds that sender directly to `NOTIFICATION_SENDER`;
-a project needing per-event-type channel selection binds `NotificationRouter`
-instead, with a plain static config object (`StaticNotificationChannelPolicy`) —
-no DB table, no admin UI, the same "data, not code, but not over-built either"
-pacing already used for templates.
-
-Do not build end-to-end tests against a real delivery provider until that channel
-is actually load-bearing in production — unit-test each sender against a fake
-`EmailClient`/`UserContactResolver`/`NotificationTemplateRepository` instead, and
-unit-test `NotificationRouter` against fake `NotificationSender`s, as this
-module's own `.spec.ts` files do. `notification-router.module-wiring.spec.ts`
-additionally proves the whole graph — router, policy, two real leaf senders,
-factory-assembled channel map — resolves correctly through an actual NestJS
-container, since wiring bugs like a missing binding or a `useExisting` mismatch
-only surface when a real container boots, not from typecheck alone.
-
-## Model 2 — Additional Channels, DB-Backed Policy (future target)
-
-- Real SMS/WhatsApp/push adapters — no concrete implementation exists yet, only
-  the extension point (`NotificationChannel`, a `NotificationSender`
-  implementation, a registration in the channel map). Build one only when a
-  specific story needs that channel.
-- A DB-backed `NotificationChannelPolicy` implementing the same interface as
-  `StaticNotificationChannelPolicy`, once a project needs non-developers to
-  manage channel routing without a deploy.
-- Per-recipient channel *preference* (e.g. a `'user'` recipient who opted out of
-  email) is a distinct, not-yet-modeled concern from per-*event-type* channel
-  selection — `NotificationChannelPolicy` currently only answers "which
-  channel(s) does this event type use," not "does this specific recipient want
-  this channel." Revisit if a story needs it.
-
-## Consuming this module
-
-Copy the `notification/`, `domain-events/` folders verbatim into the consumer
-project's `src/`.
-
-**Single channel, log-only** — import `NotificationModule` as-is, no bindings needed:
-
-```typescript
-@Module({ imports: [NotificationModule] })
-export class AppModule {}
-```
-
-**Single channel, real email** — bind the three consumer-owned interfaces plus
-`NOTIFICATION_SENDER` directly to `EmailNotificationSender`:
-
-```typescript
-@Module({
-  providers: [
-    { provide: EMAIL_CLIENT, useClass: ResendEmailClient },
-    { provide: USER_CONTACT_RESOLVER, useClass: DrizzleUserResolver },
-    { provide: NOTIFICATION_TEMPLATE_REPOSITORY, useClass: DrizzleTemplateRepository },
-    EmailNotificationSender,
-    { provide: NOTIFICATION_SENDER, useExisting: EmailNotificationSender },
-  ],
-  exports: [NOTIFICATION_SENDER],
-})
-export class AppNotificationModule {}
-```
-
-**Multi-channel, configurable per event type** — assemble the leaf senders, the
-policy, and the channel map, then bind `NOTIFICATION_SENDER` to the router:
-
-```typescript
-@Module({
-  providers: [
-    // leaf senders — each with their own bindings, exactly as above
-    { provide: NOTIFICATION_LOG_STORE, useClass: InMemoryNotificationLogStore },
-    LogNotificationSender,
-    { provide: EMAIL_CLIENT, useClass: ResendEmailClient },
-    { provide: USER_CONTACT_RESOLVER, useClass: DrizzleUserResolver },
-    { provide: NOTIFICATION_TEMPLATE_REPOSITORY, useClass: DrizzleTemplateRepository },
-    EmailNotificationSender,
-
-    // which event types use which channel(s) — project-specific config
-    {
-      provide: NOTIFICATION_CHANNEL_CONFIG,
-      useValue: {
-        'invoice.sent': ['email'],
-        'payment.overdue.reminder': ['email', 'log'],
-      },
-    },
-    StaticNotificationChannelPolicy,
-    { provide: NOTIFICATION_CHANNEL_POLICY, useExisting: StaticNotificationChannelPolicy },
-
-    // which concrete sender backs each channel name
-    {
-      provide: NOTIFICATION_CHANNEL_SENDERS,
-      useFactory: (log: LogNotificationSender, email: EmailNotificationSender) =>
-        new Map([
-          ['log', log],
-          ['email', email],
-        ]),
-      inject: [LogNotificationSender, EmailNotificationSender],
-    },
-
-    NotificationRouter,
-    { provide: NOTIFICATION_SENDER, useExisting: NotificationRouter },
-  ],
-  exports: [NOTIFICATION_SENDER],
-})
-export class AppNotificationModule {}
-```
-
-Whichever of these three a project chooses, `InvoiceVoidedNotifier` (and every
-other listener) is identical — it only ever depends on `NOTIFICATION_SENDER` and
-`NotificationSender`.
+- No `.spec.ts` files — structure first, tests next pass.
+- No shipped default module (no `notification.module.ts`) — assembling channels
+  is inherently a consumer decision now, not something to default.
+- No real WhatsApp/SMS transport — `LogChannelTransport` stands in for both.
+- No consuming/wiring code example fully written out — see the outline above;
+  full worked examples return once this shape is confirmed.

@@ -1,34 +1,32 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  Notifier,
   NotificationChannel,
   NotificationChannelResult,
   NotificationRequest,
   NotificationResult,
-  NotificationSender,
-} from './notification.types';
-import { NotificationChannelPolicy } from './notification-channel-policy';
-import { NOTIFICATION_CHANNEL_POLICY, NOTIFICATION_CHANNEL_SENDERS } from './tokens';
+} from './notifier';
+import { NotifierChannelPolicy } from './notifier-channel-policy';
+import { NOTIFIER_CHANNEL_POLICY, NOTIFIER_CHANNELS } from './tokens';
 
 /**
- * Implements the same NotificationSender interface every leaf sender does — a
- * caller of send() cannot tell whether it's talking to one channel or several.
+ * Implements the same Notifier interface every channel does — a caller of
+ * notify() cannot tell whether it's talking to one channel or several.
  * Internally: ask the policy which channel(s) this eventType uses, dispatch to
- * each channel's own sender in parallel, aggregate.
+ * each channel's own Notifier in parallel, aggregate.
  *
  * Aggregation rule: 'sent' only if every attempted channel sent; 'failed' only
- * if every attempted channel failed; 'partial' otherwise. The full per-channel
- * breakdown is always present in `channels`, so a caller that only checks
- * `status` gets a safe, honest answer, and one that wants to know exactly which
- * channel failed can look.
+ * if every attempted channel failed; 'partial' otherwise — always with the full
+ * per-channel breakdown in `channels`.
  */
 @Injectable()
-export class NotificationRouter implements NotificationSender {
+export class NotifierRouter implements Notifier {
   constructor(
-    @Inject(NOTIFICATION_CHANNEL_POLICY) private readonly policy: NotificationChannelPolicy,
-    @Inject(NOTIFICATION_CHANNEL_SENDERS) private readonly channelSenders: Map<NotificationChannel, NotificationSender>,
+    @Inject(NOTIFIER_CHANNEL_POLICY) private readonly policy: NotifierChannelPolicy,
+    @Inject(NOTIFIER_CHANNELS) private readonly channels: Map<NotificationChannel, Notifier>,
   ) {}
 
-  async send(request: NotificationRequest): Promise<NotificationResult> {
+  async notify(request: NotificationRequest): Promise<NotificationResult> {
     const channels = await this.policy.channelsFor(request.eventType);
 
     if (channels.length === 0) {
@@ -52,14 +50,14 @@ export class NotificationRouter implements NotificationSender {
     channel: NotificationChannel,
     request: NotificationRequest,
   ): Promise<[NotificationChannel, NotificationChannelResult]> {
-    const sender = this.channelSenders.get(channel);
-    if (!sender) {
+    const notifier = this.channels.get(channel);
+    if (!notifier) {
       return [channel, { status: 'failed', reason: 'channel_not_registered' }];
     }
 
-    const result = await sender.send(request);
-    // A leaf sender should only ever return 'sent'/'failed' — coerced defensively
-    // in case a registered channel sender is itself a composed router.
+    const result = await notifier.notify(request);
+    // A channel notifier should only ever return 'sent'/'failed' — coerced
+    // defensively in case a registered channel is itself a composed router.
     return [channel, { status: result.status === 'sent' ? 'sent' : 'failed', reason: result.reason }];
   }
 }
