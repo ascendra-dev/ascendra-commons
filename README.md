@@ -13,18 +13,21 @@ second version of a pattern that a consumer actually needs to sync to, not befor
 
 ## Status
 
-Two patterns implemented so far: `domain-events/` (tested), `notification/`
-(structure-only pass — mid-rebuild around a `Notifier`/`notify` composition
-model; tests to follow once the shape is reviewed and confirmed). Everything
-else is deliberately not built yet — each pattern gets promoted from
-`ascendra-pay-002`'s own project-specific standards docs one at a time, only once
-a real story needs it, never speculatively.
+Two patterns implemented so far, both tested with real NestJS DI wiring:
+`domain-events/`, `notification/`. Everything else is deliberately not built yet
+— each pattern gets promoted from `ascendra-pay-002`'s own project-specific
+standards docs one at a time, only once a real story needs it, never
+speculatively.
 
 ## Layout
 
-Each pattern is a flat top-level folder (e.g. `domain-events/`) with an `index.ts`
-barrel export as its only public surface, plus its own `README.md` describing the
-pattern (Overview, the pattern itself, Model 1 / Model 2 split) and — normally —
-a `.spec.ts` test suite proving the Model 1 implementation actually behaves as
-documented. `notification/` is a temporary exception mid-rebuild; see its own
-README for what's deliberately not there yet.
+Each pattern is a folder of small, single-responsibility files (types, one
+interface + implementation(s) per file, a NestJS module wiring them together)
+with an `index.ts` barrel export as its only public surface, plus its own
+`README.md` (Overview, the pattern itself, Model 1 / Model 2 split, how to
+consume it) and a `.spec.ts` per file proving the Model 1 implementation
+actually behaves as documented — including at least one test that boots a real
+NestJS `Test.createTestingModule`, since wiring bugs (a missing binding, a
+`useFactory` inject list out of order, a `useExisting` mismatch) only surface
+when a real container resolves the dependency graph, not from typecheck or
+hand-constructed unit tests alone.
