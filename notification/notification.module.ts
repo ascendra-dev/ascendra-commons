@@ -7,6 +7,7 @@ import { EmailNotificationSender } from './email-notification-sender';
 import { WhatsappNotificationSender } from './whatsapp-notification-sender';
 import { SMSNotificationSender } from './sms-notification-sender';
 import { Notifier } from './notifier';
+import { NullUserContactResolver } from './user-contact-resolver';
 import {
   NOTIFICATION_CHANNEL_CONFIG,
   NOTIFICATION_CHANNEL_CONFIG_DATA,
@@ -15,6 +16,7 @@ import {
   SMS_TEMPLATE_DATA,
   SMS_TEMPLATE_REPOSITORY,
   NOTIFICATION_CHANNEL_SENDERS,
+  USER_CONTACT_RESOLVER,
   NOTIFIER,
 } from './tokens';
 
@@ -40,6 +42,8 @@ export class NotificationModule {
     return {
       module: NotificationModule,
       providers: [
+        { provide: USER_CONTACT_RESOLVER, useClass: NullUserContactResolver },
+
         { provide: NOTIFICATION_CHANNEL_CONFIG_DATA, useValue: config.channels },
         StaticNotificationChannelConfig,
         { provide: NOTIFICATION_CHANNEL_CONFIG, useExisting: StaticNotificationChannelConfig },

@@ -1,5 +1,5 @@
 {
-  "name": "ascendra-api-patterns",
+  "name": "ascendra-commons",
   "version": "0.1.0",
   "private": true,
   "description": "Reusable NestJS backend patterns for Ascendra-umbrella projects (Next.js/NestJS/Drizzle/Supabase stack). Copy-based distribution, not an npm package.",

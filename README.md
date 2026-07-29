@@ -1,4 +1,4 @@
-# Ascendra API Patterns
+# Ascendra Commons
 
 Reusable backend architecture patterns for Ascendra-umbrella projects sharing the
 same tech stack (NestJS + Drizzle + Supabase, consumed by Next.js frontends via
@@ -7,9 +7,12 @@ same tech stack (NestJS + Drizzle + Supabase, consumed by Next.js frontends via
 ## Distribution
 
 Copy-based, mirroring `ascendra-ui`'s model: a consumer project copies a pattern's
-folder into its own `src/`, verbatim, same folder name. No npm publish step, no
-package registry. There is no upgrade tooling yet — that gets built once there's a
-second version of a pattern that a consumer actually needs to sync to, not before.
+folder into its own `src/ascendra-commons/{pattern}/`, verbatim, same folder
+name, under one wrapper folder that distinguishes vendored code from the
+project's own (see `module-packaging-pattern.md` in the `ascendra-pay-002`
+project for the full reasoning). No npm publish step, no package registry.
+There is no upgrade tooling yet — that gets built once there's a second version
+of a pattern that a consumer actually needs to sync to, not before.
 
 ## Status
 

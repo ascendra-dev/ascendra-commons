@@ -8,6 +8,10 @@ function fakeConfig(channels: NotificationChannel[]): NotificationChannelConfig 
   return { channelsFor: vi.fn().mockResolvedValue(channels) };
 }
 
+function throwingConfig(err: unknown): NotificationChannelConfig {
+  return { channelsFor: vi.fn().mockRejectedValue(err) };
+}
+
 function fakeSender(result: NotificationChannelResult): NotificationSender {
   return { send: vi.fn().mockResolvedValue(result) };
 }
@@ -89,6 +93,16 @@ describe('Notifier.notify', () => {
 
     expect(sms.send).not.toHaveBeenCalled();
   });
+
+  it('never throws when the channel config itself throws — backstopped the same as a sender', async () => {
+    const notifier = new Notifier(throwingConfig(new Error('db connection lost')), new Map());
+
+    await expect(notifier.notify(REQUEST)).resolves.toEqual({
+      status: 'failed',
+      reason: 'db connection lost',
+      channels: {},
+    });
+  });
 });
 
 describe('Notifier.notifyCritical', () => {
@@ -134,6 +148,22 @@ describe('Notifier.notifyCritical', () => {
       expect((err as NotificationDeliveryError).result).toEqual({
         status: 'failed',
         channels: { email: { status: 'failed', reason: 'no_email' } },
+      });
+    }
+  });
+
+  it('a channel config failure surfaces as NotificationDeliveryError too, not a raw error', async () => {
+    const notifier = new Notifier(throwingConfig(new Error('db connection lost')), new Map());
+
+    try {
+      await notifier.notifyCritical(REQUEST);
+      expect.unreachable('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(NotificationDeliveryError);
+      expect((err as NotificationDeliveryError).result).toEqual({
+        status: 'failed',
+        reason: 'db connection lost',
+        channels: {},
       });
     }
   });

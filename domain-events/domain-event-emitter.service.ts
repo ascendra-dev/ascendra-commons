@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DomainEvent } from './domain-event.interface';
 
@@ -15,10 +15,24 @@ import { DomainEvent } from './domain-event.interface';
  *
  * Both go through emitAsync() internally so sync and async listeners are handled
  * uniformly; only whether the result is awaited/propagated differs.
+ *
+ * IMPORTANT for emitCritical(): a listener subscribed via the plain @OnEvent()
+ * decorator will NOT propagate its failure here, no matter which method raised
+ * the event — @OnEvent() defaults to { suppressErrors: true }, and NestJS's own
+ * EventSubscribersLoader catches, logs, and swallows the throw before it ever
+ * reaches this emitter. A listener that must actually fail emitCritical()'s
+ * caller (an audit listener, say) needs @OnCriticalEvent() instead of @OnEvent()
+ * — see on-critical-event.decorator.ts.
  */
 @Injectable()
 export class DomainEventEmitter {
-  constructor(private readonly emitter: EventEmitter2) {}
+  // Explicit @Inject(EventEmitter2), not bare type-based constructor injection —
+  // the latter depends on TypeScript's design:paramtypes reflection metadata
+  // actually being emitted and read at runtime, which esbuild-based
+  // transpilation (vitest, and any consumer building without tsc) does not
+  // reliably support. Every other injection in this whole library already uses
+  // an explicit token for this exact reason; this was the one exception.
+  constructor(@Inject(EventEmitter2) private readonly emitter: EventEmitter2) {}
 
   emit(eventName: string, event: DomainEvent): void {
     // Not awaited by design — but still routed through emitAsync and given a no-op

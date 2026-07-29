@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Test } from '@nestjs/testing';
 import { NotificationModule } from './notification.module';
 import { Notifier } from './notifier';
-import { NOTIFIER } from './tokens';
+import { UserContactResolver } from './user-contact-resolver';
+import { NOTIFIER, USER_CONTACT_RESOLVER } from './tokens';
 
 /**
  * Real NestJS DI, not manually constructed classes — this is the only place
@@ -97,5 +98,45 @@ describe('NotificationModule.forRoot — real DI wiring', () => {
     expect(result.status).toBe('partial');
     expect(result.channels?.email).toEqual({ status: 'failed', reason: 'template_not_found' });
     expect(result.channels?.sms).toEqual({ status: 'sent' });
+  });
+
+  it('the default NullUserContactResolver fails a user recipient closed, real DI included', async () => {
+    const moduleRef = await buildTestModule();
+    const notifier = moduleRef.get<Notifier>(NOTIFIER);
+
+    const result = await notifier.notify({
+      recipient: { type: 'user', id: 'issuer-1' },
+      notificationType: 'invoice.sent',
+      variables: { invoiceNumber: 'INV-001' },
+    });
+
+    expect(result).toEqual({ status: 'failed', channels: { email: { status: 'failed', reason: 'no_address_available' } } });
+  });
+
+  it('overriding USER_CONTACT_RESOLVER in a consumer-style module lets a user recipient resolve', async () => {
+    const users: UserContactResolver = { findById: vi.fn().mockResolvedValue({ email: 'issuer@example.com' }) };
+
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        NotificationModule.forRoot({
+          channels: { 'invoice.sent': ['email'] },
+          emailTemplates: { 'invoice.sent': { subject: 'Invoice {{invoiceNumber}}', body: 'Hi' } },
+          smsTemplates: {},
+        }),
+      ],
+    })
+      .overrideProvider(USER_CONTACT_RESOLVER)
+      .useValue(users)
+      .compile();
+
+    const notifier = moduleRef.get<Notifier>(NOTIFIER);
+    const result = await notifier.notify({
+      recipient: { type: 'user', id: 'issuer-1' },
+      notificationType: 'invoice.sent',
+      variables: { invoiceNumber: 'INV-001' },
+    });
+
+    expect(result).toEqual({ status: 'sent', channels: { email: { status: 'sent' } } });
+    expect(users.findById).toHaveBeenCalledWith('issuer-1');
   });
 });

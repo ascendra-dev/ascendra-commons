@@ -7,6 +7,9 @@
  * token) or a plain data value (not a class Nest can auto-construct).
  */
 
+/** Resolves a 'user' recipient's contact info. Defaults to NullUserContactResolver (always no match) in NotificationModule.forRoot(); a consumer overrides this binding in their own module once they have a real user table to resolve against. */
+export const USER_CONTACT_RESOLVER = Symbol('USER_CONTACT_RESOLVER');
+
 /** The raw event-type -> channel(s) mapping StaticNotificationChannelConfig reads. Consumer-supplied via NotificationModule.forRoot(). */
 export const NOTIFICATION_CHANNEL_CONFIG_DATA = Symbol('NOTIFICATION_CHANNEL_CONFIG_DATA');
 /** What Notifier actually depends on — bound to whichever NotificationChannelConfig implementation the app uses. */

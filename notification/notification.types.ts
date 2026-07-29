@@ -2,7 +2,11 @@
  * A 'user' recipient (issuer staff, platform admin) has a stored profile to resolve
  * contact info from. A 'raw' recipient (typically a payer/guest) has no account at
  * all — the caller supplies contact info directly, because it exists nowhere but
- * the entity that raised the event (e.g. the invoice).
+ * the entity that raised the event (e.g. the invoice). At least one of email/phone
+ * is required for 'raw' — nothing in this type enforces that; a 'raw' recipient
+ * with neither set simply resolves to a 'no_address_available' failure per
+ * channel rather than being caught earlier, so validate at your own DTO
+ * boundary if you want it rejected sooner.
  */
 export type NotificationRecipient =
   | { type: 'user'; id: string }

@@ -33,7 +33,19 @@ export class Notifier {
   ) {}
 
   async notify(request: NotificationRequest): Promise<NotificationResult> {
-    const channels = await this.channelConfig.channelsFor(request.notificationType);
+    let channels: NotificationChannel[];
+    try {
+      channels = await this.channelConfig.channelsFor(request.notificationType);
+    } catch (err) {
+      // Backstop for a NotificationChannelConfig implementation that can fail
+      // (e.g. a database-backed one) — notify()'s "never throws" contract has
+      // to hold here too, not just inside dispatch()'s per-channel calls.
+      return {
+        status: 'failed',
+        reason: err instanceof Error ? err.message : 'channel_config_unavailable',
+        channels: {},
+      };
+    }
 
     if (channels.length === 0) {
       return { status: 'failed', reason: 'no_channel_configured', channels: {} };

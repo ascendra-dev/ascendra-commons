@@ -26,11 +26,12 @@ A concrete class, not an interface — there is exactly one implementation, with
 real behavior worth having directly (unlike the pieces below, which have
 genuinely different implementations that share no behavior with each other).
 
-- **`notify(request)`** — never throws. Retrieves the configured channels for
-  `request.notificationType`, dispatches to each channel's own `NotificationSender`
-  in parallel, and aggregates: `'sent'` only if every channel sent, `'failed'`
-  only if every channel failed, `'partial'` otherwise — always with the full
-  per-channel breakdown in `channels`.
+- **`notify(request)`** — never throws, not even if `NotificationChannelConfig`
+  itself throws (a database-backed one, once one exists, genuinely can). Retrieves
+  the configured channels for `request.notificationType`, dispatches to each
+  channel's own `NotificationSender` in parallel, and aggregates: `'sent'` only
+  if every channel sent, `'failed'` only if every channel failed, `'partial'`
+  otherwise — always with the full per-channel breakdown in `channels`.
 - **`notifyCritical(request, strict = false)`** — the `emitCritical()` counterpart
   from `domain-events`, reusing `notify()` rather than duplicating dispatch logic.
   `strict = false`: throws only if *every* channel failed. `strict = true`: throws
@@ -76,15 +77,42 @@ gets noticed before it reaches a user.
 An interface — Email/WhatsApp/SMS share no behavior with each other, so there's
 no shared base worth having.
 
-- **`EmailNotificationSender`** / **`SMSNotificationSender`** — real: look up
-  their own template, render it, and (today) log the rendered result. Fail with
-  `'template_not_found'` if no template is registered for the notificationType.
+- **`EmailNotificationSender`** / **`SMSNotificationSender`** — real: resolve the
+  recipient's address (see `UserContactResolver` below), look up their own
+  template, render it, and (today) log the rendered result. Fail with
+  `'no_address_available'` if the recipient has no address for that channel, or
+  `'template_not_found'` if no template is registered for the notificationType —
+  address resolved first, since there's no point rendering a template for nobody.
 - **`WhatsappNotificationSender`** — still a stub, deliberately. WhatsApp's real
   templates are pre-approved and *named* on Meta's side, with **positional
   numbered parameters** (`{{1}}`, `{{2}}`, ...), not free-form `{{variable}}` text
   this library renders — a fundamentally different shape from
   `NotificationTemplate`. Building a real `WhatsappNotificationSender` means
   designing that shape first, not forcing WhatsApp into the email/SMS shape.
+
+### `UserContactResolver` — resolving a `'user'` recipient's address
+
+```typescript
+export interface UserContactResolver {
+  findById(id: string): Promise<{ email?: string; phone?: string } | null>;
+}
+```
+
+One resolver, shared by both `EmailNotificationSender` and `SMSNotificationSender`
+— each just reads the field it needs (email vs. phone) from the same lookup,
+since "resolve this user's contact info" is one concern, not two. A `'raw'`
+recipient never calls this at all — its email/phone is already on the request.
+
+`NotificationModule.forRoot()` binds this to `NullUserContactResolver` by
+default (every `'user'` recipient resolves to "no match," which each sender
+already turns into a clean `'no_address_available'` failure) — this keeps
+`forRoot()` usable out of the box for a project that only ever uses `'raw'`
+recipients. A consumer with a real user/issuer/staff table overrides the binding
+in their own module:
+
+```typescript
+{ provide: USER_CONTACT_RESOLVER, useClass: DrizzleUserContactResolver }
+```
 
 ## What "backstop" means here, and why it matters
 
@@ -95,7 +123,9 @@ than crashing the entire `notify()` call. Same lesson as `domain-events`' `emit(
 
 ## Consuming this module
 
-Copy `notification/` and `domain-events/` into the consumer's `src/`, then:
+Copy `notification/` and `domain-events/` into the consumer's
+`src/ascendra-commons/` (see `module-packaging-pattern.md` for why vendored
+patterns land under one wrapper folder), then:
 
 ```typescript
 @Module({
@@ -121,10 +151,20 @@ export class AppModule {}
 `NotificationModule.forRoot()` is a dynamic module (mirrors
 `EventEmitterModule.forRoot()` in `domain-events`) — it always requires config,
 unlike `domain-events`' emitter, which genuinely has nothing to configure. It
-wires: both static config/template implementations, all three channel senders,
-the `NOTIFICATION_CHANNEL_SENDERS` map (assembled via `useFactory`, since a `Map`
-isn't a class Nest can construct directly), and `Notifier` — exporting only
-`NOTIFIER`, the token any listener actually injects.
+wires: `NullUserContactResolver`, both static config/template implementations,
+all three channel senders, the `NOTIFICATION_CHANNEL_SENDERS` map (assembled via
+`useFactory`, since a `Map` isn't a class Nest can construct directly), and
+`Notifier` — exporting only `NOTIFIER`, the token any listener actually injects.
+
+**Known limitation:** `forRoot()` is all-or-nothing — there's no option to swap
+in just one custom piece (e.g. `DatabaseNotificationChannelConfig`) while keeping
+the rest of `forRoot()`'s wiring. A consumer wanting any customization beyond the
+plain data values (`channels`, `emailTemplates`, `smsTemplates`) has to write
+their own module from scratch, reusing the exported classes and tokens directly
+— see "Going to a database-backed channel config" below for exactly that shape.
+Adding partial-override support to `forRoot()` itself would be real
+infrastructure with no confirmed need driving its exact shape yet; the
+escape hatch below is deliberately the answer until one exists.
 
 ### Going to a database-backed channel config
 

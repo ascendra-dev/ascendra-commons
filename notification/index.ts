@@ -17,12 +17,16 @@ export { EmailNotificationSender } from './email-notification-sender';
 export { WhatsappNotificationSender } from './whatsapp-notification-sender';
 export { SMSNotificationSender } from './sms-notification-sender';
 
+export type { UserContactResolver } from './user-contact-resolver';
+export { NullUserContactResolver } from './user-contact-resolver';
+
 export { Notifier, NotificationDeliveryError } from './notifier';
 
 export { NotificationModule } from './notification.module';
 export type { NotificationModuleConfig } from './notification.module';
 
 export {
+  USER_CONTACT_RESOLVER,
   NOTIFICATION_CHANNEL_CONFIG_DATA,
   NOTIFICATION_CHANNEL_CONFIG,
   EMAIL_TEMPLATE_DATA,
