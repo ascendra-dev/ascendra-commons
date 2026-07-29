@@ -126,6 +126,44 @@ What's shipped in this folder: `ScheduledJob<TItem>`, `AdvisoryLock`,
 dead-letter path, no scheduling built in — each job supplies its own
 `@Cron`/`OnApplicationBootstrap` wiring around the shared runner.
 
+### Not built: job-run observability — a real Model 1 extension, not Model 2
+
+Recorded so it isn't lost, not built speculatively: today `IdempotentJobRunner.run()`
+has zero observability beyond a logged per-item failure — no record of a run
+happening, succeeding, or failing anywhere queryable, and no way for an admin
+screen to show "did this job run, and did it work." The design, when a real
+admin-ops screen story asks for it:
+
+```typescript
+export interface JobRunSummary {
+  jobName: string;
+  startedAt: Date;
+  finishedAt: Date;
+  outcome: 'completed' | 'job_failed'; // job_failed = findDueItems() itself threw
+  itemsProcessed: number;
+  itemsFailed: number;
+  error?: string;
+}
+
+export interface JobRunRecorder {
+  recordRun(summary: JobRunSummary): Promise<void>; // best-effort — must never propagate a failure itself
+}
+```
+
+`IdempotentJobRunner.run()` would track `startedAt` and running item counts,
+then call `recorder.recordRun(...)` once at the end, wrapped in its own
+try/catch so a failure to *record* the outcome can never mask or compound the
+real one. Deliberately not the `audit-logging` pattern's `AuditEventRepository`,
+even though both look like "something happened, record it" — the reliability
+postures are opposite. Audit writes are critical by design (a failed write
+should roll back the triggering operation); a job-run record must never
+itself fail loudly enough to compound a real job failure, and its query shape
+(`outcome`, `started_at`, `job_name` as real columns, not values buried in
+generic JSONB) is different too. A lock-not-acquired return shouldn't get a
+run record at all — a rolling deploy's overlap window makes that a normal,
+frequent, uninteresting event, not something worth cluttering the history
+with.
+
 ## Model 2 — Dedicated Job Queue (future target)
 
 A proper job queue (e.g. `pg-boss`, staying Postgres-backed rather than
