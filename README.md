@@ -16,11 +16,11 @@ of a pattern that a consumer actually needs to sync to, not before.
 
 ## Status
 
-Three patterns implemented so far, all tested with real NestJS DI wiring:
-`domain-events/`, `notification/`, `authorization/`. Everything else is
-deliberately not built yet — each pattern gets promoted from
-`ascendra-pay-002`'s own project-specific standards docs one at a time, only
-once a real story needs it, never speculatively.
+Four patterns implemented so far, all tested with real NestJS DI wiring:
+`domain-events/`, `notification/`, `authorization/`, `background-jobs/`.
+Everything else is deliberately not built yet — each pattern gets promoted
+from `ascendra-pay-002`'s own project-specific standards docs one at a time,
+only once a real story needs it, never speculatively.
 
 ## Layout
 
