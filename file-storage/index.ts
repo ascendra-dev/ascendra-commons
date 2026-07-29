@@ -1,0 +1,12 @@
+export type { FileStore } from './file-store.interface';
+export type { FileRecord } from './file-record.interface';
+export type { Attachment } from './attachment.interface';
+export type { AttachmentStore } from './attachment-store';
+export type { FileStoreConfig } from './file-store-config';
+export type { EntityAccessChecker } from './entity-access-checker.interface';
+export { FileStoreError } from './file-store.error';
+export { SupabaseFileStore } from './supabase-file-store';
+export { RegistryAttachmentAuthorizer } from './attachment-authorizer';
+export { FileStorageModule } from './file-storage.module';
+export type { FileStorageModuleConfig } from './file-storage.module';
+export { SUPABASE_CLIENT, FILE_STORE_CONFIG, ENTITY_ACCESS_CHECKERS, FILE_STORE, ATTACHMENT_STORE } from './tokens';

@@ -16,12 +16,14 @@ of a pattern that a consumer actually needs to sync to, not before.
 
 ## Status
 
-Five patterns implemented so far, all tested with real NestJS DI wiring:
+Six patterns implemented so far, all tested with real NestJS DI wiring:
 `domain-events/`, `notification/`, `authorization/`, `background-jobs/`,
-`audit-logging/` (depends on `domain-events/` also being vendored — see its
-README). Everything else is deliberately not built yet — each pattern gets
-promoted from `ascendra-pay-002`'s own project-specific standards docs one at
-a time, only once a real story needs it, never speculatively.
+`audit-logging/` (depends on `domain-events/` also being vendored),
+`file-storage/` (depends on `authorization/` also being vendored) — see each
+pattern's own README for why. Everything else is deliberately not built yet
+— each pattern gets promoted from `ascendra-pay-002`'s own project-specific
+standards docs one at a time, only once a real story needs it, never
+speculatively.
 
 ## Layout
 
