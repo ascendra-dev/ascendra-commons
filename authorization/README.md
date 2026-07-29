@@ -193,6 +193,64 @@ substantial effort in their own right, scoped as real stories when the time
 comes, not assumed as "basic infrastructure" that ships for free with the
 authorizer swap.
 
+**Data model: RBAC, not ReBAC.** Role→permission and user→role is role-based
+(a role holds a fixed action set, a user holds one or more roles) — not
+relationship-based access control (ReBAC: access derived by graph traversal
+over subject/object relationship tuples, the model behind Google's Zanzibar
+and productized by OpenFGA/SpiceDB). ReBAC earns its cost for domains with ad
+hoc, per-resource sharing (a document shared with individuals, teams, nested
+folders) — resource-instance access in this stack is already fully solved by
+tenant-scoped RLS, so that problem doesn't exist here, and both real ReBAC
+implementations require standing up a separate service with its own store. If
+a genuine ad hoc sharing need ever appears (e.g. "grant one external user view
+access to a single resource, without a full account"), extend via the
+`resource` parameter `can()` already anticipates — a narrow `resource_grant`
+table checked in addition to the role lookup — rather than adopting a
+dedicated ReBAC engine for what would likely be one narrow case.
+
+**Role hierarchy (RBAC1) is a legitimate later refinement, not a default.** A
+flat role list duplicates entries across roles that overlap (e.g. `owner`
+re-listing every `staff` action plus its own). Role hierarchy — a role
+inheriting another's permissions and adding its own — is the standard fix, but
+it's real added complexity (a hierarchy table, cycle detection, a UI that must
+distinguish inherited-vs-directly-granted permissions per cell). Adopt it only
+once several roles show real, observed overlap large enough to be a
+maintenance risk. A single-parent chain (`viewer → editor → admin`) covers
+nearly every real case — general multi-parent inheritance is rarely needed and
+meaningfully harder to build a UI for.
+
+**CASL is a legitimate but narrow option for conditional rules within an
+action**, not a replacement for the role→action mapping itself. Some Model 2
+rules aren't "can this role do X at all" but "can this role do X under a
+specific condition" (e.g. "owner can void invoices under $500") — that's the
+same seam `computeActionAvailability`'s `stateCheck` already exists for; a
+plain function is sufficient by default. Reach for `@casl/ability` only when
+the condition needs to be genuinely *data*: configurable without a deploy
+(tenant-specific, admin-editable, stored in a DB row — a raw JS comparison
+can't be safely persisted and re-evaluated without `eval()`), shared verbatim
+with the frontend (CASL is isomorphic), or one of many such conditions where a
+uniform engine beats N bespoke comparisons. A single fixed threshold changed
+only via a code deploy doesn't clear that bar.
+
+**Administration: role definition and role assignment are different access
+levels**, and conflating them risks a tenant user editing their own role's
+permissions — a straightforward privilege-escalation path:
+
+- **Role definition** (creating a role, deciding which actions it grants) is
+  restricted to a platform-admin persona only. The role catalog is a small,
+  platform-owned set — not something any tenant can extend or redefine.
+- **Role assignment** (picking which *existing* role a user within a tenant
+  holds) is ordinary tenant-scoped self-service — it creates no new
+  permissions, only maps a user onto a role that already exists, and is
+  naturally scoped by the same tenancy boundary as everything else that actor
+  touches.
+
+The role-definition admin UI is a permission matrix — roles as columns,
+actions as rows, grouped by the resource prefix already present in every
+action name (`invoice.*`, `payment.*`) at no extra modeling cost, since that
+grouping is derived by splitting the action string, not separately
+maintained.
+
 ## Consuming this module
 
 Copy `authorization/` into the consumer's `src/ascendra-commons/authorization/`
