@@ -1,0 +1,24 @@
+{
+  "name": "ascendra-commons",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reusable NestJS backend patterns for Ascendra-umbrella projects (Next.js/NestJS/Drizzle/Supabase stack). Copy-based distribution, not an npm package.",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/event-emitter": "^2.0.0",
+    "@supabase/supabase-js": "^2.110.7",
+    "drizzle-orm": "^0.44.0",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.0"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "^10.0.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.4.0"
+  }
+}

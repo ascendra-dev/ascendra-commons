@@ -1,0 +1,157 @@
+# Domain Events Pattern
+
+## Overview
+
+Business logic (Invoice, Payment, Workflow services, or any equivalent in a
+different project) must never call a notification sender or an audit writer
+directly — it publishes an event, and each concern subscribes independently. This
+is what lets notifications, audit logging, and any future subscriber be added or
+changed without ever touching the code that raises the event.
+
+## The pattern
+
+### Domain event classes — one per fact, defined by the consuming project
+
+```typescript
+import { DomainEvent } from './domain-event.interface';
+
+export class InvoiceStatusChanged implements DomainEvent {
+  readonly occurredAt = new Date();
+  constructor(
+    public readonly invoiceId: string,
+    public readonly tenantId: string,
+    public readonly previousStatus: string,
+    public readonly newStatus: string,
+    public readonly changedBy: string,
+  ) {}
+}
+```
+
+This class is illustrative, not shipped — each consuming project defines its own
+event classes for its own facts. The only thing this library fixes is the
+`DomainEvent` marker interface (`occurredAt: Date`), so every event is uniformly
+shaped for consumers like an audit listener that need a timestamp regardless of
+which specific event they're handling.
+
+Events are named for what already happened (`InvoiceSent`, `PaymentConfirmed`),
+never as a command or intent. The payload is scoped to the facts of the action —
+not just an id (a subscriber re-querying current state may read a value that has
+already changed again by the time it runs, which is specifically wrong for an
+audit trail's before/after requirement), and not the entire serialized entity.
+Subscribers that need more context than the event carries fetch it themselves.
+
+**Recommended, not enforced by this library:** give each domain module its own
+catalog of event-name constants, the same reasoning `authorization-model-pattern.md`
+already applies to its `Actions` catalog — a bare string like `'invoice.status_changed'`
+typed out at both the raise site and every listener means a typo silently breaks
+the connection, with no compile error. A small `InvoiceEvents = { STATUS_CHANGED:
+'invoice.status_changed' } as const` per module, imported by both the raiser and
+its listeners, turns that typo into a wrong identifier instead.
+
+### `DomainEventEmitter` — the entire coupling surface for business logic
+
+```typescript
+// The entire coupling surface in, e.g., an invoice service:
+this.domainEvents.emit(
+  'invoice.status_changed',
+  new InvoiceStatusChanged(invoiceId, tenantId, previousStatus, newStatus, actorId),
+);
+```
+
+Business logic only ever calls `emit()` or `emitCritical()` — it never knows or
+cares who is listening. Adding a new subscriber never requires a change to the
+code that raises the event.
+
+### Reliability is tiered by method, not by listener-author discipline
+
+- **`emit(eventName, event): void`** — best-effort. Never awaited by the caller,
+  never lets a listener's failure surface back to it — even a listener that forgot
+  to catch its own error is backstopped internally. For subscribers like
+  notifications, where a dropped delivery is a minor, recoverable inconvenience.
+- **`emitCritical(eventName, event): Promise<void>`** — must-not-fail. Awaited by
+  the caller; any listener's synchronous throw or async rejection propagates back.
+  For subscribers like audit logging, where a silently dropped record is
+  unacceptable and should fail the triggering operation's own transaction.
+
+Both route through the underlying emitter's async dispatch uniformly, so a
+listener can be sync or async without the caller needing to know which — only
+whether the result is awaited/propagated differs between the two methods.
+
+**Critical: a listener must use `@OnCriticalEvent()`, not the plain `@OnEvent()`,
+for `emitCritical()`'s propagation to actually happen.** `@OnEvent()` defaults to
+`{ suppressErrors: true }` — NestJS's own `EventSubscribersLoader` catches
+whatever the listener throws, logs it, and does not re-throw, regardless of
+which method raised the event. Left as the default, this silently defeats
+`emitCritical()`'s entire contract: the caller's `await` resolves normally while
+the listener's failure gets logged and dropped, with nothing signaling the
+mismatch. Use the decorator this library ships specifically to make the correct
+choice the default instead of something every critical listener's author has to
+remember:
+
+```typescript
+import { OnCriticalEvent } from './domain-events';
+
+@Injectable()
+export class AuditListener {
+  @OnCriticalEvent('invoice.status_changed')
+  async onInvoiceStatusChanged(event: InvoiceStatusChanged) {
+    await this.auditRepo.insert(/* ... */); // a throw here now genuinely propagates
+  }
+}
+```
+
+A plain `@OnEvent()` is still correct for a listener meant to be reached only via
+`emit()` (best-effort) — the distinction only matters for listeners subscribed to
+an event that's also raised via `emitCritical()`.
+
+## Implementations
+
+- `EventEmitter2` (via `@nestjs/event-emitter`) — an in-process emitter, not a
+  message broker (Kafka, RabbitMQ, SQS, or any externally-run system). A broker is
+  infrastructure to operate and monitor, unwarranted for a single deployed
+  application with no dedicated ops team.
+- A message broker is a future target only if a genuine need to share events
+  across independently deployed services appears — not a default, and not
+  something to anticipate before that need is concrete.
+
+## Model 1 — In-Process Event Emitter, Tiered Reliability (current)
+
+What's shipped in this folder: `DomainEventsModule` (wraps
+`EventEmitterModule.forRoot({ global: false })` — see below), `DomainEventEmitter`
+(the `emit`/`emitCritical` service above), `OnCriticalEvent` (the decorator
+`emitCritical()` actually depends on to keep its contract), and the `DomainEvent`
+marker interface. No delivery persistence across a process crash — acceptable
+for best-effort subscribers at this stage; must-not-fail reliability instead
+comes from `emitCritical` running inside the same request/transaction as the
+triggering operation, not from the event mechanism itself.
+
+**Why `{ global: false }`:** `EventEmitterModule.forRoot()` defaults to
+`global: true`, which would make the raw `EventEmitter2` injectable from any
+module anywhere in the app, without importing `DomainEventsModule` at all —
+letting a developer bypass `emit()`/`emitCritical()`'s reliability-tiering
+entirely (`constructor(private emitter: EventEmitter2)`), with nothing to
+signal the bypass happened. `{ global: false }` closes that: `EventEmitter2`
+(and `DomainEventEmitter`) are only injectable by modules that actually import
+`DomainEventsModule`. This does not affect `@OnEvent()`/`@OnCriticalEvent()`
+listener discovery — `@nestjs/event-emitter`'s `EventSubscribersLoader` scans
+every provider in the app via NestJS's `DiscoveryService` regardless of any
+module's `global` setting.
+
+## Model 2 — Message Broker (future target)
+
+A real message broker, adopted only once a concrete signal (a second deployed
+service, a real cross-service integration) makes it necessary. Same event-class
+convention; only the transport changes, and only for subscribers that genuinely
+live in a separate deployment.
+
+## Consuming this module
+
+Copy the `domain-events/` folder verbatim into the consumer project's
+`src/ascendra-commons/domain-events/` — see `module-packaging-pattern.md` for why
+vendored patterns land under one wrapper folder rather than as flat top-level
+siblings. Import only from that folder's `index.ts` barrel — never a file inside
+it directly:
+
+```typescript
+import { DomainEventsModule, DomainEventEmitter, DomainEvent, OnCriticalEvent } from '@/ascendra-commons/domain-events';
+```
