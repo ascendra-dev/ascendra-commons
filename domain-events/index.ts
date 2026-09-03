@@ -8,4 +8,9 @@ export {
   BrokerTransportNotImplementedError,
 } from './broker-domain-event-emitter.service';
 export type { DomainEvent } from './domain-event.interface';
+export {
+  assertDomainEventSerializable,
+  DomainEventNotSerializableError,
+} from './assert-domain-event-serializable';
+export type { JsonPrimitive, JsonValue } from './assert-domain-event-serializable';
 export { OnCriticalEvent } from './on-critical-event.decorator';

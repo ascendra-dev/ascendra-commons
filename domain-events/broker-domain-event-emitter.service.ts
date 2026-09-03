@@ -36,11 +36,12 @@ export class BrokerTransportNotImplementedError extends Error {
  *   standard shape is a transactional outbox written in the producer's own
  *   transaction plus a separate relay. The interface doc must be updated to
  *   spell this out.
- * - Payload serialization. Domain event classes are plain instances carrying
- *   `new Date()` and (potentially) methods. Over a broker they become JSON:
- *   `occurredAt` comes back a string, methods are gone. Either the DomainEvent
- *   contract constrains payloads to JSON-safe primitives, or an explicit
- *   serialize/deserialize step is defined here.
+ * - Payload deserialization. The DomainEvent contract already requires
+ *   JSON-safe payloads (assert-domain-event-serializable.ts enforces it in
+ *   every event's spec), so the publish side is a plain JSON.stringify. The
+ *   consume side still needs a reviver — `occurredAt` comes back a string — and,
+ *   if handlers depend on the event being a real class instance, an event-name
+ *   -> class registry to rehydrate it.
  * - Subscription model. @OnEvent()/@OnCriticalEvent() + DiscoveryService is an
  *   in-process mechanism. Broker consumers need consumer groups, offsets,
  *   dead-letter queues and redelivery — a different registration path that

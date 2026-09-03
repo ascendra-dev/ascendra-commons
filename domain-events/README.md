@@ -40,6 +40,33 @@ already changed again by the time it runs, which is specifically wrong for an
 audit trail's before/after requirement), and not the entire serialized entity.
 Subscribers that need more context than the event carries fetch it themselves.
 
+**Every event must be JSON-serializable**, so the broker transport (Model 2) can
+put it on a queue unchanged: fields are primitives, plain objects/arrays, or
+`Date` — no methods (events carry data, not behaviour), no `Map`/`Set`/`BigInt`/
+`undefined`/other class instances. Model 1 passes the live instance in-process
+and doesn't need this, but adopting the constraint now is the cheap hedge that
+makes Model 2 a non-event. Enforce it from each event class's own `.spec.ts`:
+
+```typescript
+import { assertDomainEventSerializable, JsonValue } from '@/ascendra-commons/domain-events';
+
+it('is serializable', () => {
+  assertDomainEventSerializable(
+    new InvoiceStatusChanged('inv_1', 'ten_1', 'draft', 'sent', 'usr_1'),
+  );
+});
+```
+
+`assertDomainEventSerializable()` walks the event recursively and throws
+`DomainEventNotSerializableError` listing anything `JSON.stringify` would drop,
+corrupt, or throw on (functions, `undefined`, `NaN`/`Infinity`, `Map`/`Set`,
+non-`Date` class instances, circular refs). An optional compile-time companion
+catches wrong field *types* before the test runs:
+
+```typescript
+({ ...event }) satisfies Record<string, JsonValue | Date>;
+```
+
 **Recommended, not enforced by this library:** give each domain module its own
 catalog of event-name constants, the same reasoning `authorization-model-pattern.md`
 already applies to its `Actions` catalog — a bare string like `'invoice.status_changed'`
@@ -251,10 +278,12 @@ design work to resolve first, not just "swap the transport":
   guarantee is physically impossible. Model 2 has to offer a weaker, explicit
   substitute (transactional outbox, at-least-once delivery, idempotent
   consumers), and this interface's doc must be updated to say so.
-- **Payload serialization.** Event classes carry `new Date()` and possibly
-  methods; over a broker they become JSON. Either `DomainEvent` constrains
-  payloads to JSON-safe primitives, or an explicit serialize/deserialize step is
-  defined.
+- **Payload deserialization.** The publish side is already handled — the
+  `DomainEvent` contract requires JSON-safe payloads and
+  `assertDomainEventSerializable()` enforces it in every event's spec. The
+  consume side still needs a reviver (`occurredAt` returns as a string) and, if
+  handlers rely on the event being a real class instance, an event-name -> class
+  registry.
 - **Subscription model.** `@OnEvent()` / `@OnCriticalEvent()` + `DiscoveryService`
   is in-process. Broker consumers need consumer groups, offsets, dead-letter
   queues, redelivery.
