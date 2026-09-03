@@ -6,12 +6,17 @@ import { DomainEventEmitter } from './domain-event-emitter';
 /**
  * Model 1 transport: an in-process emitter (EventEmitter2 via
  * @nestjs/event-emitter), not a message broker. Listeners run in the same
- * process — and, for emitCritical(), inside the caller's own
- * request/transaction, which is what lets a listener throw genuinely roll the
- * triggering operation back.
+ * process — and, for emitCritical(), synchronously within the producer's own
+ * call stack, so if the producer opened a transaction around the emit and
+ * rethrows what emitCritical() propagates, that transaction rolls back. This
+ * emitter itself never touches a transaction — the rollback decision is the
+ * producer's (see domain-event-emitter.ts).
  *
  * Both methods go through emitAsync() internally so sync and async listeners
  * are handled uniformly; only whether the result is awaited/propagated differs.
+ * emitCritical() rejects with whichever @OnCriticalEvent() listener fails first;
+ * it does not identify or aggregate failures, and every @OnCriticalEvent()
+ * listener still runs.
  *
  * IMPORTANT for emitCritical(): a listener subscribed via the plain @OnEvent()
  * decorator will NOT propagate its failure here, no matter which method raised
@@ -49,6 +54,10 @@ export class InProcessDomainEventEmitter implements DomainEventEmitter {
   }
 
   async emitCritical(eventName: string, event: DomainEvent): Promise<void> {
+    // emitAsync runs every listener and Promise.all's them, so a synchronous
+    // throw or an async rejection from any @OnCriticalEvent() listener surfaces
+    // here and, unhandled by this method, propagates to the producer. Nothing
+    // is caught: "a listener failed" is the entire signal the producer needs.
     await this.emitter.emitAsync(eventName, event);
   }
 }

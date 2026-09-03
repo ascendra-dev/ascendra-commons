@@ -25,13 +25,17 @@ export class BrokerTransportNotImplementedError extends Error {
  *
  * A real implementation has to resolve, at minimum:
  *
- * - emitCritical()'s contract. In-process, the listener runs inside the
- *   caller's transaction and a throw rolls the operation back. Across a broker
- *   the subscriber is in another process — that guarantee is physically
- *   impossible. Model 2 has to offer a weaker, explicit substitute (a
- *   transactional outbox written in the same transaction, at-least-once
- *   delivery, idempotent consumers) and the interface doc must be updated to
- *   say so.
+ * - emitCritical()'s contract changes meaning. In-process, it rejects when an
+ *   @OnCriticalEvent() listener fails, and the producer (running the listener
+ *   in its own call stack) can roll back on that. Across a broker the handler
+ *   is in another process — its failure cannot reach the producer at all. The
+ *   most emitCritical() can mean here is "the event was durably enqueued": it
+ *   rejects only if that enqueue fails (so the producer rolls back a
+ *   never-published event), while handler failures become the broker's problem
+ *   — at-least-once delivery, idempotent consumers, dead-letter queues. The
+ *   standard shape is a transactional outbox written in the producer's own
+ *   transaction plus a separate relay. The interface doc must be updated to
+ *   spell this out.
  * - Payload serialization. Domain event classes are plain instances carrying
  *   `new Date()` and (potentially) methods. Over a broker they become JSON:
  *   `occurredAt` comes back a string, methods are gone. Either the DomainEvent

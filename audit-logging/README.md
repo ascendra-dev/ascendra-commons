@@ -178,11 +178,14 @@ export class InvoiceStatusChanged implements AuditableDomainEvent {
 // Publisher side — inside the same db.transaction() as the state change:
 await this.events.emitCritical('invoice.status_changed',
   new InvoiceStatusChanged(invoiceId, tenantId, previousStatus, 'paid', actorId, new Date()));
+// Not caught here: letting emitCritical()'s rejection propagate out of the
+// transaction callback is what rolls the state change back. To commit anyway
+// on an audit failure, the publisher would catch it deliberately — its call.
 ```
 
 `emitCritical()`, not `emit()` — genuinely awaited, so a thrown audit failure
-propagates out of the transaction callback before it commits, rolling back
-the state change too. The audit `INSERT` itself still runs on
+propagates back to the publisher, which by not catching it lets the transaction
+callback roll the state change back too. The audit `INSERT` itself still runs on
 `AuditEventRepository`'s own connection, not the caller's transaction handle
 — `EventEmitter2` has no way to carry one through without leaking a
 Drizzle-specific handle into every other subscriber of the same event

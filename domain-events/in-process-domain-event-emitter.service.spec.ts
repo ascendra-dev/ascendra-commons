@@ -54,7 +54,7 @@ describe('InProcessDomainEventEmitter', () => {
     });
   });
 
-  describe('emitCritical — must-not-fail', () => {
+  describe('emitCritical — awaited, failures reach the producer', () => {
     it('resolves normally when every listener succeeds', async () => {
       const raw = new EventEmitter2();
       const emitter = new InProcessDomainEventEmitter(raw);
@@ -87,6 +87,22 @@ describe('InProcessDomainEventEmitter', () => {
       await expect(emitter.emitCritical('test.sync_throw', new TestEvent())).rejects.toThrow(
         'synchronous critical failure',
       );
+    });
+
+    it('rejects when any listener fails, and the other listeners still ran', async () => {
+      const raw = new EventEmitter2();
+      const emitter = new InProcessDomainEventEmitter(raw);
+      const otherRan = vi.fn();
+      raw.on('test.multi', async () => {
+        throw new Error('one listener failed');
+      });
+      raw.on('test.multi', async () => {
+        otherRan();
+      });
+
+      // "a listener failed" is the whole signal — no aggregation, no attribution.
+      await expect(emitter.emitCritical('test.multi', new TestEvent())).rejects.toThrow();
+      expect(otherRan).toHaveBeenCalledTimes(1);
     });
   });
 });

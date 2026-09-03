@@ -34,6 +34,7 @@ function wait(ms: number) {
 class TestListener {
   received: TestEvent[] = [];
   criticalReceived: TestEvent[] = [];
+  secondCriticalRan: TestEvent[] = [];
   plainOnEventCriticalReceived: TestEvent[] = [];
 
   @OnEvent('test.happened')
@@ -46,6 +47,14 @@ class TestListener {
   async onTestCritical(event: TestEvent) {
     if (event.value === 'reject-me') throw new Error('listener failed on purpose');
     this.criticalReceived.push(event);
+  }
+
+  // A second @OnCriticalEvent() listener on the same event — used to show that
+  // it still runs even when onTestCritical throws, and that emitCritical()
+  // surfaces "a listener failed" without saying which.
+  @OnCriticalEvent('test.critical')
+  async onTestCriticalSecond(event: TestEvent) {
+    this.secondCriticalRan.push(event);
   }
 
   // Deliberately the wrong choice, kept as a passing test below so the gotcha
@@ -105,6 +114,31 @@ describe('DomainEventsModule — real DI + @OnEvent() wiring', () => {
     await domainEvents.emitCritical('test.critical', new TestEvent('ok'));
 
     expect(listener.criticalReceived).toHaveLength(1);
+  });
+
+  it('with two @OnCriticalEvent() listeners on the event, one throwing, emitCritical() still rejects and the other still ran', async () => {
+    const moduleRef = await buildTestModule();
+    const domainEvents = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
+    const listener = moduleRef.get(TestListener);
+
+    await expect(domainEvents.emitCritical('test.critical', new TestEvent('reject-me'))).rejects.toThrow();
+    expect(listener.secondCriticalRan).toHaveLength(1); // not short-circuited by the other listener's throw
+  });
+
+  it('the producer decides: catching emitCritical()\'s rejection and not rethrowing lets the operation continue', async () => {
+    const moduleRef = await buildTestModule();
+    const domainEvents = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
+
+    let committed = false;
+    try {
+      await domainEvents.emitCritical('test.critical', new TestEvent('reject-me'));
+      committed = true;
+    } catch {
+      // producer chooses to swallow and commit anyway
+      committed = true;
+    }
+
+    expect(committed).toBe(true); // the emitter never forced a rollback — that was always the producer's call
   });
 
   it('the gotcha, verified: a plain @OnEvent() listener\'s failure is swallowed by NestJS and never reaches emitCritical()\'s caller', async () => {

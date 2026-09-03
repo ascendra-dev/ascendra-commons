@@ -1,34 +1,58 @@
 import { DomainEvent } from './domain-event.interface';
 
 /**
- * The single emission surface business logic depends on — and now an interface,
- * not a class, so the transport underneath can be chosen at module-import time
+ * The single emission surface business logic depends on — an interface, not a
+ * class, so the transport underneath can be chosen at module-import time
  * (DomainEventsModule.forRoot({ transport })) rather than being baked in.
  *
- * Reliability is tiered by method, not by convention a listener author has to
- * remember:
+ * Two methods, differing only in whether the producer hears about a failure:
  *
- * - emit(): best-effort. The caller never awaits it and never sees a listener's
- *   failure — for subscribers like notifications, where a dropped delivery is a
- *   minor, recoverable inconvenience, not a reason to fail the triggering
- *   operation.
- * - emitCritical(): must-not-fail. The caller awaits it, and any listener's
- *   rejection propagates back — for subscribers like audit logging, where a
+ * - emit(): fire-and-forget. Never awaited, never surfaces anything to the
+ *   caller — a listener that throws (even one that forgot to catch its own
+ *   error) is backstopped internally. For subscribers like notifications, where
+ *   a dropped delivery is a minor, recoverable inconvenience.
+ * - emitCritical(): awaited. If the receiver fails, or ANY listener subscribed
+ *   via @OnCriticalEvent() throws or rejects, emitCritical() rejects and that
+ *   error reaches the producer. For subscribers like audit logging, where a
  *   silently dropped record is unacceptable.
  *
- * Both are async-shaped from the start (emitCritical returns Promise<void>, emit
- * returns void but is understood to dispatch asynchronously), the same reasoning
- * `authorization/authorizer.ts` gives for its can() being Promise<boolean>
- * before any async implementation exists: keeping the interface async-shaped now
- * means a later transport is a true drop-in, not a breaking change to every
- * call site.
+ * WHO DECIDES ROLLBACK: the producer, always. This emitter never touches a
+ * transaction and never rolls anything back. emitCritical() only propagates the
+ * failure; the producer catches it and decides — rethrow (letting its own
+ * transaction boundary roll back) or swallow (commit anyway). "emitCritical"
+ * names the producer's intent to *be told*, not an automatic rollback.
  *
- * IMPORTANT — emitCritical()'s contract is transport-dependent. The in-process
- * transport runs the listener inside the caller's own request/transaction, so a
- * listener throw genuinely rolls the triggering operation back. A broker
- * transport cannot honour that (the subscriber is in another process); see
- * broker-domain-event-emitter.service.ts for what a real Model 2 has to resolve
- * before it can claim this method's guarantee.
+ *   try {
+ *     await this.domainEvents.emitCritical(InvoiceEvents.STATUS_CHANGED, event);
+ *   } catch (err) {
+ *     // a listener failed. rethrow to roll back, or log + continue to commit.
+ *     throw err;
+ *   }
+ *
+ * The producer does not know, and should not need to know, which listeners
+ * exist. "A listener failed" is the whole signal — emitCritical() does not
+ * distinguish which one or aggregate multiple failures; it rejects with one of
+ * them. All @OnCriticalEvent() listeners still run regardless. A listener that
+ * wants the producer to branch on *why* it failed should throw a distinguishable
+ * error type of its own.
+ *
+ * A plain @OnEvent() listener's failure never reaches the producer, even under
+ * emitCritical() — NestJS's EventSubscribersLoader catches and logs it
+ * (suppressErrors defaults to true). Only @OnCriticalEvent() opts a listener
+ * into failing emitCritical(). See on-critical-event.decorator.ts.
+ *
+ * TRANSPORT NOTE: under the in-process transport, an @OnCriticalEvent() listener
+ * runs synchronously within the producer's call stack, so rethrowing the caught
+ * error rolls back a transaction the producer opened around the emit. A broker
+ * transport cannot offer that (the subscriber is in another process) — there, an
+ * emitCritical() rejection would mean the event could not be durably enqueued,
+ * not that a handler failed. See broker-domain-event-emitter.service.ts.
+ *
+ * Both methods are async-shaped from the start (emitCritical returns
+ * Promise<void>; emit returns void but dispatches asynchronously) — the same
+ * reasoning `authorization/authorizer.ts` gives for its can() being
+ * Promise<boolean> before any async implementation exists: a later transport is
+ * then a true drop-in, not a breaking change to every call site.
  *
  * Call sites inject this via the DOMAIN_EVENT_EMITTER token, never a concrete
  * class:
@@ -38,9 +62,13 @@ import { DomainEvent } from './domain-event.interface';
  *   ) {}
  */
 export interface DomainEventEmitter {
-  /** Best-effort. Never awaited, never surfaces a listener failure to the caller. */
+  /** Fire-and-forget. Never awaited, never surfaces a listener failure to the caller. */
   emit(eventName: string, event: DomainEvent): void;
 
-  /** Must-not-fail. Awaited by the caller; a listener's rejection propagates back. */
+  /**
+   * Awaited. Rejects if the receiver fails or any @OnCriticalEvent() listener
+   * throws/rejects — the producer catches it and decides whether to roll back.
+   * Does not identify or aggregate failures.
+   */
   emitCritical(eventName: string, event: DomainEvent): Promise<void>;
 }

@@ -81,18 +81,47 @@ switching transports, never requires a change to the code that raises the event.
 
 ### Reliability is tiered by method, not by listener-author discipline
 
-- **`emit(eventName, event): void`** — best-effort. Never awaited by the caller,
-  never lets a listener's failure surface back to it — even a listener that forgot
-  to catch its own error is backstopped internally. For subscribers like
-  notifications, where a dropped delivery is a minor, recoverable inconvenience.
-- **`emitCritical(eventName, event): Promise<void>`** — must-not-fail. Awaited by
-  the caller; any listener's synchronous throw or async rejection propagates back.
-  For subscribers like audit logging, where a silently dropped record is
-  unacceptable and should fail the triggering operation's own transaction.
+- **`emit(eventName, event): void`** — fire-and-forget. Never awaited by the
+  caller, never lets a listener's failure surface back to it — even a listener
+  that forgot to catch its own error is backstopped internally. For subscribers
+  like notifications, where a dropped delivery is a minor, recoverable
+  inconvenience.
+- **`emitCritical(eventName, event): Promise<void>`** — awaited. If the receiver
+  fails, or any `@OnCriticalEvent()` listener throws or rejects, `emitCritical()`
+  rejects and the error reaches the producer. For subscribers like audit
+  logging, where a silently dropped record is unacceptable.
 
 Both route through the underlying emitter's async dispatch uniformly, so a
 listener can be sync or async without the caller needing to know which — only
 whether the result is awaited/propagated differs between the two methods.
+
+### Deciding whether to roll back is the producer's job
+
+`emitCritical()` never touches a transaction and never rolls anything back — it
+only propagates the failure. The producer catches it and decides:
+
+```typescript
+try {
+  await this.domainEvents.emitCritical(InvoiceEvents.STATUS_CHANGED, event);
+} catch (err) {
+  // a listener failed. rethrow to let this operation's transaction roll back,
+  // or log it and carry on to commit anyway — the producer's call, per case.
+  throw err;
+}
+```
+
+"emitCritical" names the producer's intent to *be told about* a failure, not an
+automatic rollback. The producer neither knows nor names the listeners: **"a
+listener failed" is the entire signal.** `emitCritical()` does not say which one
+and does not aggregate — it rejects with one of the failures, and every
+`@OnCriticalEvent()` listener still runs. A listener that wants the producer to
+branch on *why* it failed should throw a distinguishable error type of its own.
+
+Under the in-process transport an `@OnCriticalEvent()` listener runs
+synchronously inside the producer's call stack, so rethrowing rolls back a
+transaction opened around the emit. Under a broker (Model 2) an `emitCritical()`
+rejection would instead mean the event could not be durably enqueued — a handler
+failure in another process can't reach the producer at all.
 
 **Critical: a listener must use `@OnCriticalEvent()`, not the plain `@OnEvent()`,
 for `emitCritical()`'s propagation to actually happen.** `@OnEvent()` defaults to
@@ -120,6 +149,45 @@ export class AuditListener {
 A plain `@OnEvent()` is still correct for a listener meant to be reached only via
 `emit()` (best-effort) — the distinction only matters for listeners subscribed to
 an event that's also raised via `emitCritical()`.
+
+### Pairing the producer method with the listener decorator
+
+Criticality is a property of **the event**, not of one call site. The producer
+picks `emit()` vs `emitCritical()` from the event's own characteristics — is a
+dropped delivery a minor inconvenience, or must a subscriber's failure be able to
+fail the triggering operation? — and every producer of that event picks the same
+way. The listener then matches:
+
+| Producer | Listener | Result |
+|---|---|---|
+| `emit()` | `@OnEvent()` | ✅ best-effort both sides |
+| `emit()` | `@OnCriticalEvent()` | ⚠️ broken — the producer never awaits, so the listener's failure propagates nowhere and, because `@OnCriticalEvent()` also turns off NestJS's error logging, is dropped with no trace |
+| `emitCritical()` | `@OnEvent()` | ✅ if the listener is genuinely best-effort (awaited, but its failure is logged and swallowed, never rolls the producer back); ❌ a silent bug if it was meant to be critical |
+| `emitCritical()` | `@OnCriticalEvent()` | ✅ critical both sides — the listener's failure reaches the producer |
+
+**Rule:** if an event has *any* `@OnCriticalEvent()` listener, *every* producer of
+it must raise it with `emitCritical()`. Best-effort listeners on that same event
+still use plain `@OnEvent()` — that is how one event carries mixed criticality
+(an audit listener that can roll the producer back, a metrics listener that
+cannot).
+
+**Flag critical events in the catalog.** The per-module event-name catalog is the
+shared contract both sides read — mark which events are critical so a listener
+author knows to reach for `@OnCriticalEvent()` and a producer knows to use
+`emitCritical()`:
+
+```typescript
+export const InvoiceEvents = {
+  /** critical — audit logging subscribes; raise with emitCritical() */
+  STATUS_CHANGED: 'invoice.status_changed',
+  /** best-effort — raise with emit() */
+  REMINDER_DUE: 'invoice.reminder_due',
+} as const;
+```
+
+Adding the *first* `@OnCriticalEvent()` listener to a previously best-effort event
+means updating both its catalog flag and every producer's call site from `emit()`
+to `emitCritical()`.
 
 ## Choosing a transport
 
