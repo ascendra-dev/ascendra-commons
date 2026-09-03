@@ -11,7 +11,7 @@ export interface AuthorizationModuleConfig {
 /**
  * A dynamic module — same reasoning as NotificationModule.forRoot(): requires
  * config because there's no sensible default persona/action map, unlike
- * domain-events' emitter, which genuinely has nothing to configure.
+ * domain-events, whose only knob (transport) has a sensible default.
  *
  * Does not apply AuthorizationGuard globally — it's provided and exported so
  * the consuming project decides how to wire it: globally via APP_GUARD, or

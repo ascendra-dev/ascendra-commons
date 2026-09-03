@@ -3,7 +3,13 @@ import { Injectable } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter';
 import { DomainEventsModule } from './domain-events.module';
-import { DomainEventEmitter } from './domain-event-emitter.service';
+import { DomainEventEmitter } from './domain-event-emitter';
+import { DOMAIN_EVENT_EMITTER } from './tokens';
+import { InProcessDomainEventEmitter } from './in-process-domain-event-emitter.service';
+import {
+  BrokerDomainEventEmitter,
+  BrokerTransportNotImplementedError,
+} from './broker-domain-event-emitter.service';
 import { DomainEvent } from './domain-event.interface';
 import { OnCriticalEvent } from './on-critical-event.decorator';
 
@@ -19,9 +25,10 @@ function wait(ms: number) {
 /**
  * A real feature-module listener, exactly the shape a consuming project would
  * write — decorated methods, not raw EventEmitter2.on() the way
- * domain-event-emitter.service.spec.ts tests the emitter in isolation. Proving
- * this actually works end to end (module wiring, decorator scanning, dispatch)
- * is the whole point of this file — none of the unit tests exercise it.
+ * in-process-domain-event-emitter.service.spec.ts tests the emitter in
+ * isolation. Proving this actually works end to end (module wiring, decorator
+ * scanning, dispatch) is the whole point of this file — none of the unit tests
+ * exercise it.
  */
 @Injectable()
 class TestListener {
@@ -50,9 +57,9 @@ class TestListener {
   }
 }
 
-async function buildTestModule() {
+async function buildTestModule(module = DomainEventsModule.forRoot()) {
   const moduleRef = await Test.createTestingModule({
-    imports: [DomainEventsModule],
+    imports: [module],
     providers: [TestListener],
   }).compile();
   // @OnEvent()/@OnCriticalEvent() decorator scanning runs in
@@ -63,15 +70,15 @@ async function buildTestModule() {
 }
 
 describe('DomainEventsModule — real DI + @OnEvent() wiring', () => {
-  it('resolves DomainEventEmitter through the module', async () => {
+  it('forRoot() defaults to the in-process transport behind DOMAIN_EVENT_EMITTER', async () => {
     const moduleRef = await buildTestModule();
 
-    expect(moduleRef.get(DomainEventEmitter)).toBeInstanceOf(DomainEventEmitter);
+    expect(moduleRef.get(DOMAIN_EVENT_EMITTER)).toBeInstanceOf(InProcessDomainEventEmitter);
   });
 
   it('emit() reaches a real @OnEvent()-decorated listener, not just raw EventEmitter2.on()', async () => {
     const moduleRef = await buildTestModule();
-    const domainEvents = moduleRef.get(DomainEventEmitter);
+    const domainEvents = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
     const listener = moduleRef.get(TestListener);
 
     domainEvents.emit('test.happened', new TestEvent('hello'));
@@ -83,7 +90,7 @@ describe('DomainEventsModule — real DI + @OnEvent() wiring', () => {
 
   it('emitCritical() reaches an @OnCriticalEvent()-decorated listener and propagates its rejection', async () => {
     const moduleRef = await buildTestModule();
-    const domainEvents = moduleRef.get(DomainEventEmitter);
+    const domainEvents = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
 
     await expect(domainEvents.emitCritical('test.critical', new TestEvent('reject-me'))).rejects.toThrow(
       'listener failed on purpose',
@@ -92,7 +99,7 @@ describe('DomainEventsModule — real DI + @OnEvent() wiring', () => {
 
   it('emitCritical() resolves normally when the @OnCriticalEvent() listener succeeds', async () => {
     const moduleRef = await buildTestModule();
-    const domainEvents = moduleRef.get(DomainEventEmitter);
+    const domainEvents = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
     const listener = moduleRef.get(TestListener);
 
     await domainEvents.emitCritical('test.critical', new TestEvent('ok'));
@@ -102,7 +109,7 @@ describe('DomainEventsModule — real DI + @OnEvent() wiring', () => {
 
   it('the gotcha, verified: a plain @OnEvent() listener\'s failure is swallowed by NestJS and never reaches emitCritical()\'s caller', async () => {
     const moduleRef = await buildTestModule();
-    const domainEvents = moduleRef.get(DomainEventEmitter);
+    const domainEvents = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
     const listener = moduleRef.get(TestListener);
 
     // suppressErrors defaults to true for plain @OnEvent() — NestJS logs the
@@ -114,6 +121,41 @@ describe('DomainEventsModule — real DI + @OnEvent() wiring', () => {
 
   it('EventEmitter2 is not injectable by a module that never imported DomainEventsModule — the { global: false } leak fix', async () => {
     const moduleRef = await Test.createTestingModule({ providers: [] }).compile();
+
+    expect(() => moduleRef.get(EventEmitter2, { strict: true })).toThrow();
+  });
+});
+
+describe('DomainEventsModule.forRoot({ transport: "broker" }) — the seam, unimplemented', () => {
+  it('binds DOMAIN_EVENT_EMITTER to BrokerDomainEventEmitter', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [DomainEventsModule.forRoot({ transport: 'broker' })],
+    }).compile();
+    await moduleRef.init();
+
+    expect(moduleRef.get(DOMAIN_EVENT_EMITTER)).toBeInstanceOf(BrokerDomainEventEmitter);
+  });
+
+  it('throws BrokerTransportNotImplementedError on emit() and emitCritical()', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [DomainEventsModule.forRoot({ transport: 'broker' })],
+    }).compile();
+    await moduleRef.init();
+    const domainEvents = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
+
+    expect(() => domainEvents.emit('test.happened', new TestEvent('x'))).toThrow(
+      BrokerTransportNotImplementedError,
+    );
+    await expect(domainEvents.emitCritical('test.happened', new TestEvent('x'))).rejects.toThrow(
+      BrokerTransportNotImplementedError,
+    );
+  });
+
+  it('does not import EventEmitterModule — no in-process dispatch on the broker path', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [DomainEventsModule.forRoot({ transport: 'broker' })],
+    }).compile();
+    await moduleRef.init();
 
     expect(() => moduleRef.get(EventEmitter2, { strict: true })).toThrow();
   });

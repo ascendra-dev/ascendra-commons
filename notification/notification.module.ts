@@ -30,11 +30,11 @@ export interface NotificationModuleConfig {
 }
 
 /**
- * A dynamic module — mirrors EventEmitterModule.forRoot() in this same
- * project's domain-events pattern. Requires config because there is no
- * sensible default channel/template mapping; a consumer always has real
- * business decisions to supply here, unlike domain-events' emitter, which
- * genuinely has nothing to configure.
+ * A dynamic module — as is DomainEventsModule.forRoot() in this same project's
+ * domain-events pattern. Requires config because there is no sensible default
+ * channel/template mapping; a consumer always has real business decisions to
+ * supply here, unlike domain-events, whose only knob (transport) defaults to
+ * 'in-process'.
  */
 @Module({})
 export class NotificationModule {

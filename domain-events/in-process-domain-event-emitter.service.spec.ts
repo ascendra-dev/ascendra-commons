@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { DomainEventEmitter } from './domain-event-emitter.service';
+import { InProcessDomainEventEmitter } from './in-process-domain-event-emitter.service';
 import { DomainEvent } from './domain-event.interface';
 
 class TestEvent implements DomainEvent {
@@ -11,11 +11,11 @@ function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-describe('DomainEventEmitter', () => {
+describe('InProcessDomainEventEmitter', () => {
   describe('emit — best-effort', () => {
     it('delivers the event to a registered listener', async () => {
       const raw = new EventEmitter2();
-      const emitter = new DomainEventEmitter(raw);
+      const emitter = new InProcessDomainEventEmitter(raw);
       const received: DomainEvent[] = [];
       raw.on('test.happened', (event: DomainEvent) => received.push(event));
 
@@ -27,7 +27,7 @@ describe('DomainEventEmitter', () => {
 
     it('never throws, and never surfaces an unhandled rejection, when a listener rejects', async () => {
       const raw = new EventEmitter2();
-      const emitter = new DomainEventEmitter(raw);
+      const emitter = new InProcessDomainEventEmitter(raw);
       raw.on('test.will_fail', async () => {
         throw new Error('listener forgot to catch its own error');
       });
@@ -44,7 +44,7 @@ describe('DomainEventEmitter', () => {
 
     it('never throws when a listener throws synchronously', async () => {
       const raw = new EventEmitter2();
-      const emitter = new DomainEventEmitter(raw);
+      const emitter = new InProcessDomainEventEmitter(raw);
       raw.on('test.sync_fail', () => {
         throw new Error('synchronous listener failure');
       });
@@ -57,7 +57,7 @@ describe('DomainEventEmitter', () => {
   describe('emitCritical — must-not-fail', () => {
     it('resolves normally when every listener succeeds', async () => {
       const raw = new EventEmitter2();
-      const emitter = new DomainEventEmitter(raw);
+      const emitter = new InProcessDomainEventEmitter(raw);
       raw.on('test.ok', async () => {
         /* succeeds */
       });
@@ -67,7 +67,7 @@ describe('DomainEventEmitter', () => {
 
     it('propagates a listener rejection back to the caller', async () => {
       const raw = new EventEmitter2();
-      const emitter = new DomainEventEmitter(raw);
+      const emitter = new InProcessDomainEventEmitter(raw);
       raw.on('test.audit_write', async () => {
         throw new Error('audit write failed');
       });
@@ -79,7 +79,7 @@ describe('DomainEventEmitter', () => {
 
     it('propagates when a listener throws synchronously', async () => {
       const raw = new EventEmitter2();
-      const emitter = new DomainEventEmitter(raw);
+      const emitter = new InProcessDomainEventEmitter(raw);
       raw.on('test.sync_throw', () => {
         throw new Error('synchronous critical failure');
       });

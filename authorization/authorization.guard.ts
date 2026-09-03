@@ -15,7 +15,7 @@ import { AUTHORIZER } from './tokens';
 @Injectable()
 export class AuthorizationGuard implements CanActivate {
   // Explicit @Inject(Reflector), not bare type-based constructor injection —
-  // the same fix already applied to DomainEventEmitter in domain-events, for
+  // the same fix already applied to InProcessDomainEventEmitter in domain-events, for
   // the identical reason: bare type-based injection depends on
   // design:paramtypes reflection metadata that esbuild-based transpilation
   // (vitest, and any consumer building without tsc) does not reliably emit.

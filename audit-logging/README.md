@@ -117,6 +117,7 @@ Copy `audit-logging/` **and** `domain-events/` into the consumer's
 ```typescript
 @Module({
   imports: [
+    DomainEventsModule.forRoot(), // required — this pattern's listener is reached via emitCritical()
     AuditLoggingModule.forRoot({
       auditEventRepositoryToken: AUDIT_EVENT_REPOSITORY_IMPL, // whatever token the app's own repository is provided under
       imports: [AuditModule],                                  // whatever module exports that token

@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Inject, Injectable, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { DomainEventsModule, DomainEventEmitter, OnCriticalEvent } from '../domain-events';
+import { DomainEventsModule, DOMAIN_EVENT_EMITTER, OnCriticalEvent } from '../domain-events';
+import type { DomainEventEmitter } from '../domain-events';
 import { AuditLoggingModule } from './audit-logging.module';
 import { AUDIT_EVENT_REPOSITORY } from './tokens';
 import { AuditEventRepository } from './audit-event-repository';
@@ -65,7 +66,7 @@ async function buildTestModule(insert: AuditEventRepository['insert']) {
 
   const moduleRef = await Test.createTestingModule({
     imports: [
-      DomainEventsModule,
+      DomainEventsModule.forRoot(),
       AuditLoggingModule.forRoot({ auditEventRepositoryToken: AUDIT_REPO_IMPL, imports: [FakeAuditRepoModule] }),
     ],
     providers: [ConsumerAuditListener],
@@ -79,7 +80,7 @@ describe('audit-logging + domain-events, real end to end', () => {
   it('emitCritical() reaches the consumer-authored listener, which persists via the real repository', async () => {
     const insert = vi.fn().mockResolvedValue(undefined);
     const moduleRef = await buildTestModule(insert);
-    const emitter = moduleRef.get(DomainEventEmitter);
+    const emitter = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
 
     const event = new TestEntityChanged('entity-1', new Date('2026-02-01T00:00:00Z'));
     await emitter.emitCritical('test.entity_changed', event);
@@ -101,7 +102,7 @@ describe('audit-logging + domain-events, real end to end', () => {
       throw new Error('constraint violation');
     });
     const moduleRef = await buildTestModule(insert);
-    const emitter = moduleRef.get(DomainEventEmitter);
+    const emitter = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
 
     let caught: unknown;
     try {
@@ -118,7 +119,7 @@ describe('audit-logging + domain-events, real end to end', () => {
   it('the correlation id established around the emit is the one persisted', async () => {
     const insert = vi.fn().mockResolvedValue(undefined);
     const moduleRef = await buildTestModule(insert);
-    const emitter = moduleRef.get(DomainEventEmitter);
+    const emitter = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
 
     await runWithCorrelationId('trace-abc', async () => {
       await emitter.emitCritical('test.entity_changed', new TestEntityChanged('entity-3', new Date()));

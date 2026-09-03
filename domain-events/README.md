@@ -50,17 +50,34 @@ its listeners, turns that typo into a wrong identifier instead.
 
 ### `DomainEventEmitter` — the entire coupling surface for business logic
 
+`DomainEventEmitter` is a TypeScript **interface** (`emit` / `emitCritical`), not
+a class. Business logic injects it via the `DOMAIN_EVENT_EMITTER` token, so the
+transport underneath (see Model 1 / Model 2 below) is chosen once, at module
+import, and never leaks into a call site:
+
 ```typescript
-// The entire coupling surface in, e.g., an invoice service:
-this.domainEvents.emit(
-  'invoice.status_changed',
-  new InvoiceStatusChanged(invoiceId, tenantId, previousStatus, newStatus, actorId),
-);
+import { DOMAIN_EVENT_EMITTER, DomainEventEmitter } from '@/ascendra-commons/domain-events';
+
+@Injectable()
+export class InvoiceService {
+  constructor(
+    @Inject(DOMAIN_EVENT_EMITTER) private readonly domainEvents: DomainEventEmitter,
+  ) {}
+
+  // The entire coupling surface in, e.g., an invoice service:
+  async changeStatus(/* ... */) {
+    // ...
+    this.domainEvents.emit(
+      'invoice.status_changed',
+      new InvoiceStatusChanged(invoiceId, tenantId, previousStatus, newStatus, actorId),
+    );
+  }
+}
 ```
 
 Business logic only ever calls `emit()` or `emitCritical()` — it never knows or
-cares who is listening. Adding a new subscriber never requires a change to the
-code that raises the event.
+cares who is listening, or which transport is bound. Adding a new subscriber, or
+switching transports, never requires a change to the code that raises the event.
 
 ### Reliability is tiered by method, not by listener-author discipline
 
@@ -104,45 +121,79 @@ A plain `@OnEvent()` is still correct for a listener meant to be reached only vi
 `emit()` (best-effort) — the distinction only matters for listeners subscribed to
 an event that's also raised via `emitCritical()`.
 
-## Implementations
+## Choosing a transport
 
-- `EventEmitter2` (via `@nestjs/event-emitter`) — an in-process emitter, not a
-  message broker (Kafka, RabbitMQ, SQS, or any externally-run system). A broker is
-  infrastructure to operate and monitor, unwarranted for a single deployed
-  application with no dedicated ops team.
-- A message broker is a future target only if a genuine need to share events
-  across independently deployed services appears — not a default, and not
-  something to anticipate before that need is concrete.
+`DomainEventsModule.forRoot({ transport })` selects which implementation of the
+`DomainEventEmitter` interface is bound to `DOMAIN_EVENT_EMITTER`:
+
+```typescript
+DomainEventsModule.forRoot()                        // 'in-process' — the default
+DomainEventsModule.forRoot({ transport: 'broker' }) // Model 2 — not implemented yet
+```
+
+- **`'in-process'`** — `InProcessDomainEventEmitter`, backed by `EventEmitter2`
+  (`@nestjs/event-emitter`). Not a message broker (Kafka, RabbitMQ, SQS). A
+  broker is infrastructure to operate and monitor, unwarranted for a single
+  deployed application with no dedicated ops team.
+- **`'broker'`** — `BrokerDomainEventEmitter`, a deliberate placeholder that
+  throws `BrokerTransportNotImplementedError` on every call. The option, the
+  interface, and the token all exist now so that adopting a broker later is a
+  one-line `forRoot()` change at the composition root, not a refactor of every
+  call site — but the transport itself is genuinely not built, and shipping it
+  as a loud stub is the honest state.
 
 ## Model 1 — In-Process Event Emitter, Tiered Reliability (current)
 
-What's shipped in this folder: `DomainEventsModule` (wraps
-`EventEmitterModule.forRoot({ global: false })` — see below), `DomainEventEmitter`
-(the `emit`/`emitCritical` service above), `OnCriticalEvent` (the decorator
+What's shipped in this folder: `DomainEventsModule` (a dynamic module whose
+`forRoot({ transport })` wires one transport — the `'in-process'` path also
+imports `EventEmitterModule.forRoot({ global: false })`, see below), the
+`DomainEventEmitter` interface, `InProcessDomainEventEmitter` (the
+`emit`/`emitCritical` implementation above), `BrokerDomainEventEmitter` (the
+Model 2 stub), the `DOMAIN_EVENT_EMITTER` token, `OnCriticalEvent` (the decorator
 `emitCritical()` actually depends on to keep its contract), and the `DomainEvent`
 marker interface. No delivery persistence across a process crash — acceptable
 for best-effort subscribers at this stage; must-not-fail reliability instead
 comes from `emitCritical` running inside the same request/transaction as the
 triggering operation, not from the event mechanism itself.
 
-**Why `{ global: false }`:** `EventEmitterModule.forRoot()` defaults to
-`global: true`, which would make the raw `EventEmitter2` injectable from any
-module anywhere in the app, without importing `DomainEventsModule` at all —
-letting a developer bypass `emit()`/`emitCritical()`'s reliability-tiering
+**Why `{ global: false }` (in-process path only):** `EventEmitterModule.forRoot()`
+defaults to `global: true`, which would make the raw `EventEmitter2` injectable
+from any module anywhere in the app, without importing `DomainEventsModule` at
+all — letting a developer bypass `emit()`/`emitCritical()`'s reliability-tiering
 entirely (`constructor(private emitter: EventEmitter2)`), with nothing to
-signal the bypass happened. `{ global: false }` closes that: `EventEmitter2`
-(and `DomainEventEmitter`) are only injectable by modules that actually import
-`DomainEventsModule`. This does not affect `@OnEvent()`/`@OnCriticalEvent()`
+signal the bypass happened. `{ global: false }` closes that: `EventEmitter2` (and
+the `DOMAIN_EVENT_EMITTER` binding) are only injectable by modules that actually
+import `DomainEventsModule`. This does not affect `@OnEvent()`/`@OnCriticalEvent()`
 listener discovery — `@nestjs/event-emitter`'s `EventSubscribersLoader` scans
 every provider in the app via NestJS's `DiscoveryService` regardless of any
 module's `global` setting.
 
-## Model 2 — Message Broker (future target)
+## Model 2 — Message Broker (seam in place, transport not built)
 
-A real message broker, adopted only once a concrete signal (a second deployed
-service, a real cross-service integration) makes it necessary. Same event-class
-convention; only the transport changes, and only for subscribers that genuinely
-live in a separate deployment.
+The `forRoot({ transport: 'broker' })` selector, the `DomainEventEmitter`
+interface, and the `DOMAIN_EVENT_EMITTER` token exist so the call sites are
+already transport-agnostic. `BrokerDomainEventEmitter` is a stub — a real
+implementation is warranted only once a concrete signal (a second deployed
+service, a real cross-service integration) makes it necessary, and it has real
+design work to resolve first, not just "swap the transport":
+
+- **`emitCritical()`'s contract is transport-dependent.** In-process, the
+  listener runs inside the caller's transaction, so a throw rolls the triggering
+  operation back. Across a broker the subscriber is in another process — that
+  guarantee is physically impossible. Model 2 has to offer a weaker, explicit
+  substitute (transactional outbox, at-least-once delivery, idempotent
+  consumers), and this interface's doc must be updated to say so.
+- **Payload serialization.** Event classes carry `new Date()` and possibly
+  methods; over a broker they become JSON. Either `DomainEvent` constrains
+  payloads to JSON-safe primitives, or an explicit serialize/deserialize step is
+  defined.
+- **Subscription model.** `@OnEvent()` / `@OnCriticalEvent()` + `DiscoveryService`
+  is in-process. Broker consumers need consumer groups, offsets, dead-letter
+  queues, redelivery.
+- **Which events cross the boundary.** Not every in-process event should be
+  published to a broker; that selection is a design decision, not a default.
+
+See `broker-domain-event-emitter.service.ts` for this list in code.
 
 ## Consuming this module
 
@@ -153,5 +204,23 @@ siblings. Import only from that folder's `index.ts` barrel — never a file insi
 it directly:
 
 ```typescript
-import { DomainEventsModule, DomainEventEmitter, DomainEvent, OnCriticalEvent } from '@/ascendra-commons/domain-events';
+import {
+  DomainEventsModule,
+  DOMAIN_EVENT_EMITTER,
+  DomainEventEmitter, // type only — inject via the token above
+  DomainEvent,
+  OnCriticalEvent,
+} from '@/ascendra-commons/domain-events';
 ```
+
+Wire it once at the composition root:
+
+```typescript
+@Module({
+  imports: [DomainEventsModule.forRoot()], // { transport: 'in-process' } is the default
+})
+export class AppModule {}
+```
+
+Then inject `DOMAIN_EVENT_EMITTER` wherever business logic raises events (see the
+`DomainEventEmitter` section above for the constructor shape).

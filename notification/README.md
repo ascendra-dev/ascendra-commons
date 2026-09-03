@@ -148,9 +148,10 @@ patterns land under one wrapper folder), then:
 export class AppModule {}
 ```
 
-`NotificationModule.forRoot()` is a dynamic module (mirrors
-`EventEmitterModule.forRoot()` in `domain-events`) — it always requires config,
-unlike `domain-events`' emitter, which genuinely has nothing to configure. It
+`NotificationModule.forRoot()` is a dynamic module (as is
+`DomainEventsModule.forRoot()`) — but it *always requires* config with no
+sensible default, unlike `domain-events`, whose only knob (`transport`) defaults
+to `'in-process'` so `forRoot()` is normally called with no argument. It
 wires: `NullUserContactResolver`, both static config/template implementations,
 all three channel senders, the `NOTIFICATION_CHANNEL_SENDERS` map (assembled via
 `useFactory`, since a `Map` isn't a class Nest can construct directly), and

@@ -1,20 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DomainEvent } from './domain-event.interface';
+import { DomainEventEmitter } from './domain-event-emitter';
 
 /**
- * The single emission surface business logic depends on. Reliability is tiered by
- * method, not by convention a listener author has to remember:
+ * Model 1 transport: an in-process emitter (EventEmitter2 via
+ * @nestjs/event-emitter), not a message broker. Listeners run in the same
+ * process — and, for emitCritical(), inside the caller's own
+ * request/transaction, which is what lets a listener throw genuinely roll the
+ * triggering operation back.
  *
- * - emit(): best-effort. The caller never awaits it and never sees a listener's
- *   failure — for subscribers like notifications, where a dropped delivery is a
- *   minor, recoverable inconvenience, not a reason to fail the triggering operation.
- * - emitCritical(): must-not-fail. The caller awaits it, and any listener's
- *   rejection propagates back — for subscribers like audit logging, where a
- *   silently dropped record is unacceptable.
- *
- * Both go through emitAsync() internally so sync and async listeners are handled
- * uniformly; only whether the result is awaited/propagated differs.
+ * Both methods go through emitAsync() internally so sync and async listeners
+ * are handled uniformly; only whether the result is awaited/propagated differs.
  *
  * IMPORTANT for emitCritical(): a listener subscribed via the plain @OnEvent()
  * decorator will NOT propagate its failure here, no matter which method raised
@@ -25,7 +22,7 @@ import { DomainEvent } from './domain-event.interface';
  * — see on-critical-event.decorator.ts.
  */
 @Injectable()
-export class DomainEventEmitter {
+export class InProcessDomainEventEmitter implements DomainEventEmitter {
   // Explicit @Inject(EventEmitter2), not bare type-based constructor injection —
   // the latter depends on TypeScript's design:paramtypes reflection metadata
   // actually being emitted and read at runtime, which esbuild-based
