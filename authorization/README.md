@@ -155,15 +155,38 @@ endpoint is almost never this case — RLS filters inaccessible rows out of the
 result set entirely, so a list returns fewer rows, not a 403; the reactive
 case applies to single-record detail fetches, not tables.
 
+## Choosing a model
+
+`AuthorizationModule.forRoot({ model })` selects which `Authorizer`
+implementation is bound to the `AUTHORIZER` token:
+
+```typescript
+AuthorizationModule.forRoot({ personaActions: { /* ... */ } })       // model: 'static-persona-map' is the default
+AuthorizationModule.forRoot({ model: 'permission-table' })           // Model 2 — not implemented yet
+```
+
+- **`'static-persona-map'`** (default) — `StaticRoleMapAuthorizer`: a constant
+  `persona -> actions` object, resolved by an in-memory lookup. Requires
+  `personaActions`. `forRoot()` throws if this model is selected without it.
+- **`'permission-table'`** — `PermissionTableAuthorizer`, a deliberate
+  placeholder that throws `PermissionTableAuthorizerNotImplementedError` on
+  every `can()`. The option, the `Authorizer` interface, and the `AUTHORIZER`
+  token all exist now so that adopting database-backed roles later is a config
+  change at the import site, not a refactor of every call site — but the
+  authorizer itself is genuinely not built. `personaActions` is ignored on this
+  path.
+
+Call sites inject `AUTHORIZER` and never see which model is bound — that is
+exactly what `can()`'s async signature was chosen to make painless.
+
 ## Model 1 — Static Persona Map (current)
 
-What's shipped in this folder: `Authorizer` interface, `StaticRoleMapAuthorizer`,
-`RequiresAction`/`AuthorizationGuard`, `computeSessionSnapshot`,
-`computeActionAvailability`, and `AuthorizationModule.forRoot()`. Exactly three
-things this deliberately does not include, and why:
+What's shipped and wired by default: `Authorizer` interface,
+`StaticRoleMapAuthorizer`, `RequiresAction`/`AuthorizationGuard`,
+`computeSessionSnapshot`, `computeActionAvailability`, and
+`AuthorizationModule.forRoot()`. Two things this deliberately does not include,
+and why:
 
-- **No `PermissionTableAuthorizer`** (Model 2, below) — no concrete need for
-  named roles/delegation exists yet in any consuming project.
 - **No self-service "Request Access" workflow.** This would let a user denied
   a section trigger an auto-generated request routed to an admin for approval
   — a real, named enterprise IAM pattern (ServiceNow, Okta, and similar tools
@@ -179,7 +202,13 @@ things this deliberately does not include, and why:
   counterpart library (`ascendra-commons-ui`, not yet created) — this folder
   is backend-only, matching the rest of `ascendra-commons`.
 
-## Model 2 — Roles and Delegated Permissions (future target)
+## Model 2 — Roles and Delegated Permissions (seam in place, authorizer not built)
+
+The `forRoot({ model: 'permission-table' })` selector, the `Authorizer`
+interface, and the `AUTHORIZER` token all exist now; every call site is already
+model-agnostic. `PermissionTableAuthorizer` is a stub that throws on every call
+(see `permission-table-authorizer.ts` for the design work a real one must
+resolve first). The target it stands in for:
 
 A database-backed `Authorizer` introducing named, capability-bearing roles
 assignable within a persona (e.g. an `issuer` persona holding an `owner` or
@@ -271,6 +300,11 @@ wrapper folder), then:
 })
 export class AppModule {}
 ```
+
+`model` is omitted here, so `'static-persona-map'` is used and `personaActions`
+is required (see "Choosing a model"). `forRoot({ model: 'permission-table' })`
+selects the Model 2 seam instead — which throws on every `can()` until a real
+`PermissionTableAuthorizer` is built.
 
 `AuthorizationModule.forRoot()` does not apply `AuthorizationGuard` globally —
 it's provided and exported so the consuming project decides how to wire it:
