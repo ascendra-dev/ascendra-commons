@@ -35,7 +35,7 @@ export class Notifier {
   async notify(request: NotificationRequest): Promise<NotificationResult> {
     let channels: NotificationChannel[];
     try {
-      channels = await this.channelConfig.channelsFor(request.notificationType);
+      channels = await this.channelConfig.channelsFor(request.notificationType, request.tenantId ?? null);
     } catch (err) {
       // Backstop for a NotificationChannelConfig implementation that can fail
       // (e.g. a database-backed one) — notify()'s "never throws" contract has

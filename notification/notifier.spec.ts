@@ -103,6 +103,26 @@ describe('Notifier.notify', () => {
       channels: {},
     });
   });
+
+  it('passes request.tenantId through to channelConfig.channelsFor()', async () => {
+    const config = fakeConfig(['email']);
+    const email = fakeSender({ status: 'sent' });
+    const notifier = new Notifier(config, new Map([['email', email]]));
+
+    await notifier.notify({ ...REQUEST, tenantId: 't1' });
+
+    expect(config.channelsFor).toHaveBeenCalledWith('invoice.sent', 't1');
+  });
+
+  it('defaults to null when the request has no tenantId', async () => {
+    const config = fakeConfig(['email']);
+    const email = fakeSender({ status: 'sent' });
+    const notifier = new Notifier(config, new Map([['email', email]]));
+
+    await notifier.notify(REQUEST);
+
+    expect(config.channelsFor).toHaveBeenCalledWith('invoice.sent', null);
+  });
 });
 
 describe('Notifier.notifyCritical', () => {

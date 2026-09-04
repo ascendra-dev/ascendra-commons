@@ -10,7 +10,14 @@ import { NOTIFICATION_CHANNEL_CONFIG_DATA } from './tokens';
  * exactly one implementation with real behavior worth having directly.
  */
 export interface NotificationChannelConfig {
-  channelsFor(notificationType: string): Promise<NotificationChannel[]>;
+  /**
+   * `tenantId` is `request.tenantId ?? null` — always passed, never optional
+   * on this signature, so every implementation (including a future
+   * database-backed one) consciously receives tenant context rather than
+   * silently ignoring it by omission. `StaticNotificationChannelConfig`
+   * receives it and ignores it, deliberately: see its own doc comment.
+   */
+  channelsFor(notificationType: string, tenantId: string | null): Promise<NotificationChannel[]>;
 }
 
 /**
@@ -23,6 +30,13 @@ export interface NotificationChannelConfig {
  * knowledge of any specific project's schema. A database-backed
  * implementation lives in the consuming project instead, since only that
  * project knows its own schema.
+ *
+ * Ignores `tenantId` — this is one config for the whole deployment by design,
+ * the same tradeoff `StaticRoleMapAuthorizer` makes for personas (see
+ * `authorization`'s README, "Model 1 — Static Persona Map"). A tenant needing
+ * different channel routing than the deployment default is exactly the signal
+ * to build a database-backed `NotificationChannelConfig` instead of adding
+ * tenant branching here.
  */
 @Injectable()
 export class StaticNotificationChannelConfig implements NotificationChannelConfig {
@@ -30,7 +44,7 @@ export class StaticNotificationChannelConfig implements NotificationChannelConfi
     @Inject(NOTIFICATION_CHANNEL_CONFIG_DATA) private readonly config: Record<string, NotificationChannel[]>,
   ) {}
 
-  async channelsFor(notificationType: string): Promise<NotificationChannel[]> {
+  async channelsFor(notificationType: string, _tenantId: string | null): Promise<NotificationChannel[]> {
     return this.config[notificationType] ?? [];
   }
 }

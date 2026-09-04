@@ -37,12 +37,19 @@ describe('StaticNotificationTemplateRepository', () => {
       'invoice.sent': { subject: 'Invoice ready', body: 'Hi' },
     });
 
-    await expect(repo.templateFor('invoice.sent')).resolves.toEqual({ subject: 'Invoice ready', body: 'Hi' });
+    await expect(repo.templateFor('invoice.sent', null)).resolves.toEqual({ subject: 'Invoice ready', body: 'Hi' });
   });
 
   it('returns null for an unconfigured notificationType', async () => {
     const repo = new StaticNotificationTemplateRepository({});
 
-    await expect(repo.templateFor('unknown.type')).resolves.toBeNull();
+    await expect(repo.templateFor('unknown.type', null)).resolves.toBeNull();
+  });
+
+  it('ignores tenantId — one template for the whole deployment, by design', async () => {
+    const repo = new StaticNotificationTemplateRepository({ 'invoice.sent': { body: 'Hi' } });
+
+    await expect(repo.templateFor('invoice.sent', 't1')).resolves.toEqual({ body: 'Hi' });
+    await expect(repo.templateFor('invoice.sent', 't2')).resolves.toEqual({ body: 'Hi' });
   });
 });

@@ -58,6 +58,16 @@ below) — this library can't know `ascendra-pay`'s schema versus
 using a schema this library exports, since the channel-config table itself is
 generic enough to be shared.
 
+**`channelsFor(notificationType, tenantId)`** always takes `tenantId` (`request.tenantId ?? null`,
+mirroring `Actor.tenantId` in `authorization`) — `StaticNotificationChannelConfig`
+receives it and ignores it, since Model 1 is one config for the whole
+deployment by design. This is the same Model 1/Model 2 split `authorization`
+makes for personas: a tenant needing different channel routing than every
+other tenant is the concrete signal to build a database-backed
+`NotificationChannelConfig`, not to add tenant branching into the static map.
+`NotificationTemplateRepository.templateFor()` carries the same parameter, for
+the same reason (a white-labeled tenant's own template content).
+
 ### `NotificationTemplateRepository` — which text a notificationType uses, per channel
 
 Also an interface, same reasoning. Each channel gets **its own instance** —
@@ -149,10 +159,10 @@ export class AppModule {}
 ```
 
 `NotificationModule.forRoot()` is a dynamic module (as is
-`DomainEventsModule.forRoot()`) — but it *always requires* config with no
-sensible default, unlike `domain-events`, whose only knob (`transport`) defaults
-to `'in-process'` so `forRoot()` is normally called with no argument. It
-wires: `NullUserContactResolver`, both static config/template implementations,
+`DomainEventsModule.forRoot()`) — both always require config with no sensible
+default (`domain-events`' `application` included — see its own README,
+"Application identity"). It wires: `NullUserContactResolver`, both static
+config/template implementations,
 all three channel senders, the `NOTIFICATION_CHANNEL_SENDERS` map (assembled via
 `useFactory`, since a `Map` isn't a class Nest can construct directly), and
 `Notifier` — exporting only `NOTIFIER`, the token any listener actually injects.
@@ -174,13 +184,26 @@ escape hatch below is deliberately the answer until one exists.
 class DatabaseNotificationChannelConfig implements NotificationChannelConfig {
   constructor(private readonly db: SomeLooselyTypedDrizzleDb) {}
 
-  async channelsFor(notificationType: string): Promise<NotificationChannel[]> {
+  async channelsFor(notificationType: string, tenantId: string | null): Promise<NotificationChannel[]> {
+    // Tenant-specific row first (a tenant that overrides the deployment default),
+    // falling back to the tenant-less row (tenantId IS NULL) — the deployment default.
     const rows = await this.db.select().from(notificationChannelConfigTable)
-      .where(eq(notificationChannelConfigTable.notificationType, notificationType));
+      .where(and(
+        eq(notificationChannelConfigTable.notificationType, notificationType),
+        tenantId
+          ? inArray(notificationChannelConfigTable.tenantId, [tenantId, null])
+          : isNull(notificationChannelConfigTable.tenantId),
+      ))
+      .orderBy(desc(notificationChannelConfigTable.tenantId)); // non-null (tenant-specific) row first
     return rows[0]?.channels ?? [];
   }
 }
 ```
+
+This is exactly the shape `tenantId` on the interface exists for: a tenant with
+no override row falls through to the deployment default (`tenantId IS NULL`)
+transparently — `StaticNotificationChannelConfig` and this database-backed one
+answer identically for every tenant that hasn't been given a specific row.
 
 Use the core/raw query builder (`db.select().from(table)`), not the relational
 query API (`db.query.table.findFirst()`) — the latter requires the `db` client's

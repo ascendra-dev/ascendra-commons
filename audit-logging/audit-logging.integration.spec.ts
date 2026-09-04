@@ -66,7 +66,7 @@ async function buildTestModule(insert: AuditEventRepository['insert']) {
 
   const moduleRef = await Test.createTestingModule({
     imports: [
-      DomainEventsModule.forRoot(),
+      DomainEventsModule.forRoot({ application: 'test-app' }),
       AuditLoggingModule.forRoot({ auditEventRepositoryToken: AUDIT_REPO_IMPL, imports: [FakeAuditRepoModule] }),
     ],
     providers: [ConsumerAuditListener],

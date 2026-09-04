@@ -216,14 +216,42 @@ Adding the *first* `@OnCriticalEvent()` listener to a previously best-effort eve
 means updating both its catalog flag and every producer's call site from `emit()`
 to `emitCritical()`.
 
+## Application identity
+
+`DomainEventsModule.forRoot({ application })` is required under both
+transports — there is no sensible default for "which Ascendra application is
+this process" the way `'in-process'` is a sensible default transport. It's
+bound to the `APPLICATION_ID` token and exported alongside
+`DOMAIN_EVENT_EMITTER`, so any provider that imports this module can
+`@Inject(APPLICATION_ID)` directly.
+
+This exists because `ascendra-commons` is copy-distributed (see "Consuming
+this module" below) — `ascendra-pay` and, say, `ascendra-school-erp` each run
+their own copy of this module in their own process, so `eventName` alone
+(`'invoice.created'`) is never ambiguous *today*: each process has exactly one
+application's events flowing through it. It becomes ambiguous the moment
+multiple applications publish to a **shared** destination — a broker cluster
+under Model 2, or a shared log/analytics sink consumed by more than one
+application's output. `APPLICATION_ID` is the identifier that disambiguates
+that later, without any call site (`emit()`, `@OnEvent()`, and so on) ever
+needing to know about it. See `BrokerDomainEventEmitter`'s doc comment for the
+intended topic-naming shape.
+
+This is deliberately *not* solved by prefixing `eventName` itself — that would
+couple every `@OnEvent('invoice.created')` decorator to a per-application
+string for zero benefit in-process (there is nothing to disambiguate from
+within one process). `APPLICATION_ID` is consumed only where a shared
+destination actually exists.
+
 ## Choosing a transport
 
-`DomainEventsModule.forRoot({ transport })` selects which implementation of the
-`DomainEventEmitter` interface is bound to `DOMAIN_EVENT_EMITTER`:
+`DomainEventsModule.forRoot({ application, transport })` selects which
+implementation of the `DomainEventEmitter` interface is bound to
+`DOMAIN_EVENT_EMITTER`:
 
 ```typescript
-DomainEventsModule.forRoot()                        // 'in-process' — the default
-DomainEventsModule.forRoot({ transport: 'broker' }) // Model 2 — not implemented yet
+DomainEventsModule.forRoot({ application: 'ascendra-pay' })                       // 'in-process' — the default
+DomainEventsModule.forRoot({ application: 'ascendra-pay', transport: 'broker' })  // Model 2 — not implemented yet
 ```
 
 - **`'in-process'`** — `InProcessDomainEventEmitter`, backed by `EventEmitter2`
@@ -231,11 +259,12 @@ DomainEventsModule.forRoot({ transport: 'broker' }) // Model 2 — not implement
   broker is infrastructure to operate and monitor, unwarranted for a single
   deployed application with no dedicated ops team.
 - **`'broker'`** — `BrokerDomainEventEmitter`, a deliberate placeholder that
-  throws `BrokerTransportNotImplementedError` on every call. The option, the
-  interface, and the token all exist now so that adopting a broker later is a
-  one-line `forRoot()` change at the composition root, not a refactor of every
-  call site — but the transport itself is genuinely not built, and shipping it
-  as a loud stub is the honest state.
+  throws `BrokerTransportNotImplementedError` (naming which application hit
+  it) on every call. The option, the interface, and the token all exist now so
+  that adopting a broker later is a one-line `forRoot()` change at the
+  composition root, not a refactor of every call site — but the transport
+  itself is genuinely not built, and shipping it as a loud stub is the honest
+  state.
 
 ## Model 1 — In-Process Event Emitter, Tiered Reliability (current)
 
@@ -289,6 +318,11 @@ design work to resolve first, not just "swap the transport":
   queues, redelivery.
 - **Which events cross the boundary.** Not every in-process event should be
   published to a broker; that selection is a design decision, not a default.
+- **Topic/queue naming across applications.** `APPLICATION_ID` (see
+  "Application identity" above) is the seam for this — the intended shape is
+  `${application}.${eventName}` as the topic/queue name, or `application`
+  stamped into the message envelope/headers if the broker favors one topic per
+  event type with many producers.
 
 See `broker-domain-event-emitter.service.ts` for this list in code.
 
@@ -307,6 +341,7 @@ import {
   DomainEventEmitter, // type only — inject via the token above
   DomainEvent,
   OnCriticalEvent,
+  APPLICATION_ID,
 } from '@/ascendra-commons/domain-events';
 ```
 
@@ -314,7 +349,7 @@ Wire it once at the composition root:
 
 ```typescript
 @Module({
-  imports: [DomainEventsModule.forRoot()], // { transport: 'in-process' } is the default
+  imports: [DomainEventsModule.forRoot({ application: 'ascendra-pay' })], // transport: 'in-process' is the default
 })
 export class AppModule {}
 ```

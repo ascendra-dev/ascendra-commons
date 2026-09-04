@@ -1,14 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { DomainEvent } from './domain-event.interface';
 import { DomainEventEmitter } from './domain-event-emitter';
+import { APPLICATION_ID } from './tokens';
 
 /** Thrown by every BrokerDomainEventEmitter method until a real Model 2 transport is built. */
 export class BrokerTransportNotImplementedError extends Error {
-  constructor() {
+  constructor(application: string) {
     super(
-      'DomainEventsModule was imported with transport: "broker", but no message-broker ' +
-        'transport is implemented yet. Use transport: "in-process" (the default), or implement ' +
-        'BrokerDomainEventEmitter — see broker-domain-event-emitter.service.ts.',
+      `DomainEventsModule was imported by '${application}' with transport: "broker", but no ` +
+        'message-broker transport is implemented yet. Use transport: "in-process" (the default), ' +
+        'or implement BrokerDomainEventEmitter — see broker-domain-event-emitter.service.ts.',
     );
     this.name = 'BrokerTransportNotImplementedError';
   }
@@ -49,14 +50,29 @@ export class BrokerTransportNotImplementedError extends Error {
  * - Which events cross the process boundary. Not every in-process event should
  *   be published to a broker; that selection is a real design decision, not a
  *   default.
+ * - Topic/queue naming across applications. `application` (injected below, from
+ *   DomainEventsModule.forRoot({ application })) exists specifically for this:
+ *   once multiple Ascendra applications publish to the same shared broker
+ *   cluster, `eventName` alone ('invoice.created') is not enough to avoid one
+ *   application's topic colliding with another's, or a consumer group
+ *   cross-subscribing by accident. The intended shape is to publish under
+ *   `${this.application}.${eventName}` (a Kafka topic prefix or SQS queue name,
+ *   say) — or, if the broker's model favors one topic per event type with many
+ *   producers, to at least stamp `application` into the message envelope/headers
+ *   so a consumer can filter or attribute by producer. Either way, `eventName`
+ *   itself stays exactly what call sites already pass — this is infrastructure
+ *   the transport adds, never something call sites or @OnEvent() listeners need
+ *   to know about.
  */
 @Injectable()
 export class BrokerDomainEventEmitter implements DomainEventEmitter {
+  constructor(@Inject(APPLICATION_ID) private readonly application: string) {}
+
   emit(_eventName: string, _event: DomainEvent): void {
-    throw new BrokerTransportNotImplementedError();
+    throw new BrokerTransportNotImplementedError(this.application);
   }
 
   async emitCritical(_eventName: string, _event: DomainEvent): Promise<void> {
-    throw new BrokerTransportNotImplementedError();
+    throw new BrokerTransportNotImplementedError(this.application);
   }
 }

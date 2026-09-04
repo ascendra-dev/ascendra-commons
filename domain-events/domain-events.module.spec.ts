@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter';
 import { DomainEventsModule } from './domain-events.module';
 import { DomainEventEmitter } from './domain-event-emitter';
-import { DOMAIN_EVENT_EMITTER } from './tokens';
+import { APPLICATION_ID, DOMAIN_EVENT_EMITTER } from './tokens';
 import { InProcessDomainEventEmitter } from './in-process-domain-event-emitter.service';
 import {
   BrokerDomainEventEmitter,
@@ -66,7 +66,7 @@ class TestListener {
   }
 }
 
-async function buildTestModule(module = DomainEventsModule.forRoot()) {
+async function buildTestModule(module = DomainEventsModule.forRoot({ application: 'test-app' })) {
   const moduleRef = await Test.createTestingModule({
     imports: [module],
     providers: [TestListener],
@@ -158,12 +158,18 @@ describe('DomainEventsModule — real DI + @OnEvent() wiring', () => {
 
     expect(() => moduleRef.get(EventEmitter2, { strict: true })).toThrow();
   });
+
+  it('exports APPLICATION_ID bound to the configured application, even on the in-process transport', async () => {
+    const moduleRef = await buildTestModule(DomainEventsModule.forRoot({ application: 'ascendra-pay' }));
+
+    expect(moduleRef.get(APPLICATION_ID)).toBe('ascendra-pay');
+  });
 });
 
 describe('DomainEventsModule.forRoot({ transport: "broker" }) — the seam, unimplemented', () => {
   it('binds DOMAIN_EVENT_EMITTER to BrokerDomainEventEmitter', async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [DomainEventsModule.forRoot({ transport: 'broker' })],
+      imports: [DomainEventsModule.forRoot({ application: 'test-app', transport: 'broker' })],
     }).compile();
     await moduleRef.init();
 
@@ -172,7 +178,7 @@ describe('DomainEventsModule.forRoot({ transport: "broker" }) — the seam, unim
 
   it('throws BrokerTransportNotImplementedError on emit() and emitCritical()', async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [DomainEventsModule.forRoot({ transport: 'broker' })],
+      imports: [DomainEventsModule.forRoot({ application: 'test-app', transport: 'broker' })],
     }).compile();
     await moduleRef.init();
     const domainEvents = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
@@ -187,10 +193,21 @@ describe('DomainEventsModule.forRoot({ transport: "broker" }) — the seam, unim
 
   it('does not import EventEmitterModule — no in-process dispatch on the broker path', async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [DomainEventsModule.forRoot({ transport: 'broker' })],
+      imports: [DomainEventsModule.forRoot({ application: 'test-app', transport: 'broker' })],
     }).compile();
     await moduleRef.init();
 
     expect(() => moduleRef.get(EventEmitter2, { strict: true })).toThrow();
+  });
+
+  it('exports APPLICATION_ID, and the thrown error names which application hit the seam', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [DomainEventsModule.forRoot({ application: 'ascendra-pay', transport: 'broker' })],
+    }).compile();
+    await moduleRef.init();
+    const domainEvents = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
+
+    expect(moduleRef.get(APPLICATION_ID)).toBe('ascendra-pay');
+    expect(() => domainEvents.emit('test.happened', new TestEvent('x'))).toThrow(/ascendra-pay/);
   });
 });

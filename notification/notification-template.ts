@@ -17,7 +17,14 @@ export interface NotificationTemplate {
  * database-backed implementations share no behavior with each other.
  */
 export interface NotificationTemplateRepository {
-  templateFor(notificationType: string): Promise<NotificationTemplate | null>;
+  /**
+   * `tenantId` is `request.tenantId ?? null` — always passed, so a
+   * database-backed implementation can serve a tenant-specific (e.g.
+   * white-labeled) template in place of the deployment default.
+   * `StaticNotificationTemplateRepository` receives it and ignores it — same
+   * reasoning as `StaticNotificationChannelConfig.channelsFor()`.
+   */
+  templateFor(notificationType: string, tenantId: string | null): Promise<NotificationTemplate | null>;
 }
 
 /**
@@ -37,7 +44,7 @@ export interface NotificationTemplateRepository {
 export class StaticNotificationTemplateRepository implements NotificationTemplateRepository {
   constructor(private readonly templates: Record<string, NotificationTemplate>) {}
 
-  async templateFor(notificationType: string): Promise<NotificationTemplate | null> {
+  async templateFor(notificationType: string, _tenantId: string | null): Promise<NotificationTemplate | null> {
     return this.templates[notificationType] ?? null;
   }
 }

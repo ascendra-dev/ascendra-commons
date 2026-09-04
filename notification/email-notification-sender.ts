@@ -16,7 +16,7 @@ export class EmailNotificationSender implements NotificationSender {
     const to = await this.resolveEmail(request.recipient);
     if (!to) return { status: 'failed', reason: 'no_address_available' };
 
-    const template = await this.templates.templateFor(request.notificationType);
+    const template = await this.templates.templateFor(request.notificationType, request.tenantId ?? null);
     if (!template) return { status: 'failed', reason: 'template_not_found' };
 
     const rendered = renderTemplate(template, request.variables);

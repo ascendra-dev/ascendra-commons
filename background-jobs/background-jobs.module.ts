@@ -25,8 +25,9 @@ export interface BackgroundJobsModuleConfig {
 
 /**
  * A dynamic module — requires config because there's no sensible default for
- * which provider is the consumer's db client, unlike domain-events, whose only
- * knob (transport) has a sensible default.
+ * which provider is the consumer's db client (same reasoning every other
+ * forRoot() in this library gives for its own required config — see e.g.
+ * domain-events' `application`, which has no sensible default either).
  *
  * Does not schedule anything itself — no @Cron, no OnApplicationBootstrap.
  * It only provides IdempotentJobRunner; each job gets its own thin wiring
