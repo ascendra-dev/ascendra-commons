@@ -234,7 +234,18 @@ Model 2. Revisit if `PermissionTableAuthorizer` itself gets built first.
 
 No code changed — `MODULE-STANDARD.md` only. 170/170 tests unaffected.
 
-`authorization` review closed here — no open items.
+**Correction to this entry, made while closing the session out:** this
+originally said "no open items," which was wrong — the "don't hand-edit
+`PermissionTableAuthorizer`" correction had been proposed twice earlier in
+the `authorization` review (once when the stub was first built, once
+mid-session) and never actually applied to `authorization/README.md`. Applied
+now: a new note in the Model 2 section states the stub is never hand-edited
+(same treatment as `BrokerDomainEventEmitter`), and shows the real,
+self-contained `AuthorizationApiModule` shape — which, unlike `notification`'s
+override tokens, needs no cross-module DI-scoping trick at all, since it
+never relies on `forRoot()`'s own wiring.
+
+`authorization` review closed here — no open items, this time genuinely.
 
 ---
 

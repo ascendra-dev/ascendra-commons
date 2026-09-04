@@ -217,6 +217,36 @@ model-agnostic. `PermissionTableAuthorizer` is a stub that throws on every call
 (see `permission-table-authorizer.ts` for the design work a real one must
 resolve first). The target it stands in for:
 
+**Never hand-edit `permission-table-authorizer.ts` to build the real thing.**
+It lives under the vendored `src/ascendra-commons/authorization/` folder —
+`module-packaging-pattern.md`'s "don't hand-edit" boundary — and gets
+overwritten wholesale on any future re-copy/upgrade. It stays exactly what
+`BrokerDomainEventEmitter` already is in `domain-events`: a compile-proof
+placeholder that throws loudly if selected before it's real, never something
+a consumer edits in place. A real Model 2 authorizer is **fresh, project-owned
+code**, written in your own `authorization-api` module and bound to
+`AUTHORIZER` directly — bypassing `forRoot({ model: 'permission-table' })`'s
+own wiring entirely, the same "known limitation, write your own module"
+pattern `notification`'s README documents for its own override pieces:
+
+```typescript
+@Module({
+  providers: [
+    DrizzlePermissionTableAuthorizer, // your own class, implementing Authorizer
+    { provide: AUTHORIZER, useExisting: DrizzlePermissionTableAuthorizer },
+    AuthorizationGuard, // imported directly from the vendored barrel, unmodified
+  ],
+  exports: [AUTHORIZER, AuthorizationGuard],
+})
+export class AuthorizationApiModule {}
+```
+
+This is self-contained — nothing here needs `AuthorizationModule.forRoot()`'s
+own wiring at all, so it doesn't run into the cross-module DI-scoping trap
+`notification`'s own override tokens had to be built around (see that
+module's README): there's no module `forRoot()` merely imports *from* here,
+just one module you own end to end.
+
 A database-backed `Authorizer` introducing named, capability-bearing roles
 assignable within a persona (e.g. an `issuer` persona holding an `owner` or
 `staff` role), supporting delegation (one actor granting a subset of their own
