@@ -194,3 +194,142 @@ one-time custom `LoggerService` (`app.useLogger(...)`, ~10–15 lines) is the
 actual mechanism. Also compared Sentry vs. Datadog concretely (free tier
 reality, pricing model) and recommended Sentry for this stage. Both corrected
 in `domain-events/README.md`'s "The practical path" section.
+
+`domain-events` review closed here — no open items.
+
+---
+
+## 2026-09-04 — `authorization` module-by-module review (in progress)
+
+**Finding — dimensions 7 and 8 conflated two different questions each, and
+`authorization`'s Audit 1 scoring (7: N/A, 8: Pass) obscured the distinction
+rather than being wrong outright.**
+
+- **Dimension 7 (persistence):** Audit 1's flat "N/A" is accurate for what
+  exists today (`StaticRoleMapAuthorizer` touches no database at all) but
+  reads the same as a *permanent* N/A (like `applicationId`'s), when it isn't
+  — `PermissionTableAuthorizer` will need real persistence once built, and
+  dimension 7's rule (schema shareable, instance/connection consumer-owned)
+  already applies to that future design, documented in the README's Model 2
+  section. **Status: standard clarified** — `MODULE-STANDARD.md` dimension 7
+  now distinguishes permanent N/A from "N/A today, rule already specified for
+  later," so a future audit states which.
+- **Dimension 8 (UI):** Audit 1's flat "Pass" was scored only against the
+  end-user hide/show/disable contract (`computeSessionSnapshot`/
+  `computeActionAvailability` — genuinely a full Pass), without separately
+  scoring the *administration* UI (role/permission management for Model 2) —
+  a materially thinner, one-paragraph sketch in the README's "Administration"
+  section, appropriately light given it's downstream of an unbuilt Model 2,
+  but not the same thing as the end-user contract. **Status: standard
+  clarified** — dimension 8 now explicitly splits into "end-user UI contract"
+  and "administration UI," scored separately; a module can Pass one and be
+  a lighter sketch on the other without that being conflated into one verdict.
+
+**Decision: `authorization/README.md`'s admin-UI paragraph stays as-is** —
+expanding it into a full deferred-design sketch now (matching
+`background-jobs`'/`audit-logging`'s treatment of their own not-built pieces)
+would be designing a management surface for an authorizer that doesn't exist
+yet, further ahead than dimension 6 already asks of every other module's
+Model 2. Revisit if `PermissionTableAuthorizer` itself gets built first.
+
+No code changed — `MODULE-STANDARD.md` only. 170/170 tests unaffected.
+
+`authorization` review closed here — no open items.
+
+---
+
+## 2026-09-05 — `notification` module-by-module review (in progress)
+
+**Finding — the documented "override the binding in your own module" escape
+hatch was subtly broken, and this was more serious than a documentation gap.**
+`NOTIFICATION_CHANNEL_CONFIG`/`EMAIL_TEMPLATE_REPOSITORY`/
+`SMS_TEMPLATE_REPOSITORY`/`USER_CONTACT_RESOLVER` are never exported from
+`NotificationModule` (only `NOTIFIER` is), and `Notifier` is constructed
+inside `NotificationModule`'s own DI scope — NestJS provider registries are
+per-module, so a same-named token bound in a separate consumer module never
+reaches the `Notifier` instance `forRoot()` already built. The one existing
+test exercising an "override" (`.overrideProvider(USER_CONTACT_RESOLVER)`)
+passed only because that's `@nestjs/testing`-only tooling, not something a
+real `AppModule` can do — masking that the documented production path didn't
+actually work as written.
+
+**Status: fixed.** `NotificationModuleConfig` gained four independent override
+tokens (`channelConfigToken`, `emailTemplateRepositoryToken`,
+`smsTemplateRepositoryToken`, `userContactResolverToken`) + `imports` —
+mirroring `background-jobs`' `sqlExecutorToken` pattern, deliberately **not**
+a single `model` enum the way `authorization`/`domain-events` have, since
+notification has four independently-swappable pieces and a real deployment is
+far more likely to swap one than all four atomically. `channels`/
+`emailTemplates`/`smsTemplates` became optional, each required only when its
+corresponding token is absent (mirrors `AuthorizationModule.forRoot()`'s own
+runtime-checked requiredness for `personaActions`). 9 new tests in
+`notification.module.spec.ts` (real DI, not `.overrideProvider()`) proving
+each token swap, a partial swap (the realistic case — one piece overridden,
+others still static), and the three missing-data throw paths. README updated:
+new "Swapping one piece for a database-backed implementation" section
+explaining why this had to be a `forRoot()` option (the per-module DI-scoping
+reason above, spelled out); the channel-config worked example's binding
+instructions corrected; two previously-missing worked examples added
+(`NotificationTemplateRepository`, `UserContactResolver`) — closing the
+uneven-documentation finding from the previous session too. 177/177 tests
+pass, typecheck clean.
+
+**Finding — `applicationId` as a passive schema column vs. an active query
+parameter are different costs, and conflating them was too coarse.** Raised as
+"what if the same `notificationType` exists for two different applications
+under a unified database" — correctly identified as a non-issue under this
+repo's actual architecture (per-app databases, a unified database already
+ruled out for the same reasons as the earlier centralized-service decision).
+But a real, distinct, low-cost practice survived that framing: a
+database-backed reference schema should still stamp a passive `application_id`
+column at write time (a constant or `DEFAULT`, never queried), because it's
+free before the table exists and a genuine backfill migration after. **Status:
+documented** — `notification/README.md`'s `applicationId` note and both
+worked examples (`DatabaseNotificationChannelConfig`,
+`DatabaseNotificationTemplateRepository`) now describe this precisely,
+explicit that it's never added to `channelsFor()`/`templateFor()`'s actual
+signature (that would repeat the `domain-events` mistake). Generalized into
+`MODULE-STANDARD.md` dimension 4 as a standing distinction — applies to any
+future module's reference schema (`authorization`'s eventual roles table,
+`idempotency-key`'s table) — not notification-specific. No code changed
+(schema/query examples are prose in the README, not shipped classes); 177/177
+unaffected.
+
+**Correction — a follow-up request to make `applicationId` a real
+`NotificationModuleConfig` field was implemented, then caught broken by a real
+test, then fixed properly.** The first attempt mirrored `domain-events`'
+`APPLICATION_ID` shape (optional, bound only if given, exported) — but
+`domain-events`' consumers (`audit-logging`) *import* `DomainEventsModule`
+(downstream), while `NotificationChannelConfig`'s override classes are
+constructed in a module `NotificationModule.forRoot()` merely imports *from*
+(`channelConfigToken`/`imports` — upstream). A token bound inside `forRoot()`
+is invisible in that direction; NestJS provider registries are per-module. A
+throwaway `Test.createTestingModule()` check (this repo's own standing
+discipline — verify with a real container, not just typecheck) reproduced
+NestJS's own dependency-resolution error immediately, confirming the field as
+built could never deliver its value to where it was meant to go. **Status:
+reverted and fixed properly** — `applicationId` removed from
+`NotificationModuleConfig`, `NOTIFICATION_APPLICATION_ID` kept as an exported
+*name only* (no `forRoot()` binding), with `tokens.ts` and the README's
+worked examples corrected to show the actual working shape: the consumer's
+own module provides `NOTIFICATION_APPLICATION_ID` directly, in the same scope
+as the class that injects it. New test proves the corrected pattern actually
+resolves (real DI, not a mock). 178/178 pass, typecheck clean.
+
+**Further correction — `NOTIFICATION_APPLICATION_ID` itself was removed.**
+Once `forRoot()` couldn't bind it, the token's only remaining justification
+was "a shared name to import" — but every *other* override token in this
+module's worked examples (`DATABASE_CHANNEL_CONFIG`,
+`DATABASE_EMAIL_TEMPLATES`, `DATABASE_SMS_TEMPLATES`, `DRIZZLE_USER_RESOLVER`)
+is declared inline in the consumer's own example code, never exported from
+`ascendra-commons/notification` — confirmed by checking the README directly.
+More decisively: every *other* real token in `tokens.ts` exists because a
+piece of shipped code injects it by that name (`Notifier` injects
+`NOTIFICATION_CHANNEL_CONFIG`, the senders inject `USER_CONTACT_RESOLVER`);
+`NOTIFICATION_APPLICATION_ID` was the only token with no shipped injector at
+all — an exported-but-functionally-inert symbol carries the same
+"looks-wired-but-isn't" risk the `applicationId` field itself just
+demonstrated, just smaller. **Status: removed** — `tokens.ts` and `index.ts`
+reverted to their pre-this-thread state; the worked examples and the test now
+declare their own local `APPLICATION_ID` symbol, consistent with every other
+override token's documented pattern. 178/178 pass, typecheck clean.

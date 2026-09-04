@@ -13,11 +13,27 @@ for real delivery later is one binding change, never a change to routing,
 templates, or feature code.
 
 Built and audited against `MODULE-STANDARD.md` (this repo's root). Two
-dimensions worth stating explicitly: no `applicationId` anywhere in this
-module — deliberately N/A, since a notification never lands anywhere a second
-Ascendra application also publishes to (no broker, no shared sink); `tenantId`
-*is* threaded, on `NotificationRequest` and both `NotificationChannelConfig`/
-`NotificationTemplateRepository` — see "`NotificationChannelConfig`" below.
+dimensions worth stating explicitly. No `applicationId` **query parameter**
+anywhere in this module's interfaces — deliberately N/A there, since every
+table a database-backed implementation queries belongs to one app's own
+database, so there's nothing to disambiguate at read time (a notification
+never lands anywhere a second Ascendra application also publishes to either —
+no broker, no shared sink). It's **not** a `forRoot()` field either, and not
+an exported token from this library at all — unlike `domain-events`'
+`APPLICATION_ID`, this one can't be delivered that way: a database-backed
+override you write later is constructed in *your own* module, one `forRoot()`
+merely imports *from* (`channelConfigToken`/`imports`), not a module
+`forRoot()` exports into — NestJS provider registries are per-module, and
+that's the wrong import direction for `forRoot()` to hand anything across, or
+for an exported token to mean anything (nothing here would ever inject it by
+that name). If you want an app-id value available to a database-backed
+override, declare your own token in your own module and inject it there — see
+"Going to a database-backed channel config" below for the concrete shape, and
+`MODULE-STANDARD.md` dimension 4 for why a passive column is a different,
+cheaper case than an active query parameter in the first place. `tenantId`
+*is* threaded as a real query parameter, on `NotificationRequest` and both
+`NotificationChannelConfig`/`NotificationTemplateRepository` — see
+"`NotificationChannelConfig`" below.
 
 ## The pieces
 
@@ -176,26 +192,60 @@ all three channel senders, the `NOTIFICATION_CHANNEL_SENDERS` map (assembled via
 `useFactory`, since a `Map` isn't a class Nest can construct directly), and
 `Notifier` — exporting only `NOTIFIER`, the token any listener actually injects.
 
-**Known limitation:** `forRoot()` is all-or-nothing — there's no option to swap
-in just one custom piece (e.g. `DatabaseNotificationChannelConfig`) while keeping
-the rest of `forRoot()`'s wiring. A consumer wanting any customization beyond the
-plain data values (`channels`, `emailTemplates`, `smsTemplates`) has to write
-their own module from scratch, reusing the exported classes and tokens directly
-— see "Going to a database-backed channel config" below for exactly that shape.
-Adding partial-override support to `forRoot()` itself would be real
-infrastructure with no confirmed need driving its exact shape yet; the
-escape hatch below is deliberately the answer until one exists.
+### Swapping one piece for a database-backed implementation
+
+Four independently swappable pieces, not one unified Model 1/Model 2 knob —
+unlike `authorization`'s `model` or `domain-events`' `transport`, which each
+choose between exactly one complete implementation. A real deployment is far
+more likely to want *one* piece database-backed (channel routing, say) while
+the others stay static than to swap all four atomically, so `forRoot()`
+accepts four independent override tokens instead of one enum:
+
+```typescript
+NotificationModule.forRoot({
+  channelConfigToken: DATABASE_CHANNEL_CONFIG,          // omit to use StaticNotificationChannelConfig, reading `channels`
+  emailTemplateRepositoryToken: DATABASE_EMAIL_TEMPLATES, // omit to use StaticNotificationTemplateRepository, reading `emailTemplates`
+  smsTemplateRepositoryToken: DATABASE_SMS_TEMPLATES,     // omit to use StaticNotificationTemplateRepository, reading `smsTemplates`
+  userContactResolverToken: DRIZZLE_USER_RESOLVER,        // omit to use NullUserContactResolver
+  imports: [MyNotificationProvidersModule],               // whatever module exports the token(s) above
+})
+```
+
+Omit a token and `forRoot()` reads the corresponding data field, exactly as
+before; supply it and `forRoot()` binds your class instead, without requiring
+(or constructing anything from) that data field at all — mix and match freely,
+per piece.
+
+**Why this has to be a `forRoot()` option, not just "bind the token yourself in
+your own module":** `Notifier` is constructed *inside* `NotificationModule`'s
+own DI scope, and NestJS's provider registries are per-module — a
+`{ provide: NOTIFICATION_CHANNEL_CONFIG, useClass: DatabaseNotificationChannelConfig }`
+declared in a separate, unrelated module does **not** reach the `Notifier`
+instance `forRoot()` already built; it's a different registration in a
+different scope that `Notifier`'s own dependency resolution never sees. (The
+one thing that *can* reach across scopes like that is `@nestjs/testing`'s
+`.overrideProvider()` — a test-only capability, not something a real
+`AppModule` can do.) The token fields above are the actual seam; passing your
+implementation's token through `forRoot()` is what lets it bind inside the
+right scope.
 
 ### Going to a database-backed channel config
 
 ```typescript
 // In the consuming project, not in this library:
+export const APPLICATION_ID = Symbol('APPLICATION_ID'); // your own token — not exported by this library, see the note below
+
 class DatabaseNotificationChannelConfig implements NotificationChannelConfig {
-  constructor(private readonly db: SomeLooselyTypedDrizzleDb) {}
+  constructor(
+    private readonly db: SomeLooselyTypedDrizzleDb,
+    @Inject(APPLICATION_ID) private readonly applicationId: string,
+  ) {}
 
   async channelsFor(notificationType: string, tenantId: string | null): Promise<NotificationChannel[]> {
     // Tenant-specific row first (a tenant that overrides the deployment default),
     // falling back to the tenant-less row (tenantId IS NULL) — the deployment default.
+    // application_id is written on insert (see the seed/admin write path, not shown
+    // here), never filtered on read — see the note below.
     const rows = await this.db.select().from(notificationChannelConfigTable)
       .where(and(
         eq(notificationChannelConfigTable.notificationType, notificationType),
@@ -214,23 +264,135 @@ no override row falls through to the deployment default (`tenantId IS NULL`)
 transparently — `StaticNotificationChannelConfig` and this database-backed one
 answer identically for every tenant that hasn't been given a specific row.
 
+**Stamp `application_id` on the table, but don't query by it.** Unlike
+`tenantId`, this is never a real parameter on `channelsFor()` — every row this
+query ever sees already belongs to this one app's own database, so there's
+nothing to disambiguate at read time, and adding it as an active *query*
+parameter with no reader would be the exact mistake corrected elsewhere in
+this repo (see `domain-events`' `application`). But `notificationChannelConfigTable`
+should still carry an `application_id` column, populated when a row is
+inserted — free while the table doesn't exist yet, and it removes an
+otherwise-necessary backfill migration if this data is ever consolidated for
+cross-app analytics or reporting later (see `MODULE-STANDARD.md` dimension 4).
+`APPLICATION_ID` above supplies the value into this class's own constructor —
+**your own token, declared in your own module, alongside this class**, not
+exported by this library and not something `forRoot()` provides: nothing here
+ever injects a value by a fixed "application id" name, so there's no shared
+token to import, only a naming *convention* to follow if you like. It has to
+be provided in the same module as `DatabaseNotificationChannelConfig` itself
+— that class is constructed in a module `forRoot()` only imports *from*, so
+nothing bound inside `forRoot()` could ever reach it (the exact NestJS
+per-module scoping reason "Swapping one piece..." above already explains for
+the override tokens themselves).
+
 Use the core/raw query builder (`db.select().from(table)`), not the relational
 query API (`db.query.table.findFirst()`) — the latter requires the `db` client's
 own type to be parameterized with this specific table's schema, which would force
 this class to know about the consuming project's full schema. The core builder
 works against any table object regardless of the client's own schema generic, so
 `DatabaseNotificationChannelConfig` never needs to know anything about
-`ascendra-pay`'s (or any other project's) other tables. Bind it in the consuming
-project's own module in place of `StaticNotificationChannelConfig`:
+`ascendra-pay`'s (or any other project's) other tables. Provide it under your own
+token, in your own module, and pass that token to `forRoot()`:
 
 ```typescript
-{ provide: NOTIFICATION_CHANNEL_CONFIG, useClass: DatabaseNotificationChannelConfig }
+export const DATABASE_CHANNEL_CONFIG = Symbol('DATABASE_CHANNEL_CONFIG');
+
+@Module({
+  providers: [
+    { provide: APPLICATION_ID, useValue: 'ascendra-pay' }, // same module as the class that injects it — see above
+    { provide: DATABASE_CHANNEL_CONFIG, useClass: DatabaseNotificationChannelConfig },
+  ],
+  exports: [DATABASE_CHANNEL_CONFIG],
+})
+export class MyNotificationProvidersModule {}
+```
+
+```typescript
+NotificationModule.forRoot({
+  channelConfigToken: DATABASE_CHANNEL_CONFIG,
+  imports: [MyNotificationProvidersModule],
+  // emailTemplates/smsTemplates unaffected — still static, still required, unless those get their own token too
+})
 ```
 
 This only stays clean as long as the channel-config table remains generic. The
 moment a project needs to extend it (an audit column, a join against
 project-specific data), that's the natural point to fork into a fully
 project-owned table and implementation instead.
+
+### Going to a database-backed template repository
+
+Same shape as channel config, same reasoning for why it's generic-safe (core
+query builder, not the relational API) — and the same "stamp `application_id`
+on the table, never query by it" practice applies to `notificationTemplateTable`
+too, for the identical reason (see the note above `DatabaseNotificationChannelConfig`).
+
+```typescript
+// In the consuming project, not in this library:
+class DatabaseNotificationTemplateRepository implements NotificationTemplateRepository {
+  constructor(private readonly db: SomeLooselyTypedDrizzleDb) {}
+
+  async templateFor(notificationType: string, tenantId: string | null): Promise<NotificationTemplate | null> {
+    // Same tenant-specific-row-first, fall-through-to-deployment-default shape
+    // as DatabaseNotificationChannelConfig above.
+    const rows = await this.db.select().from(notificationTemplateTable)
+      .where(and(
+        eq(notificationTemplateTable.notificationType, notificationType),
+        tenantId
+          ? inArray(notificationTemplateTable.tenantId, [tenantId, null])
+          : isNull(notificationTemplateTable.tenantId),
+      ))
+      .orderBy(desc(notificationTemplateTable.tenantId));
+    return rows[0] ?? null;
+  }
+}
+```
+
+Each channel needs its **own** table/token/binding, exactly the way
+`StaticNotificationTemplateRepository` gets two separate instances today — a
+white-labeled tenant's email copy and SMS copy are independent content, not
+one shared row:
+
+```typescript
+NotificationModule.forRoot({
+  channels: { /* still static, unaffected */ },
+  emailTemplateRepositoryToken: DATABASE_EMAIL_TEMPLATES,
+  smsTemplateRepositoryToken: DATABASE_SMS_TEMPLATES,
+  imports: [MyNotificationProvidersModule], // exports both tokens
+})
+```
+
+### Going to a real `UserContactResolver`
+
+Structurally the same token mechanism, but a different *kind* of choice than
+the two above: `NullUserContactResolver` isn't a genuine long-term Model 1
+some deployments keep forever the way a static channel/template map might be —
+it's a bootstrapping placeholder. Most real deployments with actual internal
+users (issuer staff, platform admins) need a real resolver quickly, not as an
+optional upgrade path.
+
+```typescript
+// In the consuming project, not in this library:
+class DrizzleUserContactResolver implements UserContactResolver {
+  constructor(private readonly db: SomeLooselyTypedDrizzleDb) {}
+
+  async findById(id: string): Promise<{ email?: string; phone?: string } | null> {
+    const rows = await this.db.select({ email: users.email, phone: users.phone })
+      .from(users).where(eq(users.id, id));
+    return rows[0] ?? null;
+  }
+}
+```
+
+```typescript
+NotificationModule.forRoot({
+  channels: { /* ... */ },
+  emailTemplates: { /* ... */ },
+  smsTemplates: { /* ... */ },
+  userContactResolverToken: DRIZZLE_USER_RESOLVER,
+  imports: [MyNotificationProvidersModule],
+})
+```
 
 ## What's not built yet
 

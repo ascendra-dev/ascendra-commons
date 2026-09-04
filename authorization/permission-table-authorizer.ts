@@ -53,6 +53,15 @@ export class PermissionTableAuthorizerNotImplementedError extends Error {
  *   assignment (ordinary tenant-scoped self-service) are different access levels;
  *   conflating them is a privilege-escalation path. The role-definition UI is a
  *   permission matrix — see this module's README, "Administration".
+ * - **Database wiring, not added yet.** This class takes no constructor
+ *   dependencies today — nothing to query. When it's real, `AuthorizationModuleConfig`
+ *   will need a `sqlExecutorToken`/`imports` pair, the same shape
+ *   `BackgroundJobsModule.forRoot()` already uses (`{ provide: SQL_EXECUTOR,
+ *   useExisting: config.sqlExecutorToken }`) — an alias to the consumer's
+ *   already-existing db client, never a connection this library opens itself.
+ *   Not added now: an unread config field is exactly the mistake this module's
+ *   README documents correcting for `application` in `domain-events` — required
+ *   (or present-but-unread) config should earn its place from an actual reader.
  *
  * See this module's README, "Model 2 — Roles and Delegated Permissions".
  */

@@ -74,6 +74,24 @@ Modules with no such surface (pure intra-app concerns — `authorization`,
 `notification`, `idempotency-key`) are marked **N/A**, with that one-line
 reason, not silently skipped.
 
+**Passive schema metadata is a different, cheaper case than an active
+parameter — don't conflate the two.** A module can be correctly N/A for
+`applicationId` as a *query parameter* (nothing to disambiguate within one
+app's own database) while still benefiting from `application_id` as a
+*passive column* on any reference schema it documents — populated via a
+constant or a `DEFAULT` at write time, never read or filtered on. This is
+free specifically because it's added before the table exists (a brand-new
+`CREATE TABLE` costs nothing extra for one more column); the same column
+added after real rows exist is a genuine backfill migration. The two are not
+the same request: an active parameter with no reader repeats the
+`domain-events` mistake above; a passive column with no reader is closer to
+`created_at` — cheap insurance against a future data consolidation (analytics,
+a reporting export — never a live shared database, which this repo has
+already ruled out as an architecture; see the root README's distribution
+model) rather than a live thing every call site must carry. `notification`'s
+reference schema (`NotificationChannelConfig`/`NotificationTemplateRepository`'s
+worked examples) does this — see its own README for the concrete shape.
+
 ### 5. `tenantId`
 
 Threaded on the module's main request/subject object (mirroring
@@ -112,14 +130,37 @@ definitions) — never core transactional data. Per-consumer migration drift and
 "no automatic fix propagation" are accepted costs of this tradeoff (see
 `module-packaging-pattern.md` §4), not bugs to solve by centralizing.
 
+**N/A here comes in two different strengths — say which.** A module whose
+Model 1 *and* every plausible Model 2 have no database at all (`authorization`'s
+`applicationId`, by analogy) is N/A permanently. A module whose *current*
+Model 1 has no persistence but whose already-documented Model 2 will (e.g.
+`authorization`: `StaticRoleMapAuthorizer` touches no DB today, but
+`PermissionTableAuthorizer` will need a `roles`/`role_permissions`/`user_roles`
+shape once built) is N/A *for now* — the rule this dimension states still has
+to be honored when that Model 2 lands, and the audit should say so explicitly
+rather than let a flat "N/A" read as "this module has no persistence story at
+all."
+
 ### 8. UI / frontend contract
 
-If the module has a hide/show, enable/disable, or per-record availability
-concern reaching a frontend: the contract is documented in the module's own
-README (the way `authorization`'s `computeSessionSnapshot` /
-`computeActionAvailability` are), even though no frontend counterpart library
-(`ascendra-commons-ui`) exists yet. Modules with no user-facing surface
-(`domain-events`, `background-jobs`, `idempotency-key`) are marked **N/A**.
+Two different questions, not one — score them separately:
+
+- **End-user UI contract.** Does the module have a hide/show, enable/disable,
+  or per-record availability concern reaching the app a *tenant's own user*
+  sees? If so, the contract is documented in the module's own README (the way
+  `authorization`'s `computeSessionSnapshot`/`computeActionAvailability` are),
+  even though no frontend counterpart library (`ascendra-commons-ui`) exists
+  yet.
+- **Administration UI.** Does the module need a management surface for
+  *configuring itself* — defining roles, editing templates, browsing records?
+  This is a separate concern from the first, and a module can score
+  differently on each (`authorization` is a full Pass on the first, and only a
+  one-paragraph sketch — appropriately, since it's downstream of an
+  unbuilt Model 2, not a Gap — on the second).
+
+Modules with no user-facing surface at all on either question
+(`domain-events`, `background-jobs`, `idempotency-key`) are marked **N/A** on
+both.
 
 ### 9. Naming convention
 
