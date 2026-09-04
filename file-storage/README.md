@@ -12,6 +12,13 @@ This pattern depends on `authorization/` also being vendored —
 rather than reinventing coarse permission checking. Copy both folders
 together.
 
+Built and audited against `MODULE-STANDARD.md` (this repo's root). No
+`applicationId` anywhere in this module — deliberately N/A, since a file lands
+in one application's own Supabase Storage bucket, never a shared destination.
+`tenantId` *is* threaded throughout — `FileStore.upload()`'s meta,
+`FileRecord.tenantId`, and `FileStoreConfig.buildObjectKey()` all carry it,
+since every stored file genuinely belongs to exactly one tenant.
+
 ## The pieces
 
 ### `FileStore` — defined once, never the implementation

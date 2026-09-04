@@ -11,6 +11,13 @@ answers the first question, backed by the minimum viable model, with a
 deliberate seam for a richer permission model to be added later without
 redesigning call sites.
 
+Built and audited against `MODULE-STANDARD.md` (this repo's root). No
+`applicationId` anywhere in this module — deliberately N/A, since an
+authorization decision never leaves the process it's made in; there's no
+shared destination to disambiguate a producer for. `tenantId` *is* present, on
+`Actor` — see "`Authorizer`" below and `authorization.types.ts`'s own doc
+comment for why it's nullable.
+
 ## The pieces
 
 ### `Authorizer` — defined once, never the implementation

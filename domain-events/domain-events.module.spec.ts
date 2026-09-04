@@ -66,7 +66,7 @@ class TestListener {
   }
 }
 
-async function buildTestModule(module = DomainEventsModule.forRoot({ application: 'test-app' })) {
+async function buildTestModule(module = DomainEventsModule.forRoot()) {
   const moduleRef = await Test.createTestingModule({
     imports: [module],
     providers: [TestListener],
@@ -159,7 +159,13 @@ describe('DomainEventsModule — real DI + @OnEvent() wiring', () => {
     expect(() => moduleRef.get(EventEmitter2, { strict: true })).toThrow();
   });
 
-  it('exports APPLICATION_ID bound to the configured application, even on the in-process transport', async () => {
+  it('in-process: does not bind APPLICATION_ID when application is omitted — forRoot() takes no argument at all', async () => {
+    const moduleRef = await buildTestModule(DomainEventsModule.forRoot());
+
+    expect(() => moduleRef.get(APPLICATION_ID, { strict: true })).toThrow();
+  });
+
+  it('in-process: binds APPLICATION_ID when application is supplied, opt-in', async () => {
     const moduleRef = await buildTestModule(DomainEventsModule.forRoot({ application: 'ascendra-pay' }));
 
     expect(moduleRef.get(APPLICATION_ID)).toBe('ascendra-pay');
@@ -167,6 +173,10 @@ describe('DomainEventsModule — real DI + @OnEvent() wiring', () => {
 });
 
 describe('DomainEventsModule.forRoot({ transport: "broker" }) — the seam, unimplemented', () => {
+  it('throws synchronously if application is omitted — the only transport that actually needs it', () => {
+    expect(() => DomainEventsModule.forRoot({ transport: 'broker' })).toThrow(/requires application/);
+  });
+
   it('binds DOMAIN_EVENT_EMITTER to BrokerDomainEventEmitter', async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [DomainEventsModule.forRoot({ application: 'test-app', transport: 'broker' })],

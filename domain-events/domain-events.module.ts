@@ -1,4 +1,4 @@
-import { DynamicModule, Module } from '@nestjs/common';
+import { DynamicModule, Module, Provider } from '@nestjs/common';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { InProcessDomainEventEmitter } from './in-process-domain-event-emitter.service';
 import { BrokerDomainEventEmitter } from './broker-domain-event-emitter.service';
@@ -10,14 +10,18 @@ export type DomainEventsTransport = 'in-process' | 'broker';
 export interface DomainEventsModuleConfig {
   /**
    * Which Ascendra application this process is (e.g. 'ascendra-pay',
-   * 'ascendra-school-erp'). Required under both transports — not because
-   * 'in-process' needs it today, but because "which app is this" is a fact
-   * about the process, not the transport, and the cost of declaring it now
-   * (one string, one field) is far cheaper than discovering it's missing once
-   * several applications share a broker cluster. See tokens.ts (APPLICATION_ID)
-   * and this module's README, "Application identity".
+   * 'ascendra-school-erp'). Required under `transport: 'broker'` —
+   * BrokerDomainEventEmitter's stub already uses it (see its own file, and
+   * this module's README, "Application identity"), and a real broker
+   * transport will need it for topic naming. Optional under 'in-process':
+   * nothing in this module reads it there — a single process has nothing to
+   * disambiguate from. Supply it anyway only if some other provider you're
+   * adding (e.g. a cross-product audit tag) wants to `@Inject(APPLICATION_ID)`
+   * — if you do, it's bound and exported the same as under 'broker'; if you
+   * don't, the token simply isn't provided (injecting it fails loudly rather
+   * than resolving to `undefined`).
    */
-  application: string;
+  application?: string;
   /**
    * 'in-process' (default) — EventEmitter2, listeners in the same process,
    * emitCritical() runs inside the caller's transaction.
@@ -29,16 +33,16 @@ export interface DomainEventsModuleConfig {
 }
 
 /**
- * A dynamic module. Unlike NotificationModule/AuthorizationModule — which need
- * forRoot() because they have real business config with no sensible default —
- * this one used to need no config at all when transport defaulted to
- * 'in-process'. That's no longer true: `application` has no sensible default
- * (there is no correct guess for "which app is this"), so forRoot() now always
- * requires an argument. Everything else about the transport knob is unchanged.
+ * A dynamic module. `transport` defaults to 'in-process', and `application`
+ * is only required by the transport that actually consumes it (`'broker'`) —
+ * so `DomainEventsModule.forRoot()` with no argument at all remains the normal
+ * call for the common case, the same promise this module made before
+ * `application` existed. `application`'s cost is paid only by the path that
+ * has a use for it.
  *
- * Why forRoot() at all rather than the previous bare @Module: DomainEventEmitter
- * is now an interface chosen at import time, and forRoot({ transport }) is where
- * that choice is made. Call sites inject the DOMAIN_EVENT_EMITTER token and are
+ * Why forRoot() at all rather than a bare @Module: DomainEventEmitter is an
+ * interface chosen at import time, and forRoot({ transport }) is where that
+ * choice is made. Call sites inject the DOMAIN_EVENT_EMITTER token and are
  * unaffected by which transport is bound.
  *
  * Why { global: false } on the in-process path: EventEmitterModule.forRoot()
@@ -50,15 +54,21 @@ export interface DomainEventsModuleConfig {
  */
 @Module({})
 export class DomainEventsModule {
-  static forRoot(config: DomainEventsModuleConfig): DynamicModule {
+  static forRoot(config: DomainEventsModuleConfig = {}): DynamicModule {
     const transport = config.transport ?? 'in-process';
-    const applicationIdProvider = { provide: APPLICATION_ID, useValue: config.application };
 
     if (transport === 'broker') {
+      if (!config.application) {
+        throw new Error(
+          "DomainEventsModule.forRoot({ transport: 'broker' }) requires application — " +
+            'which Ascendra application this process is. BrokerDomainEventEmitter names it ' +
+            'in every error it throws, and a real transport will need it for topic naming.',
+        );
+      }
       return {
         module: DomainEventsModule,
         providers: [
-          applicationIdProvider,
+          { provide: APPLICATION_ID, useValue: config.application },
           BrokerDomainEventEmitter,
           { provide: DOMAIN_EVENT_EMITTER, useExisting: BrokerDomainEventEmitter },
         ],
@@ -66,15 +76,22 @@ export class DomainEventsModule {
       };
     }
 
+    // 'in-process': application is optional — bind APPLICATION_ID only if supplied,
+    // so an omitted value fails loudly if something ever tries to inject it, rather
+    // than silently resolving to undefined.
+    const applicationIdProviders: Provider[] = config.application
+      ? [{ provide: APPLICATION_ID, useValue: config.application }]
+      : [];
+
     return {
       module: DomainEventsModule,
       imports: [EventEmitterModule.forRoot({ global: false })],
       providers: [
-        applicationIdProvider,
+        ...applicationIdProviders,
         InProcessDomainEventEmitter,
         { provide: DOMAIN_EVENT_EMITTER, useExisting: InProcessDomainEventEmitter },
       ],
-      exports: [DOMAIN_EVENT_EMITTER, APPLICATION_ID],
+      exports: config.application ? [DOMAIN_EVENT_EMITTER, APPLICATION_ID] : [DOMAIN_EVENT_EMITTER],
     };
   }
 }

@@ -12,6 +12,13 @@ its real templates work fundamentally differently (see below). Swapping a stub
 for real delivery later is one binding change, never a change to routing,
 templates, or feature code.
 
+Built and audited against `MODULE-STANDARD.md` (this repo's root). Two
+dimensions worth stating explicitly: no `applicationId` anywhere in this
+module — deliberately N/A, since a notification never lands anywhere a second
+Ascendra application also publishes to (no broker, no shared sink); `tenantId`
+*is* threaded, on `NotificationRequest` and both `NotificationChannelConfig`/
+`NotificationTemplateRepository` — see "`NotificationChannelConfig`" below.
+
 ## The pieces
 
 ### `Notifier` — the one thing feature/listener code depends on
@@ -159,10 +166,12 @@ export class AppModule {}
 ```
 
 `NotificationModule.forRoot()` is a dynamic module (as is
-`DomainEventsModule.forRoot()`) — both always require config with no sensible
-default (`domain-events`' `application` included — see its own README,
-"Application identity"). It wires: `NullUserContactResolver`, both static
-config/template implementations,
+`DomainEventsModule.forRoot()`) — but unlike `domain-events` (whose only
+required-by-default field is `transport`, and that defaults to `'in-process'`,
+so `forRoot()` there needs no argument), this one *always* requires config:
+there's no sensible default channel/template mapping, a consumer always has
+real business decisions to supply. It wires: `NullUserContactResolver`, both
+static config/template implementations,
 all three channel senders, the `NOTIFICATION_CHANNEL_SENDERS` map (assembled via
 `useFactory`, since a `Map` isn't a class Nest can construct directly), and
 `Notifier` — exporting only `NOTIFIER`, the token any listener actually injects.

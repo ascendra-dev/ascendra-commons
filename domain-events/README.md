@@ -8,6 +8,10 @@ directly — it publishes an event, and each concern subscribes independently. T
 is what lets notifications, audit logging, and any future subscriber be added or
 changed without ever touching the code that raises the event.
 
+Built and audited against `MODULE-STANDARD.md` (this repo's root) — the
+cross-module checklist for packaging, `applicationId`/`tenantId`, the Model
+1/Model 2 split, and more.
+
 ## The pattern
 
 ### Domain event classes — one per fact, defined by the consuming project
@@ -32,6 +36,17 @@ event classes for its own facts. The only thing this library fixes is the
 `DomainEvent` marker interface (`occurredAt: Date`), so every event is uniformly
 shaped for consumers like an audit listener that need a timestamp regardless of
 which specific event they're handling.
+
+**No `tenantId` on `DomainEvent` itself** — deliberately N/A, not an
+oversight. Tenancy is a payload-specific fact each concrete event class
+carries itself when relevant (`InvoiceStatusChanged.tenantId` above), the way
+`AuditableDomainEvent.toAuditRecord()` already reads it back out for the audit
+trail. The transport/interface layer has no use for it: dispatch, in-process
+or broker, doesn't route or filter on tenancy — every listener in the process
+receives every event regardless, and it's the listener's own job to read the
+payload's tenant field if it cares. See "Application identity" below for the
+one identity concept this layer *does* need to know about, and why it's a
+different thing from a per-event `tenantId`.
 
 Events are named for what already happened (`InvoiceSent`, `PaymentConfirmed`),
 never as a command or intent. The payload is scoped to the facts of the action —
@@ -218,12 +233,17 @@ to `emitCritical()`.
 
 ## Application identity
 
-`DomainEventsModule.forRoot({ application })` is required under both
-transports — there is no sensible default for "which Ascendra application is
-this process" the way `'in-process'` is a sensible default transport. It's
-bound to the `APPLICATION_ID` token and exported alongside
-`DOMAIN_EVENT_EMITTER`, so any provider that imports this module can
-`@Inject(APPLICATION_ID)` directly.
+`DomainEventsModule.forRoot({ application })` is required only under
+`transport: 'broker'` — `BrokerDomainEventEmitter` already consumes it (it
+names the application in every error it throws; see its own file for the
+intended topic-naming use once a real transport exists). Under `'in-process'`
+it's optional: nothing in this module reads it there, so `forRoot()` with no
+argument at all remains the normal call — the same promise this module made
+before `application` existed. Supplying it under `'in-process'` anyway is
+meaningful only if some *other* provider you're adding wants to
+`@Inject(APPLICATION_ID)` (see below); if you don't supply it, the token
+simply isn't bound — injecting it fails loudly rather than silently resolving
+to `undefined`.
 
 This exists because `ascendra-commons` is copy-distributed (see "Consuming
 this module" below) — `ascendra-pay` and, say, `ascendra-school-erp` each run
@@ -232,26 +252,26 @@ their own copy of this module in their own process, so `eventName` alone
 application's events flowing through it. It becomes ambiguous the moment
 multiple applications publish to a **shared** destination — a broker cluster
 under Model 2, or a shared log/analytics sink consumed by more than one
-application's output. `APPLICATION_ID` is the identifier that disambiguates
-that later, without any call site (`emit()`, `@OnEvent()`, and so on) ever
-needing to know about it. See `BrokerDomainEventEmitter`'s doc comment for the
-intended topic-naming shape.
+application's output (see `audit-logging`'s README, "the module to watch," for
+a concrete example of the latter). `APPLICATION_ID` is the identifier that
+disambiguates that later, without any call site (`emit()`, `@OnEvent()`, and
+so on) ever needing to know about it.
 
 This is deliberately *not* solved by prefixing `eventName` itself — that would
 couple every `@OnEvent('invoice.created')` decorator to a per-application
 string for zero benefit in-process (there is nothing to disambiguate from
 within one process). `APPLICATION_ID` is consumed only where a shared
-destination actually exists.
+destination actually exists — which, today, is nowhere in-process; the token
+exists for the broker path and for any future consumer that opts in.
 
 ## Choosing a transport
 
-`DomainEventsModule.forRoot({ application, transport })` selects which
-implementation of the `DomainEventEmitter` interface is bound to
-`DOMAIN_EVENT_EMITTER`:
+`DomainEventsModule.forRoot({ transport })` selects which implementation of
+the `DomainEventEmitter` interface is bound to `DOMAIN_EVENT_EMITTER`:
 
 ```typescript
-DomainEventsModule.forRoot({ application: 'ascendra-pay' })                       // 'in-process' — the default
-DomainEventsModule.forRoot({ application: 'ascendra-pay', transport: 'broker' })  // Model 2 — not implemented yet
+DomainEventsModule.forRoot()                                                      // 'in-process' — the default, no config needed
+DomainEventsModule.forRoot({ application: 'ascendra-pay', transport: 'broker' })  // Model 2 — not implemented yet, application required
 ```
 
 - **`'in-process'`** — `InProcessDomainEventEmitter`, backed by `EventEmitter2`
@@ -349,7 +369,7 @@ Wire it once at the composition root:
 
 ```typescript
 @Module({
-  imports: [DomainEventsModule.forRoot({ application: 'ascendra-pay' })], // transport: 'in-process' is the default
+  imports: [DomainEventsModule.forRoot()], // transport: 'in-process' is the default; no application needed here
 })
 export class AppModule {}
 ```

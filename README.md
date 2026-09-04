@@ -38,3 +38,10 @@ NestJS `Test.createTestingModule`, since wiring bugs (a missing binding, a
 `useFactory` inject list out of order, a `useExisting` mismatch) only surface
 when a real container resolves the dependency graph, not from typecheck or
 hand-constructed unit tests alone.
+
+See `MODULE-STANDARD.md` for the full checklist every pattern is built and
+audited against — export boundary, packaging, `applicationId`/`tenantId`
+seams, the Model 1/Model 2 split, persistence ownership, UI contract, naming,
+testing, and the upgrade plan (copy-sync tooling, Model 1→2 migration, and why
+"→ a centralized service" is deliberately not a roadmap item for any module
+here).

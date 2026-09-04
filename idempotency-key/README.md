@@ -10,6 +10,15 @@ failure mode any project moving money must not leave to chance.
 
 No dependency on any other pattern in this library — self-contained.
 
+Built and audited against `MODULE-STANDARD.md` (this repo's root). No
+`applicationId` anywhere — deliberately N/A, an idempotency claim never leaves
+the process/database it's made in. No separate `tenantId` field either, but
+not because tenancy is unhandled: `scope` (below) already carries whatever
+identifies the acting tenant/actor, and is more flexible than a bare
+`tenantId` would be — it's resolver-supplied, so it can be a tenant id, an
+actor id, or a signed-link token's own identity for an anonymous caller,
+whichever the enforced endpoint actually needs.
+
 ## The pieces
 
 ### `IdempotencyStore` — an atomic claim, not check-then-act

@@ -14,6 +14,21 @@ and `@OnCriticalEvent()` are what make "a dropped audit record is unacceptable"
 a real, enforced guarantee rather than a documentation claim. Copy both
 folders together.
 
+Built and audited against `MODULE-STANDARD.md` (this repo's root). No
+`applicationId` used today — but unlike most other modules here, this is the
+one where it's a *plausible near-term* ask, not a hypothetical one:
+centralized cross-product compliance reporting ("every admin action across
+every Ascendra product, this quarter") is a standard, real request. Still
+correctly N/A for now, with no concrete signal behind it — flagged here as the
+module to watch. If that story lands, `APPLICATION_ID` needs no new token or
+interface change: this module already depends on `domain-events`, which
+already defines the token — the consumer just needs to supply `application` to
+its own `DomainEventsModule.forRoot()` call (optional under `'in-process'`,
+see that module's README) so it's actually bound, and then
+`persistAuditRecord()` (or the consumer's own repository) can
+`@Inject(APPLICATION_ID)` directly. `tenantId` *is* already threaded — see
+`AuditableDomainEvent` below.
+
 ## The pieces
 
 ### `AuditableDomainEvent` — how an arbitrary event describes itself as an audit record
@@ -117,7 +132,7 @@ Copy `audit-logging/` **and** `domain-events/` into the consumer's
 ```typescript
 @Module({
   imports: [
-    DomainEventsModule.forRoot({ application: 'ascendra-pay' }), // required — this pattern's listener is reached via emitCritical()
+    DomainEventsModule.forRoot(), // required — this pattern's listener is reached via emitCritical(); application isn't needed here (see "Application identity" above)
     AuditLoggingModule.forRoot({
       auditEventRepositoryToken: AUDIT_EVENT_REPOSITORY_IMPL, // whatever token the app's own repository is provided under
       imports: [AuditModule],                                  // whatever module exports that token
@@ -203,7 +218,45 @@ What's shipped: `AuditEvent`, `AuditableDomainEvent`, `AuditEventRepository`,
 `AuditLoggingModule.forRoot()`. No listener class (project-specific, see
 above), no retention/purge policy (audit records are kept indefinitely,
 an explicit decision given the financial nature of the data, not a silent
-default), no admin UI for browsing records.
+default), no admin UI for browsing records, and — worth being explicit about,
+since the Overview names an activity-feed concept — **no read/query API at
+all**: `AuditEventRepository` is write-only by construction (`insert()` only,
+see "The pieces" above). A consumer needing to read audit records back today
+has to query its own audit table directly, outside this module's own
+interface. See below for the deferred design, not built.
+
+### Not built: reading audit records — a real Model 1 extension, not Model 2
+
+Recorded so it isn't lost, not built speculatively — same treatment
+`background-jobs` gives its own not-yet-built `JobRunRecorder`. The design,
+when a real activity-feed or compliance-export story asks for it:
+
+```typescript
+export interface AuditQuery {
+  entityType?: string;
+  entityId?: string;
+  tenantId?: string | null;
+  actor?: string;
+  occurredAfter?: Date;
+  occurredBefore?: Date;
+  limit?: number;
+  cursor?: string; // opaque, from a previous page's result
+}
+
+export interface AuditQueryResult {
+  records: AuditEvent[];
+  nextCursor?: string; // present only if more records exist
+}
+```
+
+Added as `AuditEventRepository.find(query: AuditQuery): Promise<AuditQueryResult>`
+— on the existing interface, not a new one, since it's the same persistence
+port, just a second capability on it. This does not weaken "audit records are
+write-once by construction" (the README's own claim for the interface today):
+`find()` reads, never mutates or deletes, so the write-once guarantee holds
+exactly as before. An "activity feed" (per the Overview's own distinction) is
+then a thin UI layer calling `find()` and rendering the result — never a
+second system with its own storage.
 
 ## Model 2 — Broader Coverage (future target)
 

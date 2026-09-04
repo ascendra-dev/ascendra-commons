@@ -16,6 +16,15 @@ The motivating case was invoice payment reminders (a project's brief promising
 automatic follow-up on overdue amounts), but that's one consumer of this
 pattern, not what the pattern is about — see the worked example below.
 
+Built and audited against `MODULE-STANDARD.md` (this repo's root). Neither
+`applicationId` nor `tenantId` appears anywhere in this module, both
+deliberately: a run never leaves the process it happens in (no `applicationId`
+use case), and `IdempotentJobRunner`/`AdvisoryLock` never see an individual
+item's tenant at all — tenancy, if relevant, lives entirely inside the
+project-supplied `ScheduledJob.findDueItems()`/`processItem()` (see the worked
+example's own `withTenantContext` calls). There's nothing tenant-shaped for
+this module's own logic to take a parameter for.
+
 ## The pieces
 
 ### `ScheduledJob<TItem>` — defined once, never a specific job's logic
@@ -29,9 +38,13 @@ export interface ScheduledJob<TItem> {
 ```
 
 `name` must be unique across every job in the application — it becomes the
-advisory lock key (`scheduler:{name}`). Keep job names in one const catalog,
-the same convention `Actions` uses in the authorization pattern, so a typo is
-a compile error rather than a silently uncoordinated second lock.
+advisory lock key (`scheduler:{name}`). Keep job names in one const catalog —
+the same *reason* `Actions` is one const catalog in the authorization pattern
+(a typo becomes a compile error, not a silently uncoordinated second lock),
+though not the same string shape: a job name isn't a resource+verb pair the
+way an action is, so it doesn't follow the `resource.verb` convention (a job
+name is conventionally kebab-case, e.g. `'invoice-reminder'`, as in the worked
+example below).
 
 `processItem` must be safe to never run again for an item once it resolves,
 and safe to be retried for an item that never got this far. The standard way
