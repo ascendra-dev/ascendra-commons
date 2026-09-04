@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InProcessDomainEventEmitter } from './in-process-domain-event-emitter.service';
 import { DomainEvent } from './domain-event.interface';
@@ -7,11 +8,20 @@ class TestEvent implements DomainEvent {
   readonly occurredAt = new Date();
 }
 
+class TestEventWithId implements DomainEvent {
+  readonly occurredAt = new Date();
+  constructor(public readonly invoiceId: string) {}
+}
+
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 describe('InProcessDomainEventEmitter', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   describe('emit — best-effort', () => {
     it('delivers the event to a registered listener', async () => {
       const raw = new EventEmitter2();
@@ -51,6 +61,38 @@ describe('InProcessDomainEventEmitter', () => {
 
       expect(() => emitter.emit('test.sync_fail', new TestEvent())).not.toThrow();
       await wait(0);
+    });
+
+    it('logs (but still never throws or surfaces anything to the caller) when a listener rejects — the previously silent gap', async () => {
+      const raw = new EventEmitter2();
+      const emitter = new InProcessDomainEventEmitter(raw);
+      const errorSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      raw.on('test.will_fail', async () => {
+        throw new Error('listener forgot to catch its own error');
+      });
+
+      emitter.emit('test.will_fail', new TestEventWithId('inv-1'));
+      await wait(10);
+
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const [message] = errorSpy.mock.calls[0];
+      expect(message).toContain('test.will_fail');
+      expect(message).toContain('inv-1'); // the event's own field, from JSON.stringify(event) — for tracing which record failed
+    });
+
+    it('logs when emitAsync() itself throws synchronously, before returning a promise to catch', () => {
+      const brokenEmitter = {
+        emitAsync: () => {
+          throw new Error('emitAsync blew up before returning a promise');
+        },
+      } as unknown as EventEmitter2;
+      const emitter = new InProcessDomainEventEmitter(brokenEmitter);
+      const errorSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+      expect(() => emitter.emit('test.sync_boom', new TestEvent())).not.toThrow();
+
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy.mock.calls[0][0]).toContain('test.sync_boom');
     });
   });
 
@@ -103,6 +145,24 @@ describe('InProcessDomainEventEmitter', () => {
       // "a listener failed" is the whole signal — no aggregation, no attribution.
       await expect(emitter.emitCritical('test.multi', new TestEvent())).rejects.toThrow();
       expect(otherRan).toHaveBeenCalledTimes(1);
+    });
+
+    it('logs the failure before rethrowing, so a producer that swallows the rejection still leaves a trace', async () => {
+      const raw = new EventEmitter2();
+      const emitter = new InProcessDomainEventEmitter(raw);
+      const errorSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      raw.on('test.audit_write', async () => {
+        throw new Error('audit write failed');
+      });
+
+      await expect(
+        emitter.emitCritical('test.audit_write', new TestEventWithId('inv-2')),
+      ).rejects.toThrow('audit write failed');
+
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const [message] = errorSpy.mock.calls[0];
+      expect(message).toContain('test.audit_write');
+      expect(message).toContain('inv-2');
     });
   });
 });

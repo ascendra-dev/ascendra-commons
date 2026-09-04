@@ -115,3 +115,82 @@ longer true. `MODULE-STANDARD.md` dimension 4 gained a line naming this
 mistake explicitly, so it isn't repeated on a future module.
 
 165/165 tests pass; typecheck clean.
+
+---
+
+## 2026-09-04 — `domain-events` module-by-module review (in progress)
+
+Per the review protocol agreed this session: modules are now reviewed one at a
+time; fixes land only in the module under review; anything implying a
+retrofit elsewhere is flagged here, not acted on until that module comes up.
+
+**Finding — listener-side portability gap, real and currently undocumented as
+such.** The producer side (`DomainEventEmitter`) is genuinely transport-agnostic;
+the listener side (`@OnEvent()`/`@OnCriticalEvent()`) is not, and cannot be
+made so with a facade decorator without hiding real behavioral differences
+(no transactional rollback across a broker, at-least-once redelivery,
+ack/offset semantics). **Status: documented in `domain-events/README.md`** —
+"Keep the decorated method a thin dispatcher" (new subsection) gives the one
+actionable mitigation available today (decorated methods stay thin, real
+logic lives in a plain function/method), and the Model 2 "Subscription model"
+bullet now names the three concrete guarantees that change, instead of
+reading as a wiring-only concern. No new code — decision was explicitly not
+to build a fake-portable decorator, consistent with dimension 6.
+
+**Flagged for retrofit when reached:** `audit-logging`'s `AuditListener`
+worked example is cited by name in the new domain-events guidance as the
+existing precedent for the thin-dispatcher shape (its `handle()` method
+already just calls `persistAuditRecord()`). No change needed to
+`audit-logging` itself — it already does the right thing — but when
+`audit-logging`'s own review comes up, cross-check that its README explicitly
+names itself as the reference example, for discoverability in both
+directions.
+
+**Finding — `tenantId` on events: explicit field vs. ambient context, and a
+second flagged item for `audit-logging`.** Clarified that a listener needing
+tenant identity reads it off the concrete event's own field (never derives it
+from `AsyncLocalStorage`-style ambient context) — a single execution can span
+multiple tenants (see `background-jobs`' admin-scoped batch loop), and ambient
+context can't survive a broker process boundary anyway. **Status: documented**
+in `domain-events/README.md`'s tenantId note, with a worked example showing
+`event.tenantId` flowing straight into `NotificationRequest.tenantId`.
+
+**Flagged for retrofit when reached:** while explaining why tenant identity
+must be explicit rather than ambient, it became clear `audit-logging`'s own
+correlation-id mechanism has the identical latent problem — `AsyncLocalStorage`
+context works today only because in-process dispatch keeps producer and
+listener on one unbroken call chain, and that stops being true under a broker
+transport, for the same reason ambient tenant context would break. No change
+made (this is `audit-logging`'s own module, out of scope for the current
+review) — when `audit-logging` comes up, its Model 2 section should name this
+explicitly, the same way `domain-events`' own "Subscription model" bullet now
+does for listener redelivery/ack semantics.
+
+**Finding — failure observability was silently asymmetric, and two paths were
+genuinely untraceable.** Best-effort (`@OnEvent()`) failures were already
+logged automatically by NestJS's own loader; critical (`@OnCriticalEvent()`)
+failures were not — logging depended entirely on unenforced producer
+discipline, meaning a critical listener could fail with zero trace anywhere,
+backwards from what "critical" should guarantee. Two points inside `emit()`
+(an async rejection, and a synchronous throw from `emitAsync()` itself) were
+also fully silent, including the exact mismatched-pairing bug the README's own
+pairing table already named as a gotcha. **Status: fixed** —
+`InProcessDomainEventEmitter.emitCritical()` now logs before rethrowing
+(producer's rollback-or-swallow decision unchanged); both `emit()` catch
+points now log instead of discarding. Event payloads are included via
+`JSON.stringify` (already guaranteed serializable by contract), so the failing
+record's own identifying fields appear in the log. 3 new tests
+(`in-process-domain-event-emitter.service.spec.ts`, 7→10), 170/170 total pass,
+typecheck clean. A structured, queryable delivery-outcome record (a
+`JobRunRecorder`-equivalent for events) was deliberately *not* built —
+documented as "Not built" prose in the README instead, no concrete signal for
+it yet.
+
+**Follow-up — clarified how "logged" becomes "notified."** README initially
+implied wiring an observability tool was zero-code; verified against current
+Sentry docs and corrected — NestJS's `Logger.error()` isn't auto-captured by
+default instrumentation (only genuinely unhandled exceptions are), so a small
+one-time custom `LoggerService` (`app.useLogger(...)`, ~10–15 lines) is the
+actual mechanism. Also compared Sentry vs. Datadog concretely (free tier
+reality, pricing model) and recommended Sentry for this stage. Both corrected
+in `domain-events/README.md`'s "The practical path" section.

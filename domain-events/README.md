@@ -48,6 +48,47 @@ payload's tenant field if it cares. See "Application identity" below for the
 one identity concept this layer *does* need to know about, and why it's a
 different thing from a per-event `tenantId`.
 
+**Explicit on the event, never derived from ambient context — this is a firm
+rule, not a style preference.** A listener that needs the tenant reads
+`event.tenantId` off the payload. It is never derived from something like
+`AsyncLocalStorage` the way `audit-logging`'s correlation id is, for two
+reasons:
+
+- **There's often no single "current tenant" to derive.** `background-jobs`'
+  own worked example runs one admin-scoped loop across *every* tenant's
+  overdue invoices in a single execution — invoice A (tenant 1), then invoice
+  B (tenant 2), same call chain throughout. Ambient tenant context would be
+  wrong for every event raised in that loop; `event.tenantId` is correct
+  regardless, because it's a fact about the invoice, not about the execution.
+- **Ambient context cannot cross a process boundary**, and this has to
+  eventually, under Model 2 — the same "every field must be JSON-serializable"
+  requirement `DomainEvent` already enforces for everything else. An explicit
+  field travels with the payload for free; ambient context is simply gone the
+  instant a listener runs in a different process.
+
+Contrast with correlation id, which *is* right to keep ambient: it answers
+"which execution is this" (constant for everything inside one run), not
+"which tenant does this fact belong to" (which can change record-to-record
+within the same run). Same mechanism family, different question — don't
+generalize "correlation id uses context" into "tenant id should too."
+
+This is also the concrete mechanism behind "a specific tenant wants different
+notification treatment" (see `notification`'s README): a listener bridging a
+domain event to `Notifier` reads `event.tenantId` and passes it straight into
+`NotificationRequest.tenantId`:
+
+```typescript
+@OnCriticalEvent('invoice.status_changed')
+async handle(event: InvoiceStatusChanged) {
+  await this.notifier.notify({
+    recipient: { type: 'user', id: event.changedBy },
+    notificationType: 'invoice.status_changed',
+    variables: { /* ... */ },
+    tenantId: event.tenantId, // straight from the event's own field
+  });
+}
+```
+
 Events are named for what already happened (`InvoiceSent`, `PaymentConfirmed`),
 never as a command or intent. The payload is scoped to the facts of the action —
 not just an id (a subscriber re-querying current state may read a value that has
@@ -231,6 +272,29 @@ Adding the *first* `@OnCriticalEvent()` listener to a previously best-effort eve
 means updating both its catalog flag and every producer's call site from `emit()`
 to `emitCritical()`.
 
+### Keep the decorated method a thin dispatcher
+
+Unlike the producer side (`DomainEventEmitter` — an interface, fully
+transport-agnostic), **the listener side has no portability seam at all.**
+`@OnEvent()`/`@OnCriticalEvent()` are raw `@nestjs/event-emitter` decorators —
+they only work because NestJS's `EventSubscribersLoader` wires them straight
+to the same in-process `EventEmitter2` instance `InProcessDomainEventEmitter`
+wraps. See "Model 2" below for why this can't just be swapped for an
+equivalent broker decorator later — every listener will need real review, not
+a search-and-replace.
+
+The one thing worth doing *today*, at no cost, to shrink that future rework:
+write every `@OnEvent()`/`@OnCriticalEvent()`-decorated method as a thin
+dispatcher that immediately calls a plain, undecorated method or function for
+the actual logic — never put real logic in the decorated method body.
+`audit-logging`'s own worked example already does this:
+`AuditListener.handle()` is the decorated method, and it does nothing but call
+the plain `persistAuditRecord()`. When Model 2 lands, only the dispatcher gets
+rewritten to whatever the broker consumer's own registration looks like; the
+logic underneath doesn't move. This narrows the blast radius, it doesn't
+eliminate it — the logic itself may still need real changes for idempotency
+under at-least-once delivery (see below).
+
 ## Application identity
 
 `DomainEventsModule.forRoot({ application })` is required only under
@@ -312,14 +376,121 @@ listener discovery — `@nestjs/event-emitter`'s `EventSubscribersLoader` scans
 every provider in the app via NestJS's `DiscoveryService` regardless of any
 module's `global` setting.
 
+### Failure observability — what gets logged today, and by whom
+
+Best-effort and critical failures are **not** symmetric here, and it matters
+for how you'd actually notice a real production failure:
+
+- **Best-effort (`@OnEvent()`, default `suppressErrors: true`):** NestJS's own
+  `EventSubscribersLoader` catches the throw, logs it via NestJS's default
+  `Logger` (console, unless your app configures otherwise), and swallows it —
+  *before* it ever reaches this module's code. A log line exists automatically
+  today; it's unstructured and easy to miss under volume, but it isn't silent.
+- **Critical (`@OnCriticalEvent()`, `suppressErrors: false`):** NestJS's loader
+  does **not** log — it just re-throws, straight to the producer. Whether it
+  ever gets logged used to depend entirely on the producer's own error
+  handling, and the documented, legitimate pattern is "the producer swallows
+  and commits anyway" (see "Deciding whether to roll back is the producer's
+  job" above) — meaning a silently-swallowed critical failure could leave
+  **zero trace anywhere**. `InProcessDomainEventEmitter.emitCritical()` now
+  logs the failure itself (event name + `JSON.stringify(event)`, since
+  serializability is already guaranteed) before rethrowing unchanged — this
+  doesn't touch the producer's rollback-or-swallow decision at all, it just
+  guarantees a trace exists regardless of what the producer then does.
+- **`emit()`'s two internal catch points** (an async rejection reaching
+  `emit()`, and the rare case of `emitAsync()` itself throwing synchronously)
+  now log too, instead of discarding silently. The async case is also what
+  catches the mismatched-pairing bug in "Pairing the producer method with the
+  listener decorator" above (`emit()` + `@OnCriticalEvent()`) — previously
+  "dropped with no trace" per that section's own table; now at least visible
+  in logs.
+
+**What this doesn't give you:** a structured, queryable record of "did event
+X's delivery succeed" — only log lines. That's fine — see below for the
+practical way to turn these log lines into a real notification, before
+reaching for the "Not built" fallback further down.
+
+### The practical path: point your existing observability tool at these logs, don't build a recorder
+
+`InProcessDomainEventEmitter` uses NestJS's standard `Logger`
+(`new Logger(InProcessDomainEventEmitter.name)`) — every failure above goes
+through it, with `InProcessDomainEventEmitter` as the log `context`. Turning
+that into a real notification (Slack/email/PagerDuty) needs one small,
+one-time piece of app-level setup, not a change to this module:
+
+NestJS's default `Logger` writes via `console.error` internally, and an
+observability tool's automatic instrumentation only catches genuinely
+*unhandled* exceptions reaching the HTTP layer by default — it does **not**
+turn an explicit `this.logger.error(...)` call into an event on its own. The
+piece that actually captures it: a small custom `LoggerService` (Sentry's
+docs and community examples call this pattern out directly for NestJS —
+extend `ConsoleLogger`, override `error()` to also call
+`Sentry.captureException()`/`captureMessage()`, then `app.useLogger(new SentryLogger())`
+in `main.ts`). About 10–15 lines, written once, in `ascendra-pay`'s own code.
+From then on every `Logger.error()` call in the app — these included — becomes
+a real event, and the `context` argument can be passed through as a tag, so an
+alert rule can be scoped specifically to event-delivery failures rather than
+"any error anywhere."
+
+This is deliberately an app-level decision, not something this module
+prescribes — same as every other place in this codebase that stays silent on
+deployment/observability specifics. Sentry (not Datadog) is the practical
+choice at this stage: its free tier is a real, permanent tier (not a trial)
+sized for a solo/early project, and it's purpose-built for exactly this
+problem — Datadog is a much broader, materially more expensive platform
+(per-host and per-GB pricing) built for teams with dedicated ops budget.
+Concretely: reach for Sentry before reaching for the "Not built" recorder
+below. A recorder duplicates aggregation, retention, search, and alerting that
+Sentry already does well; it's a worse version of the same thing, built and
+maintained by you alone, for a problem that isn't showing up as a real
+incident yet.
+
+### Not built: structured delivery-outcome recording — a real Model 1 extension, not Model 2
+
+Recorded so it isn't lost, not built speculatively — same treatment
+`background-jobs` gives its own not-yet-built `JobRunRecorder`, and
+`audit-logging` gives its own not-yet-built read/query API. Reach for this
+only if a real observability tool turns out to be insufficient for a genuine
+need (e.g. a custom in-app "event health" admin page) — not as a first
+response to "how do I get notified." The design, when that story asks for it:
+
+```typescript
+export interface EventDeliveryFailure {
+  eventName: string;
+  criticality: 'best_effort' | 'critical';
+  occurredAt: Date;
+  error: string;
+}
+
+export interface EventDeliveryRecorder {
+  recordFailure(failure: EventDeliveryFailure): Promise<void>; // best-effort — must never itself throw
+}
+```
+
+`InProcessDomainEventEmitter` would call `recorder.recordFailure(...)` from
+the same catch points that already log today, wrapped in its own try/catch so
+a failure to *record* the outcome can never mask or compound the real one —
+the same reliability posture `background-jobs`' own deferred
+`JobRunRecorder` design already uses, for the same reason (a recorder must
+never itself become a second point of failure). Only failures need recording
+here, unlike `JobRunSummary` — there's no equivalent of "did the run happen at
+all" for an event dispatch the way there is for a scheduled job, since `emit()`
+and `emitCritical()` are synchronous calls whose own success is already known
+to the caller.
+
 ## Model 2 — Message Broker (seam in place, transport not built)
 
 The `forRoot({ transport: 'broker' })` selector, the `DomainEventEmitter`
-interface, and the `DOMAIN_EVENT_EMITTER` token exist so the call sites are
-already transport-agnostic. `BrokerDomainEventEmitter` is a stub — a real
-implementation is warranted only once a concrete signal (a second deployed
-service, a real cross-service integration) makes it necessary, and it has real
-design work to resolve first, not just "swap the transport":
+interface, and the `DOMAIN_EVENT_EMITTER` token exist so **producer** call
+sites (`emit()`/`emitCritical()`) are already transport-agnostic.
+**Listener** call sites are not — see "Keep the decorated method a thin
+dispatcher" above, and the "Subscription model" bullet below: every
+`@OnEvent()`/`@OnCriticalEvent()`-decorated method needs real review when this
+transport lands, not a mechanical rename. `BrokerDomainEventEmitter` is a
+stub — a real implementation is warranted only once a concrete signal (a
+second deployed service, a real cross-service integration) makes it
+necessary, and it has real design work to resolve first, not just "swap the
+transport":
 
 - **`emitCritical()`'s contract is transport-dependent.** In-process, the
   listener runs inside the caller's transaction, so a throw rolls the triggering
@@ -333,9 +504,30 @@ design work to resolve first, not just "swap the transport":
   consume side still needs a reviver (`occurredAt` returns as a string) and, if
   handlers rely on the event being a real class instance, an event-name -> class
   registry.
-- **Subscription model.** `@OnEvent()` / `@OnCriticalEvent()` + `DiscoveryService`
-  is in-process. Broker consumers need consumer groups, offsets, dead-letter
-  queues, redelivery.
+- **Subscription model — the real cost, not just a wiring swap.**
+  `@OnEvent()`/`@OnCriticalEvent()` + `DiscoveryService` only exists because
+  everything runs in one process on one `EventEmitter2` instance. A broker
+  consumer isn't "the same decorator pointed at a different bus" — every
+  listener needs review, because the guarantees genuinely change underneath
+  it, not just where the call comes from:
+  - **No transactional rollback.** A broker subscriber runs in another
+    process at another time — there is no way for its failure to reach back
+    and roll back the producer's already-committed transaction, unlike
+    `emitCritical()`'s in-process guarantee today (see the bullet above).
+  - **At-least-once delivery.** The same message can be redelivered (retries,
+    consumer-group rebalances). A listener written assuming "this runs
+    exactly once" — true in-process by construction — must become idempotent,
+    or it will double-process on redelivery.
+  - **Ack/offset semantics.** A broker consumer decides when to commit an
+    offset, usually after successful processing, so a crash before ack
+    replays the message. `@OnEvent()`'s current contract (a void/async
+    method NestJS logs-and-swallows a failure from by default) has no
+    equivalent — the listener has to participate in that lifecycle somehow.
+
+  A facade decorator that looks the same across both transports would hide
+  all three of these rather than surface them, which is worse than the gap
+  being visible. See "Keep the decorated method a thin dispatcher" above for
+  what to do about this *today*, without building a false abstraction.
 - **Which events cross the boundary.** Not every in-process event should be
   published to a broker; that selection is a design decision, not a default.
 - **Topic/queue naming across applications.** `APPLICATION_ID` (see
