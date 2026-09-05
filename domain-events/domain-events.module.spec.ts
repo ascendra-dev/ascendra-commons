@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter';
 import { DomainEventsModule } from './domain-events.module';
 import { DomainEventEmitter } from './domain-event-emitter';
-import { APPLICATION_ID, DOMAIN_EVENT_EMITTER } from './tokens';
+import { DOMAIN_EVENTS_APPLICATION_ID, DOMAIN_EVENT_EMITTER } from './tokens';
 import { InProcessDomainEventEmitter } from './in-process-domain-event-emitter.service';
 import {
   BrokerDomainEventEmitter,
@@ -159,16 +159,16 @@ describe('DomainEventsModule — real DI + @OnEvent() wiring', () => {
     expect(() => moduleRef.get(EventEmitter2, { strict: true })).toThrow();
   });
 
-  it('in-process: does not bind APPLICATION_ID when application is omitted — forRoot() takes no argument at all', async () => {
+  it('in-process: does not bind DOMAIN_EVENTS_APPLICATION_ID when application is omitted — forRoot() takes no argument at all', async () => {
     const moduleRef = await buildTestModule(DomainEventsModule.forRoot());
 
-    expect(() => moduleRef.get(APPLICATION_ID, { strict: true })).toThrow();
+    expect(() => moduleRef.get(DOMAIN_EVENTS_APPLICATION_ID, { strict: true })).toThrow();
   });
 
-  it('in-process: binds APPLICATION_ID when application is supplied, opt-in', async () => {
+  it('in-process: binds DOMAIN_EVENTS_APPLICATION_ID when application is supplied, opt-in', async () => {
     const moduleRef = await buildTestModule(DomainEventsModule.forRoot({ application: 'ascendra-pay' }));
 
-    expect(moduleRef.get(APPLICATION_ID)).toBe('ascendra-pay');
+    expect(moduleRef.get(DOMAIN_EVENTS_APPLICATION_ID)).toBe('ascendra-pay');
   });
 });
 
@@ -210,14 +210,14 @@ describe('DomainEventsModule.forRoot({ transport: "broker" }) — the seam, unim
     expect(() => moduleRef.get(EventEmitter2, { strict: true })).toThrow();
   });
 
-  it('exports APPLICATION_ID, and the thrown error names which application hit the seam', async () => {
+  it('exports DOMAIN_EVENTS_APPLICATION_ID, and the thrown error names which application hit the seam', async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [DomainEventsModule.forRoot({ application: 'ascendra-pay', transport: 'broker' })],
     }).compile();
     await moduleRef.init();
     const domainEvents = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
 
-    expect(moduleRef.get(APPLICATION_ID)).toBe('ascendra-pay');
+    expect(moduleRef.get(DOMAIN_EVENTS_APPLICATION_ID)).toBe('ascendra-pay');
     expect(() => domainEvents.emit('test.happened', new TestEvent('x'))).toThrow(/ascendra-pay/);
   });
 });

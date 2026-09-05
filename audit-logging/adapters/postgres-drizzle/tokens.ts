@@ -10,7 +10,7 @@ export const AUDIT_SQL_EXECUTOR = Symbol('AUDIT_SQL_EXECUTOR');
 /**
  * The `application` string from `PostgresAuditPersistenceModule.forRoot()` —
  * stamped into every audit row's `application` column. A plain value provided
- * inside this adapter's own module, not `domain-events`' `APPLICATION_ID`:
+ * inside this adapter's own module, not `domain-events`' `DOMAIN_EVENTS_APPLICATION_ID`:
  * the adapter stays usable whether or not the consumer passes `application`
  * to `DomainEventsModule.forRoot()`. Same string either way.
  *

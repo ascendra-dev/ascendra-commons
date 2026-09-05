@@ -14,19 +14,20 @@ and `@OnCriticalEvent()` are what make "a dropped audit record is unacceptable"
 a real, enforced guarantee rather than a documentation claim. Copy both
 folders together.
 
-Built and audited against `MODULE-STANDARD.md` (this repo's root). No
-`applicationId` used today — but unlike most other modules here, this is the
-one where it's a *plausible near-term* ask, not a hypothetical one:
-centralized cross-product compliance reporting ("every admin action across
-every Ascendra product, this quarter") is a standard, real request. Still
-correctly N/A for now, with no concrete signal behind it — flagged here as the
-module to watch. If that story lands, `APPLICATION_ID` needs no new token or
-interface change: this module already depends on `domain-events`, which
-already defines the token — the consumer just needs to supply `application` to
-its own `DomainEventsModule.forRoot()` call (optional under `'in-process'`,
-see that module's README) so it's actually bound, and then
-`persistAuditRecord()` (or the consumer's own repository) can
-`@Inject(APPLICATION_ID)` directly. `tenantId` *is* already threaded — see
+Built and audited against `MODULE-STANDARD.md` (this repo's root). Unlike most
+other modules here, this is the one where `applicationId` is a *plausible
+near-term* ask, not a hypothetical one: centralized cross-product compliance
+reporting ("every admin action across every Ascendra product, this quarter") is
+a standard, real request — flagged here as the module to watch. The shipped
+Postgres adapter already carries it as a **passive `application` column**,
+stamped on insert from `PostgresAuditPersistenceModule.forRoot({ application })`
+(see "Persistence" below) — never read or filtered on today, but there so the
+consolidation story, if it lands, needs no backfill migration. It is taken as a
+plain value through the adapter's own `forRoot()` and bound to its own
+`AUDIT_APPLICATION_ID` token, *not* injected from `domain-events`'
+`DOMAIN_EVENTS_APPLICATION_ID` — that keeps it working whether or not the
+consumer passes `application` to `DomainEventsModule.forRoot()` at all (it's
+optional there under `'in-process'`). `tenantId` *is* also threaded — see
 `AuditRecordRaised` below.
 
 ## The pieces
@@ -245,8 +246,8 @@ Two things worth calling out about that schema:
   `forRoot` field, and the injected value are all named `application` for
   consistency; the DI token is module-prefixed (`AUDIT_APPLICATION_ID`) so it
   can't collide with another module's. It is supplied to the adapter as a plain
-  string, not `domain-events`' `APPLICATION_ID` token — the same value a
-  consumer would pass to `DomainEventsModule.forRoot({ application })`, kept as
+  string, not `domain-events`' `DOMAIN_EVENTS_APPLICATION_ID` token — the same
+  value a consumer would pass to `DomainEventsModule.forRoot({ application })`, kept as
   a value so the adapter works whether or not that token is bound.
 
 ## Consuming this module

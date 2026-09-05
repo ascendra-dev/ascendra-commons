@@ -57,8 +57,18 @@ defaulting to `'in-process'`) may default; nothing else should.
 Threaded **only if** the module has a plausible shared-destination surface —
 somewhere multiple Ascendra applications' output could land in the same place
 (a message broker, a shared log/analytics sink). `domain-events` is the
-canonical case: `APPLICATION_ID` is defined there, and any other module that
-also depends on it injects the same token rather than declaring its own.
+canonical case: `DOMAIN_EVENTS_APPLICATION_ID` is defined there for its broker
+path, and a cross-cutting consumer that only *opts into* tagging its output by
+application `@Inject()`s that same token rather than declaring its own —
+provided the consumer supplied `application` to `DomainEventsModule.forRoot()`.
+A module that *always* needs the value (not opt-in) instead takes it through
+its own `forRoot()` and binds its own module-scoped token
+(`audit-logging`'s Postgres adapter does this with `AUDIT_APPLICATION_ID`), so
+it works even when the consumer never passes `application` to `domain-events`;
+`notification` reached the same conclusion from the other direction (see
+`MODULE-STANDARD-AUDIT.md`, 2026-09-05 — its exported token was removed once
+`forRoot()` couldn't bind it). Per-module token names are module-prefixed
+either way.
 
 **Required only where actually consumed, not blanket-required by the whole
 module.** `domain-events` itself got this wrong on the first pass:
@@ -115,7 +125,8 @@ building it — never "eventually" or "when we scale."
 **Default: prose only, no stub class, no token, no seam in code.** A real
 stub (interface + placeholder implementation that throws, wired through
 `forRoot()`) is the exception, earned by a *named, near-term* signal — the
-same bar `PermissionTableAuthorizer` and `APPLICATION_ID` were held to. Seaming
+same bar `PermissionTableAuthorizer` and `DOMAIN_EVENTS_APPLICATION_ID` were
+held to. Seaming
 every module preemptively is the noise this standard exists to prevent, not
 create.
 

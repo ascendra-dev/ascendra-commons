@@ -2,7 +2,7 @@ import { DynamicModule, Module, Provider } from '@nestjs/common';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { InProcessDomainEventEmitter } from './in-process-domain-event-emitter.service';
 import { BrokerDomainEventEmitter } from './broker-domain-event-emitter.service';
-import { APPLICATION_ID, DOMAIN_EVENT_EMITTER } from './tokens';
+import { DOMAIN_EVENTS_APPLICATION_ID, DOMAIN_EVENT_EMITTER } from './tokens';
 
 /** Which transport backs DomainEventEmitter. Defaults to 'in-process' (Model 1). */
 export type DomainEventsTransport = 'in-process' | 'broker';
@@ -16,7 +16,7 @@ export interface DomainEventsModuleConfig {
    * transport will need it for topic naming. Optional under 'in-process':
    * nothing in this module reads it there — a single process has nothing to
    * disambiguate from. Supply it anyway only if some other provider you're
-   * adding (e.g. a cross-product audit tag) wants to `@Inject(APPLICATION_ID)`
+   * adding (e.g. a cross-product audit tag) wants to `@Inject(DOMAIN_EVENTS_APPLICATION_ID)`
    * — if you do, it's bound and exported the same as under 'broker'; if you
    * don't, the token simply isn't provided (injecting it fails loudly rather
    * than resolving to `undefined`).
@@ -68,19 +68,19 @@ export class DomainEventsModule {
       return {
         module: DomainEventsModule,
         providers: [
-          { provide: APPLICATION_ID, useValue: config.application },
+          { provide: DOMAIN_EVENTS_APPLICATION_ID, useValue: config.application },
           BrokerDomainEventEmitter,
           { provide: DOMAIN_EVENT_EMITTER, useExisting: BrokerDomainEventEmitter },
         ],
-        exports: [DOMAIN_EVENT_EMITTER, APPLICATION_ID],
+        exports: [DOMAIN_EVENT_EMITTER, DOMAIN_EVENTS_APPLICATION_ID],
       };
     }
 
-    // 'in-process': application is optional — bind APPLICATION_ID only if supplied,
+    // 'in-process': application is optional — bind DOMAIN_EVENTS_APPLICATION_ID only if supplied,
     // so an omitted value fails loudly if something ever tries to inject it, rather
     // than silently resolving to undefined.
     const applicationIdProviders: Provider[] = config.application
-      ? [{ provide: APPLICATION_ID, useValue: config.application }]
+      ? [{ provide: DOMAIN_EVENTS_APPLICATION_ID, useValue: config.application }]
       : [];
 
     return {
@@ -91,7 +91,7 @@ export class DomainEventsModule {
         InProcessDomainEventEmitter,
         { provide: DOMAIN_EVENT_EMITTER, useExisting: InProcessDomainEventEmitter },
       ],
-      exports: config.application ? [DOMAIN_EVENT_EMITTER, APPLICATION_ID] : [DOMAIN_EVENT_EMITTER],
+      exports: config.application ? [DOMAIN_EVENT_EMITTER, DOMAIN_EVENTS_APPLICATION_ID] : [DOMAIN_EVENT_EMITTER],
     };
   }
 }

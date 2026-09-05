@@ -1,7 +1,7 @@
 export { DomainEventsModule } from './domain-events.module';
 export type { DomainEventsModuleConfig, DomainEventsTransport } from './domain-events.module';
 export type { DomainEventEmitter } from './domain-event-emitter';
-export { DOMAIN_EVENT_EMITTER } from './tokens';
+export { DOMAIN_EVENT_EMITTER, DOMAIN_EVENTS_APPLICATION_ID } from './tokens';
 export { InProcessDomainEventEmitter } from './in-process-domain-event-emitter.service';
 export {
   BrokerDomainEventEmitter,

@@ -24,10 +24,19 @@ export const DOMAIN_EVENT_EMITTER = Symbol('DOMAIN_EVENT_EMITTER');
  * - BrokerDomainEventEmitter (Model 2) to prefix topics/queues with it once
  *   built, so two applications publishing to the same shared broker cluster
  *   never collide on eventName alone. Already used today in the stub's
- *   thrown error message.
- * - Any cross-cutting listener that wants to tag its own output by producing
- *   application (audit-logging, a shared log/analytics sink) can @Inject()
- *   this directly, without depending on which transport is active — as long
- *   as `application` was supplied to forRoot() in the first place.
+ *   thrown error message — the one shipped injector of this token.
+ * - Any future cross-cutting listener writing to a shared log/analytics sink
+ *   that wants to tag its output by producing application can @Inject() this
+ *   directly — provided the consumer supplied `application` to forRoot(). A
+ *   module that always needs the value (rather than opting in) should instead
+ *   take it through its own forRoot() and bind its own module-scoped token,
+ *   the way `audit-logging`'s Postgres adapter does with
+ *   AUDIT_APPLICATION_ID — that keeps it working even when the consumer never
+ *   passes `application` to DomainEventsModule at all.
+ *
+ * Prefixed with the module folder name (DOMAIN_EVENTS_) so it can't be
+ * confused with another module's application token on import — the same
+ * per-module-prefix convention AUDIT_APPLICATION_ID follows. (DOMAIN_EVENT_EMITTER
+ * predates this convention and keeps its singular form.)
  */
-export const APPLICATION_ID = Symbol('APPLICATION_ID');
+export const DOMAIN_EVENTS_APPLICATION_ID = Symbol('DOMAIN_EVENTS_APPLICATION_ID');

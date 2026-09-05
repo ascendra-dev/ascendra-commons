@@ -307,9 +307,9 @@ it's optional: nothing in this module reads it there, so `forRoot()` with no
 argument at all remains the normal call — the same promise this module made
 before `application` existed. Supplying it under `'in-process'` anyway is
 meaningful only if some *other* provider you're adding wants to
-`@Inject(APPLICATION_ID)` (see below); if you don't supply it, the token
-simply isn't bound — injecting it fails loudly rather than silently resolving
-to `undefined`.
+`@Inject(DOMAIN_EVENTS_APPLICATION_ID)` (see below); if you don't supply it, the
+token simply isn't bound — injecting it fails loudly rather than silently
+resolving to `undefined`.
 
 This exists because `ascendra-commons` is copy-distributed (see "Consuming
 this module" below) — `ascendra-pay` and, say, `ascendra-school-erp` each run
@@ -318,17 +318,21 @@ their own copy of this module in their own process, so `eventName` alone
 application's events flowing through it. It becomes ambiguous the moment
 multiple applications publish to a **shared** destination — a broker cluster
 under Model 2, or a shared log/analytics sink consumed by more than one
-application's output (see `audit-logging`'s README, "the module to watch," for
-a concrete example of the latter). `APPLICATION_ID` is the identifier that
-disambiguates that later, without any call site (`emit()`, `@OnEvent()`, and
-so on) ever needing to know about it.
+application's output (`audit-logging`'s README, "the module to watch," sketches
+the latter). `DOMAIN_EVENTS_APPLICATION_ID` is the identifier that disambiguates
+that later, without any call site (`emit()`, `@OnEvent()`, and so on) ever
+needing to know about it.
 
 This is deliberately *not* solved by prefixing `eventName` itself — that would
 couple every `@OnEvent('invoice.created')` decorator to a per-application
 string for zero benefit in-process (there is nothing to disambiguate from
-within one process). `APPLICATION_ID` is consumed only where a shared
-destination actually exists — which, today, is nowhere in-process; the token
-exists for the broker path and for any future consumer that opts in.
+within one process). `DOMAIN_EVENTS_APPLICATION_ID` is consumed only where a
+shared destination actually exists — which, today, is only the broker stub's
+error message; the token exists for the broker path and for any future consumer
+that opts in. A module that *always* needs the application value takes it
+through its own `forRoot()` instead (see `audit-logging`'s Postgres adapter and
+its `AUDIT_APPLICATION_ID`) — that keeps it working even when the consumer
+never passes `application` to this module.
 
 ## Choosing a transport
 
@@ -532,7 +536,7 @@ transport":
   what to do about this *today*, without building a false abstraction.
 - **Which events cross the boundary.** Not every in-process event should be
   published to a broker; that selection is a design decision, not a default.
-- **Topic/queue naming across applications.** `APPLICATION_ID` (see
+- **Topic/queue naming across applications.** `DOMAIN_EVENTS_APPLICATION_ID` (see
   "Application identity" above) is the seam for this — the intended shape is
   `${application}.${eventName}` as the topic/queue name, or `application`
   stamped into the message envelope/headers if the broker favors one topic per
@@ -555,7 +559,7 @@ import {
   DomainEventEmitter, // type only — inject via the token above
   DomainEvent,
   OnCriticalEvent,
-  APPLICATION_ID,
+  DOMAIN_EVENTS_APPLICATION_ID, // only if a provider you add opts into injecting it
 } from '@/ascendra-commons/domain-events';
 ```
 

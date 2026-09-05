@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { DomainEvent } from './domain-event.interface';
 import { DomainEventEmitter } from './domain-event-emitter';
-import { APPLICATION_ID } from './tokens';
+import { DOMAIN_EVENTS_APPLICATION_ID } from './tokens';
 
 /** Thrown by every BrokerDomainEventEmitter method until a real Model 2 transport is built. */
 export class BrokerTransportNotImplementedError extends Error {
@@ -66,7 +66,7 @@ export class BrokerTransportNotImplementedError extends Error {
  */
 @Injectable()
 export class BrokerDomainEventEmitter implements DomainEventEmitter {
-  constructor(@Inject(APPLICATION_ID) private readonly application: string) {}
+  constructor(@Inject(DOMAIN_EVENTS_APPLICATION_ID) private readonly application: string) {}
 
   emit(_eventName: string, _event: DomainEvent): void {
     throw new BrokerTransportNotImplementedError(this.application);

@@ -72,10 +72,10 @@ README's "raising an audit record" example.
 
 ## Notes
 
-- **`application` is a plain string, not `domain-events`' `APPLICATION_ID`
-  token.** Pass the same value you give `DomainEventsModule.forRoot({ application })`
-  if you set that. Kept as a value here so the adapter works whether or not that
-  token is bound and exported.
+- **`application` is a plain string, not `domain-events`'
+  `DOMAIN_EVENTS_APPLICATION_ID` token.** Pass the same value you give
+  `DomainEventsModule.forRoot({ application })` if you set that. Kept as a value
+  here so the adapter works whether or not that token is bound and exported.
 - **The `application` column is stamped on insert, never read back by this
   adapter** — passive metadata (see `MODULE-STANDARD.md` dimension 4). It exists
   so a future cross-product compliance-reporting consolidation doesn't need a

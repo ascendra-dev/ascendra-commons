@@ -20,7 +20,7 @@ database, so there's nothing to disambiguate at read time (a notification
 never lands anywhere a second Ascendra application also publishes to either —
 no broker, no shared sink). It's **not** a `forRoot()` field either, and not
 an exported token from this library at all — unlike `domain-events`'
-`APPLICATION_ID`, this one can't be delivered that way: a database-backed
+`DOMAIN_EVENTS_APPLICATION_ID`, this one can't be delivered that way: a database-backed
 override you write later is constructed in *your own* module, one `forRoot()`
 merely imports *from* (`channelConfigToken`/`imports`), not a module
 `forRoot()` exports into — NestJS provider registries are per-module, and

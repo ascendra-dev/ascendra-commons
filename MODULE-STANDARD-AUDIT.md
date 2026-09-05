@@ -679,15 +679,15 @@ pulled in doesn't get it.
 **`application` naming.** Settled with the user after a first pass that had the
 `forRoot` field as `application` but the column/property as `applicationId` /
 `application_id` (mirroring `domain-events`' split of `application` field →
-`APPLICATION_ID` token). The user preferred one word everywhere: the `forRoot`
+`DOMAIN_EVENTS_APPLICATION_ID` token). The user preferred one word everywhere: the `forRoot`
 field, the injected constructor value, and the DB column are all `application`.
 The one place a suffix stays is the DI token — `AUDIT_APPLICATION_ID`,
 module-prefixed so it can't collide with another module's application token
 (the same per-module-prefix convention the rest of the library uses). Supplied
-to the adapter as a plain value, not `domain-events`' `APPLICATION_ID` token —
-revises the earlier README note ("no new token, comes free from
-`domain-events`"), so the adapter works whether or not the consumer passes
-`application` to `DomainEventsModule.forRoot()`.
+to the adapter as a plain value, not `domain-events`'
+`DOMAIN_EVENTS_APPLICATION_ID` token — revises the earlier README note ("no new
+token, comes free from `domain-events`"), so the adapter works whether or not
+the consumer passes `application` to `DomainEventsModule.forRoot()`.
 
 ### Dimension re-scoring
 
@@ -700,3 +700,56 @@ README updated: "Persistence — the port here, a reference implementation
 alongside it" replaces "A worked schema example"; Model 1 "What's shipped" and
 "Consuming this module" updated. 205/205 tests pass (up from 193 — 12 new in
 the adapter), typecheck clean.
+
+---
+
+## 2026-09-06 — `domain-events` re-review (triggered by the adapter work above)
+
+The user asked for a consistency/correctness pass on `domain-events` while it
+was fresh, plus a rename of its application token for prefix consistency with
+the new `AUDIT_APPLICATION_ID`.
+
+**Correctness — clean, nothing found.** `emit()`/`emitCritical()` semantics
+are right and thoroughly tested (isolation between critical listeners, sync vs
+async throws, the `@OnEvent()`-swallows-the-failure gotcha verified as a
+passing test, the `{ global: false }` leak fix verified by a real container).
+`assertDomainEventSerializable()` covers the cases that matter (circular refs,
+`Map`/`Set`/typed arrays, methods, `NaN`/`Infinity`). The `@Inject(EventEmitter2)`
+explicit-token workaround for esbuild metadata is correct and documented. The
+logging added at every catch point is the right observability posture for a
+module whose failure mode is "silently dropped".
+
+**Gap 1 — `DOMAIN_EVENTS_APPLICATION_ID` was documented as consumer-injectable
+but not exported from `index.ts`.** The README's "Consuming this module" import
+block listed `APPLICATION_ID` from the barrel; the barrel only exported
+`DOMAIN_EVENT_EMITTER`. A consumer following the README verbatim would hit a
+compile error. **Status: fixed** — added to `index.ts`'s export.
+
+**Gap 2 — the token's own doc comment and the README cited `audit-logging` as
+the concrete in-process consumer that would `@Inject()` it.** After the adapter
+work above, that's stale: `audit-logging`'s adapter deliberately takes
+`application` through its own `forRoot()` and binds `AUDIT_APPLICATION_ID`,
+precisely so it doesn't depend on the consumer opting into `domain-events`'
+optional `application`. **Status: fixed** — `tokens.ts`, the README's
+"Application identity" section, and `MODULE-STANDARD.md` dimension 4 now state
+the actual rule: the shared token is for *opt-in* output-tagging; a module that
+*always* needs the value binds its own module-scoped token. This also reconciles
+dimension 4 with the 2026-09-05 `notification` finding (which removed its
+exported token) — same conclusion, reached from opposite directions.
+
+**Rename.** `APPLICATION_ID` → `DOMAIN_EVENTS_APPLICATION_ID` (Symbol description
+too), module-prefixed to match `DOMAIN_EVENT_EMITTER` and `AUDIT_APPLICATION_ID`.
+No functional change (Symbols never collided), pure clarity. All call sites,
+specs, both READMEs, and both `MODULE-STANDARD*.md` files updated.
+
+**Not changed — deliberate.** The listener side (`@OnEvent()`/`@OnCriticalEvent()`)
+has no transport seam; this is extensively documented ("Keep the decorated
+method a thin dispatcher") and correct to leave as a known Model-2 cost rather
+than paper over with a false abstraction. `index.ts` also exports the concrete
+emitter classes (`InProcessDomainEventEmitter`, `BrokerDomainEventEmitter`) —
+consumers inject the token, not the class, but this matches the other modules'
+barrels (`idempotency-key` exports `PostgresIdempotencyStore`) and is handy for
+test overrides; left as is.
+
+205/205 tests still pass (the rename adds none; `domain-events`' own 36 are
+unaffected), typecheck clean.
