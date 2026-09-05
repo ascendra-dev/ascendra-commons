@@ -199,92 +199,104 @@ that on insert, so it can't be part of what a caller supplies.
 No `update`/`delete` — audit records are write-once by construction of the
 interface, not just by convention.
 
-### A worked schema example
+### Persistence — the port here, a reference implementation alongside it
 
-This library ships no schema at all today, unlike `notification`'s
-`NotificationChannelConfig`/`NotificationTemplateRepository` README examples —
-worth a concrete worked example here specifically because `audit-logging` is
-already the module flagged above as "the one to watch" for `applicationId`,
-and there was nothing for that guidance to land on. The table is generic
-enough to be shareable the same way those two are (see `MODULE-STANDARD.md`
-dimension 7): every column maps directly off `AuditEvent`, and the consuming
-project owns the actual database/connection/migration.
+The module core ships the **port only** (`AuditEventRepository`, above) — it
+never assumes a database, an ORM, or even that audit records land in a table
+rather than an external sink. What stack a consumer is on is not this module's
+concern.
 
-```typescript
-// In the consuming project, not in this library:
-export const auditEventTable = pgTable('audit_event', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  entityType: text('entity_type').notNull(),
-  entityId: text('entity_id').notNull(),
-  tenantId: text('tenant_id'), // nullable — platform-level events have none
-  actor: text('actor').notNull(),
-  action: text('action').notNull(),
-  before: jsonb('before'),
-  after: jsonb('after'),
-  correlationId: text('correlation_id').notNull(),
-  reason: text('reason'),
-  occurredAt: timestamp('occurred_at').notNull(),
-  // Passive metadata, populated at insert, never queried — see the note below.
-  applicationId: text('application_id').notNull(),
-}, (table) => ({
-  byEntity: index('audit_event_entity_idx').on(table.entityType, table.entityId),
-  byTenantAndTime: index('audit_event_tenant_time_idx').on(table.tenantId, table.occurredAt),
-}));
+For the common Ascendra stack (Postgres + Drizzle), a **reference
+implementation ships in `adapters/postgres-drizzle/`** — `PostgresAuditEventRepository`
+plus `PostgresAuditPersistenceModule`, a `pgTable` definition, and the DDL. A
+consumer on that stack writes no persistence code at all: it hands the adapter
+its existing db connection and an `application` name, and passes the adapter's
+token to `forRoot()` (see "Consuming this module" below). This mirrors what
+`idempotency-key` (`PostgresIdempotencyStore`) and `background-jobs`
+(`PostgresAdvisoryLock`) already do — a library-owned, fully generic statement
+is worth shipping, not asking every vertical to re-derive. See that folder's
+own README for the reasoning and the full wiring.
 
-class DrizzleAuditEventRepository implements AuditEventRepository {
-  constructor(
-    private readonly db: SomeLooselyTypedDrizzleDb,
-    @Inject(APPLICATION_ID) private readonly applicationId: string, // see the note below
-  ) {}
+A consumer on a different stack ignores `adapters/` and provides its own
+`AuditEventRepository` — same `forRoot()` call, a different token and module.
 
-  async insert(record: AuditEventInput): Promise<void> {
-    await this.db.insert(auditEventTable).values({ ...record, applicationId: this.applicationId });
-  }
-}
-```
+The reference table (`adapters/postgres-drizzle/audit-event.schema.ts`) is
+generic enough to be shared the same way `notification`'s reference schemas are
+(`MODULE-STANDARD.md` dimension 7): every column maps directly off `AuditEvent`,
+and the consuming project still owns the database instance, connection, and
+migration *execution* — only the schema *shape* and the `INSERT` are
+library-owned.
 
-The two indexes above aren't speculative — they're exactly what the
-not-yet-built `AuditQuery` shape needs (`entityType`+`entityId` for "this
-record's history," `tenantId`+`occurredAfter`/`occurredBefore` for "this
-tenant's activity feed, recent first"), so they're cheap to add now, before
-any real row exists, rather than as a later migration once `find()` actually
-gets built.
+Two things worth calling out about that schema:
 
-**`application_id` is stamped on insert here, never a parameter `insert()`
-itself takes.** Same reasoning `notification`'s README already gives for
-`notificationChannelConfigTable`/`notificationTemplateTable` (see
-`MODULE-STANDARD.md` dimension 4): free to add now, before the table exists,
-and it's the one module in this repo where a future consolidation (the
-cross-product compliance-reporting story named above) is a genuinely plausible
-reason to ever read it back. `APPLICATION_ID` is already available to inject
-here — no new token — since this module already depends on `domain-events`,
-which defines it (see the Overview above); it's provided in the same module as
-`DrizzleAuditEventRepository` itself, for the identical per-module DI-scoping
-reason `notification`'s README spells out for its own database-backed
-examples.
+- **The two indexes** (`entityType`+`entityId`, `tenantId`+`occurredAt`) aren't
+  speculative — they're exactly what the not-yet-built `AuditQuery` shape needs
+  ("this record's history," "this tenant's activity feed, recent first"), so
+  they're cheap to add now, before any real row exists, rather than as a later
+  migration once `find()` gets built.
+- **The `application` column is stamped on insert, never a parameter
+  `insert()` takes** — passive metadata, populated from
+  `PostgresAuditPersistenceModule.forRoot({ application })`, never read or
+  filtered on (`MODULE-STANDARD.md` dimension 4). Free to add before the table
+  exists, and `audit-logging` is the one module in this repo where a future
+  consolidation (the cross-product compliance-reporting story named in the
+  Overview) is a genuinely plausible reason to ever read it back — carrying it
+  now removes an otherwise-necessary backfill migration. The column, the
+  `forRoot` field, and the injected value are all named `application` for
+  consistency; the DI token is module-prefixed (`AUDIT_APPLICATION_ID`) so it
+  can't collide with another module's. It is supplied to the adapter as a plain
+  string, not `domain-events`' `APPLICATION_ID` token — the same value a
+  consumer would pass to `DomainEventsModule.forRoot({ application })`, kept as
+  a value so the adapter works whether or not that token is bound.
 
 ## Consuming this module
 
 Copy `audit-logging/` **and** `domain-events/` into the consumer's
-`src/ascendra-commons/` (see `module-packaging-pattern.md`), wire the module:
+`src/ascendra-commons/` (see `module-packaging-pattern.md`), wire the module.
+`audit-logging/adapters/postgres-drizzle/` comes with the folder — a consumer
+on a different stack simply doesn't import it (or deletes it).
+
+On the common Postgres/Drizzle stack, wire the shipped adapter — no persistence
+code to write (see `adapters/postgres-drizzle/README.md`):
 
 ```typescript
+import {
+  PostgresAuditPersistenceModule,
+  POSTGRES_AUDIT_EVENT_REPOSITORY,
+} from './ascendra-commons/audit-logging/adapters/postgres-drizzle';
+
 @Module({
   imports: [
     DomainEventsModule.forRoot(), // required — this pattern's listener is reached via emitCritical(); application isn't needed here (see "Application identity" above)
     AuditLoggingModule.forRoot({
-      auditEventRepositoryToken: AUDIT_EVENT_REPOSITORY_IMPL, // whatever token the app's own repository is provided under
-      imports: [AuditModule],                                  // whatever module exports that token
+      auditEventRepositoryToken: POSTGRES_AUDIT_EVENT_REPOSITORY,
+      imports: [
+        PostgresAuditPersistenceModule.forRoot({
+          sqlExecutorToken: DATABASE_CONNECTION, // whatever token the app's Drizzle db is provided under
+          application: 'ascendra-pay',           // stamped into every audit row's `application` column
+          imports: [DatabaseModule],             // the module that exports DATABASE_CONNECTION
+        }),
+      ],
     }),
   ],
 })
 export class AppModule {}
 ```
 
-Nothing more to write — `AuditListener` is already registered by
-`AuditLoggingModule.forRoot()` above. Auditing an entity is done entirely from
-the producer side: raise an `AuditRecordRaised` under `AUDIT_EVENT_NAME`
-wherever a state change should be audited.
+On any other stack, provide your own `AuditEventRepository` implementation and
+pass its token instead — the rest of the call is identical:
+
+```typescript
+AuditLoggingModule.forRoot({
+  auditEventRepositoryToken: AUDIT_EVENT_REPOSITORY_IMPL, // your own repository's token
+  imports: [AuditModule],                                  // the module that exports it
+})
+```
+
+Either way, `AuditListener` is already registered by
+`AuditLoggingModule.forRoot()` — nothing more to write. Auditing an entity is
+done entirely from the producer side: raise an `AuditRecordRaised` under
+`AUDIT_EVENT_NAME` wherever a state change should be audited.
 
 ### Worked example: raising an audit record alongside a business event
 
@@ -346,8 +358,11 @@ this pattern already uses for correlation ids — not built speculatively here.
 What's shipped: `AuditEvent`, `AuditRecordRaised`, `AuditEventRepository`,
 `persistAuditRecord()`, `AuditListener` (registered automatically by
 `AuditLoggingModule.forRoot()` — no project-specific listener to write, see
-above), the correlation-id mechanism. No retention/purge policy (audit records
-are kept indefinitely,
+above), the correlation-id mechanism, and a Postgres/Drizzle reference
+implementation of the repository (`adapters/postgres-drizzle/` —
+`PostgresAuditEventRepository`, `PostgresAuditPersistenceModule`, the `pgTable`
+and the DDL; a consumer on that stack writes no persistence code). No
+retention/purge policy (audit records are kept indefinitely,
 an explicit decision given the financial nature of the data, not a silent
 default), no admin UI for browsing records, and — worth being explicit about,
 since the Overview names an activity-feed concept — **no read/query API at

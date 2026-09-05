@@ -620,3 +620,83 @@ with dimension 6. 24/24 audit-logging tests unaffected, typecheck clean.
 
 `audit-logging` review remains closed — this is documentation depth added on
 request, not a reopened finding.
+
+---
+
+## 2026-09-06 — `audit-logging`: reference Postgres/Drizzle persistence adapter
+
+Not a reopened review finding — a deliberate scope addition the user asked for
+after walking through exactly what a consuming vertical has to write to stand
+the module up. The conclusion of the 2026-09-05 review (Finding 3: ship a
+*worked schema example* in the README, consumer owns the implementation) was
+correct as the minimum, but left `audit-logging` shipping *less* than its
+siblings: `idempotency-key` ships `PostgresIdempotencyStore` and
+`background-jobs` ships `PostgresAdvisoryLock`, both concrete implementations of
+their port against a minimal `SqlExecutor` — because the statement is
+100%-library-owned and generic. An audit `INSERT` is exactly that shape (one
+flat insert, every column off `AuditEvent`, zero project-specific logic), so
+the same treatment applies. Without it, `ascendra-pay` and a future
+`ascendra-erp` would each hand-write the identical schema + migration + Drizzle
+mapping + repository — the per-consumer drift `MODULE-STANDARD.md` §7 accepts as
+a cost, incurred here for no reason.
+
+**Built** — new `audit-logging/adapters/postgres-drizzle/` folder (a
+sub-folder, so a second adapter for a different stack slots in beside it
+without touching anything):
+
+- `audit-event.schema.ts` — Drizzle `pgTable` for `audit_event`, the source of
+  truth for the reference schema. Columns map 1:1 to `AuditEvent`, plus a
+  passive `application` column (dimension 4 — stamped on insert, never queried).
+  The two indexes from the earlier worked example carried over, still justified
+  by the not-yet-built `AuditQuery`.
+- `audit-event.migration.sql` — the same table as hand-written DDL. **Note:
+  this is the first `.sql` file in the repo.** Deliberate: the module standard
+  says the DB instance and migration *execution* stay consumer-owned (still
+  true — the consumer copies this into its own migration tooling or exports the
+  `pgTable` for `drizzle-kit`), but shipping the canonical DDL *text* means
+  every vertical's `audit_event` is byte-identical instead of independently
+  hand-rolled. `idempotency-key` does the same thing in a doc-comment; this is
+  that, in a file.
+- `postgres-audit-event.repository.ts` — `PostgresAuditEventRepository`, one
+  parameterised `INSERT` via `drizzle-orm`'s `sql` tag against the adapter's
+  own `SqlExecutor` (copied from `background-jobs`/`idempotency-key`, not
+  imported — keeps the folder independently copyable). `application` stamped
+  from an injected string.
+- `postgres-audit-persistence.module.ts` — `PostgresAuditPersistenceModule.forRoot({ sqlExecutorToken, application, imports })`,
+  exports the repo as `POSTGRES_AUDIT_EVENT_REPOSITORY`.
+- `sql-executor.ts`, `tokens.ts`, `index.ts`, `README.md`, two specs.
+
+**The module core is unchanged.** `AuditLoggingModule.forRoot()` still takes
+`auditEventRepositoryToken` + `imports` and nothing else — decided with the
+user rather than growing a second `sqlExecutorToken` mode onto it. A
+Postgres/Drizzle consumer passes `POSTGRES_AUDIT_EVENT_REPOSITORY` and puts
+`PostgresAuditPersistenceModule.forRoot(...)` in the same `imports`; a consumer
+on any other stack passes its own token exactly as before. The reference
+adapter is opt-in via subpath import, never re-exported from
+`audit-logging/index.ts`, so a consumer that doesn't want `drizzle-orm/pg-core`
+pulled in doesn't get it.
+
+**`application` naming.** Settled with the user after a first pass that had the
+`forRoot` field as `application` but the column/property as `applicationId` /
+`application_id` (mirroring `domain-events`' split of `application` field →
+`APPLICATION_ID` token). The user preferred one word everywhere: the `forRoot`
+field, the injected constructor value, and the DB column are all `application`.
+The one place a suffix stays is the DI token — `AUDIT_APPLICATION_ID`,
+module-prefixed so it can't collide with another module's application token
+(the same per-module-prefix convention the rest of the library uses). Supplied
+to the adapter as a plain value, not `domain-events`' `APPLICATION_ID` token —
+revises the earlier README note ("no new token, comes free from
+`domain-events`"), so the adapter works whether or not the consumer passes
+`application` to `DomainEventsModule.forRoot()`.
+
+### Dimension re-scoring
+
+| Dimension | Was | Now |
+|---|---|---|
+| 4 — passive metadata | Pass (documented in worked example) | Pass (`application` now a real column in shipped `pgTable` + DDL, stamped by `PostgresAuditEventRepository`) |
+| 7 — persistence ownership | Pass (worked schema example) | Pass (reference implementation shipped, matching `idempotency-key`/`background-jobs`; DB instance + migration execution still consumer-owned) |
+
+README updated: "Persistence — the port here, a reference implementation
+alongside it" replaces "A worked schema example"; Model 1 "What's shipped" and
+"Consuming this module" updated. 205/205 tests pass (up from 193 — 12 new in
+the adapter), typecheck clean.
