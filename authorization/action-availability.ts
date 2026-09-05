@@ -37,18 +37,25 @@ export interface StateValidity {
  *       download: { allowed: true as const },
  *     };
  *   }
+ *
+ * `stateCheck` may be sync or async. A check against an already-loaded entity
+ * is a plain sync property read (the common case, above); one that needs a
+ * further lookup (e.g. "does this invoice have unpaid children") returns a
+ * Promise — and because it only runs after the permission check passes, that
+ * lookup is never issued for a record the actor can't act on. Same async-from-
+ * the-start reasoning `Authorizer.can()` is built on.
  */
 export async function computeActionAvailability(
   actor: Actor,
   action: string,
   authorizer: Authorizer,
-  stateCheck?: () => StateValidity,
+  stateCheck?: () => StateValidity | Promise<StateValidity>,
 ): Promise<ActionAvailability> {
   if (!(await authorizer.can(actor, action))) {
     return { allowed: false, reason: 'not_permitted' };
   }
   if (stateCheck) {
-    const state = stateCheck();
+    const state = await stateCheck();
     if (!state.valid) {
       return { allowed: false, reason: 'invalid_state', message: state.message };
     }

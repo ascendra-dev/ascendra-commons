@@ -41,4 +41,24 @@ describe('computeActionAvailability', () => {
 
     expect(result).toEqual({ allowed: true });
   });
+
+  it('awaits an async stateCheck', async () => {
+    const authorizer: Authorizer = { can: vi.fn().mockResolvedValue(true) };
+
+    const result = await computeActionAvailability(ACTOR, 'invoice.void', authorizer, async () => ({
+      valid: false,
+      message: 'Has unpaid child invoices',
+    }));
+
+    expect(result).toEqual({ allowed: false, reason: 'invalid_state', message: 'Has unpaid child invoices' });
+  });
+
+  it('never runs an async stateCheck when the actor lacks the permission', async () => {
+    const authorizer: Authorizer = { can: vi.fn().mockResolvedValue(false) };
+    const stateCheck = vi.fn(async () => ({ valid: true }));
+
+    await computeActionAvailability(ACTOR, 'invoice.void', authorizer, stateCheck);
+
+    expect(stateCheck).not.toHaveBeenCalled();
+  });
 });

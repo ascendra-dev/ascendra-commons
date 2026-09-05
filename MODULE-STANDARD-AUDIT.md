@@ -753,3 +753,80 @@ test overrides; left as is.
 
 205/205 tests still pass (the rename adds none; `domain-events`' own 36 are
 unaffected), typecheck clean.
+
+---
+
+## 2026-09-06 — `authorization` re-review
+
+Re-verification pass at the user's request, alongside the `domain-events` one
+above. The 2026-09-04 review closed clean; this pass checked correctness and
+consistency against the standards as they stand now.
+
+**Correctness — solid.** `StaticRoleMapAuthorizer` fails closed (unknown
+persona → deny, `'*'` → allow-all, verified). `AuthorizationGuard` splits
+401 (no actor) from 403 (actor, not permitted) correctly, uses explicit
+`@Inject(Reflector)` / `@Inject(AUTHORIZER)` (the esbuild-metadata fix, matching
+`domain-events`). `computeActionAvailability` checks permission before state so
+a state check never leaks a record's state to someone who can't act on it —
+tested. `PermissionTableAuthorizer` stub throws loudly, mirrors
+`BrokerDomainEventEmitter`.
+
+**Dimension 4 (`applicationId`) — permanent N/A, correct.** An authorization
+decision never leaves the process; there is no shared destination to
+disambiguate a producer for. Not "N/A for now" like `authorization`'s own
+dimension 7 — this one never changes. README already states it.
+
+**Gap 1 — `computeActionAvailability`'s `stateCheck` was sync-only,
+inconsistent with the module's own async-from-the-start principle.** `can()` is
+`Promise<boolean>` explicitly so Model 2 is a drop-in; `stateCheck` had no such
+allowance, so a check needing a further lookup ("does this invoice have unpaid
+children") couldn't be passed without hoisting the `await` to the call site —
+which would lose the "only runs after the permission check passes" guarantee.
+**Status: fixed** — signature widened to `() => StateValidity | Promise<StateValidity>`,
+`computeActionAvailability` now `await`s it. Non-breaking (sync returns still
+work). README + doc comment updated; two tests added (async check awaited;
+async check never invoked when unpermitted).
+
+**Gap 2 — `AuthorizationGuard` read `@RequiresAction()` off the handler only.**
+A class-level `@RequiresAction()` (reasonable for a controller where every
+route needs the same action) was silently ignored. **Status: fixed** —
+`reflector.getAllAndOverride([getHandler(), getClass()])`, method-level
+overriding class-level. Test added with a real class-decorated controller.
+
+**Gap 3 — the guard is HTTP-only and didn't say so.** `switchToHttp()` — a
+GraphQL/RPC transport would break. **Status: documented** — doc comment now
+states it, and that the `Authorizer`/`can()` layer underneath is
+transport-agnostic and reusable by a context-aware variant.
+
+**Gap 4 — the guard was allow-by-default for undeclared endpoints.** It
+returned `true` for any endpoint with no `@RequiresAction()`. As a global
+`APP_GUARD` that meant a new state-changing endpoint shipped **open to
+everyone** if the author forgot the decorator — a silent failure, exactly the
+kind this module's guard-not-scattered-calls design exists to prevent, just one
+level up. The user confirmed the risk and asked for deny-by-default plus an
+explicit opt-out for genuinely public routes. **Status: fixed** —
+
+- New `@NoActionRequired()` decorator (+ `NO_ACTION_REQUIRED_KEY`), method- or
+  class-level. Says "this endpoint is intentionally not action-gated" — not
+  "unauthenticated," which stays the consumer's auth guard's call.
+- `AuthorizationGuard` now throws `AuthorizationNotDeclaredError` (a plain
+  `Error` → 500, naming the `Controller.handler()`) when an endpoint declares
+  neither decorator. Fails closed — the request never reaches the handler.
+- Precedence: a method-level declaration (either kind) wins over a class-level
+  one — resolved by checking the handler fully before falling back to the
+  class, so `@NoActionRequired()` on a method inside a `@RequiresAction()`
+  controller (and vice versa) does what it looks like it does.
+- This is a **breaking behavior change** on re-copy (dimension 11): an existing
+  app adding the global guard must annotate every non-actioned route or it 500s.
+  Called out explicitly in the README's "Enforcement is a Guard" section with a
+  controller-by-controller migration note (class-level `@NoActionRequired()`
+  covers a read-only controller in one line). Acceptable because the module is
+  v0.1.0 and the safe-by-default posture is the right one for a financial
+  domain — but the audit records it as a real dimension-11 break, not a
+  transparent change.
+
+`AuthorizationNotDeclaredError`, `NoActionRequired`, `NO_ACTION_REQUIRED_KEY`
+exported from the barrel. 10 guard tests (precedence matrix included) + 2
+module-level tests through real reflection.
+
+215/215 tests pass (up from 205 — 10 new in `authorization`), typecheck clean.

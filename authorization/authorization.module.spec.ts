@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuthorizationModule } from './authorization.module';
-import { AuthorizationGuard } from './authorization.guard';
-import { RequiresAction } from './requires-action.decorator';
+import { AuthorizationGuard, AuthorizationNotDeclaredError } from './authorization.guard';
+import { RequiresAction, NoActionRequired } from './requires-action.decorator';
 import { Authorizer, StaticRoleMapAuthorizer } from './authorizer';
 import {
   PermissionTableAuthorizer,
@@ -25,7 +25,20 @@ class TestController {
     return 'ok';
   }
 
-  noActionRequired() {
+  @NoActionRequired()
+  publicPing() {
+    return 'ok';
+  }
+
+  undeclared() {
+    return 'ok';
+  }
+}
+
+@Injectable()
+@RequiresAction('invoice.manage')
+class ClassGatedController {
+  doThing() {
     return 'ok';
   }
 }
@@ -34,6 +47,7 @@ function contextFor(handler: () => unknown, actor?: unknown): ExecutionContext {
   return {
     switchToHttp: () => ({ getRequest: () => (actor ? { actor } : {}) }),
     getHandler: () => handler,
+    getClass: () => TestController,
   } as unknown as ExecutionContext;
 }
 
@@ -41,10 +55,10 @@ async function buildTestModule() {
   return Test.createTestingModule({
     imports: [
       AuthorizationModule.forRoot({
-        personaActions: { issuer: ['invoice.void'], payer: [] },
+        personaActions: { issuer: ['invoice.void', 'invoice.manage'], payer: [] },
       }),
     ],
-    providers: [TestController],
+    providers: [TestController, ClassGatedController],
   }).compile();
 }
 
@@ -69,12 +83,35 @@ describe('AuthorizationModule.forRoot — real DI wiring', () => {
     await expect(guard.canActivate(denied)).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('passes through a handler with no @RequiresAction() metadata, real reflection included', async () => {
+  it('lets a real @NoActionRequired() handler through, real reflection included', async () => {
     const moduleRef = await buildTestModule();
     const guard = moduleRef.get(AuthorizationGuard);
     const controller = moduleRef.get(TestController);
 
-    await expect(guard.canActivate(contextFor(controller.noActionRequired))).resolves.toBe(true);
+    await expect(guard.canActivate(contextFor(controller.publicPing))).resolves.toBe(true);
+  });
+
+  it('deny-by-default: a real handler with neither decorator throws AuthorizationNotDeclaredError', async () => {
+    const moduleRef = await buildTestModule();
+    const guard = moduleRef.get(AuthorizationGuard);
+    const controller = moduleRef.get(TestController);
+
+    await expect(guard.canActivate(contextFor(controller.undeclared))).rejects.toBeInstanceOf(
+      AuthorizationNotDeclaredError,
+    );
+  });
+
+  it('reads a class-level @RequiresAction() when the handler has none', async () => {
+    const moduleRef = await buildTestModule();
+    const guard = moduleRef.get(AuthorizationGuard);
+
+    const ctx = {
+      switchToHttp: () => ({ getRequest: () => ({ actor: { id: 'u2', persona: 'payer', tenantId: null } }) }),
+      getHandler: () => ClassGatedController.prototype.doThing,
+      getClass: () => ClassGatedController,
+    } as unknown as ExecutionContext;
+
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(ForbiddenException); // payer lacks invoice.manage
   });
 
   it('defaults to the static-persona-map model when model is omitted', async () => {

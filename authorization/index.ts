@@ -4,8 +4,13 @@ export type { Authorizer } from './authorizer';
 export { StaticRoleMapAuthorizer } from './authorizer';
 export { PermissionTableAuthorizer, PermissionTableAuthorizerNotImplementedError } from './permission-table-authorizer';
 
-export { RequiresAction, ACTION_METADATA_KEY } from './requires-action.decorator';
-export { AuthorizationGuard } from './authorization.guard';
+export {
+  RequiresAction,
+  NoActionRequired,
+  ACTION_METADATA_KEY,
+  NO_ACTION_REQUIRED_KEY,
+} from './requires-action.decorator';
+export { AuthorizationGuard, AuthorizationNotDeclaredError } from './authorization.guard';
 
 export type { SessionSnapshot } from './session-snapshot';
 export { computeSessionSnapshot } from './session-snapshot';

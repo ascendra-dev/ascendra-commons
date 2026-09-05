@@ -59,8 +59,30 @@ voidInvoice(@Param('id') id: string, @CurrentUser() actor: Actor) { /* ... */ }
 `RequiresAction` attaches the action as metadata; `AuthorizationGuard` reads
 it and checks `authorizer.can()` before the handler runs — one action per
 state-changing endpoint, declared once, not a manual `if (!can(...))`
-remembered (or forgotten) per handler. An endpoint with no `@RequiresAction()`
-is not authz-gated at all — that should be rare and explicit, never a default.
+remembered (or forgotten) per handler.
+
+**Deny-by-default.** Every endpoint the guard covers must declare its intent —
+`@RequiresAction('resource.verb')` to gate it, or `@NoActionRequired()` to opt
+out. An endpoint with *neither* throws `AuthorizationNotDeclaredError` (a 500,
+naming the `Controller.handler()`) — it is never let through. This is the
+point: a new state-changing endpoint where the author forgot `@RequiresAction()`
+fails loudly the first time it's hit, instead of silently shipping open to
+everyone.
+
+`@NoActionRequired()` is for genuinely open endpoints — a health check, a login
+route, a public payment-link view, a webhook receiver. It only tells *this*
+guard to skip the permission check; whether an unauthenticated caller is
+allowed at all is the consuming project's own authentication guard's decision,
+a separate concern.
+
+Both decorators work on a method or a whole controller class (a controller of
+all-public routes gets one `@NoActionRequired()` on the class); a method-level
+declaration wins over a class-level one.
+
+> **Migrating an existing app** to the guard as a global `APP_GUARD`: every
+> route that isn't `@RequiresAction()`-gated needs `@NoActionRequired()` added,
+> or it will 500. Do it controller-by-controller — a class-level
+> `@NoActionRequired()` on a read-only controller covers all its routes at once.
 
 `AuthorizationGuard` expects `request.actor: Actor` to already be populated by
 an upstream authentication guard/middleware the consuming project owns —
@@ -140,6 +162,12 @@ async function computeInvoiceActions(actor: Actor, invoice: Invoice, authorizer:
 }
 ```
 
+`stateCheck` may be sync (a property read on the already-loaded entity, as
+above) or async (`() => Promise<StateValidity>`, for a check that needs a
+further lookup). Because it runs only after the permission check passes, an
+async check never issues its query for a record the actor can't act on —
+hoisting the `await` to the call site instead would lose that.
+
 **Hide vs. disable, the one rule:** `reason: 'not_permitted'` → hide the
 control (a permission fact — true for this actor on any instance).
 `reason: 'invalid_state'` → render it disabled, `message` as the tooltip (a
@@ -189,10 +217,10 @@ exactly what `can()`'s async signature was chosen to make painless.
 ## Model 1 — Static Persona Map (current)
 
 What's shipped and wired by default: `Authorizer` interface,
-`StaticRoleMapAuthorizer`, `RequiresAction`/`AuthorizationGuard`,
-`computeSessionSnapshot`, `computeActionAvailability`, and
-`AuthorizationModule.forRoot()`. Two things this deliberately does not include,
-and why:
+`StaticRoleMapAuthorizer`, `RequiresAction`/`NoActionRequired`/`AuthorizationGuard`
+(deny-by-default — see "Enforcement is a Guard"), `computeSessionSnapshot`,
+`computeActionAvailability`, and `AuthorizationModule.forRoot()`. Two things
+this deliberately does not include, and why:
 
 - **No self-service "Request Access" workflow.** This would let a user denied
   a section trigger an auto-generated request routed to an admin for approval
@@ -349,3 +377,11 @@ globally (`{ provide: APP_GUARD, useExisting: AuthorizationGuard }`), or
 per-controller/per-route via `@UseGuards(AuthorizationGuard)`. Either way,
 `request.actor` must already be populated by an authentication guard ordered
 before it — this module has no opinion on how that happens.
+
+Wiring it globally is the intended setup — that's what makes deny-by-default
+meaningful (a new endpoint is covered automatically, and must declare
+`@RequiresAction()` or `@NoActionRequired()`). Applying it per-controller
+instead leaves any controller you forget to annotate with `@UseGuards`
+completely ungated — the weaker posture. See "Enforcement is a Guard" for the
+migration note if you're adding the global guard to an app that already has
+routes.
