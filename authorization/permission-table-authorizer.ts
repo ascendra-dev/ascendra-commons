@@ -2,68 +2,32 @@ import { Injectable } from '@nestjs/common';
 import { Actor } from './authorization.types';
 import { Authorizer } from './authorizer';
 
-/** Thrown by every PermissionTableAuthorizer method until a real Model 2 authorizer is built. */
+/** Thrown by every PermissionTableAuthorizer method — it is a stub, not a real authorizer. */
 export class PermissionTableAuthorizerNotImplementedError extends Error {
   constructor() {
     super(
-      'AuthorizationModule was imported with model: "permission-table", but no ' +
-        'database-backed authorizer is implemented yet. Use model: "static-persona-map" ' +
-        '(the default), or implement PermissionTableAuthorizer — see permission-table-authorizer.ts.',
+      'AuthorizationModule was imported with model: "permission-table" but no authorizerToken. ' +
+        'Pass authorizerToken (+ imports) pointing at a real Authorizer — the postgres-drizzle ' +
+        "adapter's POSTGRES_PERMISSION_TABLE_AUTHORIZER, or your own — or use model: " +
+        '"static-persona-map" (the default).',
     );
     this.name = 'PermissionTableAuthorizerNotImplementedError';
   }
 }
 
 /**
- * Model 2 authorizer: a placeholder, deliberately unimplemented.
+ * The "Model 2 selected but not wired" placeholder. `AuthorizationModule.forRoot({
+ * model: 'permission-table' })` binds this only when no `authorizerToken` is
+ * given, so the mistake fails loudly on the first `can()` instead of silently.
  *
- * The `forRoot({ model })` seam, the `Authorizer` interface, and the `AUTHORIZER`
- * token all exist now so that moving to database-backed roles later is a config
- * change at the import site, not a refactor of every call site. This class is the
- * one piece that is genuinely not done — and shipping it as a stub that throws
- * loudly is the honest state, rather than an untested authorizer that looks real.
+ * A real database-backed authorizer ships in `adapters/postgres-drizzle/`
+ * (`PostgresPermissionTableAuthorizer`) — a project on that stack passes its
+ * token to `forRoot()`. A project on another stack provides its own `Authorizer`
+ * and passes that token. Either way this stub is never reached.
  *
- * A real implementation has to resolve, at minimum:
- *
- * - **Data model.** RBAC, not ReBAC (see this module's README). At minimum a
- *   `roles` catalog, a `role_permissions` mapping (role -> action set), and a
- *   `user_roles` assignment (user -> one or more roles). Resolving `can()` is
- *   then: load the actor's roles, union their action sets, test membership.
- * - **Tenancy.** Role *assignment* (`user_roles`) is tenant-scoped — the same
- *   user can hold different roles in different tenants — so every lookup is keyed
- *   by `actor.id` *and* `actor.tenantId`. Role *definition* (`roles`,
- *   `role_permissions`) is a small platform-owned catalog, not tenant-editable.
- * - **The N+1 that `computeSessionSnapshot` creates.** It calls `can()` once per
- *   action in the catalog. A naive implementation issues one query per call. The
- *   fix is to load the actor's full permission set once per request (cache it on
- *   the request, or memoize per actor+tenant) and answer every `can()` from
- *   memory — or add a bespoke `getAllowedActions(actor)` method on this class
- *   (not on the `Authorizer` interface) that the snapshot can prefer when
- *   present. Decide this with a profiler, not speculatively.
- * - **The `'*'` equivalent.** `StaticRoleMapAuthorizer` has a literal `'*'` for
- *   unrestricted personas. A table-backed model needs its own representation of
- *   "this role grants everything" that does not require re-listing every action —
- *   e.g. a nullable `role_permissions.action` meaning wildcard, checked before
- *   the membership test.
- * - **Instance-level grants, if they ever appear.** `can()` may grow a third
- *   `resource` parameter (already anticipated in the README) backed by a narrow
- *   `resource_grant` table checked *in addition to* the role lookup — not a
- *   dedicated ReBAC engine.
- * - **Administration.** Role definition (platform-admin only) and role
- *   assignment (ordinary tenant-scoped self-service) are different access levels;
- *   conflating them is a privilege-escalation path. The role-definition UI is a
- *   permission matrix — see this module's README, "Administration".
- * - **Database wiring, not added yet.** This class takes no constructor
- *   dependencies today — nothing to query. When it's real, `AuthorizationModuleConfig`
- *   will need a `sqlExecutorToken`/`imports` pair, the same shape
- *   `BackgroundJobsModule.forRoot()` already uses (`{ provide: SQL_EXECUTOR,
- *   useExisting: config.sqlExecutorToken }`) — an alias to the consumer's
- *   already-existing db client, never a connection this library opens itself.
- *   Not added now: an unread config field is exactly the mistake this module's
- *   README documents correcting for `application` in `domain-events` — required
- *   (or present-but-unread) config should earn its place from an actual reader.
- *
- * See this module's README, "Model 2 — Roles and Delegated Permissions".
+ * Never hand-edit this file into a real implementation — it lives under the
+ * vendored `src/ascendra-commons/authorization/` folder and is overwritten on
+ * any re-copy (same boundary as `BrokerDomainEventEmitter`).
  */
 @Injectable()
 export class PermissionTableAuthorizer implements Authorizer {

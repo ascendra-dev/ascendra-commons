@@ -48,6 +48,13 @@ that swap is a true drop-in later, not a breaking change to every call site.
 `StaticRoleMapAuthorizer` never actually awaits anything; wrapping a sync
 lookup in an already-resolved promise costs nothing real.
 
+**`Authorizer.allowedActions?(actor, candidates)`** — optional — returns the
+subset of `candidates` the actor holds, resolved in one pass.
+`computeSessionSnapshot` uses it when the authorizer implements it, so a `/me`
+endpoint is one call instead of one `can()` per action (an N+1 against a
+database authorizer). Both shipped authorizers implement it; a hand-written or
+throwaway `can()`-only authorizer still works via the per-action fallback.
+
 ### Enforcement is a Guard, not a scattered function call
 
 ```typescript
@@ -197,22 +204,32 @@ implementation is bound to the `AUTHORIZER` token:
 
 ```typescript
 AuthorizationModule.forRoot({ personaActions: { /* ... */ } })       // model: 'static-persona-map' is the default
-AuthorizationModule.forRoot({ model: 'permission-table' })           // Model 2 — not implemented yet
+
+AuthorizationModule.forRoot({                                        // model: 'permission-table'
+  model: 'permission-table',
+  authorizerToken: POSTGRES_PERMISSION_TABLE_AUTHORIZER,             // from adapters/postgres-drizzle
+  imports: [PostgresAuthorizationModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, imports: [DatabaseModule] })],
+})
 ```
 
 - **`'static-persona-map'`** (default) — `StaticRoleMapAuthorizer`: a constant
   `persona -> actions` object, resolved by an in-memory lookup. Requires
   `personaActions`. `forRoot()` throws if this model is selected without it.
-- **`'permission-table'`** — `PermissionTableAuthorizer`, a deliberate
-  placeholder that throws `PermissionTableAuthorizerNotImplementedError` on
-  every `can()`. The option, the `Authorizer` interface, and the `AUTHORIZER`
-  token all exist now so that adopting database-backed roles later is a config
-  change at the import site, not a refactor of every call site — but the
-  authorizer itself is genuinely not built. `personaActions` is ignored on this
-  path.
+- **`'permission-table'`** — a database-backed authorizer. Pass `authorizerToken`
+  (+ `imports`) pointing at an implementation — the Postgres/Drizzle adapter's
+  `POSTGRES_PERMISSION_TABLE_AUTHORIZER` (see `adapters/postgres-drizzle/`), or
+  your own. With **no** `authorizerToken`, `PermissionTableAuthorizer` — a stub
+  that throws on every `can()` — is bound instead, so "Model 2 selected but not
+  wired" fails loudly. `personaActions` is ignored on this path.
 
-Call sites inject `AUTHORIZER` and never see which model is bound — that is
-exactly what `can()`'s async signature was chosen to make painless.
+Switching models is: flip `model`, add/remove the adapter `imports`, and (one
+time) run the adapter's seed helper. Call sites inject `AUTHORIZER` and never
+see which model is bound — that is exactly what `can()`'s async signature was
+chosen to make painless.
+
+`computeSessionSnapshot` additionally uses `Authorizer.allowedActions` (the
+optional one-pass method) when the authorizer implements it — both shipped
+models do, so `/me` is one query, not one per action.
 
 ## Model 1 — Static Persona Map (current)
 
@@ -237,55 +254,33 @@ this deliberately does not include, and why:
   counterpart library (`ascendra-commons-ui`, not yet created) — this folder
   is backend-only, matching the rest of `ascendra-commons`.
 
-## Model 2 — Roles and Delegated Permissions (seam in place, authorizer not built)
+## Model 2 — Roles and Delegated Permissions (shipped: `adapters/postgres-drizzle/`)
 
-The `forRoot({ model: 'permission-table' })` selector, the `Authorizer`
-interface, and the `AUTHORIZER` token all exist now; every call site is already
-model-agnostic. `PermissionTableAuthorizer` is a stub that throws on every call
-(see `permission-table-authorizer.ts` for the design work a real one must
-resolve first). The target it stands in for:
+A database-backed `Authorizer` where permission comes from **roles** a user
+holds (not from `persona`, which becomes a coarse label). Named,
+capability-bearing roles assignable per tenant (an `issuer` persona holding an
+`issuer_owner` role), plus **minimal delegation** — one user granting a subset
+of their own role-derived actions to another, time-boxed and revocable.
 
-**Never hand-edit `permission-table-authorizer.ts` to build the real thing.**
-It lives under the vendored `src/ascendra-commons/authorization/` folder —
-`module-packaging-pattern.md`'s "don't hand-edit" boundary — and gets
-overwritten wholesale on any future re-copy/upgrade. It stays exactly what
-`BrokerDomainEventEmitter` already is in `domain-events`: a compile-proof
-placeholder that throws loudly if selected before it's real, never something
-a consumer edits in place. A real Model 2 authorizer is **fresh, project-owned
-code**, written in your own `authorization-api` module and bound to
-`AUTHORIZER` directly — bypassing `forRoot({ model: 'permission-table' })`'s
-own wiring entirely, the same "known limitation, write your own module"
-pattern `notification`'s README documents for its own override pieces:
+Same `can()` call site as Model 1 — the adapter resolves via a database query
+instead of a static map, which is exactly what `can()`'s async signature was
+chosen to make painless. The full wiring, schema, seed helper, caching, and
+delegation API are in **`adapters/postgres-drizzle/README.md`**.
 
-```typescript
-@Module({
-  providers: [
-    DrizzlePermissionTableAuthorizer, // your own class, implementing Authorizer
-    { provide: AUTHORIZER, useExisting: DrizzlePermissionTableAuthorizer },
-    AuthorizationGuard, // imported directly from the vendored barrel, unmodified
-  ],
-  exports: [AUTHORIZER, AuthorizationGuard],
-})
-export class AuthorizationApiModule {}
-```
+**`PermissionTableAuthorizer` (in `permission-table-authorizer.ts`) stays a
+throwing stub** — bound only when `model: 'permission-table'` is selected with
+no `authorizerToken`, so "Model 2 selected but not wired" fails loudly. Never
+hand-edit it into a real implementation: it's under the vendored folder and is
+overwritten on re-copy (same boundary as `BrokerDomainEventEmitter`). The real
+authorizer is the adapter, or your own class on a different stack.
 
-This is self-contained — nothing here needs `AuthorizationModule.forRoot()`'s
-own wiring at all, so it doesn't run into the cross-module DI-scoping trap
-`notification`'s own override tokens had to be built around (see that
-module's README): there's no module `forRoot()` merely imports *from* here,
-just one module you own end to end.
+### What the adapter ships vs. defers
 
-A database-backed `Authorizer` introducing named, capability-bearing roles
-assignable within a persona (e.g. an `issuer` persona holding an `owner` or
-`staff` role), supporting delegation (one actor granting a subset of their own
-permissions to another). Same `can()` call site — `PermissionTableAuthorizer`
-resolves via a database query instead of a static map; this is exactly what
-`can()`'s async signature was chosen to make painless. Only build this when a
-specific story requires a capability the three-persona model genuinely cannot
-express — not speculatively, and the admin screens to manage it are a
-substantial effort in their own right, scoped as real stories when the time
-comes, not assumed as "basic infrastructure" that ships for free with the
-authorizer swap.
+| | |
+|---|---|
+| Shipped | `can` / `allowedActions` resolution · per-request cache · minimal delegation (snapshot, capped expiry, blocked chains) · schema + migration + `seedRolesFromPersonaMap` / `syncActions` |
+| The vertical writes | role / assignment CRUD (documented schema, simple SQL) · the admin UI · delegation audit events (emit from your controller) |
+| Deferred | role hierarchy · delegation advanced (live re-check, cascade-revoke, chains, resource scoping, approvals) · resource-level grants · node-level TTL memo |
 
 **Data model: RBAC, not ReBAC.** Role→permission and user→role is role-based
 (a role holds a fixed action set, a user holds one or more roles) — not
@@ -367,9 +362,9 @@ export class AppModule {}
 ```
 
 `model` is omitted here, so `'static-persona-map'` is used and `personaActions`
-is required (see "Choosing a model"). `forRoot({ model: 'permission-table' })`
-selects the Model 2 seam instead — which throws on every `can()` until a real
-`PermissionTableAuthorizer` is built.
+is required (see "Choosing a model"). For Model 2, copy
+`authorization/adapters/postgres-drizzle/` along with the folder (a consumer on
+another stack ignores it) and follow that folder's README.
 
 `AuthorizationModule.forRoot()` does not apply `AuthorizationGuard` globally —
 it's provided and exported so the consuming project decides how to wire it:

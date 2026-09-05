@@ -11,9 +11,13 @@ export interface AuthorizationModuleConfig {
   /**
    * 'static-persona-map' (default) — StaticRoleMapAuthorizer, Model 1: a
    * constant persona -> actions object, resolved by an in-memory lookup.
-   * 'permission-table' — Model 2, not implemented yet: PermissionTableAuthorizer
-   * throws on every call. The option exists so the seam is real now; see
-   * permission-table-authorizer.ts.
+   * Requires `personaActions`.
+   * 'permission-table' — Model 2: a database-backed authorizer. Pass
+   * `authorizerToken` (+ `imports`) pointing at an implementation — the
+   * postgres-drizzle adapter's `POSTGRES_PERMISSION_TABLE_AUTHORIZER`, or your
+   * own. With no `authorizerToken`, `PermissionTableAuthorizer` (a stub that
+   * throws on every call) is bound instead, so "Model 2 selected but not wired"
+   * fails loudly rather than silently.
    */
   model?: AuthorizationModel;
   /**
@@ -21,6 +25,18 @@ export interface AuthorizationModuleConfig {
    * read by) model: 'static-persona-map'. See StaticRoleMapAuthorizer.
    */
   personaActions?: Record<string, string[] | '*'>;
+  /**
+   * model: 'permission-table' only — the injection token an `Authorizer`
+   * implementation is already provided under. `useExisting`-aliased to
+   * AUTHORIZER. Omit to bind the throwing stub.
+   */
+  authorizerToken?: string | symbol | (new (...args: never[]) => unknown);
+  /**
+   * Whatever module(s) export the provider behind `authorizerToken`.
+   * `useExisting` only resolves a token NestJS can already see in *this*
+   * module's own providers or imports — not the wider application graph.
+   */
+  imports?: DynamicModule['imports'];
 }
 
 /**
@@ -29,10 +45,10 @@ export interface AuthorizationModuleConfig {
  * persona/action map.
  *
  * `forRoot({ model })` selects which Authorizer implementation is bound to
- * AUTHORIZER — 'static-persona-map' now, 'permission-table' once a real need for
- * named roles/delegation appears. Call sites inject AUTHORIZER and are unaffected
- * by which implementation is bound; that is exactly what can()'s async signature
- * was chosen to make painless.
+ * AUTHORIZER. Call sites inject AUTHORIZER and are unaffected by which
+ * implementation is bound; that is exactly what can()'s async signature was
+ * chosen to make painless. Switching models is: flip `model`, add/remove the
+ * adapter `imports`, and (one time) run the adapter's seed helper.
  *
  * Does not apply AuthorizationGuard globally — it's provided and exported so the
  * consuming project decides how to wire it: globally via APP_GUARD, or
@@ -45,13 +61,13 @@ export class AuthorizationModule {
     const model = config.model ?? 'static-persona-map';
 
     if (model === 'permission-table') {
+      const providers = config.authorizerToken
+        ? [{ provide: AUTHORIZER, useExisting: config.authorizerToken }, AuthorizationGuard]
+        : [PermissionTableAuthorizer, { provide: AUTHORIZER, useExisting: PermissionTableAuthorizer }, AuthorizationGuard];
       return {
         module: AuthorizationModule,
-        providers: [
-          PermissionTableAuthorizer,
-          { provide: AUTHORIZER, useExisting: PermissionTableAuthorizer },
-          AuthorizationGuard,
-        ],
+        imports: config.imports ?? [],
+        providers,
         exports: [AUTHORIZER, AuthorizationGuard],
       };
     }

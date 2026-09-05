@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException, Injectable, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuthorizationModule } from './authorization.module';
 import { AuthorizationGuard, AuthorizationNotDeclaredError } from './authorization.guard';
@@ -126,32 +126,55 @@ describe('AuthorizationModule.forRoot — real DI wiring', () => {
   });
 });
 
-describe('AuthorizationModule.forRoot({ model: "permission-table" }) — the seam, unimplemented', () => {
-  async function buildPermissionTableModule() {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AuthorizationModule.forRoot({ model: 'permission-table' })],
-    }).compile();
-    return moduleRef;
-  }
+describe('AuthorizationModule.forRoot({ model: "permission-table" })', () => {
+  describe('with no authorizerToken — the loud stub', () => {
+    async function buildStubModule() {
+      return Test.createTestingModule({
+        imports: [AuthorizationModule.forRoot({ model: 'permission-table' })],
+      }).compile();
+    }
 
-  it('binds AUTHORIZER to PermissionTableAuthorizer, no personaActions required', async () => {
-    const moduleRef = await buildPermissionTableModule();
+    it('binds AUTHORIZER to the throwing PermissionTableAuthorizer, no personaActions required', async () => {
+      const moduleRef = await buildStubModule();
+      expect(moduleRef.get(AUTHORIZER)).toBeInstanceOf(PermissionTableAuthorizer);
+    });
 
-    expect(moduleRef.get(AUTHORIZER)).toBeInstanceOf(PermissionTableAuthorizer);
+    it('rejects can() with PermissionTableAuthorizerNotImplementedError', async () => {
+      const moduleRef = await buildStubModule();
+      const authorizer = moduleRef.get<Authorizer>(AUTHORIZER);
+      await expect(
+        authorizer.can({ id: 'u1', persona: 'issuer', tenantId: 't1' }, 'invoice.void'),
+      ).rejects.toBeInstanceOf(PermissionTableAuthorizerNotImplementedError);
+    });
+
+    it('still resolves AuthorizationGuard', async () => {
+      const moduleRef = await buildStubModule();
+      expect(moduleRef.get(AuthorizationGuard)).toBeInstanceOf(AuthorizationGuard);
+    });
   });
 
-  it('rejects can() with PermissionTableAuthorizerNotImplementedError', async () => {
-    const moduleRef = await buildPermissionTableModule();
-    const authorizer = moduleRef.get<Authorizer>(AUTHORIZER);
+  describe('with an authorizerToken — a real Authorizer from another module', () => {
+    const CUSTOM = Symbol('CUSTOM_AUTHORIZER');
 
-    await expect(authorizer.can({ id: 'u1', persona: 'issuer', tenantId: 't1' }, 'invoice.void')).rejects.toBeInstanceOf(
-      PermissionTableAuthorizerNotImplementedError,
-    );
-  });
+    @Module({
+      providers: [{ provide: CUSTOM, useValue: { can: async () => true } }],
+      exports: [CUSTOM],
+    })
+    class CustomAuthorizerModule {}
 
-  it('still resolves AuthorizationGuard on the permission-table path', async () => {
-    const moduleRef = await buildPermissionTableModule();
+    it('aliases AUTHORIZER to the token from imports', async () => {
+      const moduleRef = await Test.createTestingModule({
+        imports: [
+          AuthorizationModule.forRoot({
+            model: 'permission-table',
+            authorizerToken: CUSTOM,
+            imports: [CustomAuthorizerModule],
+          }),
+        ],
+      }).compile();
 
-    expect(moduleRef.get(AuthorizationGuard)).toBeInstanceOf(AuthorizationGuard);
+      const authorizer = moduleRef.get<Authorizer>(AUTHORIZER);
+      await expect(authorizer.can({ id: 'u1', persona: 'x', tenantId: null }, 'anything')).resolves.toBe(true);
+    });
   });
 });

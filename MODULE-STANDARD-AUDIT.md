@@ -830,3 +830,98 @@ exported from the barrel. 10 guard tests (precedence matrix included) + 2
 module-level tests through real reflection.
 
 215/215 tests pass (up from 205 — 10 new in `authorization`), typecheck clean.
+
+---
+
+## 2026-09-06 — `authorization`: Model 2 built — Postgres/Drizzle adapter
+
+Scoped decision-by-decision with the user (six core decisions + a walk through
+each deferred item). The 2026-09-04 review left Model 2 as "seam in place,
+authorizer not built"; this builds it, the same way the audit-logging adapter
+was built — a self-contained `adapters/postgres-drizzle/` folder.
+
+### Core model
+
+- **Roles supersede persona.** Under Model 2 the DB authorizer resolves `can()`
+  from `authz_user_role → authz_role → authz_role_permission` (+ active
+  delegations), never from `actor.persona` — which stays a coarse label.
+  `seedRolesFromPersonaMap()` converts a Model 1 `personaActions` map into
+  roles so the switch is behaviour-preserving. Model 1 ↔ Model 2 stays a
+  wiring-time switch (`model:` string), one active at a time.
+- **`authz_role.grants_all boolean`** is the `'*'` wildcard — no magic row.
+- **`authz_` table prefix** — `role` / `user_role` are names a vertical wants.
+- **No `application` column** — role catalogs are project-specific; the
+  cross-product-analytics case is too weak, and these tables are small enough
+  that a later backfill is trivial (contrast audit-logging's adapter, where the
+  huge table justified it).
+- **`forRoot({ model: 'permission-table', authorizerToken, imports })`** — the
+  `model` enum stays as the explicit switch; `authorizerToken` points at the
+  adapter's `POSTGRES_PERMISSION_TABLE_AUTHORIZER` (or a custom `Authorizer`).
+  No token → the throwing stub, unchanged.
+
+### `Authorizer` gains an optional `allowedActions?`
+
+`allowedActions(actor, candidates)` — resolves "which of these does the actor
+hold" in one call. `computeSessionSnapshot` uses it when present
+(`if (authorizer.allowedActions)`), so `/me` is one query instead of one
+`can()` per action (an N+1 against a DB authorizer). Both shipped authorizers
+implement it; the per-action loop stays as the fallback for a hand-written or
+throwaway `can()`-only authorizer, and inline test doubles (`{ can: vi.fn() }`)
+stay valid because the method is optional. Non-breaking.
+
+*(First cut was a separate `BulkAuthorizer extends Authorizer` interface + an
+`isBulkAuthorizer` type guard. The user pointed out that if every real
+authorizer implements it, the separate interface earns nothing — collapsed to
+one optional method on `Authorizer`.)*
+
+### In v1
+
+- **Minimal delegation** — `authz_delegation` table, **snapshot** model
+  (actions fixed at grant time; mandatory `expires_at` capped at
+  `maxDelegationDays`, default 90; one-call revoke). Grant-time check uses the
+  granter's **role** permissions only, so **chains are blocked** by
+  construction. `DelegationService` ships `delegate` / `revokeDelegation` /
+  `listDelegations`. Audit is the consumer's to wire from its controller — the
+  service takes no dependency on `domain-events` / `audit-logging`.
+- **Action catalog** — `authz_action` (`name` PK + nullable `description`).
+  `authz_role_permission.action` is a FK (`ON DELETE RESTRICT`). `syncActions()`
+  is insert-only — new keys get a null description, existing rows (incl.
+  UI-entered descriptions) are never touched, nothing is deleted. Reversed the
+  initial "defer" call at the user's request: descriptions need a home, and a
+  nullable column filled in later via UI is it.
+- **Per-request permission cache** — `AsyncLocalStorage` + one-line
+  `AuthorizationCacheMiddleware`. Not Redis, not cross-request, not cross-node —
+  built fresh per request, discarded at request end, so zero staleness and no
+  invalidation problem. Degrades to no-cache if unwired. A node-level TTL memo
+  (+ optional pub/sub) is documented as a later step gated on profiling.
+
+### Deferred (documented in the adapter README)
+
+Role hierarchy (`parent_id` + recursive query + cycle detection + inherited-cell
+UI) · delegation advanced (live granter re-check, cascade-on-revoke, chains,
+resource scoping, approvals) · resource-level grants (`can()` 3rd param +
+`authz_resource_grant` + RLS-aware policies) · a role-management service (the
+vertical writes role/assignment CRUD against the documented schema) · the admin
+matrix UI (frontend / future `ascendra-commons-ui`) · node-level TTL memo.
+
+### Dimension re-scoring
+
+| Dimension | Was | Now |
+|---|---|---|
+| 6 — Model 1/Model 2 | Pass (M2 = prose + stub) | Pass (M2 built as an adapter; stub kept for "selected, not wired") |
+| 7 — Persistence | N/A for now (M2 will need it) | Pass — adapter ships the `authz_*` schema + migration; DB instance + migration execution stay consumer-owned; role/assignment CRUD is the vertical's |
+| 8 — Admin UI | Pass (prose sketch) | Pass (prose sketch, now in the adapter README with the definition/assignment split and matrix layout; UI still not shipped) |
+
+**Core files changed:** `authorizer.ts` (optional `allowedActions?`,
+`StaticRoleMapAuthorizer` implements it), `session-snapshot.ts` (uses it when present),
+`authorization.module.ts` (`authorizerToken` + `imports`),
+`permission-table-authorizer.ts` (trimmed to the stub), `index.ts`, README.
+
+**New:** `authorization/adapters/postgres-drizzle/` — `schema.ts`,
+`authorization.migration.sql`, `sql-executor.ts`, `sql-helpers.ts`, `tokens.ts`,
+`permission-cache.ts`, `permission-loader.ts`,
+`postgres-permission-table-authorizer.ts`, `delegation.service.ts`,
+`sync-actions.ts`, `seed-roles-from-persona-map.ts`,
+`postgres-authorization.module.ts`, `index.ts`, `README.md`, 6 spec files.
+
+244/244 tests pass (up from 215 — 29 new), typecheck clean.

@@ -4,9 +4,8 @@ import { PERSONA_ACTIONS_DATA } from './tokens';
 
 /**
  * An interface, not a class — same reasoning as every Model 1/Model 2 pair in
- * this library: static (here) and database-backed (a consuming project's own
- * PermissionTableAuthorizer, once a real need for named roles/delegation
- * appears) share no behavior with each other.
+ * this library: static (here) and database-backed (the postgres-drizzle
+ * adapter's PermissionTableAuthorizer) share no behavior with each other.
  *
  * can() returns Promise<boolean>, not boolean, even though
  * StaticRoleMapAuthorizer never actually awaits anything — a database-backed
@@ -16,6 +15,15 @@ import { PERSONA_ACTIONS_DATA } from './tokens';
  */
 export interface Authorizer {
   can(actor: Actor, action: string): Promise<boolean>;
+
+  /**
+   * The subset of `candidateActions` this actor is permitted, resolved in one
+   * pass. Optional — the per-action `can()` loop is the correct fallback.
+   * A database-backed authorizer implements it so `computeSessionSnapshot`
+   * (`/me`) is one query rather than one `can()` per action; an in-memory or
+   * throwaway one can skip it.
+   */
+  allowedActions?(actor: Actor, candidateActions: string[]): Promise<string[]>;
 }
 
 /**
@@ -38,5 +46,13 @@ export class StaticRoleMapAuthorizer implements Authorizer {
     const allowed = this.personaActions[actor.persona];
     if (allowed === undefined) return false; // an unconfigured persona is denied, not treated as unrestricted
     return allowed === '*' ? true : allowed.includes(action);
+  }
+
+  async allowedActions(actor: Actor, candidateActions: string[]): Promise<string[]> {
+    const allowed = this.personaActions[actor.persona];
+    if (allowed === undefined) return [];
+    if (allowed === '*') return [...candidateActions];
+    const set = new Set(allowed);
+    return candidateActions.filter((action) => set.has(action));
   }
 }
