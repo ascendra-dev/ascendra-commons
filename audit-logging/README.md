@@ -164,6 +164,14 @@ export class AuditListener {
 would silently swallow a failed `insert()` instead of propagating it, which
 is the one guarantee this whole pattern exists to provide.
 
+This `handle()` method is also the reference example `domain-events`' README
+cites by name in its "Keep the decorated method a thin dispatcher" section:
+the decorated method does nothing but call the plain, undecorated
+`persistAuditRecord()`. Worth knowing in both directions — if this pattern's
+own worked example ever grows real logic inside `handle()` itself instead of
+inside `persistAuditRecord()`, it stops being that reference example, and
+`domain-events`' README should be updated too.
+
 ### Worked example: mapping a real event
 
 ```typescript
@@ -264,3 +272,27 @@ Same `AuditEvent` shape and `persistAuditRecord()` mechanism — only the set
 of entities/actions the consumer's own listener subscribes to grows, as
 genuine compliance or operational need appears. No new mechanism required;
 this is why the data model was kept generic from the start.
+
+**Correlation id has the same ambient-context-can't-cross-a-process-boundary
+problem `domain-events`' README names for `tenantId`** (see its "Explicit on
+the event, never derived from ambient context" section) — same underlying
+cause, different conclusion. `AsyncLocalStorage` context lives only within
+one unbroken async call chain in one process; `getCurrentCorrelationId()`
+works correctly today only because `domain-events`' current in-process
+dispatch keeps the HTTP request (or job run) and the listener on that one
+chain. Under a broker transport (`domain-events`' own Model 2), the listener
+runs in a separate consumer process with no ancestry back to the producer's
+`AsyncLocalStorage` context — `getCurrentCorrelationId()` wouldn't throw or
+read stale data, it would silently fall back to generating a fresh, unrelated
+id, quietly breaking "ties every audit record from one request together"
+with no error anywhere. Unlike `tenantId`, the fix isn't "read it off the
+event's own field instead of context" — a correlation id is a cross-cutting
+execution identifier, not a fact about the entity being audited, so it has no
+natural home on every event's business payload. The fix, when a broker
+transport actually lands: carry the correlation id explicitly in the
+broker message's own envelope/headers (most broker clients support message
+metadata for exactly this), and have the consumer call
+`runWithCorrelationId()` once per message — reestablishing the context
+explicitly in the new process from that carried value, never left to the
+ambient fallback to paper over its absence. Not built — no broker transport
+exists yet — recorded here so it isn't lost when that lands.

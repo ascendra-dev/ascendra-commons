@@ -344,3 +344,117 @@ demonstrated, just smaller. **Status: removed** — `tokens.ts` and `index.ts`
 reverted to their pre-this-thread state; the worked examples and the test now
 declare their own local `APPLICATION_ID` symbol, consistent with every other
 override token's documented pattern. 178/178 pass, typecheck clean.
+
+`notification` review closed here — no open items.
+
+---
+
+## 2026-09-05 — `audit-logging` module-by-module review (in progress)
+
+Two items were carried forward from the `domain-events` review specifically
+for this module's turn (see that section above). Addressed first, before the
+rest of this module's own review, per protocol.
+
+**Finding 1 — the `AuditListener` worked example wasn't named as the
+reference example it already is.** `domain-events`' README cites
+`AuditListener.handle()` by name as the worked example of "keep the decorated
+method a thin dispatcher" — `handle()` already does nothing but call the
+plain `persistAuditRecord()`, so no behavior changed. But the citation only
+ran one direction: `audit-logging/README.md` never said, at the worked
+example itself, that it *is* that reference example. **Status: fixed** — a
+note now sits directly under the worked example in `audit-logging/README.md`
+pointing back to `domain-events`' "Keep the decorated method a thin
+dispatcher" section by name, so the connection is discoverable from either
+module's README. Docs only, no code changed.
+
+**Finding 2 — correlation id has the same ambient-context-can't-cross-a-
+process-boundary problem already reasoned through for `tenantId` in
+`domain-events`, and it wasn't named.** `getCurrentCorrelationId()` works
+today only because `domain-events`' current in-process dispatch keeps the
+HTTP request (or job run) and the listener on one unbroken async call chain —
+`AsyncLocalStorage` context doesn't survive a process boundary, the identical
+mechanism-level fact `domain-events`' README already uses to explain why
+`tenantId` must be an explicit field, never ambient. Unlike `tenantId`, the
+fix isn't "make it an explicit field on the event" — a correlation id is a
+cross-cutting execution identifier, not a fact about the entity being
+audited, so it has no natural home on the event payload itself. The right fix
+under a future broker transport is for the correlation id to travel in the
+broker message's own envelope/headers, with the consumer calling
+`runWithCorrelationId()` once per message to reestablish the context
+explicitly — never left to `getCurrentCorrelationId()`'s ambient fallback,
+which would silently mint an unrelated fresh id instead of erroring.
+**Status: documented** — new paragraph in `audit-logging/README.md`'s Model 2
+section, naming the problem, why the `tenantId` fix doesn't transfer, and the
+actual fix shape. Not built — no broker transport exists yet on either
+module's side. No code changed.
+
+56/56 tests unaffected (doc-only changes); typecheck clean.
+
+Rest of `audit-logging`'s own review (all 11 dimensions) presented to the
+user for discussion — not yet closed, continuing in this session.
+
+---
+
+## 2026-09-05 — `notification` mid-review feature request: per-tenant provider credentials
+
+Not part of the module-by-module review sequence — the user paused
+`audit-logging`'s review to request a real feature in `notification`, which
+was already closed. Recorded here since it changes that module's shape and
+has direct dimension implications; `audit-logging`'s review resumes after.
+
+**Request:** `EmailNotificationSender`/`SMSNotificationSender`/
+`WhatsappNotificationSender` only ever logged the rendered message — there was
+no seam for the real per-tenant delivery-provider credentials (API key,
+sender address/number) a real deployment needs, sourced either statically or
+from a database, keyed by `tenantId`. Clarified scope with the user first
+(config-plumbing only, not a real provider SDK call; provider-agnostic field
+names, not a specific vendor's shape) — both confirmed.
+
+**Built**, following this module's own established shape (one generic
+interface reused per channel via a type parameter, the same pattern
+`NotificationTemplateRepository` already uses for email/SMS):
+
+- `EmailProviderConfig`/`SmsProviderConfig`/`WhatsappProviderConfig` — new,
+  provider-agnostic credential types (`notification-provider-config.ts`).
+- `ProviderConfigResolver<TConfig>` — new interface (`configFor(tenantId)`),
+  and `StaticProviderConfigResolver<TConfig>` — the Model 1 implementation.
+  **Notable design point:** this is the one piece in the module whose Model 1
+  implementation genuinely branches on `tenantId`, unlike
+  `StaticNotificationChannelConfig`/`StaticNotificationTemplateRepository`
+  (which ignore it by design — see Audit 1). Provider credentials are the
+  opposite case: "one tenant, one provider account" is the normal shape from
+  day one, not an eventual scaling signal — matching dimension 5's own
+  standard, just landing differently per-module depending on what the module
+  actually models. A `null` tenantId resolves to `null` (fails closed), not a
+  deployment-wide default — a deliberate asymmetry from the channel-config/
+  template DB examples' tenant-row-then-null-row fallback, documented in the
+  README since it's the more surprising choice.
+- Three new tokens per channel (`EMAIL_PROVIDER_CONFIG`/`_DATA`, same for
+  SMS/WhatsApp), and three new `forRoot()` fields
+  (`emailProviderConfigs`/`smsProviderConfigs`/`whatsappProviderConfigs`) each
+  with a matching override token (`emailProviderConfigToken`/etc.) — same
+  required-unless-token-given discipline every other piece in this module
+  already follows (dimension 3), extending "four independently swappable
+  pieces" (Audit 1 / the earlier `notification` review) to seven. All three
+  senders now inject their channel's `ProviderConfigResolver` and fail with a
+  new `'no_provider_config'` reason (checked after address resolution, before
+  template lookup — cheapest short-circuit first) when nothing is registered
+  for the request's tenantId. `WhatsappNotificationSender` gained its first
+  constructor dependency; it remains a template/delivery stub otherwise.
+- README: new "`ProviderConfigResolver`" pieces section, a new "Going to a
+  database-backed provider config" worked example (noting the no-fallback
+  asymmetry above), the `forRoot()` worked example and "Swapping one piece..."
+  section updated to seven pieces, and "What's not built yet" narrowed to
+  "no real provider HTTP call" now that the credentials seam itself exists.
+
+**Verification, not just typecheck:** every `NotificationModule.forRoot()`
+call site in `notification.module.spec.ts` needed the three new required
+fields (or a token) added — a real, if mechanical, confirmation that the new
+fields are actually required, the same way the repo's standing
+`Test.createTestingModule()` discipline is meant to catch. New tests: real DI
+proof of `emailProviderConfigToken`'s override path (not
+`.overrideProvider()`), the three new `requireData` throw paths, and a
+fails-closed case for an unregistered tenant. 189/189 tests pass (up from
+178), typecheck clean.
+
+`audit-logging`'s review resumes from here.

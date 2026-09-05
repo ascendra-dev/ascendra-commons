@@ -2,10 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { EmailNotificationSender } from './email-notification-sender';
 import { NotificationTemplateRepository } from './notification-template';
 import { UserContactResolver } from './user-contact-resolver';
+import { EmailProviderConfig, ProviderConfigResolver } from './notification-provider-config';
 
 function makeSender(overrides?: {
   templates?: Partial<NotificationTemplateRepository>;
   users?: Partial<UserContactResolver>;
+  providerConfig?: Partial<ProviderConfigResolver<EmailProviderConfig>>;
 }) {
   const templates: NotificationTemplateRepository = {
     templateFor: vi.fn().mockResolvedValue({ subject: 'Invoice {{invoiceNumber}}', body: 'Hi' }),
@@ -15,7 +17,11 @@ function makeSender(overrides?: {
     findById: vi.fn().mockResolvedValue(null),
     ...overrides?.users,
   };
-  return { sender: new EmailNotificationSender(templates, users), templates, users };
+  const providerConfig: ProviderConfigResolver<EmailProviderConfig> = {
+    configFor: vi.fn().mockResolvedValue({ apiKey: 'key', fromAddress: 'billing@example.com' }),
+    ...overrides?.providerConfig,
+  };
+  return { sender: new EmailNotificationSender(templates, users, providerConfig), templates, users, providerConfig };
 }
 
 describe('EmailNotificationSender', () => {
@@ -46,11 +52,25 @@ describe('EmailNotificationSender', () => {
   });
 
   it('fails without throwing when a raw recipient has no email', async () => {
-    const { sender, templates } = makeSender();
+    const { sender, templates, providerConfig } = makeSender();
 
     const result = await sender.send({ recipient: { type: 'raw' }, notificationType: 'invoice.sent', variables: {} });
 
     expect(result).toEqual({ status: 'failed', reason: 'no_address_available' });
+    expect(providerConfig.configFor).not.toHaveBeenCalled();
+    expect(templates.templateFor).not.toHaveBeenCalled();
+  });
+
+  it('fails without throwing when no provider config is configured for the tenant', async () => {
+    const { sender, templates } = makeSender({ providerConfig: { configFor: vi.fn().mockResolvedValue(null) } });
+
+    const result = await sender.send({
+      recipient: { type: 'raw', email: 'payer@example.com' },
+      notificationType: 'invoice.sent',
+      variables: {},
+    });
+
+    expect(result).toEqual({ status: 'failed', reason: 'no_provider_config' });
     expect(templates.templateFor).not.toHaveBeenCalled();
   });
 

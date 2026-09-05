@@ -7,6 +7,7 @@ import { UserContactResolver } from './user-contact-resolver';
 import { NotificationChannelConfig } from './notification-channel-config';
 import { NotificationChannel } from './notification.types';
 import { NotificationTemplateRepository } from './notification-template';
+import { EmailProviderConfig, ProviderConfigResolver } from './notification-provider-config';
 import { NOTIFIER, USER_CONTACT_RESOLVER } from './tokens';
 
 /**
@@ -34,6 +35,9 @@ async function buildTestModule() {
           'payment.confirmed': { body: 'Payment of {{amount}} received' },
           'payment.overdue.reminder': { body: 'Pay {{amount}}' },
         },
+        emailProviderConfigs: { 'tenant-1': { apiKey: 'email-key', fromAddress: 'billing@example.com' } },
+        smsProviderConfigs: { 'tenant-1': { apiKey: 'sms-key', fromNumber: '+10000000000' } },
+        whatsappProviderConfigs: { 'tenant-1': { apiKey: 'wa-key', fromNumber: '+10000000001' } },
       }),
     ],
   }).compile();
@@ -54,6 +58,7 @@ describe('NotificationModule.forRoot — real DI wiring', () => {
       recipient: { type: 'raw', email: 'payer@example.com' },
       notificationType: 'invoice.sent',
       variables: { invoiceNumber: 'INV-001' },
+      tenantId: 'tenant-1',
     });
 
     expect(result).toEqual({ status: 'sent', channels: { email: { status: 'sent' } } });
@@ -67,6 +72,7 @@ describe('NotificationModule.forRoot — real DI wiring', () => {
       recipient: { type: 'raw', email: 'payer@example.com', phone: '+923001234567' },
       notificationType: 'payment.confirmed',
       variables: { amount: 1500 },
+      tenantId: 'tenant-1',
     });
 
     expect(result).toEqual({ status: 'sent', channels: { email: { status: 'sent' }, sms: { status: 'sent' } } });
@@ -95,6 +101,7 @@ describe('NotificationModule.forRoot — real DI wiring', () => {
       recipient: { type: 'raw', email: 'payer@example.com', phone: '+923001234567' },
       notificationType: 'payment.overdue.reminder',
       variables: { amount: 1500 },
+      tenantId: 'tenant-1',
     });
 
     // email has no template for this notificationType, sms does — so the
@@ -126,6 +133,9 @@ describe('NotificationModule.forRoot — real DI wiring', () => {
           channels: { 'invoice.sent': ['email'] },
           emailTemplates: { 'invoice.sent': { subject: 'Invoice {{invoiceNumber}}', body: 'Hi' } },
           smsTemplates: {},
+          emailProviderConfigs: { 'tenant-1': { apiKey: 'email-key', fromAddress: 'billing@example.com' } },
+          smsProviderConfigs: {},
+          whatsappProviderConfigs: {},
         }),
       ],
     })
@@ -138,6 +148,7 @@ describe('NotificationModule.forRoot — real DI wiring', () => {
       recipient: { type: 'user', id: 'issuer-1' },
       notificationType: 'invoice.sent',
       variables: { invoiceNumber: 'INV-001' },
+      tenantId: 'tenant-1',
     });
 
     expect(result).toEqual({ status: 'sent', channels: { email: { status: 'sent' } } });
@@ -187,6 +198,9 @@ describe('NotificationModule.forRoot — override tokens, the real Model 2 seam'
           imports: [FakeDatabaseNotificationProvidersModule],
           emailTemplates: { 'invoice.sent': { subject: 'Invoice {{invoiceNumber}}', body: 'Hi' } },
           smsTemplates: {},
+          emailProviderConfigs: { 'tenant-1': { apiKey: 'email-key', fromAddress: 'billing@example.com' } },
+          smsProviderConfigs: {},
+          whatsappProviderConfigs: {},
         }),
       ],
     }).compile();
@@ -198,6 +212,7 @@ describe('NotificationModule.forRoot — override tokens, the real Model 2 seam'
       // have resolved to ['email'] via the DB-backed fake, never a static lookup.
       notificationType: 'invoice.sent',
       variables: { invoiceNumber: 'INV-001' },
+      tenantId: 'tenant-1',
     });
 
     expect(result).toEqual({ status: 'sent', channels: { email: { status: 'sent' } } });
@@ -211,6 +226,9 @@ describe('NotificationModule.forRoot — override tokens, the real Model 2 seam'
           emailTemplateRepositoryToken: EMAIL_TEMPLATE_REPO_TOKEN,
           imports: [FakeDatabaseNotificationProvidersModule],
           smsTemplates: {},
+          emailProviderConfigs: { 'tenant-1': { apiKey: 'email-key', fromAddress: 'billing@example.com' } },
+          smsProviderConfigs: {},
+          whatsappProviderConfigs: {},
         }),
       ],
     }).compile();
@@ -220,6 +238,7 @@ describe('NotificationModule.forRoot — override tokens, the real Model 2 seam'
       recipient: { type: 'raw', email: 'payer@example.com' },
       notificationType: 'invoice.sent',
       variables: {},
+      tenantId: 'tenant-1',
     });
 
     expect(result).toEqual({ status: 'sent', channels: { email: { status: 'sent' } } });
@@ -234,6 +253,9 @@ describe('NotificationModule.forRoot — override tokens, the real Model 2 seam'
           smsTemplates: {},
           userContactResolverToken: USER_RESOLVER_TOKEN,
           imports: [FakeDatabaseNotificationProvidersModule],
+          emailProviderConfigs: { 'tenant-1': { apiKey: 'email-key', fromAddress: 'billing@example.com' } },
+          smsProviderConfigs: {},
+          whatsappProviderConfigs: {},
         }),
       ],
     }).compile();
@@ -243,6 +265,7 @@ describe('NotificationModule.forRoot — override tokens, the real Model 2 seam'
       recipient: { type: 'user', id: 'issuer-1' },
       notificationType: 'invoice.sent',
       variables: { invoiceNumber: 'INV-001' },
+      tenantId: 'tenant-1',
     });
 
     expect(result).toEqual({ status: 'sent', channels: { email: { status: 'sent' } } });
@@ -256,6 +279,9 @@ describe('NotificationModule.forRoot — override tokens, the real Model 2 seam'
           imports: [FakeDatabaseNotificationProvidersModule],
           emailTemplates: { 'invoice.sent': { subject: 'Static Subject', body: 'Static Body' } },
           smsTemplates: {},
+          emailProviderConfigs: { 'tenant-1': { apiKey: 'email-key', fromAddress: 'billing@example.com' } },
+          smsProviderConfigs: {},
+          whatsappProviderConfigs: {},
         }),
       ],
     }).compile();
@@ -265,6 +291,7 @@ describe('NotificationModule.forRoot — override tokens, the real Model 2 seam'
       recipient: { type: 'raw', email: 'payer@example.com' },
       notificationType: 'invoice.sent', // channel comes from the DB-backed fake; template still comes from the static map
       variables: {},
+      tenantId: 'tenant-1',
     });
 
     expect(result).toEqual({ status: 'sent', channels: { email: { status: 'sent' } } });
@@ -286,6 +313,98 @@ describe('NotificationModule.forRoot — override tokens, the real Model 2 seam'
     expect(() =>
       NotificationModule.forRoot({ channels: {}, emailTemplates: {} }),
     ).toThrow(/requires either 'smsTemplates' or 'smsTemplateRepositoryToken'/);
+  });
+
+  it('throws clearly when neither emailProviderConfigs nor emailProviderConfigToken is given', () => {
+    expect(() =>
+      NotificationModule.forRoot({ channels: {}, emailTemplates: {}, smsTemplates: {} }),
+    ).toThrow(/requires either 'emailProviderConfigs' or 'emailProviderConfigToken'/);
+  });
+
+  it('throws clearly when neither smsProviderConfigs nor smsProviderConfigToken is given', () => {
+    expect(() =>
+      NotificationModule.forRoot({ channels: {}, emailTemplates: {}, smsTemplates: {}, emailProviderConfigs: {} }),
+    ).toThrow(/requires either 'smsProviderConfigs' or 'smsProviderConfigToken'/);
+  });
+
+  it('throws clearly when neither whatsappProviderConfigs nor whatsappProviderConfigToken is given', () => {
+    expect(() =>
+      NotificationModule.forRoot({
+        channels: {},
+        emailTemplates: {},
+        smsTemplates: {},
+        emailProviderConfigs: {},
+        smsProviderConfigs: {},
+      }),
+    ).toThrow(/requires either 'whatsappProviderConfigs' or 'whatsappProviderConfigToken'/);
+  });
+
+  it('emailProviderConfigToken swaps in a custom ProviderConfigResolver<EmailProviderConfig>, real production wiring', async () => {
+    const EMAIL_PROVIDER_CONFIG_TOKEN = Symbol('EMAIL_PROVIDER_CONFIG_TOKEN');
+
+    @Module({
+      providers: [
+        {
+          provide: EMAIL_PROVIDER_CONFIG_TOKEN,
+          useValue: {
+            configFor: vi.fn().mockResolvedValue({ apiKey: 'db-key', fromAddress: 'db@example.com' }),
+          } satisfies ProviderConfigResolver<EmailProviderConfig>,
+        },
+      ],
+      exports: [EMAIL_PROVIDER_CONFIG_TOKEN],
+    })
+    class FakeDatabaseEmailProviderConfigModule {}
+
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        NotificationModule.forRoot({
+          channels: { 'invoice.sent': ['email'] },
+          emailTemplates: { 'invoice.sent': { subject: 'Invoice {{invoiceNumber}}', body: 'Hi' } },
+          smsTemplates: {},
+          emailProviderConfigToken: EMAIL_PROVIDER_CONFIG_TOKEN,
+          smsProviderConfigs: {},
+          whatsappProviderConfigs: {},
+          imports: [FakeDatabaseEmailProviderConfigModule],
+        }),
+      ],
+    }).compile();
+    const notifier = moduleRef.get<Notifier>(NOTIFIER);
+
+    const result = await notifier.notify({
+      recipient: { type: 'raw', email: 'payer@example.com' },
+      // No `emailProviderConfigs` data was given at all — this can only have
+      // resolved via the DB-backed fake, never a static tenant-map lookup.
+      notificationType: 'invoice.sent',
+      variables: { invoiceNumber: 'INV-001' },
+      tenantId: 'any-tenant-at-all', // the fake resolves every tenantId identically — proves the seam, not tenant-keying
+    });
+
+    expect(result).toEqual({ status: 'sent', channels: { email: { status: 'sent' } } });
+  });
+
+  it('fails closed when a tenant has no registered provider config, real DI included', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        NotificationModule.forRoot({
+          channels: { 'invoice.sent': ['email'] },
+          emailTemplates: { 'invoice.sent': { subject: 'Invoice {{invoiceNumber}}', body: 'Hi' } },
+          smsTemplates: {},
+          emailProviderConfigs: { 'tenant-1': { apiKey: 'email-key', fromAddress: 'billing@example.com' } },
+          smsProviderConfigs: {},
+          whatsappProviderConfigs: {},
+        }),
+      ],
+    }).compile();
+    const notifier = moduleRef.get<Notifier>(NOTIFIER);
+
+    const result = await notifier.notify({
+      recipient: { type: 'raw', email: 'payer@example.com' },
+      notificationType: 'invoice.sent',
+      variables: { invoiceNumber: 'INV-001' },
+      tenantId: 'a-tenant-with-no-provider-config',
+    });
+
+    expect(result).toEqual({ status: 'failed', channels: { email: { status: 'failed', reason: 'no_provider_config' } } });
   });
 });
 
@@ -325,6 +444,9 @@ describe('an applicationId value, provided entirely within the consumer\'s own m
           imports: [MyNotificationProvidersModule],
           emailTemplates: { 'invoice.sent': { subject: 'Invoice ready', body: 'Hi' } },
           smsTemplates: {},
+          emailProviderConfigs: { 'tenant-1': { apiKey: 'email-key', fromAddress: 'billing@example.com' } },
+          smsProviderConfigs: {},
+          whatsappProviderConfigs: {},
         }),
       ],
     }).compile();
@@ -334,6 +456,7 @@ describe('an applicationId value, provided entirely within the consumer\'s own m
       recipient: { type: 'raw', email: 'payer@example.com' },
       notificationType: 'invoice.sent',
       variables: {},
+      tenantId: 'tenant-1',
     });
 
     expect(result).toEqual({ status: 'sent', channels: { email: { status: 'sent' } } });

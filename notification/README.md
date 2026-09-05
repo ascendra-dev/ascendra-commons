@@ -31,9 +31,11 @@ override, declare your own token in your own module and inject it there — see
 "Going to a database-backed channel config" below for the concrete shape, and
 `MODULE-STANDARD.md` dimension 4 for why a passive column is a different,
 cheaper case than an active query parameter in the first place. `tenantId`
-*is* threaded as a real query parameter, on `NotificationRequest` and both
-`NotificationChannelConfig`/`NotificationTemplateRepository` — see
-"`NotificationChannelConfig`" below.
+*is* threaded as a real query parameter, on `NotificationRequest` and all
+three of `NotificationChannelConfig`/`NotificationTemplateRepository`/
+`ProviderConfigResolver` — see "`NotificationChannelConfig`" and
+"`ProviderConfigResolver`" below. The last of these is the one piece whose
+Model 1 implementation actually branches on it, rather than ignoring it.
 
 ## The pieces
 
@@ -110,18 +112,26 @@ gets noticed before it reaches a user.
 An interface — Email/WhatsApp/SMS share no behavior with each other, so there's
 no shared base worth having.
 
-- **`EmailNotificationSender`** / **`SMSNotificationSender`** — real: resolve the
-  recipient's address (see `UserContactResolver` below), look up their own
-  template, render it, and (today) log the rendered result. Fail with
-  `'no_address_available'` if the recipient has no address for that channel, or
-  `'template_not_found'` if no template is registered for the notificationType —
-  address resolved first, since there's no point rendering a template for nobody.
-- **`WhatsappNotificationSender`** — still a stub, deliberately. WhatsApp's real
-  templates are pre-approved and *named* on Meta's side, with **positional
-  numbered parameters** (`{{1}}`, `{{2}}`, ...), not free-form `{{variable}}` text
-  this library renders — a fundamentally different shape from
-  `NotificationTemplate`. Building a real `WhatsappNotificationSender` means
-  designing that shape first, not forcing WhatsApp into the email/SMS shape.
+- **`EmailNotificationSender`** / **`SMSNotificationSender`** — resolve the
+  recipient's address (see `UserContactResolver` below), resolve that tenant's
+  delivery-provider credentials (see `ProviderConfigResolver` below), look up
+  their own template, render it, and (today) log the rendered result together
+  with which provider identity (`fromAddress`/`fromNumber`) it would have sent
+  from. Fails, in this order: `'no_address_available'` (no address for that
+  channel), `'no_provider_config'` (no credentials registered for the
+  request's tenantId), `'template_not_found'` (no template for the
+  notificationType) — cheapest, most-likely-to-short-circuit check first, so a
+  request nobody could ever deliver never pays for a credentials lookup or a
+  template render.
+- **`WhatsappNotificationSender`** — still a stub for templates/delivery,
+  deliberately. WhatsApp's real templates are pre-approved and *named* on
+  Meta's side, with **positional numbered parameters** (`{{1}}`, `{{2}}`, ...),
+  not free-form `{{variable}}` text this library renders — a fundamentally
+  different shape from `NotificationTemplate`. Building a real
+  `WhatsappNotificationSender` means designing that shape first, not forcing
+  WhatsApp into the email/SMS shape. It does already resolve provider config,
+  the same as the other two senders — that seam doesn't depend on the template
+  shape being settled first.
 
 ### `UserContactResolver` — resolving a `'user'` recipient's address
 
@@ -146,6 +156,68 @@ in their own module:
 ```typescript
 { provide: USER_CONTACT_RESOLVER, useClass: DrizzleUserContactResolver }
 ```
+
+### `ProviderConfigResolver<TConfig>` — per-tenant delivery-provider credentials
+
+```typescript
+export interface EmailProviderConfig {
+  apiKey: string;
+  fromAddress: string;
+  fromName?: string;
+}
+export interface SmsProviderConfig { apiKey: string; fromNumber: string; }
+export interface WhatsappProviderConfig { apiKey: string; fromNumber: string; }
+
+export interface ProviderConfigResolver<TConfig> {
+  configFor(tenantId: string | null): Promise<TConfig | null>;
+}
+```
+
+One generic interface, reused across all three channels via `TConfig` — same
+reasoning `NotificationTemplateRepository` already uses for being one shape
+shared by `EMAIL_TEMPLATE_REPOSITORY`/`SMS_TEMPLATE_REPOSITORY`, rather than
+three near-identical interfaces. Field names are deliberately
+provider-agnostic (not SendGrid's, Twilio's, or Meta's own shape) — this
+library ships the seam, never a vendor SDK call; a consumer's real delivery
+implementation maps these onto whichever provider they pick.
+
+**This is the one piece where the Model 1 implementation genuinely branches on
+`tenantId`, unlike `NotificationChannelConfig`/`NotificationTemplateRepository`.**
+`StaticNotificationChannelConfig` and `StaticNotificationTemplateRepository`
+both *ignore* `tenantId` on purpose — Model 1 there is one deployment-wide
+config until a specific tenant needs to differ, and that's the signal to go
+database-backed (see "Going to a database-backed channel config" above).
+Provider credentials are the opposite case: "one tenant, one provider account"
+is the normal shape from day one — a payer-facing SaaS tenant bringing their
+own SendGrid/Twilio account isn't a scaling exception, it's the point. So
+`StaticProviderConfigResolver` — the Model 1 implementation shipped here —
+looks the config up **by** `tenantId`:
+
+```typescript
+export class StaticProviderConfigResolver<TConfig> implements ProviderConfigResolver<TConfig> {
+  constructor(private readonly configs: Record<string, TConfig>) {}
+
+  async configFor(tenantId: string | null): Promise<TConfig | null> {
+    if (tenantId === null) return null;
+    return this.configs[tenantId] ?? null;
+  }
+}
+```
+
+A `tenantId` of `null` (a platform-wide notification with no single tenant)
+has no credentials to look up and resolves to `null` — fails closed and
+visibly, the same as every other unconfigured lookup in this module, not a
+deployment-wide fallback. If a real deployment-wide default is ever needed,
+that's a reason to build a database-backed `ProviderConfigResolver` with its
+own fall-through-to-default query (the same tenant-row-first,
+tenant-less-row-second shape `DatabaseNotificationChannelConfig` already
+shows) — not to change what the static, in-memory Model 1 does.
+
+Each channel gets its **own** token/instance — `EMAIL_PROVIDER_CONFIG`,
+`SMS_PROVIDER_CONFIG`, and `WHATSAPP_PROVIDER_CONFIG` are separate, even
+though all three can be backed by the same `StaticProviderConfigResolver`
+class — a tenant's email provider and SMS provider are independent accounts,
+not one shared credential.
 
 ## What "backstop" means here, and why it matters
 
@@ -175,6 +247,15 @@ patterns land under one wrapper folder), then:
       smsTemplates: {
         'payment.confirmed': { body: 'Payment of {{amount}} received' },
       },
+      emailProviderConfigs: {
+        'tenant-a': { apiKey: 'sg-...', fromAddress: 'billing@tenant-a.com' },
+      },
+      smsProviderConfigs: {
+        'tenant-a': { apiKey: 'tw-...', fromNumber: '+15551234567' },
+      },
+      whatsappProviderConfigs: {
+        'tenant-a': { apiKey: 'wa-...', fromNumber: '+15551234568' },
+      },
     }),
   ],
 })
@@ -185,27 +266,32 @@ export class AppModule {}
 `DomainEventsModule.forRoot()`) — but unlike `domain-events` (whose only
 required-by-default field is `transport`, and that defaults to `'in-process'`,
 so `forRoot()` there needs no argument), this one *always* requires config:
-there's no sensible default channel/template mapping, a consumer always has
-real business decisions to supply. It wires: `NullUserContactResolver`, both
-static config/template implementations,
-all three channel senders, the `NOTIFICATION_CHANNEL_SENDERS` map (assembled via
-`useFactory`, since a `Map` isn't a class Nest can construct directly), and
-`Notifier` — exporting only `NOTIFIER`, the token any listener actually injects.
+there's no sensible default channel/template/provider-credential mapping, a
+consumer always has real business decisions to supply. It wires:
+`NullUserContactResolver`, the static config/template/provider-config
+implementations, all three channel senders, the `NOTIFICATION_CHANNEL_SENDERS`
+map (assembled via `useFactory`, since a `Map` isn't a class Nest can
+construct directly), and `Notifier` — exporting only `NOTIFIER`, the token any
+listener actually injects.
 
 ### Swapping one piece for a database-backed implementation
 
-Four independently swappable pieces, not one unified Model 1/Model 2 knob —
+Seven independently swappable pieces, not one unified Model 1/Model 2 knob —
 unlike `authorization`'s `model` or `domain-events`' `transport`, which each
 choose between exactly one complete implementation. A real deployment is far
-more likely to want *one* piece database-backed (channel routing, say) while
-the others stay static than to swap all four atomically, so `forRoot()`
-accepts four independent override tokens instead of one enum:
+more likely to want *one* piece database-backed (channel routing, say, or just
+one channel's provider credentials) while the others stay static than to swap
+all seven atomically, so `forRoot()` accepts seven independent override tokens
+instead of one enum:
 
 ```typescript
 NotificationModule.forRoot({
-  channelConfigToken: DATABASE_CHANNEL_CONFIG,          // omit to use StaticNotificationChannelConfig, reading `channels`
+  channelConfigToken: DATABASE_CHANNEL_CONFIG,            // omit to use StaticNotificationChannelConfig, reading `channels`
   emailTemplateRepositoryToken: DATABASE_EMAIL_TEMPLATES, // omit to use StaticNotificationTemplateRepository, reading `emailTemplates`
   smsTemplateRepositoryToken: DATABASE_SMS_TEMPLATES,     // omit to use StaticNotificationTemplateRepository, reading `smsTemplates`
+  emailProviderConfigToken: DATABASE_EMAIL_PROVIDER_CONFIG, // omit to use StaticProviderConfigResolver, reading `emailProviderConfigs`
+  smsProviderConfigToken: DATABASE_SMS_PROVIDER_CONFIG,     // omit to use StaticProviderConfigResolver, reading `smsProviderConfigs`
+  whatsappProviderConfigToken: DATABASE_WHATSAPP_PROVIDER_CONFIG, // omit to use StaticProviderConfigResolver, reading `whatsappProviderConfigs`
   userContactResolverToken: DRIZZLE_USER_RESOLVER,        // omit to use NullUserContactResolver
   imports: [MyNotificationProvidersModule],               // whatever module exports the token(s) above
 })
@@ -362,6 +448,53 @@ NotificationModule.forRoot({
 })
 ```
 
+### Going to a database-backed provider config
+
+Same shape again, same reasoning for why it's generic-safe. The one real
+difference from `DatabaseNotificationChannelConfig`/
+`DatabaseNotificationTemplateRepository`: those two fall through a
+tenant-specific row to a tenant-less deployment default (`tenantId IS NULL`);
+a credentials table usually shouldn't, since "no credentials for this tenant"
+is a configuration error worth surfacing as `'no_provider_config'`, not a
+silent fallback to some other tenant's account. If a deployment genuinely
+wants a shared default provider account, model that explicitly (a real row
+with a sentinel tenant value your own code chooses), not as an implicit `NULL`
+fallback:
+
+```typescript
+// In the consuming project, not in this library:
+class DatabaseEmailProviderConfig implements ProviderConfigResolver<EmailProviderConfig> {
+  constructor(private readonly db: SomeLooselyTypedDrizzleDb) {}
+
+  async configFor(tenantId: string | null): Promise<EmailProviderConfig | null> {
+    if (tenantId === null) return null; // same "nothing to look up" answer as StaticProviderConfigResolver
+    const rows = await this.db.select().from(emailProviderConfigTable)
+      .where(eq(emailProviderConfigTable.tenantId, tenantId));
+    return rows[0] ?? null;
+  }
+}
+```
+
+Each channel needs its **own** table/token/binding, exactly like the template
+repositories — a tenant's email provider account and SMS provider account are
+independent credentials, not one shared row. `application_id`, if this table
+is ever consolidated for cross-app reporting, follows the same "stamp on
+insert, never query by it" practice as `notificationChannelConfigTable` above
+— though note this table holds live credentials, so it's a stronger candidate
+for per-app *separation* than for cross-app consolidation in the first place.
+
+```typescript
+NotificationModule.forRoot({
+  channels: { /* ... */ },
+  emailTemplates: { /* ... */ },
+  smsTemplates: { /* ... */ },
+  emailProviderConfigToken: DATABASE_EMAIL_PROVIDER_CONFIG,
+  smsProviderConfigs: { /* still static, unaffected */ },
+  whatsappProviderConfigs: { /* still static, unaffected */ },
+  imports: [MyNotificationProvidersModule],
+})
+```
+
 ### Going to a real `UserContactResolver`
 
 Structurally the same token mechanism, but a different *kind* of choice than
@@ -397,10 +530,14 @@ NotificationModule.forRoot({
 ## What's not built yet
 
 - No real `WhatsappNotificationSender` — needs its own template shape first (see above).
-- No database-backed `NotificationChannelConfig`/`NotificationTemplateRepository`
-  shipped here — the pattern for building one is documented above, but the actual
-  class belongs in each consuming project once it's actually needed.
-- No real email/SMS delivery — both senders log the rendered message rather than
-  calling a real provider. Swapping that in means changing what each sender's
-  `send()` does internally, not anything about `Notifier`, the channel config, or
-  the templates.
+- No database-backed `NotificationChannelConfig`/`NotificationTemplateRepository`/
+  `ProviderConfigResolver` shipped here — the pattern for building one is
+  documented above, but the actual class belongs in each consuming project
+  once it's actually needed.
+- No real email/SMS/WhatsApp delivery — every sender resolves real per-tenant
+  provider credentials via `ProviderConfigResolver` now, but still only logs
+  the rendered message (with the resolved `fromAddress`/`fromNumber`) instead
+  of calling a real provider's API. Swapping that in means changing what each
+  sender's `send()` does internally with the config it already has, not
+  anything about `Notifier`, the channel config, the templates, or how
+  credentials are resolved.

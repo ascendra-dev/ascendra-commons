@@ -2,10 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { SMSNotificationSender } from './sms-notification-sender';
 import { NotificationTemplateRepository } from './notification-template';
 import { UserContactResolver } from './user-contact-resolver';
+import { ProviderConfigResolver, SmsProviderConfig } from './notification-provider-config';
 
 function makeSender(overrides?: {
   templates?: Partial<NotificationTemplateRepository>;
   users?: Partial<UserContactResolver>;
+  providerConfig?: Partial<ProviderConfigResolver<SmsProviderConfig>>;
 }) {
   const templates: NotificationTemplateRepository = {
     templateFor: vi.fn().mockResolvedValue({ body: 'Amount due: {{amount}}' }),
@@ -15,7 +17,11 @@ function makeSender(overrides?: {
     findById: vi.fn().mockResolvedValue(null),
     ...overrides?.users,
   };
-  return { sender: new SMSNotificationSender(templates, users), templates, users };
+  const providerConfig: ProviderConfigResolver<SmsProviderConfig> = {
+    configFor: vi.fn().mockResolvedValue({ apiKey: 'key', fromNumber: '+10000000000' }),
+    ...overrides?.providerConfig,
+  };
+  return { sender: new SMSNotificationSender(templates, users, providerConfig), templates, users, providerConfig };
 }
 
 describe('SMSNotificationSender', () => {
@@ -46,11 +52,25 @@ describe('SMSNotificationSender', () => {
   });
 
   it('fails without throwing when a raw recipient has no phone', async () => {
-    const { sender, templates } = makeSender();
+    const { sender, templates, providerConfig } = makeSender();
 
     const result = await sender.send({ recipient: { type: 'raw' }, notificationType: 'payment.overdue.reminder', variables: {} });
 
     expect(result).toEqual({ status: 'failed', reason: 'no_address_available' });
+    expect(providerConfig.configFor).not.toHaveBeenCalled();
+    expect(templates.templateFor).not.toHaveBeenCalled();
+  });
+
+  it('fails without throwing when no provider config is configured for the tenant', async () => {
+    const { sender, templates } = makeSender({ providerConfig: { configFor: vi.fn().mockResolvedValue(null) } });
+
+    const result = await sender.send({
+      recipient: { type: 'raw', phone: '+923001234567' },
+      notificationType: 'payment.overdue.reminder',
+      variables: {},
+    });
+
+    expect(result).toEqual({ status: 'failed', reason: 'no_provider_config' });
     expect(templates.templateFor).not.toHaveBeenCalled();
   });
 

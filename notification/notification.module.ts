@@ -2,6 +2,12 @@ import { DynamicModule, Module, Provider } from '@nestjs/common';
 import { NotificationChannel } from './notification.types';
 import { NotificationTemplate, StaticNotificationTemplateRepository } from './notification-template';
 import { StaticNotificationChannelConfig } from './notification-channel-config';
+import {
+  EmailProviderConfig,
+  SmsProviderConfig,
+  StaticProviderConfigResolver,
+  WhatsappProviderConfig,
+} from './notification-provider-config';
 import { NotificationSender } from './notification-sender';
 import { EmailNotificationSender } from './email-notification-sender';
 import { WhatsappNotificationSender } from './whatsapp-notification-sender';
@@ -15,6 +21,12 @@ import {
   EMAIL_TEMPLATE_REPOSITORY,
   SMS_TEMPLATE_DATA,
   SMS_TEMPLATE_REPOSITORY,
+  EMAIL_PROVIDER_CONFIG_DATA,
+  EMAIL_PROVIDER_CONFIG,
+  SMS_PROVIDER_CONFIG_DATA,
+  SMS_PROVIDER_CONFIG,
+  WHATSAPP_PROVIDER_CONFIG_DATA,
+  WHATSAPP_PROVIDER_CONFIG,
   NOTIFICATION_CHANNEL_SENDERS,
   USER_CONTACT_RESOLVER,
   NOTIFIER,
@@ -51,6 +63,29 @@ export interface NotificationModuleConfig {
   emailTemplateRepositoryToken?: OverrideToken;
   /** Bind SMS_TEMPLATE_REPOSITORY to your own NotificationTemplateRepository. Same reasoning as `channelConfigToken`. */
   smsTemplateRepositoryToken?: OverrideToken;
+
+  /**
+   * Email's own delivery-provider credentials, by tenantId — see
+   * `EmailProviderConfig`. Required unless `emailProviderConfigToken` is
+   * given; ignored if it is. Unlike `channels`/`emailTemplates`, this is keyed
+   * by tenantId even in the static, built-in implementation
+   * (`StaticProviderConfigResolver`) — "by tenantId" is the actual ask this
+   * piece exists for (a tenant bringing their own provider account), not an
+   * optional per-tenant override of one deployment-wide default.
+   */
+  emailProviderConfigs?: Record<string, EmailProviderConfig>;
+  /** SMS's own delivery-provider credentials, by tenantId. Same reasoning as `emailProviderConfigs`. Required unless `smsProviderConfigToken` is given; ignored if it is. */
+  smsProviderConfigs?: Record<string, SmsProviderConfig>;
+  /** WhatsApp's own delivery-provider credentials, by tenantId. Same reasoning as `emailProviderConfigs`. Required unless `whatsappProviderConfigToken` is given; ignored if it is. */
+  whatsappProviderConfigs?: Record<string, WhatsappProviderConfig>;
+
+  /** Bind EMAIL_PROVIDER_CONFIG to your own ProviderConfigResolver<EmailProviderConfig> (e.g. database-backed). Same reasoning as `channelConfigToken`. */
+  emailProviderConfigToken?: OverrideToken;
+  /** Bind SMS_PROVIDER_CONFIG to your own ProviderConfigResolver<SmsProviderConfig>. Same reasoning as `channelConfigToken`. */
+  smsProviderConfigToken?: OverrideToken;
+  /** Bind WHATSAPP_PROVIDER_CONFIG to your own ProviderConfigResolver<WhatsappProviderConfig>. Same reasoning as `channelConfigToken`. */
+  whatsappProviderConfigToken?: OverrideToken;
+
   /**
    * Bind USER_CONTACT_RESOLVER to your own UserContactResolver instead of the
    * built-in NullUserContactResolver default. Same reasoning as
@@ -81,16 +116,17 @@ function requireData<T>(data: T | undefined, dataField: string, tokenField: stri
  * defaults to 'in-process', so forRoot() there needs no argument). This one
  * doesn't: there's no sensible default channel/template mapping, a consumer
  * always has real business decisions to supply here — for whichever of the
- * four pieces below isn't given an override token.
+ * seven pieces below isn't given an override token.
  *
- * Four independently swappable pieces, not one unified Model 1/Model 2 knob
+ * Seven independently swappable pieces, not one unified Model 1/Model 2 knob
  * (unlike `authorization`'s `model` or `domain-events`' `transport`) — a real
  * deployment is far more likely to swap one piece (channel routing goes
- * database-backed) than all four atomically, so a single enum would either be
- * dishonest about that or force an all-or-nothing swap nobody asked for. Omit
- * a token and you get the built-in static implementation, reading the
- * matching data field; supply it and `forRoot()` binds your class instead,
- * without requiring (or constructing anything from) the corresponding data.
+ * database-backed, or one channel's provider credentials do) than all seven
+ * atomically, so a single enum would either be dishonest about that or force
+ * an all-or-nothing swap nobody asked for. Omit a token and you get the
+ * built-in static implementation, reading the matching data field; supply it
+ * and `forRoot()` binds your class instead, without requiring (or
+ * constructing anything from) the corresponding data.
  */
 @Module({})
 export class NotificationModule {
@@ -137,6 +173,52 @@ export class NotificationModule {
       ? [{ provide: USER_CONTACT_RESOLVER, useExisting: config.userContactResolverToken }]
       : [{ provide: USER_CONTACT_RESOLVER, useClass: NullUserContactResolver }];
 
+    const emailProviderConfigProviders: Provider[] = config.emailProviderConfigToken
+      ? [{ provide: EMAIL_PROVIDER_CONFIG, useExisting: config.emailProviderConfigToken }]
+      : [
+          {
+            provide: EMAIL_PROVIDER_CONFIG_DATA,
+            useValue: requireData(config.emailProviderConfigs, 'emailProviderConfigs', 'emailProviderConfigToken'),
+          },
+          {
+            provide: EMAIL_PROVIDER_CONFIG,
+            useFactory: (configs: Record<string, EmailProviderConfig>) => new StaticProviderConfigResolver(configs),
+            inject: [EMAIL_PROVIDER_CONFIG_DATA],
+          },
+        ];
+
+    const smsProviderConfigProviders: Provider[] = config.smsProviderConfigToken
+      ? [{ provide: SMS_PROVIDER_CONFIG, useExisting: config.smsProviderConfigToken }]
+      : [
+          {
+            provide: SMS_PROVIDER_CONFIG_DATA,
+            useValue: requireData(config.smsProviderConfigs, 'smsProviderConfigs', 'smsProviderConfigToken'),
+          },
+          {
+            provide: SMS_PROVIDER_CONFIG,
+            useFactory: (configs: Record<string, SmsProviderConfig>) => new StaticProviderConfigResolver(configs),
+            inject: [SMS_PROVIDER_CONFIG_DATA],
+          },
+        ];
+
+    const whatsappProviderConfigProviders: Provider[] = config.whatsappProviderConfigToken
+      ? [{ provide: WHATSAPP_PROVIDER_CONFIG, useExisting: config.whatsappProviderConfigToken }]
+      : [
+          {
+            provide: WHATSAPP_PROVIDER_CONFIG_DATA,
+            useValue: requireData(
+              config.whatsappProviderConfigs,
+              'whatsappProviderConfigs',
+              'whatsappProviderConfigToken',
+            ),
+          },
+          {
+            provide: WHATSAPP_PROVIDER_CONFIG,
+            useFactory: (configs: Record<string, WhatsappProviderConfig>) => new StaticProviderConfigResolver(configs),
+            inject: [WHATSAPP_PROVIDER_CONFIG_DATA],
+          },
+        ];
+
     return {
       module: NotificationModule,
       imports: config.imports ?? [],
@@ -145,6 +227,9 @@ export class NotificationModule {
         ...channelConfigProviders,
         ...emailTemplateProviders,
         ...smsTemplateProviders,
+        ...emailProviderConfigProviders,
+        ...smsProviderConfigProviders,
+        ...whatsappProviderConfigProviders,
 
         EmailNotificationSender,
         WhatsappNotificationSender,

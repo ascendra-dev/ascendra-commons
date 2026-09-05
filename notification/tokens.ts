@@ -22,6 +22,16 @@ export const EMAIL_TEMPLATE_REPOSITORY = Symbol('EMAIL_TEMPLATE_REPOSITORY');
 export const SMS_TEMPLATE_DATA = Symbol('SMS_TEMPLATE_DATA');
 export const SMS_TEMPLATE_REPOSITORY = Symbol('SMS_TEMPLATE_REPOSITORY');
 
+/** Email's own provider credentials, by tenantId — separate from SMS/WhatsApp's, since each channel's real delivery provider is a separate account. */
+export const EMAIL_PROVIDER_CONFIG_DATA = Symbol('EMAIL_PROVIDER_CONFIG_DATA');
+export const EMAIL_PROVIDER_CONFIG = Symbol('EMAIL_PROVIDER_CONFIG');
+
+export const SMS_PROVIDER_CONFIG_DATA = Symbol('SMS_PROVIDER_CONFIG_DATA');
+export const SMS_PROVIDER_CONFIG = Symbol('SMS_PROVIDER_CONFIG');
+
+export const WHATSAPP_PROVIDER_CONFIG_DATA = Symbol('WHATSAPP_PROVIDER_CONFIG_DATA');
+export const WHATSAPP_PROVIDER_CONFIG = Symbol('WHATSAPP_PROVIDER_CONFIG');
+
 /** A Map<NotificationChannel, NotificationSender> — which sender backs each channel name. Assembled by a factory, not a class Nest constructs directly. */
 export const NOTIFICATION_CHANNEL_SENDERS = Symbol('NOTIFICATION_CHANNEL_SENDERS');
 
