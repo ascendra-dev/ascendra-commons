@@ -1,65 +1,28 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Inject, Injectable, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { DomainEventsModule, DOMAIN_EVENT_EMITTER, OnCriticalEvent } from '../domain-events';
+import { DomainEventsModule, DOMAIN_EVENT_EMITTER } from '../domain-events';
 import type { DomainEventEmitter } from '../domain-events';
 import { AuditLoggingModule } from './audit-logging.module';
-import { AUDIT_EVENT_REPOSITORY } from './tokens';
+import { AUDIT_EVENT_NAME, AUDIT_EVENT_REPOSITORY } from './tokens';
 import { AuditEventRepository } from './audit-event-repository';
-import { AuditableDomainEvent } from './auditable-domain-event.interface';
-import { persistAuditRecord } from './persist-audit-record';
+import { AuditRecordRaised } from './audit-record-raised';
 import { runWithCorrelationId } from './correlation-context';
-
-/**
- * A minimal real domain event, the same shape a project's own
- * InvoiceStatusChanged would be — proves AuditableDomainEvent's extends
- * DomainEvent actually composes with a real emitted class, not just a
- * hand-built fake.
- */
-class TestEntityChanged implements AuditableDomainEvent {
-  constructor(
-    public readonly entityId: string,
-    public readonly occurredAt: Date,
-  ) {}
-
-  toAuditRecord() {
-    return {
-      entityType: 'test_entity',
-      entityId: this.entityId,
-      tenantId: 'tenant-1',
-      actor: 'user-1',
-      action: 'changed',
-      before: { status: 'old' },
-      after: { status: 'new' },
-    };
-  }
-}
-
-/**
- * Exactly what this pattern's README tells a consumer to write themselves —
- * @OnCriticalEvent(), not @OnEvent(), and a call to persistAuditRecord().
- * Real, not a fake, so the whole emitCritical -> OnCriticalEvent ->
- * persistAuditRecord -> repository.insert() chain is proven end to end.
- */
-@Injectable()
-class ConsumerAuditListener {
-  constructor(@Inject(AUDIT_EVENT_REPOSITORY) private readonly auditRepo: AuditEventRepository) {}
-
-  @OnCriticalEvent('test.entity_changed')
-  async handle(event: AuditableDomainEvent) {
-    await persistAuditRecord(this.auditRepo, event);
-  }
-}
-
-function fakeRepo(insert: AuditEventRepository['insert']): AuditEventRepository {
-  return { insert };
-}
 
 const AUDIT_REPO_IMPL = Symbol('AUDIT_REPO_IMPL');
 
+/**
+ * Feature code writes no listener at all — AuditListener is shipped by
+ * AuditLoggingModule.forRoot() itself (see audit-logging.module.ts). What
+ * these tests actually prove, real DI included, not reasoned through: a
+ * provider declared *inside* a dynamic module's own `providers` array is
+ * still discovered by NestJS's @OnCriticalEvent() EventSubscribersLoader,
+ * which scans the whole module graph, not just the root testing module — the
+ * exact claim this redesign depends on, verified here rather than assumed.
+ */
 async function buildTestModule(insert: AuditEventRepository['insert']) {
   @Module({
-    providers: [{ provide: AUDIT_REPO_IMPL, useValue: fakeRepo(insert) }],
+    providers: [{ provide: AUDIT_REPO_IMPL, useValue: { insert } satisfies AuditEventRepository }],
     exports: [AUDIT_REPO_IMPL],
   })
   class FakeAuditRepoModule {}
@@ -69,7 +32,6 @@ async function buildTestModule(insert: AuditEventRepository['insert']) {
       DomainEventsModule.forRoot(),
       AuditLoggingModule.forRoot({ auditEventRepositoryToken: AUDIT_REPO_IMPL, imports: [FakeAuditRepoModule] }),
     ],
-    providers: [ConsumerAuditListener],
   }).compile();
 
   await moduleRef.init(); // required for EventSubscribersLoader to discover @OnCriticalEvent()-decorated providers
@@ -77,13 +39,22 @@ async function buildTestModule(insert: AuditEventRepository['insert']) {
 }
 
 describe('audit-logging + domain-events, real end to end', () => {
-  it('emitCritical() reaches the consumer-authored listener, which persists via the real repository', async () => {
+  it('emitCritical(AUDIT_EVENT_NAME, ...) reaches the shipped AuditListener, which persists via the real repository', async () => {
     const insert = vi.fn().mockResolvedValue(undefined);
     const moduleRef = await buildTestModule(insert);
     const emitter = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
 
-    const event = new TestEntityChanged('entity-1', new Date('2026-02-01T00:00:00Z'));
-    await emitter.emitCritical('test.entity_changed', event);
+    const event = new AuditRecordRaised(
+      'test_entity',
+      'entity-1',
+      'tenant-1',
+      'user-1',
+      'changed',
+      { status: 'old' },
+      { status: 'new' },
+      new Date('2026-02-01T00:00:00Z'),
+    );
+    await emitter.emitCritical(AUDIT_EVENT_NAME, event);
 
     expect(insert).toHaveBeenCalledTimes(1);
     expect(insert).toHaveBeenCalledWith(
@@ -106,7 +77,10 @@ describe('audit-logging + domain-events, real end to end', () => {
 
     let caught: unknown;
     try {
-      await emitter.emitCritical('test.entity_changed', new TestEntityChanged('entity-2', new Date()));
+      await emitter.emitCritical(
+        AUDIT_EVENT_NAME,
+        new AuditRecordRaised('test_entity', 'entity-2', null, 'user-1', 'changed', null, null, new Date()),
+      );
     } catch (err) {
       caught = err;
     }
@@ -122,10 +96,35 @@ describe('audit-logging + domain-events, real end to end', () => {
     const emitter = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
 
     await runWithCorrelationId('trace-abc', async () => {
-      await emitter.emitCritical('test.entity_changed', new TestEntityChanged('entity-3', new Date()));
+      await emitter.emitCritical(
+        AUDIT_EVENT_NAME,
+        new AuditRecordRaised('test_entity', 'entity-3', null, 'user-1', 'changed', null, null, new Date()),
+      );
     });
 
     expect(insert).toHaveBeenCalledWith(expect.objectContaining({ correlationId: 'trace-abc' }));
+    await moduleRef.close();
+  });
+
+  it("moduleRef.get(AUDIT_EVENT_REPOSITORY) resolves to the same repository the shipped listener writes through", async () => {
+    const insert = vi.fn().mockResolvedValue(undefined);
+    const moduleRef = await buildTestModule(insert);
+    const repo = moduleRef.get<AuditEventRepository>(AUDIT_EVENT_REPOSITORY);
+
+    await repo.insert({
+      entityType: 'invoice',
+      entityId: 'inv-1',
+      tenantId: null,
+      actor: 'user-1',
+      action: 'created',
+      before: null,
+      after: null,
+      correlationId: 'c1',
+      reason: null,
+      occurredAt: new Date(),
+    });
+
+    expect(insert).toHaveBeenCalledTimes(1);
     await moduleRef.close();
   });
 });

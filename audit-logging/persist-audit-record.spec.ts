@@ -1,28 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
 import { persistAuditRecord } from './persist-audit-record';
 import { AuditEventRepository } from './audit-event-repository';
-import { AuditableDomainEvent } from './auditable-domain-event.interface';
+import { AuditRecordRaised } from './audit-record-raised';
 import { runWithCorrelationId } from './correlation-context';
 
-function fakeEvent(overrides: Partial<ReturnType<AuditableDomainEvent['toAuditRecord']>> = {}): AuditableDomainEvent {
-  const occurredAt = new Date('2026-01-03T10:00:00Z');
-  return {
-    occurredAt,
-    toAuditRecord: () => ({
-      entityType: 'invoice',
-      entityId: 'inv-1',
-      tenantId: 'tenant-1',
-      actor: 'user-1',
-      action: 'status_changed',
-      before: { status: 'sent' },
-      after: { status: 'paid' },
-      ...overrides,
-    }),
-  };
+function fakeEvent(overrides?: { tenantId?: string | null; reason?: string | null }): AuditRecordRaised {
+  return new AuditRecordRaised(
+    'invoice',
+    'inv-1',
+    overrides?.tenantId !== undefined ? overrides.tenantId : 'tenant-1',
+    'user-1',
+    'status_changed',
+    { status: 'sent' },
+    { status: 'paid' },
+    new Date('2026-01-03T10:00:00Z'),
+    overrides?.reason !== undefined ? overrides.reason : null,
+  );
 }
 
 describe('persistAuditRecord', () => {
-  it('inserts the mapped record with the event\'s own occurredAt, not "now"', async () => {
+  it('inserts the event\'s own fields with the event\'s own occurredAt, not "now"', async () => {
     const auditRepo: AuditEventRepository = { insert: vi.fn().mockResolvedValue(undefined) };
     const event = fakeEvent();
 
@@ -42,7 +39,7 @@ describe('persistAuditRecord', () => {
     );
   });
 
-  it('normalizes an omitted reason to null, not undefined, to match AuditEvent.reason\'s required type', async () => {
+  it('defaults reason to null when the event omits it', async () => {
     const auditRepo: AuditEventRepository = { insert: vi.fn().mockResolvedValue(undefined) };
 
     await persistAuditRecord(auditRepo, fakeEvent());

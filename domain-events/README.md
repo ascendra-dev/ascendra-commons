@@ -40,8 +40,8 @@ which specific event they're handling.
 **No `tenantId` on `DomainEvent` itself** — deliberately N/A, not an
 oversight. Tenancy is a payload-specific fact each concrete event class
 carries itself when relevant (`InvoiceStatusChanged.tenantId` above), the way
-`AuditableDomainEvent.toAuditRecord()` already reads it back out for the audit
-trail. The transport/interface layer has no use for it: dispatch, in-process
+`audit-logging`'s own `AuditRecordRaised.tenantId` carries it explicitly for
+the audit trail. The transport/interface layer has no use for it: dispatch, in-process
 or broker, doesn't route or filter on tenancy — every listener in the process
 receives every event regardless, and it's the listener's own job to read the
 payload's tenant field if it cares. See "Application identity" below for the
@@ -287,7 +287,9 @@ The one thing worth doing *today*, at no cost, to shrink that future rework:
 write every `@OnEvent()`/`@OnCriticalEvent()`-decorated method as a thin
 dispatcher that immediately calls a plain, undecorated method or function for
 the actual logic — never put real logic in the decorated method body.
-`audit-logging`'s own worked example already does this:
+`audit-logging`'s own shipped `AuditListener` already does this — and does so
+*by construction*, not just by discipline, since a single fixed event name
+gives it exactly one thing to do:
 `AuditListener.handle()` is the decorated method, and it does nothing but call
 the plain `persistAuditRecord()`. When Model 2 lands, only the dispatcher gets
 rewritten to whatever the broker consumer's own registration looks like; the

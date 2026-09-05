@@ -390,8 +390,50 @@ module's side. No code changed.
 
 56/56 tests unaffected (doc-only changes); typecheck clean.
 
-Rest of `audit-logging`'s own review (all 11 dimensions) presented to the
-user for discussion — not yet closed, continuing in this session.
+Rest of `audit-logging`'s own review (all 11 dimensions) surfaced three
+further discussion points, resolved after a `notification` feature request
+was handled mid-session (see the entry below) and the review resumed:
+
+**Finding 3 — no worked persistence schema, unlike `notification`/`authorization`.**
+`audit-logging` shipped `AuditEventRepository` with no example table at all,
+despite being the one module already flagged (Finding 3, Audit 1) as the
+plausible near-term case for `applicationId`'s passive-column pattern — there
+was nothing for that guidance to land on. **Status: fixed** — new "A worked
+schema example" section under `AuditEventRepository`, with a Drizzle-shaped
+table (columns mapped directly off `AuditEvent`), two indexes justified by
+name against the already-documented, not-yet-built `AuditQuery` shape (so
+they're not speculative), and the `application_id`-stamped-on-insert
+worked example wired to the already-available `APPLICATION_ID` token from
+`domain-events`. Docs only, no interface change.
+
+**Finding 4 — UI dimension scoring predates the end-user/admin split.**
+Audit 1 scored `audit-logging` "Pass (fixed)" on UI before that split existed
+(introduced during `authorization`'s review). **Status: fixed** — the "Not
+built: reading audit records" section now states explicitly: end-user
+contract is N/A (an audit trail has no per-record show/hide concern reaching
+a tenant's own user), and the section itself is the admin-UI sketch,
+appropriately prose-only since it's downstream of an unbuilt query API — same
+treatment as `authorization`'s own admin-UI paragraph.
+
+**Finding 5 — `action` is verb-only, an undocumented deviation from dimension
+9's `resource.verb` convention.** `entityType`+`action` together express a
+resource+verb pair, but `action` alone (`'status_changed'`) doesn't follow the
+dot-notation convention by itself — reasonable (repeating `entityType` inside
+`action` would be pure duplication), but unstated, the same category of gap
+`background-jobs` had for job names in Audit 1. **Status: fixed** — new
+paragraph in the `AuditableDomainEvent` section explaining why the two-column
+split is the honest shape here, distinguishing it from the event *names*
+raised to trigger auditing (which do follow dot-notation).
+
+20/20 tests unaffected (all three fixes are docs-only); typecheck clean.
+
+`audit-logging` review closed here — no open items.
+
+### Summary table update
+
+| Module | 7 Persist | 8 UI | 9 Naming |
+|---|---|---|---|
+| `audit-logging` | Pass (worked schema example added) | Pass (end-user N/A, admin sketch, both stated explicitly) | Pass (verb-only `action` explained) |
 
 ---
 
@@ -457,4 +499,124 @@ proof of `emailProviderConfigToken`'s override path (not
 fails-closed case for an unregistered tenant. 189/189 tests pass (up from
 178), typecheck clean.
 
-`audit-logging`'s review resumes from here.
+`audit-logging`'s review resumed after this and closed with Findings 3–5,
+recorded above under its own section rather than repeated here.
+
+---
+
+## 2026-09-05 — `audit-logging` redesign: explicit `AuditRecordRaised`, listener shipped
+
+A real architectural question, not a review finding: the user asked how a
+consuming application (`ascendra-pay-api`) actually distinguishes "this is an
+audit event" from an ordinary domain event, given `AuditableDomainEvent` was
+just a TypeScript interface with no runtime tag. Answering it surfaced a real
+gap — "is this event audited" was decided by two separately-maintained facts
+agreeing by convention, with nothing enforcing they did: the event class
+implementing `toAuditRecord()`, and the consumer-authored `AuditListener`
+separately subscribing, by string name, to that event's own name. Missing the
+second one meant a `toAuditRecord()`-implementing event silently wasn't
+audited — no error anywhere, since `EventEmitter2` dispatch is by string name
+with no compile-time link back to which classes implement which interface.
+
+**The user proposed the fix themselves:** have the producer raise a *separate,
+dedicated* audit event explicitly, at the point where it already has the
+old/new values in scope, rather than having one event class serve double duty
+for both general listeners and auditing. Confirmed and extended one step
+further: since the dedicated audit event's name doesn't need to vary per
+business event (unlike today's per-event-name `@OnCriticalEvent()` list), it
+can be **one single, fixed, library-defined name** — which removes the reason
+`AuditListener` couldn't be shipped by this library in the first place (the
+original design's stated reason: "which event names get audited is
+project-specific"). Once the name isn't project-specific, neither is the
+listener.
+
+**Built:**
+- `AuditableDomainEvent` interface **removed**, replaced by a concrete class
+  `AuditRecordRaised` (`audit-record-raised.ts`) — already shaped like
+  `AuditEventInput` (minus `correlationId`), so no `toAuditRecord()` mapping
+  step exists anymore.
+- `AUDIT_EVENT_NAME` — new, one fixed exported string constant
+  (`'audit.record_raised'`) every `AuditRecordRaised` is emitted under.
+- `AuditListener` (`audit-listener.ts`) — **now shipped by this library**,
+  registered as one of `AuditLoggingModule.forRoot()`'s own providers. The
+  consumer writes no listener at all anymore; auditing is done entirely from
+  the producer side by constructing and emitting `AuditRecordRaised`.
+- `persistAuditRecord()` simplified — takes `AuditRecordRaised` directly, no
+  mapping call.
+- README rewritten throughout: `AuditRecordRaised` piece (with the coupling
+  problem and its fix spelled out), `AuditListener` piece, "Consuming this
+  module" (no listener to write), the worked example (raising the audit event
+  explicitly alongside an optional lean business event), Model 1's shipped
+  list, and Model 2's opening paragraph (growth = more call sites raising the
+  event, no second file to keep in sync). `domain-events/README.md`'s two
+  stale cross-references to `AuditableDomainEvent.toAuditRecord()` and
+  "`audit-logging`'s own worked example" were also corrected (the citation of
+  `AuditListener.handle()` as the thin-dispatcher reference example still
+  holds — it's shipped code now, not a worked example, and the pattern is
+  true *by construction* rather than by discipline, since one fixed event
+  name gives it exactly one thing to do).
+
+**Verified, not just typecheck — the actual claim this redesign depends on:**
+whether a provider declared *inside* `AuditLoggingModule.forRoot()`'s own
+dynamic-module `providers` array (rather than the root testing module, as the
+prior consumer-authored-listener design always did) is still discovered by
+NestJS's `@OnCriticalEvent()` `EventSubscribersLoader`. Reasoning alone was
+wrong twice already this session on claims of this shape — this one was
+checked with a real `Test.createTestingModule()` + `emitCritical()` round
+trip in `audit-logging.integration.spec.ts` before it was written into the
+README. It holds: `EventSubscribersLoader` scans the whole module graph, not
+just root-level providers.
+
+New/changed specs: `audit-record-raised` covered via `persist-audit-record.spec.ts`
+and `audit-listener.spec.ts` (new); `audit-logging.module.spec.ts` narrowed to
+what it can actually prove (repository aliasing, `AuditListener` resolvable)
+now that end-to-end discovery lives in the integration spec;
+`audit-logging.integration.spec.ts` rewritten around `AuditRecordRaised`/
+`AUDIT_EVENT_NAME` directly, with no `ConsumerAuditListener` left to write.
+193/193 tests pass (up from 189), typecheck clean.
+
+This simplifies the module in real terms, not just on paper: one fewer
+exported interface, one fewer thing for a consumer to write, and one fewer
+place ("did I remember to subscribe this event name") for the audit
+guarantee to silently lapse.
+
+**Follow-up, same day — a second, real redundancy the redesign above left
+behind.** The user asked, correctly: with `AuditableDomainEvent` gone, what is
+`AuditEvent` actually for now, and should `AuditEventInput` derive from
+`AuditRecordRaised` or from `AuditEvent`? Checked against the real code, not
+just reasoned about: `AuditEvent`'s 9 non-`id` fields were hand-declared a
+*second* time in `audit-event.interface.ts`, identically to
+`AuditRecordRaised`'s constructor fields — and `AuditEvent` itself (the `id`-
+bearing shape) had zero real shipped consumers left, referenced only in
+README prose for the not-yet-built `find()`/`AuditQuery` design.
+**Status: fixed** — flipped the derivation direction: `AuditEventInput` is now
+`Pick<AuditRecordRaised, ...> & { correlationId: string }`, and
+`AuditEvent extends AuditEventInput` adds only `id`. `AuditRecordRaised` (the
+actively-used, canonical class) is now the single hand-declared source of
+truth for the field list; the persistence-shape types derive from it instead
+of duplicating it, so the two can't drift apart. `AuditEvent` itself is kept
+(not removed) — it's a free, zero-runtime-footprint type, already load-bearing
+for the worked schema example and the deferred `find()` design, not the kind
+of stub/seam dimension 6 warns against. README's `AuditEventRepository`
+section updated to describe the new derivation. 24/24 audit-logging tests
+(193/193 overall) still pass, typecheck clean — the `Pick<>` against a class's
+instance shape resolves exactly as expected.
+
+**Follow-up, same day — dimension 8's administration-UI side, spelled out
+concretely.** The user asked whether a UI is required and, if so, what API
+and web pieces it would need. Answer: not required now — same "documented,
+not built" treatment as everything else downstream of `find()` not existing
+yet — but the concrete shape is worth having on record given `audit-logging`
+is already the module flagged with the most plausible near-term signal.
+**Status: documented** — new paragraph in the "Not built: reading audit
+records" section naming the two pieces neither of which `ascendra-commons`
+itself would ship (same reasoning as `authorization`'s own admin UI staying
+backend-pattern-only until `ascendra-commons-ui` exists): an API module
+(one `can()`-gated endpoint, e.g. `'audit.view'`, taking `AuditQuery` and
+returning `AuditQueryResult` unchanged) and a web module (admin-only route,
+filter form, cursor-paginated table, nav entry hidden via the same
+`computeActionAvailability`-style gate). No code — prose only, consistent
+with dimension 6. 24/24 audit-logging tests unaffected, typecheck clean.
+
+`audit-logging` review remains closed — this is documentation depth added on
+request, not a reopened finding.

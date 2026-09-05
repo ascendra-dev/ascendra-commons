@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Injectable, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuditLoggingModule } from './audit-logging.module';
+import { AuditListener } from './audit-listener';
 import { AUDIT_EVENT_REPOSITORY } from './tokens';
 import { AuditEventRepository } from './audit-event-repository';
 
@@ -14,11 +15,18 @@ const AUDIT_REPO_IMPL = Symbol('AUDIT_REPO_IMPL');
 })
 class FakeAuditRepoModule {}
 
-@Injectable()
-class ConsumerAuditListener {
-  constructor(private readonly auditRepo: AuditEventRepository) {}
-  async recordSomething() {
-    await this.auditRepo.insert({
+async function buildTestModule() {
+  return Test.createTestingModule({
+    imports: [AuditLoggingModule.forRoot({ auditEventRepositoryToken: AUDIT_REPO_IMPL, imports: [FakeAuditRepoModule] })],
+  }).compile();
+}
+
+describe('AuditLoggingModule.forRoot — real DI wiring', () => {
+  it("aliases AUDIT_EVENT_REPOSITORY to the consumer's own repository token", async () => {
+    const moduleRef = await buildTestModule();
+    const repo = moduleRef.get<AuditEventRepository>(AUDIT_EVENT_REPOSITORY);
+
+    await repo.insert({
       entityType: 'invoice',
       entityId: 'inv-1',
       tenantId: 't1',
@@ -30,27 +38,21 @@ class ConsumerAuditListener {
       reason: null,
       occurredAt: new Date(),
     });
-  }
-}
-
-async function buildTestModule() {
-  return Test.createTestingModule({
-    imports: [AuditLoggingModule.forRoot({ auditEventRepositoryToken: AUDIT_REPO_IMPL, imports: [FakeAuditRepoModule] })],
-    providers: [{ provide: ConsumerAuditListener, useFactory: (repo: AuditEventRepository) => new ConsumerAuditListener(repo), inject: [AUDIT_EVENT_REPOSITORY] }],
-  }).compile();
-}
-
-describe('AuditLoggingModule.forRoot — real DI wiring', () => {
-  it("aliases AUDIT_EVENT_REPOSITORY to the consumer's own repository token, injectable by a consumer-authored listener", async () => {
-    const moduleRef = await buildTestModule();
-    const repo = moduleRef.get<AuditEventRepository>(AUDIT_EVENT_REPOSITORY);
-    const listener = moduleRef.get(ConsumerAuditListener);
-
-    await listener.recordSomething();
 
     // Only reachable if AUDIT_EVENT_REPOSITORY really resolved to FakeAuditRepoModule's
     // provider — a missing imports entry (the exact bug background-jobs' own DI test
     // caught) would have thrown "Nest can't resolve dependencies" at compile() instead.
     expect(repo.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it('provides its own shipped AuditListener, injected with the same AUDIT_EVENT_REPOSITORY binding — no consumer-authored listener needed', async () => {
+    const moduleRef = await buildTestModule();
+
+    // moduleRef.get() searches the whole graph by default (not just exports),
+    // so this resolves even though AuditListener isn't in this module's own
+    // `exports` — nothing outside this module needs to inject it directly,
+    // @OnCriticalEvent() discovery is what reaches it (see the integration spec).
+    const listener = moduleRef.get(AuditListener);
+    expect(listener).toBeInstanceOf(AuditListener);
   });
 });

@@ -1,4 +1,5 @@
 import { DynamicModule, Module } from '@nestjs/common';
+import { AuditListener } from './audit-listener';
 import { AUDIT_EVENT_REPOSITORY } from './tokens';
 
 export interface AuditLoggingModuleConfig {
@@ -17,11 +18,13 @@ export interface AuditLoggingModuleConfig {
 
 /**
  * A dynamic module — requires config because there's no default for which
- * provider is the consumer's audit repository. Does not ship a listener —
- * see this pattern's README for why: which event names to audit is
- * project-specific, so the consumer writes their own small listener class
- * (using @OnCriticalEvent() and persistAuditRecord()) and imports this
- * module to get AUDIT_EVENT_REPOSITORY injectable into it.
+ * provider is the consumer's audit repository. Ships AuditListener itself
+ * (see audit-listener.ts) — possible because AUDIT_EVENT_NAME is one fixed,
+ * library-defined event name, never project-specific, unlike the older design
+ * this replaced (see audit-record-raised.ts's own doc comment). The consumer
+ * writes no listener at all: raise an AuditRecordRaised under AUDIT_EVENT_NAME
+ * wherever a state change should be audited, and this module's own listener
+ * picks it up.
  */
 @Module({})
 export class AuditLoggingModule {
@@ -29,7 +32,7 @@ export class AuditLoggingModule {
     return {
       module: AuditLoggingModule,
       imports: config.imports ?? [],
-      providers: [{ provide: AUDIT_EVENT_REPOSITORY, useExisting: config.auditEventRepositoryToken }],
+      providers: [{ provide: AUDIT_EVENT_REPOSITORY, useExisting: config.auditEventRepositoryToken }, AuditListener],
       exports: [AUDIT_EVENT_REPOSITORY],
     };
   }
