@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { renderTemplate, StaticNotificationTemplateRepository } from './notification-template';
+import { renderTemplate } from './notification-template';
 
 describe('renderTemplate', () => {
   const template = {
-    eventType: 'invoice.sent',
     subject: 'Invoice {{invoiceNumber}} from {{issuerName}}',
     body: 'Amount due: {{amount}}',
   };
@@ -28,28 +27,5 @@ describe('renderTemplate', () => {
   it('carries isHtml through unchanged', () => {
     const result = renderTemplate({ body: '<p>hi</p>', isHtml: true }, {});
     expect(result.isHtml).toBe(true);
-  });
-});
-
-describe('StaticNotificationTemplateRepository', () => {
-  it('returns the template for a known notificationType', async () => {
-    const repo = new StaticNotificationTemplateRepository({
-      'invoice.sent': { subject: 'Invoice ready', body: 'Hi' },
-    });
-
-    await expect(repo.templateFor('invoice.sent', null)).resolves.toEqual({ subject: 'Invoice ready', body: 'Hi' });
-  });
-
-  it('returns null for an unconfigured notificationType', async () => {
-    const repo = new StaticNotificationTemplateRepository({});
-
-    await expect(repo.templateFor('unknown.type', null)).resolves.toBeNull();
-  });
-
-  it('ignores tenantId — one template for the whole deployment, by design', async () => {
-    const repo = new StaticNotificationTemplateRepository({ 'invoice.sent': { body: 'Hi' } });
-
-    await expect(repo.templateFor('invoice.sent', 't1')).resolves.toEqual({ body: 'Hi' });
-    await expect(repo.templateFor('invoice.sent', 't2')).resolves.toEqual({ body: 'Hi' });
   });
 });

@@ -99,8 +99,8 @@ the same request: an active parameter with no reader repeats the
 a reporting export — never a live shared database, which this repo has
 already ruled out as an architecture; see the root README's distribution
 model) rather than a live thing every call site must carry. `notification`'s
-reference schema (`NotificationChannelConfig`/`NotificationTemplateRepository`'s
-worked examples) does this — see its own README for the concrete shape.
+reference schema (`NotificationConfig`'s database-backed worked example) does
+this — see its own README for the concrete shape.
 
 ### 5. `tenantId`
 

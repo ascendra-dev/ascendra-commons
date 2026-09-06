@@ -1,37 +1,38 @@
 import { describe, expect, it, vi } from 'vitest';
 import { WhatsappNotificationSender } from './whatsapp-notification-sender';
-import { ProviderConfigResolver, WhatsappProviderConfig } from './notification-provider-config';
+import { NotificationConfig } from './notification-config';
 
-function makeSender(overrides?: { providerConfig?: Partial<ProviderConfigResolver<WhatsappProviderConfig>> }) {
-  const providerConfig: ProviderConfigResolver<WhatsappProviderConfig> = {
-    configFor: vi.fn().mockResolvedValue({ apiKey: 'key', fromNumber: '+10000000000' }),
-    ...overrides?.providerConfig,
+function makeSender(overrides?: Partial<NotificationConfig>) {
+  const config: NotificationConfig = {
+    channelsFor: vi.fn().mockResolvedValue(['whatsapp']),
+    templateFor: vi.fn().mockResolvedValue(null),
+    providerConfigFor: vi.fn().mockResolvedValue({ apiKey: 'key', from: '+10000000000' }),
+    ...overrides,
   };
-  return { sender: new WhatsappNotificationSender(providerConfig), providerConfig };
+  return { sender: new WhatsappNotificationSender(config), config };
 }
+
+const REQUEST = { recipient: { type: 'raw' as const, phone: '+923001234567' }, notificationType: 'invoice.sent', variables: {} };
 
 describe('WhatsappNotificationSender', () => {
   it('is a stub that reports sent once provider config resolves — no template lookup or real delivery yet', async () => {
-    const { sender } = makeSender();
+    const { sender, config } = makeSender();
 
-    const result = await sender.send({
-      recipient: { type: 'raw', phone: '+923001234567' },
-      notificationType: 'invoice.sent',
-      variables: {},
-    });
-
-    expect(result).toEqual({ status: 'sent' });
+    await expect(sender.send(REQUEST)).resolves.toEqual({ status: 'sent' });
+    expect(config.templateFor).not.toHaveBeenCalled();
   });
 
   it('fails without throwing when no provider config is configured for the tenant', async () => {
-    const { sender } = makeSender({ providerConfig: { configFor: vi.fn().mockResolvedValue(null) } });
+    const { sender } = makeSender({ providerConfigFor: vi.fn().mockResolvedValue(null) });
 
-    const result = await sender.send({
-      recipient: { type: 'raw', phone: '+923001234567' },
-      notificationType: 'invoice.sent',
-      variables: {},
-    });
+    await expect(sender.send(REQUEST)).resolves.toEqual({ status: 'failed', reason: 'no_provider_config' });
+  });
 
-    expect(result).toEqual({ status: 'failed', reason: 'no_provider_config' });
+  it('asks the config for the whatsapp channel specifically', async () => {
+    const { sender, config } = makeSender();
+
+    await sender.send({ ...REQUEST, tenantId: 't1' });
+
+    expect(config.providerConfigFor).toHaveBeenCalledWith('whatsapp', 't1');
   });
 });

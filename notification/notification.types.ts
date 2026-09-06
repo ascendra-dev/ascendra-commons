@@ -35,16 +35,16 @@ export interface NotificationRequest {
   variables: Record<string, string | number>;
   /**
    * Which tenant this notification is for — `null`/omitted for a
-   * platform-wide notification with no single tenant. Threaded down to
-   * `NotificationChannelConfig.channelsFor()` and
-   * `NotificationTemplateRepository.templateFor()` so a database-backed
-   * implementation can vary routing or content per tenant (e.g. tenant A
-   * wants SMS+email for 'payment.confirmed', tenant B wants email only; a
-   * white-labeled tenant has its own template). `StaticNotificationChannelConfig`
-   * and `StaticNotificationTemplateRepository` ignore it — Model 1 is one
-   * config for the whole deployment by design. Same reasoning as `Actor.tenantId`
-   * in `authorization` — nullable because not every notification has a single
-   * tenant, carried on the request the same way `Actor` carries it for `can()`.
+   * platform-wide notification with no single tenant. Threaded down to every
+   * method of `NotificationConfig` so a database-backed implementation can
+   * vary routing or content per tenant (tenant A wants SMS+email for
+   * 'payment.confirmed', tenant B wants email only; a white-labeled tenant has
+   * its own template). `StaticNotificationConfig` ignores it for
+   * `channelsFor`/`templateFor` (one config for the whole deployment) and
+   * honors it for `providerConfigFor` (one tenant, one provider account). Same
+   * reasoning as `Actor.tenantId` in `authorization` — nullable because not
+   * every notification has a single tenant, carried on the request the same
+   * way `Actor` carries it for `can()`.
    */
   tenantId?: string | null;
 }

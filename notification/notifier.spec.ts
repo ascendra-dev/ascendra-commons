@@ -1,15 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Notifier, NotificationDeliveryError } from './notifier';
-import { NotificationChannelConfig } from './notification-channel-config';
+import { NotificationConfig } from './notification-config';
 import { NotificationChannel, NotificationChannelResult } from './notification.types';
 import { NotificationSender } from './notification-sender';
 
-function fakeConfig(channels: NotificationChannel[]): NotificationChannelConfig {
-  return { channelsFor: vi.fn().mockResolvedValue(channels) };
+/** Notifier only calls channelsFor — the senders own template/provider resolution. */
+function fakeConfig(channels: NotificationChannel[]): NotificationConfig {
+  return { channelsFor: vi.fn().mockResolvedValue(channels) } as unknown as NotificationConfig;
 }
 
-function throwingConfig(err: unknown): NotificationChannelConfig {
-  return { channelsFor: vi.fn().mockRejectedValue(err) };
+function throwingConfig(err: unknown): NotificationConfig {
+  return { channelsFor: vi.fn().mockRejectedValue(err) } as unknown as NotificationConfig;
 }
 
 function fakeSender(result: NotificationChannelResult): NotificationSender {

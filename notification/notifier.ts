@@ -5,9 +5,9 @@ import {
   NotificationRequest,
   NotificationResult,
 } from './notification.types';
-import { NotificationChannelConfig } from './notification-channel-config';
+import { NotificationConfig } from './notification-config';
 import { NotificationSender } from './notification-sender';
-import { NOTIFICATION_CHANNEL_CONFIG, NOTIFICATION_CHANNEL_SENDERS } from './tokens';
+import { NOTIFICATION_CHANNEL_SENDERS, NOTIFICATION_CONFIG } from './tokens';
 
 /** Carries the full NotificationResult so a caller catching this can still see per-channel detail. */
 export class NotificationDeliveryError extends Error {
@@ -28,18 +28,18 @@ export class NotificationDeliveryError extends Error {
 @Injectable()
 export class Notifier {
   constructor(
-    @Inject(NOTIFICATION_CHANNEL_CONFIG) private readonly channelConfig: NotificationChannelConfig,
+    @Inject(NOTIFICATION_CONFIG) private readonly config: NotificationConfig,
     @Inject(NOTIFICATION_CHANNEL_SENDERS) private readonly senders: Map<NotificationChannel, NotificationSender>,
   ) {}
 
   async notify(request: NotificationRequest): Promise<NotificationResult> {
     let channels: NotificationChannel[];
     try {
-      channels = await this.channelConfig.channelsFor(request.notificationType, request.tenantId ?? null);
+      channels = await this.config.channelsFor(request.notificationType, request.tenantId ?? null);
     } catch (err) {
-      // Backstop for a NotificationChannelConfig implementation that can fail
-      // (e.g. a database-backed one) — notify()'s "never throws" contract has
-      // to hold here too, not just inside dispatch()'s per-channel calls.
+      // Backstop for a NotificationConfig implementation that can fail (e.g. a
+      // database-backed one) — notify()'s "never throws" contract has to hold
+      // here too, not just inside dispatch()'s per-channel calls.
       return {
         status: 'failed',
         reason: err instanceof Error ? err.message : 'channel_config_unavailable',

@@ -12,30 +12,20 @@ its real templates work fundamentally differently (see below). Swapping a stub
 for real delivery later is one binding change, never a change to routing,
 templates, or feature code.
 
-Built and audited against `MODULE-STANDARD.md` (this repo's root). Two
-dimensions worth stating explicitly. No `applicationId` **query parameter**
-anywhere in this module's interfaces — deliberately N/A there, since every
-table a database-backed implementation queries belongs to one app's own
-database, so there's nothing to disambiguate at read time (a notification
-never lands anywhere a second Ascendra application also publishes to either —
-no broker, no shared sink). It's **not** a `forRoot()` field either, and not
-an exported token from this library at all — unlike `domain-events`'
-`DOMAIN_EVENTS_APPLICATION_ID`, this one can't be delivered that way: a database-backed
-override you write later is constructed in *your own* module, one `forRoot()`
-merely imports *from* (`channelConfigToken`/`imports`), not a module
-`forRoot()` exports into — NestJS provider registries are per-module, and
-that's the wrong import direction for `forRoot()` to hand anything across, or
-for an exported token to mean anything (nothing here would ever inject it by
-that name). If you want an app-id value available to a database-backed
-override, declare your own token in your own module and inject it there — see
-"Going to a database-backed channel config" below for the concrete shape, and
-`MODULE-STANDARD.md` dimension 4 for why a passive column is a different,
-cheaper case than an active query parameter in the first place. `tenantId`
-*is* threaded as a real query parameter, on `NotificationRequest` and all
-three of `NotificationChannelConfig`/`NotificationTemplateRepository`/
-`ProviderConfigResolver` — see "`NotificationChannelConfig`" and
-"`ProviderConfigResolver`" below. The last of these is the one piece whose
-Model 1 implementation actually branches on it, rather than ignoring it.
+Built and audited against `MODULE-STANDARD.md` (this repo's root).
+
+- **No `applicationId`** anywhere in this module's interfaces — deliberately
+  N/A. Every table a database-backed implementation queries belongs to one
+  app's own database, so there's nothing to disambiguate at read time, and a
+  notification never lands anywhere a second Ascendra application also publishes
+  to (no broker, no shared sink). If you want an app-id value on a
+  database-backed schema for future cross-app reporting, stamp it as a **passive
+  column** written on insert, never a query parameter — declare your own token
+  in your own module and inject it there (see `MODULE-STANDARD.md` dimension 4).
+- **`tenantId`** *is* threaded as a real parameter, on `NotificationRequest` and
+  every method of `NotificationConfig`. `StaticNotificationConfig` honors it for
+  `providerConfigFor` and ignores it for `channelsFor`/`templateFor` — see
+  below.
 
 ## The pieces
 
@@ -44,94 +34,86 @@ Model 1 implementation actually branches on it, rather than ignoring it.
 ```typescript
 constructor(@Inject(NOTIFIER) private readonly notifier: Notifier) {}
 ...
-const result = await this.notifier.notify({ recipient, notificationType, variables });
+const result = await this.notifier.notify({ recipient, notificationType, variables, tenantId });
 ```
 
-A concrete class, not an interface — there is exactly one implementation, with
-real behavior worth having directly (unlike the pieces below, which have
-genuinely different implementations that share no behavior with each other).
+A concrete class, not an interface — exactly one implementation with real
+behavior worth having directly.
 
-- **`notify(request)`** — never throws, not even if `NotificationChannelConfig`
-  itself throws (a database-backed one, once one exists, genuinely can). Retrieves
-  the configured channels for `request.notificationType`, dispatches to each
-  channel's own `NotificationSender` in parallel, and aggregates: `'sent'` only
-  if every channel sent, `'failed'` only if every channel failed, `'partial'`
-  otherwise — always with the full per-channel breakdown in `channels`.
-- **`notifyCritical(request, strict = false)`** — the `emitCritical()` counterpart
-  from `domain-events`, reusing `notify()` rather than duplicating dispatch logic.
-  `strict = false`: throws only if *every* channel failed. `strict = true`: throws
-  if *any* channel failed. Either way, the thrown `NotificationDeliveryError`
-  carries the full `NotificationResult` so a caller that catches it can still see
-  per-channel detail.
+- **`notify(request)`** — never throws, not even if `NotificationConfig` itself
+  throws (a database-backed one can). Retrieves the channels for
+  `request.notificationType`, dispatches to each channel's `NotificationSender`
+  in parallel, aggregates: `'sent'` only if every channel sent, `'failed'` only
+  if every channel failed, `'partial'` otherwise — always with the full
+  per-channel breakdown in `channels`.
+- **`notifyCritical(request, strict = false)`** — the `emitCritical()`
+  counterpart. `strict = false`: throws only if *every* channel failed.
+  `strict = true`: throws if *any* channel failed. The thrown
+  `NotificationDeliveryError` carries the full `NotificationResult`.
 
-### `NotificationChannelConfig` — which channel(s) a notificationType uses
+### `NotificationConfig` — the one configuration surface
 
-An interface: static (here) and database-backed (in a consuming project) share no
-behavior, so a shared base class would be ceremony with no payoff. `{
-'invoice.sent': ['email'], 'payment.confirmed': ['email', 'sms'] }` is a config
-row, not an `if/else` per notification type — the business decision "what
-channels does this use," independent of whether each channel's transport is a
-stub or real. An unconfigured `notificationType` resolves to zero channels —
-fails closed and visibly (`Notifier` reports `'no_channel_configured'`).
+```typescript
+export interface NotificationConfig {
+  channelsFor(notificationType: string, tenantId: string | null): Promise<NotificationChannel[]>;
+  templateFor(channel: NotificationChannel, notificationType: string, tenantId: string | null): Promise<NotificationTemplate | null>;
+  providerConfigFor(channel: NotificationChannel, tenantId: string | null): Promise<ProviderConfig | null>;
+}
+```
 
-`StaticNotificationChannelConfig` is the Model 1 implementation, and belongs in
-this shared library because it's genuinely generic — it has no knowledge of any
-specific project's schema. A database-backed implementation lives in the
-*consuming* project instead (see "Going to a database-backed channel config"
-below) — this library can't know `ascendra-pay`'s schema versus
-`ascendra-school-erp`'s, but a database-backed implementation can still be built
-using a schema this library exports, since the channel-config table itself is
-generic enough to be shared.
+One interface, one token (`NOTIFICATION_CONFIG`) — channel routing, per-channel
+templates, per-channel delivery credentials. `channelsFor` returns which
+channels a type uses; `templateFor`/`providerConfigFor` take the channel as a
+parameter (the calling sender always knows its own).
 
-**`channelsFor(notificationType, tenantId)`** always takes `tenantId` (`request.tenantId ?? null`,
-mirroring `Actor.tenantId` in `authorization`) — `StaticNotificationChannelConfig`
-receives it and ignores it, since Model 1 is one config for the whole
-deployment by design. This is the same Model 1/Model 2 split `authorization`
-makes for personas: a tenant needing different channel routing than every
-other tenant is the concrete signal to build a database-backed
-`NotificationChannelConfig`, not to add tenant branching into the static map.
-`NotificationTemplateRepository.templateFor()` carries the same parameter, for
-the same reason (a white-labeled tenant's own template content).
+**`ProviderConfig`** is `{ apiKey, from, fromName? }` — `from` is the sender
+identity (an address for email, a number/sender id for SMS/WhatsApp). Field
+names are provider-agnostic (not SendGrid's/Twilio's/Meta's shape); a
+consumer's real delivery call maps them onto whichever provider they pick.
 
-### `NotificationTemplateRepository` — which text a notificationType uses, per channel
+**`StaticNotificationConfig`** is the Model 1 implementation, built from an
+in-memory object:
 
-Also an interface, same reasoning. Each channel gets **its own instance** —
-`EMAIL_TEMPLATE_REPOSITORY` and `SMS_TEMPLATE_REPOSITORY` are separate tokens,
-even though both are backed by the same `StaticNotificationTemplateRepository`
-class, since each channel maintains its own templates. `subject`/`isHtml` are
-email-only fields on `NotificationTemplate` — SMS templates just leave them
-unset, since SMS has no subject line and no HTML concept.
+- `channelsFor` / `templateFor` **ignore** `tenantId` — one config for the
+  whole deployment. A tenant needing different routing or white-labeled content
+  is the signal to supply a full `NotificationConfig` via `configToken`, not to
+  add tenant branching here (the same Model 1/Model 2 split `authorization`
+  makes for personas).
+- `providerConfigFor` **honors** `tenantId` — "one tenant, one provider
+  account" is the normal shape from day one (a tenant bringing their own
+  SendGrid/Twilio account isn't a scaling exception). A `null` tenantId
+  resolves to `null` (fails closed), never a deployment-wide fallback.
 
-`renderTemplate()` does `{{variable}}` substitution. A missing variable is left
-as a visible, unresolved placeholder rather than silently blanked — a blank
-subject/body reads as "working," a visible placeholder is obviously wrong and
-gets noticed before it reaches a user.
+An unconfigured `notificationType` resolves to zero channels — `Notifier`
+reports `'no_channel_configured'`. A missing template or missing credentials is
+a graceful per-send failure (`'template_not_found'` / `'no_provider_config'`),
+not a wiring error.
+
+### `NotificationTemplate` / `renderTemplate`
+
+`{ subject?, body, isHtml? }` — `subject`/`isHtml` are email-only; SMS leaves
+them unset. `renderTemplate()` does `{{variable}}` substitution and leaves a
+missing variable as a **visible placeholder** rather than silently blanking it
+— a blank body reads as "working," a visible `{{placeholder}}` gets noticed.
+
+WhatsApp does not use this shape — its templates are pre-approved and named on
+Meta's side with positional numbered parameters. That's a distinct shape for a
+later piece.
 
 ### `NotificationSender` — one implementation per channel
 
-An interface — Email/WhatsApp/SMS share no behavior with each other, so there's
-no shared base worth having.
+An interface — Email/WhatsApp/SMS share no behavior. Each sender injects
+`NOTIFICATION_CONFIG` and (email/SMS) `USER_CONTACT_RESOLVER`.
 
 - **`EmailNotificationSender`** / **`SMSNotificationSender`** — resolve the
-  recipient's address (see `UserContactResolver` below), resolve that tenant's
-  delivery-provider credentials (see `ProviderConfigResolver` below), look up
-  their own template, render it, and (today) log the rendered result together
-  with which provider identity (`fromAddress`/`fromNumber`) it would have sent
-  from. Fails, in this order: `'no_address_available'` (no address for that
-  channel), `'no_provider_config'` (no credentials registered for the
-  request's tenantId), `'template_not_found'` (no template for the
-  notificationType) — cheapest, most-likely-to-short-circuit check first, so a
-  request nobody could ever deliver never pays for a credentials lookup or a
-  template render.
-- **`WhatsappNotificationSender`** — still a stub for templates/delivery,
-  deliberately. WhatsApp's real templates are pre-approved and *named* on
-  Meta's side, with **positional numbered parameters** (`{{1}}`, `{{2}}`, ...),
-  not free-form `{{variable}}` text this library renders — a fundamentally
-  different shape from `NotificationTemplate`. Building a real
-  `WhatsappNotificationSender` means designing that shape first, not forcing
-  WhatsApp into the email/SMS shape. It does already resolve provider config,
-  the same as the other two senders — that seam doesn't depend on the template
-  shape being settled first.
+  recipient's address, resolve that tenant's credentials
+  (`config.providerConfigFor('email', …)`), look up the channel's template
+  (`config.templateFor('email', …)`), render it, and (today) log the rendered
+  result with the `from` identity. Fails in this order — cheapest check first:
+  `'no_address_available'` → `'no_provider_config'` → `'template_not_found'`.
+- **`WhatsappNotificationSender`** — a stub for templates/delivery,
+  deliberately (see `NotificationTemplate` above). It does resolve provider
+  config, the same as the other two.
 
 ### `UserContactResolver` — resolving a `'user'` recipient's address
 
@@ -141,96 +123,20 @@ export interface UserContactResolver {
 }
 ```
 
-One resolver, shared by both `EmailNotificationSender` and `SMSNotificationSender`
-— each just reads the field it needs (email vs. phone) from the same lookup,
-since "resolve this user's contact info" is one concern, not two. A `'raw'`
-recipient never calls this at all — its email/phone is already on the request.
+Kept **separate** from `NotificationConfig` — it's a different axis: "who am I
+sending to" (resolved per recipient, against the consumer's user table), not
+"how is this notification configured." One resolver, shared by email and SMS —
+each reads the field it needs. A `'raw'` recipient never calls it.
 
-`NotificationModule.forRoot()` binds this to `NullUserContactResolver` by
-default (every `'user'` recipient resolves to "no match," which each sender
-already turns into a clean `'no_address_available'` failure) — this keeps
-`forRoot()` usable out of the box for a project that only ever uses `'raw'`
-recipients. A consumer with a real user/issuer/staff table overrides the binding
-in their own module:
-
-```typescript
-{ provide: USER_CONTACT_RESOLVER, useClass: DrizzleUserContactResolver }
-```
-
-### `ProviderConfigResolver<TConfig>` — per-tenant delivery-provider credentials
-
-```typescript
-export interface EmailProviderConfig {
-  apiKey: string;
-  fromAddress: string;
-  fromName?: string;
-}
-export interface SmsProviderConfig { apiKey: string; fromNumber: string; }
-export interface WhatsappProviderConfig { apiKey: string; fromNumber: string; }
-
-export interface ProviderConfigResolver<TConfig> {
-  configFor(tenantId: string | null): Promise<TConfig | null>;
-}
-```
-
-One generic interface, reused across all three channels via `TConfig` — same
-reasoning `NotificationTemplateRepository` already uses for being one shape
-shared by `EMAIL_TEMPLATE_REPOSITORY`/`SMS_TEMPLATE_REPOSITORY`, rather than
-three near-identical interfaces. Field names are deliberately
-provider-agnostic (not SendGrid's, Twilio's, or Meta's own shape) — this
-library ships the seam, never a vendor SDK call; a consumer's real delivery
-implementation maps these onto whichever provider they pick.
-
-**This is the one piece where the Model 1 implementation genuinely branches on
-`tenantId`, unlike `NotificationChannelConfig`/`NotificationTemplateRepository`.**
-`StaticNotificationChannelConfig` and `StaticNotificationTemplateRepository`
-both *ignore* `tenantId` on purpose — Model 1 there is one deployment-wide
-config until a specific tenant needs to differ, and that's the signal to go
-database-backed (see "Going to a database-backed channel config" above).
-Provider credentials are the opposite case: "one tenant, one provider account"
-is the normal shape from day one — a payer-facing SaaS tenant bringing their
-own SendGrid/Twilio account isn't a scaling exception, it's the point. So
-`StaticProviderConfigResolver` — the Model 1 implementation shipped here —
-looks the config up **by** `tenantId`:
-
-```typescript
-export class StaticProviderConfigResolver<TConfig> implements ProviderConfigResolver<TConfig> {
-  constructor(private readonly configs: Record<string, TConfig>) {}
-
-  async configFor(tenantId: string | null): Promise<TConfig | null> {
-    if (tenantId === null) return null;
-    return this.configs[tenantId] ?? null;
-  }
-}
-```
-
-A `tenantId` of `null` (a platform-wide notification with no single tenant)
-has no credentials to look up and resolves to `null` — fails closed and
-visibly, the same as every other unconfigured lookup in this module, not a
-deployment-wide fallback. If a real deployment-wide default is ever needed,
-that's a reason to build a database-backed `ProviderConfigResolver` with its
-own fall-through-to-default query (the same tenant-row-first,
-tenant-less-row-second shape `DatabaseNotificationChannelConfig` already
-shows) — not to change what the static, in-memory Model 1 does.
-
-Each channel gets its **own** token/instance — `EMAIL_PROVIDER_CONFIG`,
-`SMS_PROVIDER_CONFIG`, and `WHATSAPP_PROVIDER_CONFIG` are separate, even
-though all three can be backed by the same `StaticProviderConfigResolver`
-class — a tenant's email provider and SMS provider are independent accounts,
-not one shared credential.
-
-## What "backstop" means here, and why it matters
-
-`Notifier`'s dispatch wraps every `sender.send()` call in a `try/catch` — a
-channel implementation that throws instead of catching its own error degrades to
-a `{ status: 'failed', reason: <message> }` result for that one channel, rather
-than crashing the entire `notify()` call. Same lesson as `domain-events`' `emit()`.
+`NotificationModule.forRoot()` binds `NullUserContactResolver` by default
+(every `'user'` recipient → "no match" → a clean `'no_address_available'`), so
+`forRoot()` works out of the box for a project that only uses `'raw'`
+recipients. A consumer with a real user table overrides via
+`userContactResolverToken`.
 
 ## Consuming this module
 
-Copy `notification/` and `domain-events/` into the consumer's
-`src/ascendra-commons/` (see `module-packaging-pattern.md` for why vendored
-patterns land under one wrapper folder), then:
+Copy `notification/` and `domain-events/` into `src/ascendra-commons/`, then:
 
 ```typescript
 @Module({
@@ -240,21 +146,18 @@ patterns land under one wrapper folder), then:
         'invoice.sent': ['email'],
         'payment.confirmed': ['email', 'sms'],
       },
-      emailTemplates: {
-        'invoice.sent': { subject: 'Invoice {{invoiceNumber}} is ready', body: '...' },
-        'payment.confirmed': { subject: 'Payment received', body: '...' },
+      templates: {
+        email: {
+          'invoice.sent': { subject: 'Invoice {{invoiceNumber}} is ready', body: '...' },
+          'payment.confirmed': { subject: 'Payment received', body: '...' },
+        },
+        sms: {
+          'payment.confirmed': { body: 'Payment of {{amount}} received' },
+        },
       },
-      smsTemplates: {
-        'payment.confirmed': { body: 'Payment of {{amount}} received' },
-      },
-      emailProviderConfigs: {
-        'tenant-a': { apiKey: 'sg-...', fromAddress: 'billing@tenant-a.com' },
-      },
-      smsProviderConfigs: {
-        'tenant-a': { apiKey: 'tw-...', fromNumber: '+15551234567' },
-      },
-      whatsappProviderConfigs: {
-        'tenant-a': { apiKey: 'wa-...', fromNumber: '+15551234568' },
+      providerConfigs: {
+        email: { 'tenant-a': { apiKey: 'sg-...', from: 'billing@tenant-a.com' } },
+        sms:   { 'tenant-a': { apiKey: 'tw-...', from: '+15551234567' } },
       },
     }),
   ],
@@ -262,282 +165,109 @@ patterns land under one wrapper folder), then:
 export class AppModule {}
 ```
 
-`NotificationModule.forRoot()` is a dynamic module (as is
-`DomainEventsModule.forRoot()`) — but unlike `domain-events` (whose only
-required-by-default field is `transport`, and that defaults to `'in-process'`,
-so `forRoot()` there needs no argument), this one *always* requires config:
-there's no sensible default channel/template/provider-credential mapping, a
-consumer always has real business decisions to supply. It wires:
-`NullUserContactResolver`, the static config/template/provider-config
-implementations, all three channel senders, the `NOTIFICATION_CHANNEL_SENDERS`
-map (assembled via `useFactory`, since a `Map` isn't a class Nest can
-construct directly), and `Notifier` — exporting only `NOTIFIER`, the token any
-listener actually injects.
+`model` defaults to `'static'` (shown above) — `channels` required, `templates`
+and `providerConfigs` optional (a missing entry is a graceful per-send
+failure). `model: 'database'` binds your own `NotificationConfig` via
+`configToken` instead — the same `model`-selects-the-implementation shape
+`authorization`'s `model` and `domain-events`' `transport` use.
+`forRoot()` wires `NullUserContactResolver`, the config, all three senders, the
+`NOTIFICATION_CHANNEL_SENDERS` map, and `Notifier` — exporting only `NOTIFIER`.
 
-### Swapping one piece for a database-backed implementation
+### Going database-backed
 
-Seven independently swappable pieces, not one unified Model 1/Model 2 knob —
-unlike `authorization`'s `model` or `domain-events`' `transport`, which each
-choose between exactly one complete implementation. A real deployment is far
-more likely to want *one* piece database-backed (channel routing, say, or just
-one channel's provider credentials) while the others stay static than to swap
-all seven atomically, so `forRoot()` accepts seven independent override tokens
-instead of one enum:
+One class implementing three methods, against one schema area (three small
+generic tables, or one). Provide it under your own token, pass that token to
+`forRoot()`:
 
 ```typescript
-NotificationModule.forRoot({
-  channelConfigToken: DATABASE_CHANNEL_CONFIG,            // omit to use StaticNotificationChannelConfig, reading `channels`
-  emailTemplateRepositoryToken: DATABASE_EMAIL_TEMPLATES, // omit to use StaticNotificationTemplateRepository, reading `emailTemplates`
-  smsTemplateRepositoryToken: DATABASE_SMS_TEMPLATES,     // omit to use StaticNotificationTemplateRepository, reading `smsTemplates`
-  emailProviderConfigToken: DATABASE_EMAIL_PROVIDER_CONFIG, // omit to use StaticProviderConfigResolver, reading `emailProviderConfigs`
-  smsProviderConfigToken: DATABASE_SMS_PROVIDER_CONFIG,     // omit to use StaticProviderConfigResolver, reading `smsProviderConfigs`
-  whatsappProviderConfigToken: DATABASE_WHATSAPP_PROVIDER_CONFIG, // omit to use StaticProviderConfigResolver, reading `whatsappProviderConfigs`
-  userContactResolverToken: DRIZZLE_USER_RESOLVER,        // omit to use NullUserContactResolver
-  imports: [MyNotificationProvidersModule],               // whatever module exports the token(s) above
-})
-```
-
-Omit a token and `forRoot()` reads the corresponding data field, exactly as
-before; supply it and `forRoot()` binds your class instead, without requiring
-(or constructing anything from) that data field at all — mix and match freely,
-per piece.
-
-**Why this has to be a `forRoot()` option, not just "bind the token yourself in
-your own module":** `Notifier` is constructed *inside* `NotificationModule`'s
-own DI scope, and NestJS's provider registries are per-module — a
-`{ provide: NOTIFICATION_CHANNEL_CONFIG, useClass: DatabaseNotificationChannelConfig }`
-declared in a separate, unrelated module does **not** reach the `Notifier`
-instance `forRoot()` already built; it's a different registration in a
-different scope that `Notifier`'s own dependency resolution never sees. (The
-one thing that *can* reach across scopes like that is `@nestjs/testing`'s
-`.overrideProvider()` — a test-only capability, not something a real
-`AppModule` can do.) The token fields above are the actual seam; passing your
-implementation's token through `forRoot()` is what lets it bind inside the
-right scope.
-
-### Going to a database-backed channel config
-
-```typescript
-// In the consuming project, not in this library:
-export const APPLICATION_ID = Symbol('APPLICATION_ID'); // your own token — not exported by this library, see the note below
-
-class DatabaseNotificationChannelConfig implements NotificationChannelConfig {
-  constructor(
-    private readonly db: SomeLooselyTypedDrizzleDb,
-    @Inject(APPLICATION_ID) private readonly applicationId: string,
-  ) {}
+// In the consuming project:
+class DatabaseNotificationConfig implements NotificationConfig {
+  constructor(private readonly db: SomeLooselyTypedDrizzleDb) {}
 
   async channelsFor(notificationType: string, tenantId: string | null): Promise<NotificationChannel[]> {
-    // Tenant-specific row first (a tenant that overrides the deployment default),
-    // falling back to the tenant-less row (tenantId IS NULL) — the deployment default.
-    // application_id is written on insert (see the seed/admin write path, not shown
-    // here), never filtered on read — see the note below.
-    const rows = await this.db.select().from(notificationChannelConfigTable)
+    // tenant-specific row first, falling through to the tenant-less deployment default (tenant_id IS NULL)
+    const rows = await this.db.select().from(channelRoutingTable)
       .where(and(
-        eq(notificationChannelConfigTable.notificationType, notificationType),
-        tenantId
-          ? inArray(notificationChannelConfigTable.tenantId, [tenantId, null])
-          : isNull(notificationChannelConfigTable.tenantId),
+        eq(channelRoutingTable.notificationType, notificationType),
+        tenantId ? inArray(channelRoutingTable.tenantId, [tenantId, null]) : isNull(channelRoutingTable.tenantId),
       ))
-      .orderBy(desc(notificationChannelConfigTable.tenantId)); // non-null (tenant-specific) row first
+      .orderBy(desc(channelRoutingTable.tenantId));
     return rows[0]?.channels ?? [];
   }
+
+  async templateFor(channel, notificationType, tenantId) { /* same fall-through shape, WHERE channel = $1 */ }
+
+  async providerConfigFor(channel, tenantId) {
+    if (tenantId === null) return null; // credentials never fall through to a default — a missing row is a config error
+    const rows = await this.db.select().from(providerCredentialTable)
+      .where(and(eq(providerCredentialTable.channel, channel), eq(providerCredentialTable.tenantId, tenantId)));
+    return rows[0] ?? null;
+  }
 }
 ```
 
-This is exactly the shape `tenantId` on the interface exists for: a tenant with
-no override row falls through to the deployment default (`tenantId IS NULL`)
-transparently — `StaticNotificationChannelConfig` and this database-backed one
-answer identically for every tenant that hasn't been given a specific row.
-
-**Stamp `application_id` on the table, but don't query by it.** Unlike
-`tenantId`, this is never a real parameter on `channelsFor()` — every row this
-query ever sees already belongs to this one app's own database, so there's
-nothing to disambiguate at read time, and adding it as an active *query*
-parameter with no reader would be the exact mistake corrected elsewhere in
-this repo (see `domain-events`' `application`). But `notificationChannelConfigTable`
-should still carry an `application_id` column, populated when a row is
-inserted — free while the table doesn't exist yet, and it removes an
-otherwise-necessary backfill migration if this data is ever consolidated for
-cross-app analytics or reporting later (see `MODULE-STANDARD.md` dimension 4).
-`APPLICATION_ID` above supplies the value into this class's own constructor —
-**your own token, declared in your own module, alongside this class**, not
-exported by this library and not something `forRoot()` provides: nothing here
-ever injects a value by a fixed "application id" name, so there's no shared
-token to import, only a naming *convention* to follow if you like. It has to
-be provided in the same module as `DatabaseNotificationChannelConfig` itself
-— that class is constructed in a module `forRoot()` only imports *from*, so
-nothing bound inside `forRoot()` could ever reach it (the exact NestJS
-per-module scoping reason "Swapping one piece..." above already explains for
-the override tokens themselves).
-
-Use the core/raw query builder (`db.select().from(table)`), not the relational
-query API (`db.query.table.findFirst()`) — the latter requires the `db` client's
-own type to be parameterized with this specific table's schema, which would force
-this class to know about the consuming project's full schema. The core builder
-works against any table object regardless of the client's own schema generic, so
-`DatabaseNotificationChannelConfig` never needs to know anything about
-`ascendra-pay`'s (or any other project's) other tables. Provide it under your own
-token, in your own module, and pass that token to `forRoot()`:
-
 ```typescript
-export const DATABASE_CHANNEL_CONFIG = Symbol('DATABASE_CHANNEL_CONFIG');
-
 @Module({
-  providers: [
-    { provide: APPLICATION_ID, useValue: 'ascendra-pay' }, // same module as the class that injects it — see above
-    { provide: DATABASE_CHANNEL_CONFIG, useClass: DatabaseNotificationChannelConfig },
-  ],
-  exports: [DATABASE_CHANNEL_CONFIG],
+  providers: [{ provide: DATABASE_NOTIFICATION_CONFIG, useClass: DatabaseNotificationConfig }],
+  exports: [DATABASE_NOTIFICATION_CONFIG],
 })
-export class MyNotificationProvidersModule {}
-```
+export class MyNotificationConfigModule {}
 
-```typescript
 NotificationModule.forRoot({
-  channelConfigToken: DATABASE_CHANNEL_CONFIG,
-  imports: [MyNotificationProvidersModule],
-  // emailTemplates/smsTemplates unaffected — still static, still required, unless those get their own token too
-})
+  model: 'database',
+  configToken: DATABASE_NOTIFICATION_CONFIG,
+  imports: [MyNotificationConfigModule],
+});
 ```
 
-This only stays clean as long as the channel-config table remains generic. The
-moment a project needs to extend it (an audit column, a join against
-project-specific data), that's the natural point to fork into a fully
-project-owned table and implementation instead.
+Notes:
 
-### Going to a database-backed template repository
+- Use the core query builder (`db.select().from(table)`), not the relational API
+  (`db.query.…`) — the latter forces this class to know the consuming project's
+  full schema; the core builder works against any table object.
+- **`channelsFor`/`templateFor` fall through** a tenant-specific row to the
+  `tenant_id IS NULL` deployment default. **`providerConfigFor` does not** — "no
+  credentials for this tenant" is a configuration error worth surfacing as
+  `'no_provider_config'`, not a silent fallback to another tenant's account.
+- Stamp `application_id` on the tables (written on insert, never queried) if you
+  ever want cross-app reporting — see the Overview.
 
-Same shape as channel config, same reasoning for why it's generic-safe (core
-query builder, not the relational API) — and the same "stamp `application_id`
-on the table, never query by it" practice applies to `notificationTemplateTable`
-too, for the identical reason (see the note above `DatabaseNotificationChannelConfig`).
+### Going database-backed for one method only
+
+`extends StaticNotificationConfig` and override that one method; the others keep
+serving the static data passed to `super()`:
 
 ```typescript
-// In the consuming project, not in this library:
-class DatabaseNotificationTemplateRepository implements NotificationTemplateRepository {
-  constructor(private readonly db: SomeLooselyTypedDrizzleDb) {}
-
-  async templateFor(notificationType: string, tenantId: string | null): Promise<NotificationTemplate | null> {
-    // Same tenant-specific-row-first, fall-through-to-deployment-default shape
-    // as DatabaseNotificationChannelConfig above.
-    const rows = await this.db.select().from(notificationTemplateTable)
-      .where(and(
-        eq(notificationTemplateTable.notificationType, notificationType),
-        tenantId
-          ? inArray(notificationTemplateTable.tenantId, [tenantId, null])
-          : isNull(notificationTemplateTable.tenantId),
-      ))
-      .orderBy(desc(notificationTemplateTable.tenantId));
-    return rows[0] ?? null;
+class DbRoutingConfig extends StaticNotificationConfig {
+  constructor(private readonly db: SomeLooselyTypedDrizzleDb) {
+    super({ channels: {}, templates: { email: { /* ... */ } }, providerConfigs: { /* ... */ } });
+  }
+  async channelsFor(notificationType: string, tenantId: string | null): Promise<NotificationChannel[]> {
+    return this.db.channelsFor(notificationType, tenantId);
   }
 }
 ```
 
-Each channel needs its **own** table/token/binding, exactly the way
-`StaticNotificationTemplateRepository` gets two separate instances today — a
-white-labeled tenant's email copy and SMS copy are independent content, not
-one shared row:
+Bind it under a token and pass `model: 'database'` + `configToken` exactly as
+above. This is *less* work than the old per-piece override grid — templates and
+credentials stay static with no extra wiring.
 
-```typescript
-NotificationModule.forRoot({
-  channels: { /* still static, unaffected */ },
-  emailTemplateRepositoryToken: DATABASE_EMAIL_TEMPLATES,
-  smsTemplateRepositoryToken: DATABASE_SMS_TEMPLATES,
-  imports: [MyNotificationProvidersModule], // exports both tokens
-})
-```
+### Why `configToken` has to be a `forRoot()` option
 
-### Going to a database-backed provider config
-
-Same shape again, same reasoning for why it's generic-safe. The one real
-difference from `DatabaseNotificationChannelConfig`/
-`DatabaseNotificationTemplateRepository`: those two fall through a
-tenant-specific row to a tenant-less deployment default (`tenantId IS NULL`);
-a credentials table usually shouldn't, since "no credentials for this tenant"
-is a configuration error worth surfacing as `'no_provider_config'`, not a
-silent fallback to some other tenant's account. If a deployment genuinely
-wants a shared default provider account, model that explicitly (a real row
-with a sentinel tenant value your own code chooses), not as an implicit `NULL`
-fallback:
-
-```typescript
-// In the consuming project, not in this library:
-class DatabaseEmailProviderConfig implements ProviderConfigResolver<EmailProviderConfig> {
-  constructor(private readonly db: SomeLooselyTypedDrizzleDb) {}
-
-  async configFor(tenantId: string | null): Promise<EmailProviderConfig | null> {
-    if (tenantId === null) return null; // same "nothing to look up" answer as StaticProviderConfigResolver
-    const rows = await this.db.select().from(emailProviderConfigTable)
-      .where(eq(emailProviderConfigTable.tenantId, tenantId));
-    return rows[0] ?? null;
-  }
-}
-```
-
-Each channel needs its **own** table/token/binding, exactly like the template
-repositories — a tenant's email provider account and SMS provider account are
-independent credentials, not one shared row. `application_id`, if this table
-is ever consolidated for cross-app reporting, follows the same "stamp on
-insert, never query by it" practice as `notificationChannelConfigTable` above
-— though note this table holds live credentials, so it's a stronger candidate
-for per-app *separation* than for cross-app consolidation in the first place.
-
-```typescript
-NotificationModule.forRoot({
-  channels: { /* ... */ },
-  emailTemplates: { /* ... */ },
-  smsTemplates: { /* ... */ },
-  emailProviderConfigToken: DATABASE_EMAIL_PROVIDER_CONFIG,
-  smsProviderConfigs: { /* still static, unaffected */ },
-  whatsappProviderConfigs: { /* still static, unaffected */ },
-  imports: [MyNotificationProvidersModule],
-})
-```
-
-### Going to a real `UserContactResolver`
-
-Structurally the same token mechanism, but a different *kind* of choice than
-the two above: `NullUserContactResolver` isn't a genuine long-term Model 1
-some deployments keep forever the way a static channel/template map might be —
-it's a bootstrapping placeholder. Most real deployments with actual internal
-users (issuer staff, platform admins) need a real resolver quickly, not as an
-optional upgrade path.
-
-```typescript
-// In the consuming project, not in this library:
-class DrizzleUserContactResolver implements UserContactResolver {
-  constructor(private readonly db: SomeLooselyTypedDrizzleDb) {}
-
-  async findById(id: string): Promise<{ email?: string; phone?: string } | null> {
-    const rows = await this.db.select({ email: users.email, phone: users.phone })
-      .from(users).where(eq(users.id, id));
-    return rows[0] ?? null;
-  }
-}
-```
-
-```typescript
-NotificationModule.forRoot({
-  channels: { /* ... */ },
-  emailTemplates: { /* ... */ },
-  smsTemplates: { /* ... */ },
-  userContactResolverToken: DRIZZLE_USER_RESOLVER,
-  imports: [MyNotificationProvidersModule],
-})
-```
+`Notifier` and the senders are constructed inside `NotificationModule`'s own DI
+scope, and NestJS provider registries are per-module — a
+`{ provide: NOTIFICATION_CONFIG, useClass: … }` declared in a separate module
+does **not** reach them. Passing your token through `forRoot()` (which then
+binds it in the right scope) is the actual seam. (`@nestjs/testing`'s
+`.overrideProvider()` can reach across scopes, but that's test-only.)
 
 ## What's not built yet
 
-- No real `WhatsappNotificationSender` — needs its own template shape first (see above).
-- No database-backed `NotificationChannelConfig`/`NotificationTemplateRepository`/
-  `ProviderConfigResolver` shipped here — the pattern for building one is
-  documented above, but the actual class belongs in each consuming project
-  once it's actually needed.
-- No real email/SMS/WhatsApp delivery — every sender resolves real per-tenant
-  provider credentials via `ProviderConfigResolver` now, but still only logs
-  the rendered message (with the resolved `fromAddress`/`fromNumber`) instead
-  of calling a real provider's API. Swapping that in means changing what each
-  sender's `send()` does internally with the config it already has, not
-  anything about `Notifier`, the channel config, the templates, or how
-  credentials are resolved.
+- **No real `WhatsappNotificationSender`** — needs its own template shape first.
+- **No database-backed `NotificationConfig` shipped here** — the pattern is
+  documented above; the class belongs in each consuming project.
+- **No real email/SMS/WhatsApp delivery** — every sender resolves real
+  per-tenant credentials now but still only logs the rendered message. Swapping
+  in a real provider call means changing what a sender's `send()` does with the
+  `ProviderConfig` it already has — nothing about `Notifier`, `NotificationConfig`,
+  or the templates.

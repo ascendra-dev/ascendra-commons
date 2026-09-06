@@ -925,3 +925,96 @@ matrix UI (frontend / future `ascendra-commons-ui`) · node-level TTL memo.
 `postgres-authorization.module.ts`, `index.ts`, `README.md`, 6 spec files.
 
 244/244 tests pass (up from 215 — 29 new), typecheck clean.
+
+---
+
+## 2026-09-06 — `notification`: consolidate the config surface
+
+The user's finding, confirmed on review: the module had **4 single-method
+config interfaces** (`NotificationChannelConfig`, `NotificationTemplateRepository`,
+`ProviderConfigResolver<T>`, `UserContactResolver`) spread across **7 provider
+slots**, driving **~14 `forRoot` fields**, **14 tokens**, and a **~130-line
+`forRoot`** of seven near-identical `token ? bind-yours : build-static` blocks.
+
+The stated justification — "seven independently swappable pieces, a deployment
+swaps one not all seven" — doesn't hold: per-tenant routing, templates, and
+credentials tend to arrive together (when a project goes seriously
+multi-tenant), and the 2026-09-05 `applicationId` saga in this same file shows
+the multi-token structure was itself a source of friction. Three of the four
+interfaces are the same axis ("notification configuration, per type / channel /
+tenant").
+
+### Change
+
+**One interface, one token.**
+
+```typescript
+interface NotificationConfig {
+  channelsFor(notificationType, tenantId): Promise<NotificationChannel[]>;
+  templateFor(channel, notificationType, tenantId): Promise<NotificationTemplate | null>;
+  providerConfigFor(channel, tenantId): Promise<ProviderConfig | null>;
+}
+```
+
+- `templateFor` / `providerConfigFor` gain a `channel` param — collapses the
+  separate email/sms/whatsapp instances into one implementation.
+- `ProviderConfig` unifies to `{ apiKey, from, fromName? }` — `from` replaces
+  `fromAddress`/`fromNumber` (address-or-number). The one small semantic loss,
+  worth dropping 3 near-identical types + 3 tokens.
+- `StaticNotificationConfig` (built via `useValue` from an in-memory object,
+  not `@Injectable`+`@Inject` — so it can be `extends`ed cleanly) keeps the
+  existing asymmetry: ignores `tenantId` for routing/templates, honors it for
+  credentials.
+
+**`UserContactResolver` stays separate** — a different axis (recipient
+resolution against the consumer's user table, not notification config). The
+user identified this exception correctly.
+
+**`forRoot` shrinks**: `model?` / `channels?` / `templates?` / `providerConfigs?` /
+`configToken?` / `userContactResolverToken?` / `imports?` — 7 fields, 2 override
+tokens, ~45-line `forRoot`. `templates` / `providerConfigs` became **optional**
+(a missing entry is a graceful per-send failure, not a wiring error) — a
+deliberate relaxation from the old all-seven-required. (`model` was added in a
+follow-up — see the Dimension notes below.)
+
+**Partial override preserved** — `StaticNotificationConfig` is exported; a
+consumer wanting one method dynamic writes
+`class C extends StaticNotificationConfig { async channelsFor(...) {...} }` and
+binds it under `configToken`. Less work than the old per-piece grid.
+
+### Deleted
+
+`notification-channel-config.ts`, `notification-provider-config.ts` (+ their
+specs) — folded into `notification-config.ts`. `NotificationTemplateRepository` /
+`StaticNotificationTemplateRepository` removed from `notification-template.ts`
+(which keeps `NotificationTemplate` + `renderTemplate`). 9 per-channel tokens
+removed from `tokens.ts`.
+
+### Not changed
+
+`Notifier`, the three `NotificationSender`s (delivery mechanism, genuinely
+per-channel), the `NOTIFICATION_CHANNEL_SENDERS` map. Same feature set — routing,
+per-channel per-tenant templates, per-channel per-tenant credentials, null-user
+default, `notify` / `notifyCritical`, all backstops. Nothing removed.
+
+### Dimension notes
+
+- **4 (`applicationId`)** — unchanged: still N/A, the "stamp a passive column
+  in your own DB-backed class" guidance now points at `NotificationConfig`'s
+  single worked example instead of two.
+- **7 (persistence)** — unchanged: schema shareable, instance consumer-owned;
+  the worked DB-backed example is now one class, not three.
+- **3 (`forRoot` discipline)** — improved: 14 fields → 7, 14 tokens → 4.
+- **6 (Model 1/Model 2)** — `forRoot` now takes a **`model: 'static' | 'database'`**
+  enum, matching `authorization`'s `model` and `domain-events`' `transport`.
+  This **supersedes the 2026-09-05 decision** ("deliberately not a single
+  `model` enum … four independently-swappable pieces"): with the four
+  interfaces collapsed to one `NotificationConfig`, there is exactly one
+  implementation chosen wholesale, so the enum is now honest and consistent.
+  `'static'` (default) requires `channels`; `'database'` requires `configToken`
+  — each throws a clear message naming the missing field.
+  `userContactResolverToken` stays orthogonal to `model` (works with either).
+
+README rewritten (pieces section, consuming, database-backed). 240/240 tests
+pass (down from 244 — the 7 redundant per-token override tests collapse to 5),
+typecheck clean.
