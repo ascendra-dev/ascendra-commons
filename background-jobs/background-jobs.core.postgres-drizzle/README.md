@@ -1,0 +1,63 @@
+# `background-jobs.core.postgres-drizzle` — the Postgres/Drizzle stack adapter
+
+| Sub-folder | Implements | Bound under | Wired via |
+|---|---|---|---|
+| `lock/postgres-advisory-lock` | `AdvisoryLock` — `pg_try_advisory_lock` (session-level) | `POSTGRES_ADVISORY_LOCK` | `PostgresAdvisoryLockModule.forRoot({ sqlExecutorToken })` — **must be a dedicated single connection** |
+| `lock/postgres-lease-lock` | `AdvisoryLock` — a `commons_jobs_lock` row + lease | `POSTGRES_LEASE_LOCK` | `PostgresLeaseLockModule.forRoot({ sqlExecutorToken, application, leaseSeconds? })` — any pooled connection |
+| `run-recorder/postgres-job-run-recorder` | `JobRunRecorder` — one `INSERT` per run | `POSTGRES_JOB_RUN_RECORDER` | `PostgresJobRunRecorderModule.forRoot({ sqlExecutorToken, application })` — normal pool |
+| `observability/postgres-job-observability.service` | `JobObservabilityPort` — `getRunHistory` + `listJobStatus` (overdue detection) | `JOB_OBSERVABILITY_PORT` (core token) | `PostgresJobObservabilityModule.forRoot({ sqlExecutorToken, application, cadences? })` — normal pool |
+| `pruner/job-run-pruner.job` | a reference `ScheduledJob` that trims `commons_jobs_job_run` | (a normal job) | `JobRunPrunerModule.forRoot({ sqlExecutorToken, application, retentionDays? })` |
+
+`.core` ships **no** lock implementation and no `SqlExecutor` of its own — pick a
+lock here explicitly and pass its token to `BackgroundJobsModule.forRoot({ advisoryLockToken })`.
+
+## Pick a lock
+
+| | `PostgresAdvisoryLock` | `PostgresLeaseLock` |
+|---|---|---|
+| Extra DB objects | none | `commons_jobs_lock` (one table + migration) |
+| Connection | **dedicated single connection**, never a transaction-mode pooler | any pooled connection, any pooler |
+| Crash frees it | when the connection closes | when the lease (`leaseSeconds`, default 900) expires |
+| Knobs | none | `leaseSeconds` |
+| "What holds what" | invisible | `SELECT * FROM commons_jobs_lock` |
+
+If you're behind a transaction pooler (PgBouncer / Supabase "Transaction
+pooler") or want forgiving wiring, use `PostgresLeaseLock`.
+
+## Wiring (lease lock)
+
+```typescript
+export * from 'src/ascendra-commons/background-jobs/background-jobs.core.postgres-drizzle';   // drizzle-kit
+
+BackgroundJobsModule.forRoot({
+  advisoryLockToken: POSTGRES_LEASE_LOCK,
+  jobRunRecorderToken: POSTGRES_JOB_RUN_RECORDER,
+  jobs: [InvoiceReminderJob],
+  imports: [
+    PostgresLeaseLockModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', imports: [DatabaseModule] }),
+    PostgresJobRunRecorderModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', imports: [DatabaseModule] }),
+    InvoiceModule,
+  ],
+}),
+// optional — for the admin screen (background-jobs.api serves it):
+PostgresJobObservabilityModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', cadences: { 'invoice-reminder': '1d' }, imports: [DatabaseModule] }),
+// optional — keep the history table bounded (give JobRunPrunerJob a @Cron wiring class):
+JobRunPrunerModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', retentionDays: 90 }),
+```
+
+For the session-level lock, swap `PostgresLeaseLockModule` →
+`PostgresAdvisoryLockModule.forRoot({ sqlExecutorToken: SCHEDULER_DB })` where
+`SCHEDULER_DB` is a `drizzle(new Pool({ max: 1, idleTimeoutMillis: 0 }))`.
+
+**Requires PostgreSQL** and the `commons_jobs_job_run` migration (+
+`commons_jobs_lock` if using the lease lock).
+
+## `application` scoping
+
+Every `commons_jobs_job_run` / `commons_jobs_lock` row carries `application` and
+every read/write/DELETE filters on it — in a shared operational database an app
+never sees or prunes another's history.
+
+## Depends on
+
+`background-jobs.core`, `@nestjs/common`, `drizzle-orm` (`drizzle-orm/pg-core`).

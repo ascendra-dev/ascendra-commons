@@ -24,7 +24,7 @@ audit checklist against the six that already exist.
 
 ---
 
-## 1b. Package roles (added 2026-09-07, applied to `authorization`, `notification`, `audit-logging`)
+## 1b. Package roles (added 2026-09-07, applied to `authorization`, `notification`, `audit-logging`, `background-jobs`)
 
 A module that has grown a real Model 1 / Model 2 split, more than one plausible
 Model 2 stack, and an admin/observability surface is no longer one folder. It is
@@ -46,13 +46,24 @@ package only** — never a `.static-map`, `.<family>`, `.<stack>`, or `.api`. Wh
 the depended-on module is *not* split (`audit-logging.core` → `domain-events`),
 the dependency targets the whole module; revisit if it splits.
 
-**Not every module uses every row.** `audit-logging` (2026-09-07) has **no
-Model 1 / Model 2 config split** — one model (event capture → a persistence
-port) — so it has no `.core.<capability>` and no `.core.<family>`: just
-`.core` / `.core.postgres-drizzle` (adapter directly under core, both ports +
-DTOs + the cursor helper being genuine stack-agnostic contracts) / `.api`
-(read-only — audit records are write-once, so no config CRUD and no
-audit-emitter). The rows are a menu, not a checklist.
+**Not every module uses every row.** `audit-logging` and `background-jobs`
+(2026-09-07) have **no Model 1 / Model 2 config split** — one model behind a
+port — so no `.core.<capability>`, no `.core.<family>`: just `.core` /
+`.core.postgres-drizzle` / `.api`. The rows are a menu, not a checklist. What
+still applies:
+- **A stack-coupled class in `.core` moves to the adapter.** `background-jobs`
+  shipped `PostgresAdvisoryLock` as `.core`'s *default* lock; the split moved it
+  to `background-jobs.core.postgres-drizzle/lock/` and made `advisoryLockToken`
+  a required `forRoot()` field (like every other impl token). `.core` keeps only
+  the `AdvisoryLock` interface.
+- **An observability read needs a port even if there was only a concrete class.**
+  `background-jobs` had a bare `PostgresJobObservabilityService`; the split added
+  `JobObservabilityPort` in `.core` so `.api` depends on the port.
+- **`.api` scope follows the module.** `audit-logging.api` is read-only (records
+  are write-once). `background-jobs.api` is reads + one action (`POST /jobs/:name/run`
+  via `JobTrigger`) and has **no tenant scoping** (`background-jobs` has no
+  `tenantId` anywhere). Both take an optional audit-emitter token only where
+  something mutates.
 
 **Naming:** container folder per module; child folder names repeat the module
 prefix (`authorization.core`, not `core`) so each is self-identifying when
@@ -248,10 +259,11 @@ NestJS controllers against those ports — they carry no app-specific logic, are
 gated by the consumer's own `Authorizer` via `@RequiresAction`, and the
 actor-scoped rules (tenant/role ceiling, or "force the query to the actor's
 tenant") live in a thin `.api` service between controller and port.
-`authorization.api`, `notification.api` and `audit-logging.api` (2026-09-07) are
-the first three — `notification.api` also ships a `POST /notifications/test-send`
-that calls `Notifier` directly; `audit-logging.api` is read-only (records are
-write-once). A generic `CurrentActor` param decorator was promoted to
+`authorization.api`, `notification.api`, `audit-logging.api` and
+`background-jobs.api` (2026-09-07) are the first four — `notification.api` also
+ships `POST /notifications/test-send` (calls `Notifier`), `background-jobs.api`
+ships `POST /jobs/:name/run` (calls `JobTrigger`); `audit-logging.api` is
+read-only. A generic `CurrentActor` param decorator was promoted to
 `authorization.core` for all of them to share. React stays out — that's
 `ascendra-commons-ui`.
 
