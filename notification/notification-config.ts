@@ -54,16 +54,23 @@ export interface NotificationConfigData {
 /**
  * Model 1 — everything from an in-memory object.
  *
- * - `channelsFor` / `templateFor` **ignore** `tenantId`: one config for the
- *   whole deployment. A tenant needing different routing or white-labeled
- *   content is the signal to supply a full `NotificationConfig` under
- *   `configToken`, not to add tenant branching here (the same Model 1/Model 2
- *   split `authorization` makes for personas).
+ * The per-method `tenantId` treatment is a **deliberate asymmetry**, not an
+ * oversight — it turns on whether per-tenant is the *normal* shape or an
+ * *eventual divergence*:
+ *
+ * - `channelsFor` / `templateFor` **ignore** `tenantId`: one routing config and
+ *   one template set for the whole deployment. Per-tenant routing or
+ *   white-labeled content is an eventual divergence — when a tenant needs it,
+ *   that's the signal to go `model: 'database'` (the DB-backed `NotificationConfig`
+ *   resolves a tenant-specific row first, falling through to the deployment
+ *   default — see the module README). Same Model 1/Model 2 split `authorization`
+ *   makes for personas: the static authorizer has one persona map for the
+ *   deployment, not per-tenant.
  * - `providerConfigFor` **honors** `tenantId`: "one tenant, one provider
  *   account" is the normal shape from day one — a tenant bringing their own
- *   SendGrid/Twilio account isn't a scaling exception. A `null` tenantId has
- *   nothing to look up and resolves to `null` (fails closed), never a
- *   deployment-wide fallback.
+ *   SendGrid/Twilio account isn't a scaling exception, it's the point. A `null`
+ *   tenantId has nothing to look up and resolves to `null` (fails closed),
+ *   never a deployment-wide fallback.
  *
  * To go database-backed for one method only, `extends` this and override it —
  * the other methods keep serving the static data passed to `super()`:
@@ -79,7 +86,7 @@ export class StaticNotificationConfig implements NotificationConfig {
   constructor(private readonly data: NotificationConfigData) {}
 
   async channelsFor(notificationType: string, _tenantId: string | null): Promise<NotificationChannel[]> {
-    return this.data.channels[notificationType] ?? [];
+    return this.data.channels[notificationType] ?? []; // deployment-wide — see the class doc for why `_tenantId` is unused
   }
 
   async templateFor(
@@ -87,7 +94,7 @@ export class StaticNotificationConfig implements NotificationConfig {
     notificationType: string,
     _tenantId: string | null,
   ): Promise<NotificationTemplate | null> {
-    return this.data.templates?.[channel]?.[notificationType] ?? null;
+    return this.data.templates?.[channel]?.[notificationType] ?? null; // deployment-wide — see the class doc
   }
 
   async providerConfigFor(channel: NotificationChannel, tenantId: string | null): Promise<ProviderConfig | null> {

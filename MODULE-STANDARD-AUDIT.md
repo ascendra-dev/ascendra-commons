@@ -1005,6 +1005,15 @@ default, `notify` / `notifyCritical`, all backstops. Nothing removed.
 - **7 (persistence)** — unchanged: schema shareable, instance consumer-owned;
   the worked DB-backed example is now one class, not three.
 - **3 (`forRoot` discipline)** — improved: 14 fields → 7, 14 tokens → 4.
+- **5 (`tenantId`)** — unchanged, clarified. The user asked whether
+  `StaticNotificationConfig` ignoring `tenantId` for `channelsFor`/`templateFor`
+  (but honoring it for `providerConfigFor`) is a gap. Decision: **leave it** —
+  static is deployment-wide for routing/templates by design; per-tenant routing
+  or white-labeled content is the signal to go `model: 'database'` (whose
+  DB-backed impl does tenant-specific-first fall-through). `providerConfigFor`
+  is per-tenant even in Model 1 because "tenant brings own provider account" is
+  day-one normal, not a divergence. Doc comments + README sharpened so the
+  asymmetry reads as deliberate. No code change.
 - **6 (Model 1/Model 2)** — `forRoot` now takes a **`model: 'static' | 'database'`**
   enum, matching `authorization`'s `model` and `domain-events`' `transport`.
   This **supersedes the 2026-09-05 decision** ("deliberately not a single
@@ -1018,3 +1027,68 @@ default, `notify` / `notifyCritical`, all backstops. Nothing removed.
 README rewritten (pieces section, consuming, database-backed). 240/240 tests
 pass (down from 244 — the 7 redundant per-token override tests collapse to 5),
 typecheck clean.
+
+---
+
+## 2026-09-06 — `notification`: Model 2 built — Postgres/Drizzle adapter
+
+Follows the consolidation above and the `audit-logging` / `authorization`
+adapter pattern. `notification/adapters/postgres-drizzle/` — opt-in via subpath
+import, never re-exported from `notification/index.ts`.
+
+### Design (discussed decision-by-decision with the user)
+
+- **3 tables**, `notification_` prefix:
+  - `notification_channel_route` (notification_type, tenant_id nullable, channels[])
+  - `notification_template` (channel, notification_type, tenant_id nullable, subject, body, is_html)
+  - `notification_provider_credential` (channel, tenant_id NOT NULL, api_key, from, from_name)
+- **Tenant-first fall-through** for routing + templates via
+  `ORDER BY tenant_id IS NULL LIMIT 1` (`false` sorts first). Fixed a latent bug
+  the old README example carried — `ORDER BY tenant_id DESC` puts NULLs *first*
+  in Postgres, i.e. the wrong way.
+- **`providerConfigFor` does not fall through** — a missing row is
+  `no_provider_config`, never another tenant's account; `null` tenantId
+  short-circuits with no query.
+- **Credentials (`api_key`): plaintext column + strong guidance** (Option A of
+  the three discussed). Encryption-at-rest is a deployment decision — the README
+  points at Supabase Vault / pgcrypto / a decrypting view / column-level REVOKE.
+  Option C (routing+templates from DB, credentials stay static via a
+  `StaticNotificationConfig` subclass) is documented as the lighter path for a
+  routing-only need.
+- **TTL cache** — `ConfigCache`, per-process, default 30s, `cacheTtlSeconds: 0`
+  disables. `Notifier` + senders read config on every send; a batch job would
+  otherwise repeat identical queries. Time-bounded (not request-bounded like the
+  authorization adapter's) because a batch job has no request. Bounded map
+  (evicts expired, then oldest).
+- **Seed helper** — `seedNotificationConfigFromData(db, NotificationConfigData)`
+  writes the static shape as `tenant_id NULL` deployment-default rows, so
+  `model: 'static'` → `'database'` is behaviour-preserving; tenant override rows
+  are added later through the vertical's own admin path.
+
+### Wiring
+
+```typescript
+NotificationModule.forRoot({
+  model: 'database',
+  configToken: POSTGRES_NOTIFICATION_CONFIG,
+  imports: [PostgresNotificationConfigModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, imports: [DatabaseModule] })],
+})
+```
+
+### Dimension notes
+
+- **6 (Model 1/Model 2)** — Model 2 is now built as an adapter, matching
+  `audit-logging` / `authorization`. `model: 'database'` with no `configToken`
+  throws at `forRoot` (there is no meaningful stub for notification config).
+- **7 (persistence)** — Pass: adapter ships the `notification_*` schema +
+  migration + seed; DB instance and migration execution stay consumer-owned;
+  per-tenant override rows are the vertical's to write.
+
+**New:** `notification/adapters/postgres-drizzle/` — `schema.ts`,
+`notification-config.migration.sql`, `sql-executor.ts`, `sql-helpers.ts`,
+`tokens.ts`, `config-cache.ts`, `postgres-notification-config.ts`,
+`postgres-notification-config.module.ts`, `seed-from-static-data.ts`,
+`index.ts`, `README.md`, 4 spec files. Main README's "Going database-backed"
+section rewritten to point at the adapter.
+
+259/259 tests pass (up from 240 — 19 new in the adapter), typecheck clean.

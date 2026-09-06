@@ -74,15 +74,21 @@ consumer's real delivery call maps them onto whichever provider they pick.
 **`StaticNotificationConfig`** is the Model 1 implementation, built from an
 in-memory object:
 
-- `channelsFor` / `templateFor` **ignore** `tenantId` — one config for the
-  whole deployment. A tenant needing different routing or white-labeled content
-  is the signal to supply a full `NotificationConfig` via `configToken`, not to
-  add tenant branching here (the same Model 1/Model 2 split `authorization`
-  makes for personas).
+The per-method `tenantId` treatment is a **deliberate asymmetry** — it turns on
+whether per-tenant is the *normal* shape or an *eventual divergence*:
+
+- `channelsFor` / `templateFor` **ignore** `tenantId` — one routing config and
+  one template set for the whole deployment. Per-tenant routing or white-labeled
+  content is an eventual divergence: when a tenant needs it, go
+  `model: 'database'` (the DB-backed `NotificationConfig` resolves a
+  tenant-specific row first, falling through to the deployment default — see
+  "Going database-backed" below). Same Model 1/Model 2 split `authorization`
+  makes for personas — its static authorizer has one persona map for the
+  deployment, not per-tenant.
 - `providerConfigFor` **honors** `tenantId` — "one tenant, one provider
   account" is the normal shape from day one (a tenant bringing their own
-  SendGrid/Twilio account isn't a scaling exception). A `null` tenantId
-  resolves to `null` (fails closed), never a deployment-wide fallback.
+  SendGrid/Twilio account isn't a scaling exception, it's the point). A `null`
+  tenantId resolves to `null` (fails closed), never a deployment-wide fallback.
 
 An unconfigured `notificationType` resolves to zero channels — `Notifier`
 reports `'no_channel_configured'`. A missing template or missing credentials is
@@ -175,82 +181,58 @@ failure). `model: 'database'` binds your own `NotificationConfig` via
 
 ### Going database-backed
 
-One class implementing three methods, against one schema area (three small
-generic tables, or one). Provide it under your own token, pass that token to
-`forRoot()`:
+On the common Postgres/Drizzle stack, **use the shipped adapter** —
+`notification/adapters/postgres-drizzle/`. It's one `NotificationConfig`
+implementation over three tables (`notification_channel_route`,
+`notification_template`, `notification_provider_credential`), a TTL cache, a
+migration, and a seed helper. See that folder's README; the wiring is:
 
 ```typescript
-// In the consuming project:
-class DatabaseNotificationConfig implements NotificationConfig {
-  constructor(private readonly db: SomeLooselyTypedDrizzleDb) {}
-
-  async channelsFor(notificationType: string, tenantId: string | null): Promise<NotificationChannel[]> {
-    // tenant-specific row first, falling through to the tenant-less deployment default (tenant_id IS NULL)
-    const rows = await this.db.select().from(channelRoutingTable)
-      .where(and(
-        eq(channelRoutingTable.notificationType, notificationType),
-        tenantId ? inArray(channelRoutingTable.tenantId, [tenantId, null]) : isNull(channelRoutingTable.tenantId),
-      ))
-      .orderBy(desc(channelRoutingTable.tenantId));
-    return rows[0]?.channels ?? [];
-  }
-
-  async templateFor(channel, notificationType, tenantId) { /* same fall-through shape, WHERE channel = $1 */ }
-
-  async providerConfigFor(channel, tenantId) {
-    if (tenantId === null) return null; // credentials never fall through to a default — a missing row is a config error
-    const rows = await this.db.select().from(providerCredentialTable)
-      .where(and(eq(providerCredentialTable.channel, channel), eq(providerCredentialTable.tenantId, tenantId)));
-    return rows[0] ?? null;
-  }
-}
-```
-
-```typescript
-@Module({
-  providers: [{ provide: DATABASE_NOTIFICATION_CONFIG, useClass: DatabaseNotificationConfig }],
-  exports: [DATABASE_NOTIFICATION_CONFIG],
-})
-export class MyNotificationConfigModule {}
+import {
+  PostgresNotificationConfigModule,
+  POSTGRES_NOTIFICATION_CONFIG,
+} from './ascendra-commons/notification/adapters/postgres-drizzle';
 
 NotificationModule.forRoot({
   model: 'database',
-  configToken: DATABASE_NOTIFICATION_CONFIG,
-  imports: [MyNotificationConfigModule],
+  configToken: POSTGRES_NOTIFICATION_CONFIG,
+  imports: [
+    PostgresNotificationConfigModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, imports: [DatabaseModule] }),
+  ],
 });
 ```
 
-Notes:
+`channelsFor` / `templateFor` resolve a tenant-specific row first, falling
+through to the `tenant_id IS NULL` deployment default. `providerConfigFor` does
+**not** fall through — a missing row is `'no_provider_config'`, never another
+tenant's account.
 
-- Use the core query builder (`db.select().from(table)`), not the relational API
-  (`db.query.…`) — the latter forces this class to know the consuming project's
-  full schema; the core builder works against any table object.
-- **`channelsFor`/`templateFor` fall through** a tenant-specific row to the
-  `tenant_id IS NULL` deployment default. **`providerConfigFor` does not** — "no
-  credentials for this tenant" is a configuration error worth surfacing as
-  `'no_provider_config'`, not a silent fallback to another tenant's account.
-- Stamp `application_id` on the tables (written on insert, never queried) if you
-  ever want cross-app reporting — see the Overview.
+On another stack, write your own class `implements NotificationConfig` and
+bind it under your own token — same `forRoot` shape.
 
 ### Going database-backed for one method only
 
-`extends StaticNotificationConfig` and override that one method; the others keep
-serving the static data passed to `super()`:
+If your need is only per-tenant *routing and templates* — not credentials —
+`extends StaticNotificationConfig`, override those methods to hit the DB, and
+leave `providerConfigFor` reading the static `providerConfigs` passed to
+`super()`. No secrets in the routing DB.
 
 ```typescript
 class DbRoutingConfig extends StaticNotificationConfig {
   constructor(private readonly db: SomeLooselyTypedDrizzleDb) {
-    super({ channels: {}, templates: { email: { /* ... */ } }, providerConfigs: { /* ... */ } });
+    super({ channels: {}, templates: {}, providerConfigs: { email: { 'tenant-a': { apiKey: '...', from: '...' } } } });
   }
   async channelsFor(notificationType: string, tenantId: string | null): Promise<NotificationChannel[]> {
-    return this.db.channelsFor(notificationType, tenantId);
+    const rows = await this.db.select().from(channelRouteTable)
+      .where(and(eq(channelRouteTable.notificationType, notificationType),
+                 or(eq(channelRouteTable.tenantId, tenantId), isNull(channelRouteTable.tenantId))))
+      .orderBy(sql`tenant_id is null`).limit(1);
+    return rows[0]?.channels ?? [];
   }
 }
 ```
 
-Bind it under a token and pass `model: 'database'` + `configToken` exactly as
-above. This is *less* work than the old per-piece override grid — templates and
-credentials stay static with no extra wiring.
+Bind it under `model: 'database'` + `configToken`.
 
 ### Why `configToken` has to be a `forRoot()` option
 
@@ -264,8 +246,6 @@ binds it in the right scope) is the actual seam. (`@nestjs/testing`'s
 ## What's not built yet
 
 - **No real `WhatsappNotificationSender`** — needs its own template shape first.
-- **No database-backed `NotificationConfig` shipped here** — the pattern is
-  documented above; the class belongs in each consuming project.
 - **No real email/SMS/WhatsApp delivery** — every sender resolves real
   per-tenant credentials now but still only logs the rendered message. Swapping
   in a real provider call means changing what a sender's `send()` does with the
