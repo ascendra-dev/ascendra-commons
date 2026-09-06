@@ -24,7 +24,7 @@ audit checklist against the six that already exist.
 
 ---
 
-## 1b. Package roles (added 2026-09-07, applied to `authorization`, `notification`, `audit-logging`, `background-jobs`)
+## 1b. Package roles (added 2026-09-07, applied to `authorization`, `notification`, `audit-logging`, `background-jobs`, `domain-events`)
 
 A module that has grown a real Model 1 / Model 2 split, more than one plausible
 Model 2 stack, and an admin/observability surface is no longer one folder. It is
@@ -34,7 +34,7 @@ a **container folder** of dot-named **packages**, each an independent copy unit
 | Package | Role |
 |---|---|
 | `<module>.core` | The contract only — interfaces, the cross-cutting mechanism (guard/decorators/compute helpers), `forRoot()` as pure token wiring, a `Missing*` throwing stub. **No working implementation.** |
-| `<module>.core.<capability>` | A Model 1-style single implementation (e.g. `authorization.core.static-map`). |
+| `<module>.core.<capability>` | A single implementation, Model 1 *or* Model 2, when it isn't a stack family — `authorization.core.static-map` (Model 1), `domain-events.core.in-process` (Model 1), `domain-events.core.broker` (Model 2, currently a throwing stub — the seam is real, the transport isn't built). Name by capability, not slot. |
 | `<module>.core.<family>` | A Model 2 family — stack-agnostic: ports a stack adapter implements, DTOs, pure rules, the port-based implementation. No SQL. May be thin (`notification.core.database` is just a cache util, a cursor helper, and the admin ports/DTOs — notification's DB story has no shared *algorithm* the way `authorization.core.permission-table` does) — that's still worth its own package so a second stack adapter shares it. |
 | `<module>.core.<family>.<db>-<orm>` | One stack (e.g. `…permission-table.postgres-drizzle`) — schema, migration, repositories, seed **only**. Sub-folders by job allowed here; `index.ts` stays the sole public surface and exports modules, not classes. |
 | `<module>.api` | Opt-in HTTP controllers + thin `.api` services + request DTOs, over the family **ports**. Never imports a stack adapter — wired to one at the vertical via tokens. |
@@ -42,15 +42,25 @@ a **container folder** of dot-named **packages**, each an independent copy unit
 
 **Dependency direction is one-way toward `.core`.** A vendored module that
 depends on another (`file-storage` → `authorization`) depends on its **`.core`
-package only** — never a `.static-map`, `.<family>`, `.<stack>`, or `.api`. When
-the depended-on module is *not* split (`audit-logging.core` → `domain-events`),
-the dependency targets the whole module; revisit if it splits.
+package only** — never a `.static-map`, `.<family>`, `.<stack>`, or `.api`.
 
-**Not every module uses every row.** `audit-logging` and `background-jobs`
+**When is a module a split candidate?** A **genuinely-real Model 1 / Model 2
+seam** — a *shipped* selector + interface + token, not a prose-only "Model 2
+would look like…" — is a sufficient signal on its own, even with no second
+stack and no admin surface. `domain-events` (2026-09-07) split on that alone:
+`transport: 'in-process' | 'broker'` was real (the broker path ships as a
+throwing stub), so it became `domain-events.core` / `.core.in-process` /
+`.core.broker`, `forRoot()` went token-only (`emitterToken`), and the `transport`
+string selector was dropped — exactly what happened to `authorization`'s
+`model:`. A module whose Model 2 is *only prose* (`file-storage`,
+`idempotency-key`) stays one folder.
+
+**Not every split module uses every row.** `audit-logging` and `background-jobs`
 (2026-09-07) have **no Model 1 / Model 2 config split** — one model behind a
 port — so no `.core.<capability>`, no `.core.<family>`: just `.core` /
-`.core.postgres-drizzle` / `.api`. The rows are a menu, not a checklist. What
-still applies:
+`.core.postgres-drizzle` / `.api`. `domain-events` has the Model 1/2 split but
+no adapter/`.api` (nothing to persist or administer). The rows are a menu, not a
+checklist. What still applies:
 - **A stack-coupled class in `.core` moves to the adapter.** `background-jobs`
   shipped `PostgresAdvisoryLock` as `.core`'s *default* lock; the split moved it
   to `background-jobs.core.postgres-drizzle/lock/` and made `advisoryLockToken`
@@ -110,14 +120,15 @@ defaulting to `'in-process'`) may default; nothing else should.
 Threaded **only if** the module has a plausible shared-destination surface —
 somewhere multiple Ascendra applications' output could land in the same place
 (a message broker, a shared log/analytics sink). `domain-events` is the
-canonical case: `DOMAIN_EVENTS_APPLICATION_ID` is defined there for its broker
-path, and a cross-cutting consumer that only *opts into* tagging its output by
-application `@Inject()`s that same token rather than declaring its own —
-provided the consumer supplied `application` to `DomainEventsModule.forRoot()`.
-A module that *always* needs the value (not opt-in) instead takes it through
-its own `forRoot()` and binds its own module-scoped token
-(`audit-logging`'s Postgres adapter does this with `AUDIT_APPLICATION_ID`), so
-it works even when the consumer never passes `application` to `domain-events`;
+canonical case: `DOMAIN_EVENTS_APPLICATION_ID` is defined for its broker path —
+and after the 2026-09-07 split it lives entirely in `domain-events.core.broker`
+(bound from `BrokerDomainEventEmitterModule.forRoot({ application })`), since
+nothing in-process ever reads it. That leaves **no opt-in seam** for a
+cross-cutting consumer that wants to tag its output by application without
+adopting the broker — the right answer for that consumer is now unambiguously
+the next sentence: take the value through your own `forRoot()` and bind your own
+module-scoped token (`audit-logging`'s Postgres adapter does this with
+`AUDIT_APPLICATION_ID`), so it works regardless of the `domain-events` transport;
 `notification` reached the same conclusion from the other direction (see
 `MODULE-STANDARD-AUDIT.md`, 2026-09-05 — its exported token was removed once
 `forRoot()` couldn't bind it). Per-module token names are module-prefixed

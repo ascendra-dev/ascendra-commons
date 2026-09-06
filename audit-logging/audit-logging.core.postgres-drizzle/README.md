@@ -21,7 +21,7 @@ export * from 'src/ascendra-commons/audit-logging/audit-logging.core.postgres-dr
 …or copy `persistence/audit-event.migration.sql`. **Requires PostgreSQL 15+.**
 
 ```typescript
-DomainEventsModule.forRoot(),
+DomainEventsModule.forRoot({ emitterToken: IN_PROCESS_DOMAIN_EVENT_EMITTER, imports: [InProcessDomainEventEmitterModule.forRoot()] }),
 AuditLoggingModule.forRoot({
   auditEventRepositoryToken: POSTGRES_AUDIT_EVENT_REPOSITORY,
   imports: [PostgresAuditPersistenceModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', imports: [DatabaseModule] })],

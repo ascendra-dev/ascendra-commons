@@ -1,6 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { DomainEvent } from './domain-event.interface';
-import { DomainEventEmitter } from './domain-event-emitter';
+import type { DomainEvent, DomainEventEmitter } from '../domain-events.core';
 import { DOMAIN_EVENTS_APPLICATION_ID } from './tokens';
 
 /** Thrown by every BrokerDomainEventEmitter method until a real Model 2 transport is built. */

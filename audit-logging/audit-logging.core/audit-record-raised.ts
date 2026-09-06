@@ -1,4 +1,4 @@
-import type { DomainEvent } from '../../domain-events';
+import type { DomainEvent } from '../../domain-events/domain-events.core';
 
 /**
  * A domain event dedicated entirely to auditing — raised explicitly by

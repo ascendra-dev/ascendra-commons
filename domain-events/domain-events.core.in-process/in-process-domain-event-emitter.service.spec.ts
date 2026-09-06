@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InProcessDomainEventEmitter } from './in-process-domain-event-emitter.service';
-import { DomainEvent } from './domain-event.interface';
+import { DomainEvent } from '../domain-events.core';
 
 class TestEvent implements DomainEvent {
   readonly occurredAt = new Date();

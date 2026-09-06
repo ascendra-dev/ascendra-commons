@@ -13,7 +13,7 @@ here is only along the delivery seams.
 
 | Package | Role | Depends on |
 |---|---|---|
-| **`audit-logging.core`** | `AuditRecordRaised` + `AUDIT_EVENT_NAME`, the shipped `AuditListener`, `persistAuditRecord`, the `AuditEventRepository` (write) and `AuditEventReader` (read) ports + DTOs, the correlation-id mechanism + middleware, the keyset-cursor helper, `AuditLoggingModule.forRoot()`. | `domain-events` |
+| **`audit-logging.core`** | `AuditRecordRaised` + `AUDIT_EVENT_NAME`, the shipped `AuditListener`, `persistAuditRecord`, the `AuditEventRepository` (write) and `AuditEventReader` (read) ports + DTOs, the correlation-id mechanism + middleware, the keyset-cursor helper, `AuditLoggingModule.forRoot()`. | `domain-events.core` |
 | **`audit-logging.core.postgres-drizzle`** | Reference `PostgresAuditEventRepository` + `PostgresAuditEventReader`, the `pgTable` + migration, and their modules (`PostgresAuditPersistenceModule`, `PostgresAuditObservabilityModule`). A project on another stack implements the two core ports instead. | `audit-logging.core` |
 | **`audit-logging.api`** | Opt-in HTTP read endpoints for a compliance / ops screen (`GET /audit/events`, `/audit/entities/:type/:id/history`, `/audit/trace/:correlationId`), over the `AUDIT_EVENT_READER` port. Read-only. | `audit-logging.core`, `authorization.core` |
 
@@ -42,13 +42,16 @@ contracts (a non-DB reader over an external SIEM is in scope), so they live in
 
 ## Consuming this module
 
-Copy `audit-logging/audit-logging.core/` **and** `domain-events/`
-(`audit-logging.core` depends on it — `domain-events` is not split, so the
-dependency targets the whole module). Then one stack adapter, and optionally
-`audit-logging.api`.
+Copy `audit-logging/audit-logging.core/` **and** `domain-events/domain-events.core`
++ `domain-events/domain-events.core.in-process` (`audit-logging.core` depends on
+`domain-events.core`; the vertical also needs a transport). Then one stack
+adapter, and optionally `audit-logging.api`.
 
 ```typescript
-DomainEventsModule.forRoot(),   // required — the listener is reached via emitCritical()
+DomainEventsModule.forRoot({     // required — the listener is reached via emitCritical()
+  emitterToken: IN_PROCESS_DOMAIN_EVENT_EMITTER,
+  imports: [InProcessDomainEventEmitterModule.forRoot()],
+}),
 AuditLoggingModule.forRoot({
   auditEventRepositoryToken: POSTGRES_AUDIT_EVENT_REPOSITORY,
   imports: [PostgresAuditPersistenceModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', imports: [DatabaseModule] })],

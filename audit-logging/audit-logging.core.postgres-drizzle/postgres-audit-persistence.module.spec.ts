@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { DomainEventsModule, DOMAIN_EVENT_EMITTER } from '../../domain-events';
-import type { DomainEventEmitter } from '../../domain-events';
+import { DomainEventsModule, DOMAIN_EVENT_EMITTER } from '../../domain-events/domain-events.core';
+import type { DomainEventEmitter } from '../../domain-events/domain-events.core';
+import {
+  InProcessDomainEventEmitterModule,
+  IN_PROCESS_DOMAIN_EVENT_EMITTER,
+} from '../../domain-events/domain-events.core.in-process';
 import {
   AuditLoggingModule,
   AUDIT_EVENT_NAME,
@@ -34,7 +38,7 @@ async function buildApp(application = 'ascendra-pay') {
   const { FakeDatabaseModule, execute } = fakeDatabaseModule();
   const moduleRef = await Test.createTestingModule({
     imports: [
-      DomainEventsModule.forRoot(),
+      DomainEventsModule.forRoot({ emitterToken: IN_PROCESS_DOMAIN_EVENT_EMITTER, imports: [InProcessDomainEventEmitterModule.forRoot()] }),
       AuditLoggingModule.forRoot({
         auditEventRepositoryToken: POSTGRES_AUDIT_EVENT_REPOSITORY,
         imports: [
@@ -105,7 +109,7 @@ describe('PostgresAuditPersistenceModule wired into AuditLoggingModule', () => {
 
     const moduleRef = await Test.createTestingModule({
       imports: [
-        DomainEventsModule.forRoot(),
+        DomainEventsModule.forRoot({ emitterToken: IN_PROCESS_DOMAIN_EVENT_EMITTER, imports: [InProcessDomainEventEmitterModule.forRoot()] }),
         AuditLoggingModule.forRoot({
           auditEventRepositoryToken: POSTGRES_AUDIT_EVENT_REPOSITORY,
           imports: [

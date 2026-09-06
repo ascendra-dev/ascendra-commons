@@ -1,7 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { DomainEvent } from './domain-event.interface';
-import { DomainEventEmitter } from './domain-event-emitter';
+import type { DomainEvent, DomainEventEmitter } from '../domain-events.core';
 
 /**
  * Model 1 transport: an in-process emitter (EventEmitter2 via

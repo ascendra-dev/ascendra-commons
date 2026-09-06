@@ -18,8 +18,8 @@ of a pattern that a consumer actually needs to sync to, not before.
 
 Seven patterns implemented so far, all tested with real NestJS DI wiring:
 `domain-events/`, `notification/`, `authorization/`, `background-jobs/`,
-`audit-logging/` (depends on `domain-events/` also being vendored),
-`file-storage/` (depends on `authorization/` also being vendored),
+`audit-logging/` (depends on `domain-events.core` also being vendored),
+`file-storage/` (depends on `authorization.core` also being vendored),
 `idempotency-key/` (no dependency on any other pattern) — see each
 pattern's own README for why. Everything else is deliberately not built yet
 — each pattern gets promoted from `ascendra-pay-002`'s own project-specific
@@ -46,10 +46,12 @@ one plausible Model 2 stack, an admin/observability surface — becomes a
 `authorization.core.permission-table.postgres-drizzle`, `authorization.api`),
 each an independent copy unit with its own barrel and README, dependencies
 one-way toward `.core`. See `MODULE-STANDARD.md` §1b. `authorization`,
-`notification`, `audit-logging` and `background-jobs` (2026-09-07) are split this
-way (the last two use only `.core` / `.core.postgres-drizzle` / `.api` — no
-Model 1/2 config split); `domain-events`, `file-storage` and `idempotency-key`
-stay single-folder until they hit the same signals.
+`notification`, `audit-logging`, `background-jobs` and `domain-events`
+(2026-09-07) are split this way — `audit-logging`/`background-jobs` use only
+`.core` / `.core.postgres-drizzle` / `.api` (no Model 1/2 config split);
+`domain-events` uses `.core` / `.core.in-process` / `.core.broker` (a real
+transport seam, but nothing to persist or administer). `file-storage` and
+`idempotency-key` stay single-folder until they hit the same signals.
 
 See `MODULE-STANDARD.md` for the full checklist every pattern is built and
 audited against — export boundary, packaging, `applicationId`/`tenantId`

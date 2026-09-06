@@ -38,7 +38,10 @@ from `MODULE-STANDARD.md` dimension 9.
 ## Wiring
 
 ```typescript
-DomainEventsModule.forRoot(),   // required — the listener is reached via emitCritical()
+DomainEventsModule.forRoot({     // required — the listener is reached via emitCritical()
+  emitterToken: IN_PROCESS_DOMAIN_EVENT_EMITTER,
+  imports: [InProcessDomainEventEmitterModule.forRoot()],
+}),
 AuditLoggingModule.forRoot({
   auditEventRepositoryToken: POSTGRES_AUDIT_EVENT_REPOSITORY,
   imports: [PostgresAuditPersistenceModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', imports: [DatabaseModule] })],
@@ -50,10 +53,11 @@ On another stack: provide your own `AuditEventRepository` (and, for reads, an
 
 ## Consuming this module
 
-Copy `audit-logging/audit-logging.core/` **and** `domain-events/` (this package
-depends on it — `domain-events` is not split, so the dependency targets the
-whole module). Plus one stack adapter, and optionally `audit-logging.api`.
+Copy `audit-logging/audit-logging.core/` **and** `domain-events/domain-events.core`
++ `domain-events/domain-events.core.in-process` (this package depends on
+`domain-events.core`; the vertical also needs a transport). Plus one stack
+adapter, and optionally `audit-logging.api`.
 
 ## Depends on
 
-`domain-events`, `@nestjs/common`. No database driver, no ORM.
+`domain-events.core`, `@nestjs/common`. No database driver, no ORM.

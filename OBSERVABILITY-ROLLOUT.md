@@ -82,11 +82,19 @@ job — deliberately not this.)
 - ☑ `PostgresNotificationObservabilityService.getDeliveryContent(id)` (off the list query — large/PII); `DeliveryRecord.hasContent` boolean on the list
 - ☑ specs, README notes · 368/368
 
-## 5 · domain-events — deferred
+## 5 · domain-events — observability deferred; **package split done 2026-09-07**
 
-Model 1 in-process events don't persist; real observability needs a transactional
-outbox (Model 2). Listener-registry introspection is the only Model 1 read and has
-thin merit. Revisit when the outbox lands.
+Observability: Model 1 in-process events don't persist; real observability needs a
+transactional outbox (Model 2). Deferred.
+
+Package split (separate from observability): `domain-events` split into `.core` /
+`.core.in-process` / `.core.broker` on the strength of the `transport:` Model 1/2
+seam alone (MODULE-STANDARD §1b — a real shipped selector+interface+token is a
+sufficient split signal). `forRoot()` is token-only (`emitterToken`); the
+`transport` string is gone; `application` + `DOMAIN_EVENTS_APPLICATION_ID` moved
+to `.core.broker` (a broker-only concern). No `.api`. `audit-logging`'s
+`../../domain-events` imports now target `domain-events.core` (+ `.core.in-process`
+for the transport in its specs). 454/454.
 
 ---
 
