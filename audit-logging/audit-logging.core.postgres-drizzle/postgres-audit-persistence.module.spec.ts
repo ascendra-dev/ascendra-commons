@@ -1,13 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { DomainEventsModule, DOMAIN_EVENT_EMITTER } from '../../../domain-events';
-import type { DomainEventEmitter } from '../../../domain-events';
-import { AuditLoggingModule } from '../../audit-logging.module';
-import { AUDIT_EVENT_NAME, AUDIT_EVENT_REPOSITORY } from '../../tokens';
-import type { AuditEventRepository } from '../../audit-event-repository';
-import { AuditRecordRaised } from '../../audit-record-raised';
-import { runWithCorrelationId } from '../../correlation-context';
+import { DomainEventsModule, DOMAIN_EVENT_EMITTER } from '../../domain-events';
+import type { DomainEventEmitter } from '../../domain-events';
+import {
+  AuditLoggingModule,
+  AUDIT_EVENT_NAME,
+  AUDIT_EVENT_REPOSITORY,
+  AuditRecordRaised,
+  runWithCorrelationId,
+} from '../audit-logging.core';
+import type { AuditEventRepository } from '../audit-logging.core';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 import { PostgresAuditPersistenceModule } from './postgres-audit-persistence.module';

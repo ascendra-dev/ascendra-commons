@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import { AuditLoggingModule } from './audit-logging.module';
 import { AuditListener } from './audit-listener';
 import { AUDIT_EVENT_REPOSITORY } from './tokens';
-import { AuditEventRepository } from './audit-event-repository';
+import { AuditEventRepository } from './audit-event-repository.port';
 
 const AUDIT_REPO_IMPL = Symbol('AUDIT_REPO_IMPL');
 

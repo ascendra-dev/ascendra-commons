@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { DomainEventsModule, DOMAIN_EVENT_EMITTER } from '../domain-events';
-import type { DomainEventEmitter } from '../domain-events';
+import { DomainEventsModule, DOMAIN_EVENT_EMITTER } from '../../domain-events';
+import type { DomainEventEmitter } from '../../domain-events';
 import { AuditLoggingModule } from './audit-logging.module';
 import { AUDIT_EVENT_NAME, AUDIT_EVENT_REPOSITORY } from './tokens';
-import { AuditEventRepository } from './audit-event-repository';
+import { AuditEventRepository } from './audit-event-repository.port';
 import { AuditRecordRaised } from './audit-record-raised';
 import { runWithCorrelationId } from './correlation-context';
 

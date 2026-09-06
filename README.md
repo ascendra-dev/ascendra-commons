@@ -45,9 +45,10 @@ one plausible Model 2 stack, an admin/observability surface — becomes a
 `authorization.core.static-map`, `authorization.core.permission-table`,
 `authorization.core.permission-table.postgres-drizzle`, `authorization.api`),
 each an independent copy unit with its own barrel and README, dependencies
-one-way toward `.core`. See `MODULE-STANDARD.md` §1b. `authorization` and
-`notification` (2026-09-07) are split this way; the others follow when they hit
-the same signals.
+one-way toward `.core`. See `MODULE-STANDARD.md` §1b. `authorization`,
+`notification` and `audit-logging` (2026-09-07) are split this way (`audit-logging`
+uses only `.core` / `.core.postgres-drizzle` / `.api` — it has no Model 1/2
+config split); the others follow when they hit the same signals.
 
 See `MODULE-STANDARD.md` for the full checklist every pattern is built and
 audited against — export boundary, packaging, `applicationId`/`tenantId`

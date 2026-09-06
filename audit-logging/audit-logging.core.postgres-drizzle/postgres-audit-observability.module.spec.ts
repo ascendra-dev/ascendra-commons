@@ -3,9 +3,9 @@ import { Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
-import type { AuditEventReader } from '../../audit-event-reader';
+import type { AuditEventReader } from '../audit-logging.core';
 import { PostgresAuditObservabilityModule } from './postgres-audit-observability.module';
-import { POSTGRES_AUDIT_EVENT_READER } from './tokens';
+import { AUDIT_EVENT_READER } from '../audit-logging.core';
 
 const DB = Symbol('DB');
 const dialect = new PgDialect();
@@ -18,7 +18,7 @@ function dbModule() {
 }
 
 describe('PostgresAuditObservabilityModule', () => {
-  it('resolves POSTGRES_AUDIT_EVENT_READER wired to the db token and application', async () => {
+  it('resolves AUDIT_EVENT_READER wired to the db token and application', async () => {
     const { DbModule, execute } = dbModule();
 
     const moduleRef = await Test.createTestingModule({
@@ -31,7 +31,7 @@ describe('PostgresAuditObservabilityModule', () => {
       ],
     }).compile();
 
-    const reader = moduleRef.get<AuditEventReader>(POSTGRES_AUDIT_EVENT_READER);
+    const reader = moduleRef.get<AuditEventReader>(AUDIT_EVENT_READER);
     await reader.find({ actor: 'u1' });
 
     expect(execute).toHaveBeenCalledTimes(1);

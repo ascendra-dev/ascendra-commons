@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getTableColumns, type SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
-import type { AuditEventInput } from '../../audit-event.interface';
+import type { AuditEventInput } from '../../audit-logging.core';
 import { auditEventTable } from './audit-event.schema';
 import { PostgresAuditEventRepository } from './postgres-audit-event.repository';
 import type { SqlExecutor } from './sql-executor';

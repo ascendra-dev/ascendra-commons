@@ -24,7 +24,7 @@ audit checklist against the six that already exist.
 
 ---
 
-## 1b. Package roles (added 2026-09-07, applied to `authorization` and `notification`)
+## 1b. Package roles (added 2026-09-07, applied to `authorization`, `notification`, `audit-logging`)
 
 A module that has grown a real Model 1 / Model 2 split, more than one plausible
 Model 2 stack, and an admin/observability surface is no longer one folder. It is
@@ -42,7 +42,17 @@ a **container folder** of dot-named **packages**, each an independent copy unit
 
 **Dependency direction is one-way toward `.core`.** A vendored module that
 depends on another (`file-storage` → `authorization`) depends on its **`.core`
-package only** — never a `.static-map`, `.<family>`, `.<stack>`, or `.api`.
+package only** — never a `.static-map`, `.<family>`, `.<stack>`, or `.api`. When
+the depended-on module is *not* split (`audit-logging.core` → `domain-events`),
+the dependency targets the whole module; revisit if it splits.
+
+**Not every module uses every row.** `audit-logging` (2026-09-07) has **no
+Model 1 / Model 2 config split** — one model (event capture → a persistence
+port) — so it has no `.core.<capability>` and no `.core.<family>`: just
+`.core` / `.core.postgres-drizzle` (adapter directly under core, both ports +
+DTOs + the cursor helper being genuine stack-agnostic contracts) / `.api`
+(read-only — audit records are write-once, so no config CRUD and no
+audit-emitter). The rows are a menu, not a checklist.
 
 **Naming:** container folder per module; child folder names repeat the module
 prefix (`authorization.core`, not `core`) so each is self-identifying when
@@ -232,15 +242,18 @@ both.
 **The "no shipped controllers" rule is relaxed for a `.api` package (1b).**
 Originally this repo shipped services + DTOs only and left the HTTP controller
 to the consumer. That still holds for a single-folder module. But once a module
-has a `.core.<family>` with admin/observability **ports**, a `.api` package may
-ship generic NestJS controllers against those ports — they carry no
-app-specific logic, are gated by the consumer's own `Authorizer` via
-`@RequiresAction`, and the actor-scoped rules (tenant/role ceiling) live in a
-thin `.api` service between controller and port. `authorization.api` and
-`notification.api` (2026-09-07) are the first two — `notification.api` also
-ships a `POST /notifications/test-send` that calls `Notifier` directly, and a
-generic `CurrentActor` param decorator was promoted to `authorization.core` for
-both to share. React stays out — that's `ascendra-commons-ui`.
+has admin/observability **ports** (in a `.core.<family>`, or just in `.core`
+when there's no family — `audit-logging`), a `.api` package may ship generic
+NestJS controllers against those ports — they carry no app-specific logic, are
+gated by the consumer's own `Authorizer` via `@RequiresAction`, and the
+actor-scoped rules (tenant/role ceiling, or "force the query to the actor's
+tenant") live in a thin `.api` service between controller and port.
+`authorization.api`, `notification.api` and `audit-logging.api` (2026-09-07) are
+the first three — `notification.api` also ships a `POST /notifications/test-send`
+that calls `Notifier` directly; `audit-logging.api` is read-only (records are
+write-once). A generic `CurrentActor` param decorator was promoted to
+`authorization.core` for all of them to share. React stays out — that's
+`ascendra-commons-ui`.
 
 ### 9. Naming convention
 

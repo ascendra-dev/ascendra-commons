@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { persistAuditRecord } from './persist-audit-record';
-import { AuditEventRepository } from './audit-event-repository';
+import { AuditEventRepository } from './audit-event-repository.port';
 import { AuditRecordRaised } from './audit-record-raised';
 import { runWithCorrelationId } from './correlation-context';
 

@@ -1,9 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql, type SQL } from 'drizzle-orm';
-import type { AuditEvent } from '../../audit-event.interface';
-import type { AuditEventReader, AuditQuery, AuditQueryResult } from '../../audit-event-reader';
-import type { SqlExecutor } from './sql-executor';
-import { AUDIT_APPLICATION_ID, AUDIT_SQL_EXECUTOR } from './tokens';
+import {
+  decodeKeysetCursor,
+  encodeKeysetCursor,
+  type AuditEvent,
+  type AuditEventReader,
+  type AuditQuery,
+  type AuditQueryResult,
+} from '../../audit-logging.core';
+import type { SqlExecutor } from '../persistence/sql-executor';
+import { AUDIT_APPLICATION_ID, AUDIT_SQL_EXECUTOR } from '../tokens';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -18,7 +24,7 @@ const MAX_LIMIT = 200;
  * cross-product compliance view that needs *every* app's rows queries
  * `commons_audit_event` directly.
  *
- * Corresponding table: `audit-event.schema.ts` / `audit-event.migration.sql`.
+ * Corresponding table: `../persistence/audit-event.schema.ts` / `.migration.sql`.
  */
 @Injectable()
 export class PostgresAuditEventReader implements AuditEventReader {
@@ -42,10 +48,10 @@ export class PostgresAuditEventReader implements AuditEventReader {
     if (query.occurredAfter) conds.push(sql`occurred_at >= ${query.occurredAfter}`);
     if (query.occurredBefore) conds.push(sql`occurred_at < ${query.occurredBefore}`);
 
-    const cursor = query.cursor ? decodeCursor(query.cursor) : null;
+    const cursor = query.cursor ? decodeKeysetCursor(query.cursor) : null;
     if (cursor) {
       conds.push(
-        sql`(occurred_at < ${cursor.occurredAt} or (occurred_at = ${cursor.occurredAt} and id < ${cursor.id}))`,
+        sql`(occurred_at < ${cursor.timestamp} or (occurred_at = ${cursor.timestamp} and id < ${cursor.id}))`,
       );
     }
 
@@ -61,7 +67,8 @@ export class PostgresAuditEventReader implements AuditEventReader {
 
     if (rows.length > limit) {
       const records = rows.slice(0, limit);
-      return { records, nextCursor: encodeCursor(records[records.length - 1]) };
+      const last = records[records.length - 1];
+      return { records, nextCursor: encodeKeysetCursor(last.occurredAt, last.id) };
     }
     return { records: rows };
   }
@@ -81,18 +88,4 @@ function mapRow(row: Record<string, unknown>): AuditEvent {
     reason: row.reason == null ? null : String(row.reason),
     occurredAt: row.occurred_at instanceof Date ? row.occurred_at : new Date(String(row.occurred_at)),
   };
-}
-
-function encodeCursor(e: AuditEvent): string {
-  return Buffer.from(`${e.occurredAt.toISOString()}|${e.id}`).toString('base64url');
-}
-
-function decodeCursor(cursor: string): { occurredAt: Date; id: string } | null {
-  try {
-    const [ts, id] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
-    if (!ts || !id || Number.isNaN(Date.parse(ts))) return null;
-    return { occurredAt: new Date(ts), id };
-  } catch {
-    return null;
-  }
 }

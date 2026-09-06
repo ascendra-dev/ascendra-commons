@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AuditListener } from './audit-listener';
-import { AuditEventRepository } from './audit-event-repository';
+import { AuditEventRepository } from './audit-event-repository.port';
 import { AuditRecordRaised } from './audit-record-raised';
 
 describe('AuditListener', () => {

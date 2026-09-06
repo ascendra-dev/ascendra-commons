@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { OnCriticalEvent } from '../domain-events';
-import type { AuditEventRepository } from './audit-event-repository';
+import { OnCriticalEvent } from '../../domain-events';
+import type { AuditEventRepository } from './audit-event-repository.port';
 import type { AuditRecordRaised } from './audit-record-raised';
 import { persistAuditRecord } from './persist-audit-record';
 import { AUDIT_EVENT_NAME, AUDIT_EVENT_REPOSITORY } from './tokens';

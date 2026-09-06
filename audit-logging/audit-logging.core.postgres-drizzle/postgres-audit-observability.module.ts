@@ -1,26 +1,23 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { PostgresAuditEventReader } from './postgres-audit-event-reader';
-import { AUDIT_APPLICATION_ID, AUDIT_SQL_EXECUTOR, POSTGRES_AUDIT_EVENT_READER } from './tokens';
+import { AUDIT_EVENT_READER } from '../audit-logging.core';
+import { PostgresAuditEventReader } from './observability/postgres-audit-event-reader';
+import { AUDIT_APPLICATION_ID, AUDIT_SQL_EXECUTOR } from './tokens';
 
 export interface PostgresAuditObservabilityModuleConfig {
   /** The token the consuming app provides its Drizzle db under — the normal pooled connection is fine (reads only). */
   sqlExecutorToken: string | symbol | (new (...args: never[]) => unknown);
-
   /** Which Ascendra application this process is — every query is scoped to it. */
   application: string;
-
   /** Whatever module(s) export the provider behind `sqlExecutorToken`. Omit only if that module is `global: true`. */
   imports?: DynamicModule['imports'];
 }
 
 /**
- * Read-only reporting over `commons_audit_event` for a compliance/ops admin
- * screen — `AuditEventReader.find(query)`. Exports `POSTGRES_AUDIT_EVENT_READER`;
- * the consumer writes the endpoint and gates it with its own `Authorizer` on a
- * dedicated action (e.g. `'audit.view'`, restricted to a platform/compliance
- * persona — never a tenant user).
+ * Read-only reporting over `commons_audit_event` — binds `PostgresAuditEventReader`
+ * under the core `AUDIT_EVENT_READER` token, so `audit-logging.api` (or your own
+ * controller) depends on the port, not on Postgres.
  *
- * Independent of `PostgresAuditPersistenceModule` — import either or both. Both
+ * Independent of `PostgresAuditPersistenceModule` — import either or both; both
  * take the same `sqlExecutorToken` / `application`.
  */
 @Module({})
@@ -33,9 +30,9 @@ export class PostgresAuditObservabilityModule {
         { provide: AUDIT_SQL_EXECUTOR, useExisting: config.sqlExecutorToken },
         { provide: AUDIT_APPLICATION_ID, useValue: config.application },
         PostgresAuditEventReader,
-        { provide: POSTGRES_AUDIT_EVENT_READER, useExisting: PostgresAuditEventReader },
+        { provide: AUDIT_EVENT_READER, useExisting: PostgresAuditEventReader },
       ],
-      exports: [POSTGRES_AUDIT_EVENT_READER],
+      exports: [AUDIT_EVENT_READER],
     };
   }
 }

@@ -1,4 +1,4 @@
-import type { AuditEventRepository } from './audit-event-repository';
+import type { AuditEventRepository } from './audit-event-repository.port';
 import type { AuditRecordRaised } from './audit-record-raised';
 import { getCurrentCorrelationId } from './correlation-context';
 

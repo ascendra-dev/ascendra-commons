@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 import { PostgresAuditEventReader } from './postgres-audit-event-reader';
-import type { SqlExecutor } from './sql-executor';
+import type { SqlExecutor } from '../persistence/sql-executor';
 
 const dialect = new PgDialect();
 

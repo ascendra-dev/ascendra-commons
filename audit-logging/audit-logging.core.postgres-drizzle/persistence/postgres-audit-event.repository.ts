@@ -1,9 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql, type SQL } from 'drizzle-orm';
-import type { AuditEventInput } from '../../audit-event.interface';
-import type { AuditEventRepository } from '../../audit-event-repository';
+import type { AuditEventInput, AuditEventRepository } from '../../audit-logging.core';
 import type { SqlExecutor } from './sql-executor';
-import { AUDIT_APPLICATION_ID, AUDIT_SQL_EXECUTOR } from './tokens';
+import { AUDIT_APPLICATION_ID, AUDIT_SQL_EXECUTOR } from '../tokens';
 
 /**
  * Reference `AuditEventRepository` for Postgres via Drizzle — one library-owned
