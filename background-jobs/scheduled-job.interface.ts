@@ -27,4 +27,15 @@ export interface ScheduledJob<TItem> {
    * before the marker commits leaves the item correctly due again).
    */
   processItem(item: TItem): Promise<void>;
+
+  /**
+   * Optional. A short, log-safe identifier for one item — an id or reference,
+   * never PII and never the whole row. Used only to name the item in the
+   * runner's per-item failure log, so a failure in a large batch is
+   * diagnosable ("failed on invoice a1b2" rather than "failed on one item").
+   * If omitted, the runner logs the item's position in the batch instead.
+   * A throw here is swallowed — it can never turn a logging concern into a
+   * batch failure.
+   */
+  describeItem?(item: TItem): string;
 }

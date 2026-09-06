@@ -34,6 +34,7 @@ export interface ScheduledJob<TItem> {
   readonly name: string;                    // unique across every job — becomes the advisory lock key
   findDueItems(): Promise<TItem[]>;
   processItem(item: TItem): Promise<void>;
+  describeItem?(item: TItem): string;       // optional, log-safe id — names the item in a per-item failure log
 }
 ```
 
@@ -54,6 +55,22 @@ again on the next run, never silently skipped and never silently duplicated
 by construction of the runner (see `IdempotentJobRunner`, below), not by any
 retry logic `processItem` has to implement itself.
 
+"Never silently duplicated" is exactly as strong as the boundary between the
+side effect and the marker write. If the two are in *separate* transactions
+(the worked example's `emitCritical()` then `markRemindedToday()` are), a
+failure in the window between them re-runs the whole of `processItem` next
+run — so the side effect must itself be idempotent (thread an
+[`idempotency-key`](../idempotency-key) through the event, or make the
+downstream consumer dedupe), or the marker write must share one transaction
+with an outbox row that the side effect is driven from. This pattern doesn't
+choose for you; it does require you to have chosen. See the worked example's
+note.
+
+`describeItem` is optional and used only for logging: when `processItem`
+throws, the runner logs *which* item failed. Return a bare id or reference,
+never PII or the whole row. Omit it and the runner logs the item's batch
+position instead.
+
 ### `AdvisoryLock` / `PostgresAdvisoryLock` (Model 1) — the lock, swappable
 
 ```typescript
@@ -71,6 +88,25 @@ tenancy and an atomic claim for idempotency keys elsewhere in this stack.
 Session-scoped advisory locks release automatically when the holding
 connection closes, so a crashed process never leaves one stuck.
 
+**Connection-affinity requirement.** A session-level advisory lock belongs to
+one physical connection. `tryAcquire()` and `release()` must run on the *same*
+session — otherwise the unlock is a no-op on a connection that never held the
+lock, the acquiring connection keeps the lock until it is idle-closed, and the
+job silently skips every run in between. Through a **transaction-mode pooler**
+(PgBouncer, Supabase "Transaction pooler") session-level advisory locks are
+unsupported outright. So the provider wired to `SQL_EXECUTOR` must be a
+**dedicated single connection**, distinct from the app's request-serving pool
+— `drizzle(new Pool({ max: 1, idleTimeoutMillis: 0 }))` — pointed at a direct
+connection or a session-mode pooler, never a transaction pooler. As a canary,
+`release()` logs a `WARN` whenever `pg_advisory_unlock` reports the lock
+wasn't held — if that line ever appears, `SQL_EXECUTOR` is misconfigured.
+
+This is Model 1's accepted sharp edge, mitigated by wiring + detection rather
+than removed. The lease-table approach that removes it entirely (pool-agnostic,
+self-recovering) is a real Model 1 extension — deferred, along with the one
+small table it needs, until job-run observability is built (they share that
+table). Until then: dedicated connection, and watch for the WARN.
+
 It depends on `SqlExecutor` — deliberately the *minimal* shape needed
 (`execute(query): Promise<{ rows }>`), not a consumer's full schema-typed
 Drizzle client, so this library never depends on any project's generated
@@ -87,15 +123,19 @@ async run(job: ScheduledJob<unknown>): Promise<void> {
   if (!(await this.lock.tryAcquire(lockKey))) return;
   try {
     const due = await job.findDueItems();
-    for (const item of due) {
+    for (let i = 0; i < due.length; i++) {
       try {
-        await job.processItem(item);
+        await job.processItem(due[i]);
       } catch (err) {
-        this.logger.error(`Scheduled job "${job.name}" failed on one item`, err as Error);
+        this.logger.error(
+          `Scheduled job "${job.name}" failed on ${this.describe(job, due[i], i, due.length)} — it stays due and retries next run`,
+          err instanceof Error ? err.stack : String(err),
+        );
       }
     }
   } finally {
-    await this.lock.release(lockKey);
+    // guarded: a failure to *unlock* must never replace the primary error from the try block
+    await this.lock.release(lockKey).catch((err) => this.logger.error(/* ... */));
   }
 }
 ```
@@ -106,6 +146,10 @@ sharing the same process. If `findDueItems()` itself throws (a job-level
 failure, distinct from a single item's), the lock is still released in
 `finally`, but the error propagates out of `run()` — the caller finds out the
 whole job failed to even query, rather than that being silently swallowed.
+The `release()` in `finally` is `.catch`-guarded for exactly that reason: an
+unguarded rejecting `await` in a `finally` replaces whatever the `try` block
+was throwing, so a transient unlock failure would otherwise mask the real
+job-level error. A failed release is logged, never rethrown.
 
 ### Scheduling composition — left to each job, not owned by the runner
 
@@ -138,6 +182,23 @@ What's shipped in this folder: `ScheduledJob<TItem>`, `AdvisoryLock`,
 `BackgroundJobsModule.forRoot()`. No queue, no backoff policy, no
 dead-letter path, no scheduling built in — each job supplies its own
 `@Cron`/`OnApplicationBootstrap` wiring around the shared runner.
+
+Accepted limitations, each covered above where it's relevant:
+
+- **`SQL_EXECUTOR` must be a dedicated single connection** (never a
+  transaction-mode pooler) — the session-level lock's connection-affinity
+  requirement. Mitigated by wiring + a `release()` WARN canary, not removed.
+- **`findDueItems()` returns the whole due set** into memory and items are
+  processed **serially** — a job that falls far behind, or one with a large
+  due-set and per-item latency, holds the lock for the full batch. A job can
+  self-limit its batch, but then catch-up rate is bounded by cadence.
+- **A permanently-failing item retries every run forever**, logging each time
+  — no attempt counter, no dead-letter. This is the Model 2 trigger.
+- **`hashtext()` is a 32-bit hash** — two distinct job names could in
+  principle collide onto one lock. Keep names in one catalog; a handful of
+  jobs makes this negligible.
+- **`onApplicationBootstrap` runs the job on every pod at every deploy** (the
+  lock means only one executes) — not just after a genuine missed fire.
 
 ### Not built: job-run observability — a real Model 1 extension, not Model 2
 
@@ -194,25 +255,53 @@ failure isolation beyond what per-item try/catch already provides.
 
 Copy `background-jobs/` into the consumer's `src/ascendra-commons/background-jobs/`
 (see `module-packaging-pattern.md` for why vendored patterns land under one
-wrapper folder), then:
+wrapper folder), then wire `SQL_EXECUTOR` to a **dedicated single connection**,
+not the app's request-serving pool (see the connection-affinity requirement
+above):
 
 ```typescript
+export const SCHEDULER_DB = Symbol('SCHEDULER_DB');
+
+@Module({
+  providers: [
+    {
+      provide: SCHEDULER_DB,
+      // One connection, never idle-closed, never a transaction-mode pooler.
+      useFactory: (config: ConfigService) =>
+        drizzle(new Pool({ connectionString: config.getOrThrow('DATABASE_URL'), max: 1, idleTimeoutMillis: 0 })),
+      inject: [ConfigService],
+    },
+  ],
+  exports: [SCHEDULER_DB],
+})
+export class SchedulerDbModule {}
+
 @Module({
   imports: [
     BackgroundJobsModule.forRoot({
-      sqlExecutorToken: DATABASE_CONNECTION, // whatever token the app's own Drizzle db is already provided under
-      imports: [DatabaseModule],             // whatever module exports that token — useExisting can't see it otherwise
+      sqlExecutorToken: SCHEDULER_DB,   // the dedicated connection above — NOT the app's DATABASE_CONNECTION pool
+      imports: [SchedulerDbModule],     // whatever module exports that token — useExisting can't see it otherwise
     }),
   ],
 })
 export class AppModule {}
 ```
 
+Each job's own `findDueItems()` / `processItem()` still use the app's normal
+pooled `db` — only the lock needs the dedicated connection.
+
 `imports` is required unless the module providing `sqlExecutorToken` is itself
 marked `global: true` — `useExisting` only resolves a token NestJS can already
 see in `BackgroundJobsModule`'s own providers or imports, not anywhere in the
-wider application graph, so the consumer's database module has to be named
-here explicitly.
+wider application graph, so the connection's module has to be named here
+explicitly.
+
+You also need `@nestjs/schedule` (`npm i @nestjs/schedule`) and
+`ScheduleModule.forRoot()` in `AppModule` — this module ships no scheduler, so
+the per-job `@Cron` / `OnApplicationBootstrap` wiring below depends on it.
+Note `@nestjs/schedule` does not prevent a `@Cron` handler from being
+re-entered while a previous run is still in flight — overlap protection is
+*only* the advisory lock.
 
 ### Worked example: invoice payment reminders
 
@@ -239,12 +328,20 @@ export class InvoiceReminderJob implements ScheduledJob<Invoice> {
       this.invoiceRepo.findOverdueNotYetRemindedToday(tx));
   }
 
+  describeItem(invoice: Invoice) {
+    return `invoice ${invoice.id}`; // log-safe id only — surfaces in the runner's per-item failure log
+  }
+
   async processItem(invoice: Invoice) {
     // emitCritical(), not emit() — if this event also drives an audit-log listener, that
     // listener's failures must never be silently dropped (see the domain-events pattern's
     // tiering rule); a notification listener on the same event can still individually stay
     // best-effort via a plain @OnEvent() regardless of which emit method the publisher uses.
-    await this.events.emitCritical('invoice.reminder_due', new PaymentReminderDue(/* ... */));
+    //
+    // reminderKey makes the reminder itself idempotent downstream — see the note below on
+    // why this matters given emit and marker are separate transactions.
+    const reminderKey = `invoice-reminder:${invoice.id}:${today()}`;
+    await this.events.emitCritical('invoice.reminder_due', new PaymentReminderDue(invoice.id, reminderKey));
 
     // Only reached once the line above genuinely resolves — DomainEventEmitter awaits
     // emitAsync() internally, unlike raw EventEmitter2.emit(), which returns before an
@@ -255,6 +352,25 @@ export class InvoiceReminderJob implements ScheduledJob<Invoice> {
   }
 }
 ```
+
+**The emit and the marker are two separate transactions**, so `processItem`
+is at-least-once, not exactly-once: if `emitCritical()` resolves (the
+reminder is on its way) and then `markRemindedToday()` fails, the invoice is
+still `findDueItems`-eligible next run and the reminder goes out again. Two
+ways to close that, and this pattern requires you to pick one — it doesn't
+pick for you:
+
+- **Downstream dedupe (shown above).** The event carries a deterministic
+  `reminderKey`; the notification consumer claims it through
+  [`idempotency-key`](../idempotency-key) and a replay is a no-op. Simplest
+  when the side effect already flows through a consumer that can dedupe.
+- **Transactional outbox.** Write the marker *and* an outbox row in one
+  `withTenantContext` transaction, and drive the emit from a separate
+  outbox-drain job. Nothing escapes without the marker; nothing is marked
+  without something to emit.
+
+Skipping both means "customer receives two reminder emails" is a live
+outcome on any failure between the two writes.
 
 A per-item "done" marker like `last_reminded_on` can only express "at most
 once per period." A tapering or capped cadence needs a count/stage column
