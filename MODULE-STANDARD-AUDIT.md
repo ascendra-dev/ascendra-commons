@@ -1131,3 +1131,95 @@ columns collapse to one `config jsonb`. The stub senders stop logging the
 provider config (it may hold secrets) — they log only the rendered message.
 `Notifier` and `NotificationConfig` untouched; the seam is unchanged, just
 honestly typed. 259/259 tests pass, typecheck clean.
+
+---
+
+## 2026-09-06 — `background-jobs`: robustness fixes + job-run observability
+
+Triggered by a completeness review of the module with the user. Three parts.
+
+### G1–G4 — review findings from the session
+
+- **G2 — `release()` in `finally` could mask a job failure.** An unguarded
+  rejecting `await` in `finally` replaces the error propagating from the `try`
+  block, so a transient `pg_advisory_unlock` failure would hide a `findDueItems()`
+  throw. Fixed: `release()` is `.catch`-guarded, a failed unlock is logged, never
+  rethrown.
+- **G3 — per-item failures were undiagnosable.** `logger.error(msg, err as Error)`
+  passed an `Error` where a stack string belongs, and no item identity was
+  logged. Added optional `ScheduledJob.describeItem?(item): string` (log-safe id,
+  a throw is swallowed — it can never break a batch), and the runner now logs
+  `failed on invoice a1b2` or `failed on item 2/3`, with `err.stack`.
+- **G4 — the worked example shipped an at-least-once hole.** `emitCritical()` and
+  `markRemindedToday()` are separate transactions, so a failure between them
+  re-sends the reminder. README now threads a deterministic `reminderKey` and
+  spells out the two ways to close it (downstream dedupe via `idempotency-key`,
+  or a transactional outbox).
+- **G1 — session-level advisory lock has connection affinity the pool doesn't
+  give it.** `pg_try_advisory_lock` / `pg_advisory_unlock` through a `pg.Pool`
+  can land on different connections; the unlock no-ops, the lock leaks on the
+  acquiring connection until it idle-closes, and the job silently skips runs.
+  Broken outright through a transaction-mode pooler. **The user chose "Option D"
+  for now** (document + detect, not the lease-table rewrite): `release()` logs a
+  WARN when `pg_advisory_unlock` reports the lock wasn't held; README requires
+  `SQL_EXECUTOR` to be a **dedicated single connection**
+  (`Pool({ max: 1, idleTimeoutMillis: 0 })`), never a transaction pooler; a
+  "Accepted limitations" list was added to the Model 1 section (also covering
+  the unbounded due-set, serial processing, poison-item forever-retry,
+  `hashtext` 32-bit collision, bootstrap-runs-every-deploy). The lease-table fix
+  (Option C) stays documented as the deferred robust answer, paired with the
+  observability work below.
+
+### Job-run observability — built (opt-in), with `application`
+
+`IdempotentJobRunner` now assembles one `JobRunSummary` per execution that
+acquired the lock (`jobName`, `trigger`, `startedAt`/`finishedAt`,
+`outcome: 'completed' | 'job_failed'`, `itemsDue`/`itemsProcessed`/`itemsFailed`,
+`failedItemRefs` capped at 50, `error?`) and hands it to a `JobRunRecorder` in
+the `finally`, best-effort (guarded — a telemetry failure can never mask or
+compound the real outcome, the opposite posture to `audit-logging`). A
+lock-not-acquired return is not a run and is not recorded. `run()` gained an
+optional `{ trigger }` (`'scheduled'` default / `'bootstrap'` / `'manual'`) —
+the schedule wrapper knows why it fired, the runner doesn't.
+
+- **Core** ships the `JobRunRecorder` port + `NoopJobRunRecorder` (the default
+  binding). `BackgroundJobsModule.forRoot({ jobRunRecorderToken })` swaps in a
+  real one; omitted → no-op, zero behaviour change.
+- **`background-jobs/adapters/postgres-drizzle/`** (new, matching the
+  `audit-logging` / `notification` / `authorization` adapter pattern):
+  `job-run.schema.ts` + `job-run.migration.sql` (`job_run` table),
+  `postgres-job-run-recorder.ts` (one `INSERT`, `application` stamped, failed
+  write logged and swallowed), `postgres-job-run-recorder.module.ts`,
+  `job-run-pruner.job.ts` + `.module.ts` (reference `JobRunPrunerJob` — the
+  module dogfooding its own `ScheduledJob` interface; `application`-scoped
+  DELETE, `retentionDays` default 90), `sql-executor.ts` (duplicated),
+  `tokens.ts`, `index.ts`, `README.md`, 3 spec files.
+- **`application` — active, per the user's request**, same call as
+  `notification`: every `job_run` row carries it (from
+  `PostgresJobRunRecorderModule.forRoot({ application })`), every read must
+  filter by it, the pruner's DELETE is scoped to it. `job_run` is the one
+  `background-jobs` surface where multiple Ascendra apps' output could land in
+  one shared operational database.
+- **Missed-schedule detection is downstream, not built** — you cannot record a
+  run that didn't happen; alert on "no `completed` run of job X in longer than
+  its cadence." `trigger` distinguishes a normal fire from a bootstrap catch-up.
+- **No read/query API, no watchdog, no UI contract** — the consumer's admin
+  screen queries `job_run` directly through the re-exported `jobRunTable`.
+
+### Dimension notes
+
+- **4 (`applicationId`)** — core stays N/A (a run never leaves its process).
+  The adapter's `job_run` carries an **active** `application` filter, exactly
+  the `notification` "one step further" case already in `MODULE-STANDARD.md`
+  dimension 4 (a filter with a reader, one value per deployment — not the
+  `domain-events` mistake). Summary-table verdict unchanged (N/A tracks the
+  core, as it does for `notification`).
+- **6 (Model 1/Model 2)** — still Model 1. Observability is a Model 1 extension
+  (was the "Not built" section, now built), not the Model 2 queue.
+- **7 (persistence)** — still Pass. The advisory lock owns no DB; the new
+  `job_run` table is a shared *reference* schema + migration, DB instance and
+  migration execution consumer-owned, matching every other adapter.
+
+**Tests:** 287/287 pass (from 259 at the start of this session — 28 new across
+the G2/G3/G4 + Option D fixes and the observability adapter; all in
+`background-jobs`, which goes 10 → 38), typecheck clean.

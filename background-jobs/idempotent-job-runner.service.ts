@@ -1,7 +1,21 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { AdvisoryLock } from './advisory-lock';
+import { JobRunOutcome, JobRunRecorder, JobRunSummary, JobRunTrigger } from './job-run-recorder.interface';
+import { NoopJobRunRecorder } from './noop-job-run-recorder';
 import { ScheduledJob } from './scheduled-job.interface';
-import { ADVISORY_LOCK } from './tokens';
+import { ADVISORY_LOCK, JOB_RUN_RECORDER } from './tokens';
+
+/** How many failed-item refs a single run's summary carries — a diagnosis sample, not a full list. */
+const MAX_FAILED_ITEM_REFS = 50;
+
+export interface JobRunOptions {
+  /**
+   * Why this run was triggered — recorded on the run summary so the history can
+   * tell a normal scheduled fire from an `OnApplicationBootstrap` catch-up or an
+   * admin-triggered run. Defaults to `'scheduled'`.
+   */
+  trigger?: JobRunTrigger;
+}
 
 /**
  * The safety mechanism, implemented once for every scheduled job in the
@@ -13,39 +27,93 @@ import { ADVISORY_LOCK } from './tokens';
 @Injectable()
 export class IdempotentJobRunner {
   private readonly logger = new Logger(IdempotentJobRunner.name);
+  private readonly recorder: JobRunRecorder;
 
-  constructor(@Inject(ADVISORY_LOCK) private readonly lock: AdvisoryLock) {}
+  constructor(
+    @Inject(ADVISORY_LOCK) private readonly lock: AdvisoryLock,
+    @Optional() @Inject(JOB_RUN_RECORDER) recorder?: JobRunRecorder,
+  ) {
+    // BackgroundJobsModule.forRoot() always binds JOB_RUN_RECORDER; the fallback
+    // keeps `new IdempotentJobRunner(lock)` (tests, ad hoc wiring) working.
+    this.recorder = recorder ?? new NoopJobRunRecorder();
+  }
 
-  async run(job: ScheduledJob<unknown>): Promise<void> {
+  async run(job: ScheduledJob<unknown>, options?: JobRunOptions): Promise<void> {
     const lockKey = `scheduler:${job.name}`;
     const acquired = await this.lock.tryAcquire(lockKey);
-    if (!acquired) return; // another instance already owns this job — including a rolling deploy's overlap window
+    if (!acquired) return; // another instance already owns this job — including a rolling deploy's overlap window. Not a run; not recorded.
+
+    const startedAt = new Date();
+    let itemsDue = 0;
+    let itemsProcessed = 0;
+    let itemsFailed = 0;
+    const failedItemRefs: string[] = [];
+    let outcome: JobRunOutcome = 'completed';
+    let jobError: string | undefined;
 
     try {
       const due = await job.findDueItems();
+      itemsDue = due.length;
       for (let i = 0; i < due.length; i++) {
         try {
           await job.processItem(due[i]);
+          itemsProcessed++;
         } catch (err) {
           // One item's failure never blocks the rest of the batch — it simply stays "due"
           // (processItem never got to mark it) and is picked up again on the very next run.
+          itemsFailed++;
+          const ref = this.describe(job, due[i], i, due.length);
+          if (failedItemRefs.length < MAX_FAILED_ITEM_REFS) failedItemRefs.push(ref);
           this.logger.error(
-            `Scheduled job "${job.name}" failed on ${this.describe(job, due[i], i, due.length)} — it stays due and retries next run`,
+            `Scheduled job "${job.name}" failed on ${ref} — it stays due and retries next run`,
             err instanceof Error ? err.stack : String(err),
           );
         }
       }
+    } catch (err) {
+      // findDueItems() itself threw — a job-level failure, distinct from a single item's.
+      // The error still propagates out of run() (the caller learns the whole job failed to
+      // even query), but the run is recorded as job_failed first, in the finally block.
+      outcome = 'job_failed';
+      jobError = err instanceof Error ? (err.stack ?? err.message) : String(err);
+      throw err;
     } finally {
-      // Always released, even if findDueItems() itself threw — a job-level failure (as
-      // opposed to a single item's failure, caught above) still propagates out of run(),
-      // but never leaves the lock held until the next scheduled fire. The release is
-      // guarded so a failure to *unlock* can never replace the primary error propagating
-      // out of the try block (a rejecting await in finally would otherwise mask it).
+      // Always released, even if findDueItems() threw. Guarded so a failure to *unlock* can
+      // never replace the primary error propagating out of the try block (a rejecting await
+      // in finally would otherwise mask it).
       await this.lock.release(lockKey).catch((err) =>
         this.logger.error(
           `Scheduled job "${job.name}" failed to release its advisory lock "${lockKey}"`,
           err instanceof Error ? err.stack : String(err),
         ),
+      );
+      await this.record({
+        jobName: job.name,
+        trigger: options?.trigger ?? 'scheduled',
+        startedAt,
+        finishedAt: new Date(),
+        outcome,
+        itemsDue,
+        itemsProcessed,
+        itemsFailed,
+        failedItemRefs,
+        error: jobError,
+      });
+    }
+  }
+
+  /**
+   * Best-effort — a failure to record the run is logged, never thrown. Telemetry
+   * about a run must not become a way for that run to fail (contrast audit-logging,
+   * where a failed write is critical by design).
+   */
+  private async record(summary: JobRunSummary): Promise<void> {
+    try {
+      await this.recorder.recordRun(summary);
+    } catch (err) {
+      this.logger.error(
+        `Scheduled job "${summary.jobName}" ran, but recording its run failed`,
+        err instanceof Error ? err.stack : String(err),
       );
     }
   }

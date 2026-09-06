@@ -1,7 +1,8 @@
-import { DynamicModule, Module } from '@nestjs/common';
+import { DynamicModule, Module, Provider } from '@nestjs/common';
 import { PostgresAdvisoryLock } from './postgres-advisory-lock';
 import { IdempotentJobRunner } from './idempotent-job-runner.service';
-import { ADVISORY_LOCK, SQL_EXECUTOR } from './tokens';
+import { NoopJobRunRecorder } from './noop-job-run-recorder';
+import { ADVISORY_LOCK, JOB_RUN_RECORDER, SQL_EXECUTOR } from './tokens';
 
 export interface BackgroundJobsModuleConfig {
   /**
@@ -21,6 +22,15 @@ export interface BackgroundJobsModuleConfig {
    * `global: true`.
    */
   imports?: DynamicModule['imports'];
+
+  /**
+   * Optional. The token a `JobRunRecorder` implementation is provided under —
+   * e.g. `POSTGRES_JOB_RUN_RECORDER` from `adapters/postgres-drizzle`. Omit and
+   * run-history recording is a no-op (`NoopJobRunRecorder`). Whatever module
+   * exports this token must be in `imports` — same `useExisting` visibility
+   * rule as `sqlExecutorToken`.
+   */
+  jobRunRecorderToken?: string | symbol | (new (...args: never[]) => unknown);
 }
 
 /**
@@ -37,6 +47,10 @@ export interface BackgroundJobsModuleConfig {
 @Module({})
 export class BackgroundJobsModule {
   static forRoot(config: BackgroundJobsModuleConfig): DynamicModule {
+    const recorderProvider: Provider = config.jobRunRecorderToken
+      ? { provide: JOB_RUN_RECORDER, useExisting: config.jobRunRecorderToken }
+      : { provide: JOB_RUN_RECORDER, useClass: NoopJobRunRecorder };
+
     return {
       module: BackgroundJobsModule,
       imports: config.imports ?? [],
@@ -44,6 +58,7 @@ export class BackgroundJobsModule {
         { provide: SQL_EXECUTOR, useExisting: config.sqlExecutorToken },
         PostgresAdvisoryLock,
         { provide: ADVISORY_LOCK, useExisting: PostgresAdvisoryLock },
+        recorderProvider,
         IdempotentJobRunner,
       ],
       exports: [IdempotentJobRunner],

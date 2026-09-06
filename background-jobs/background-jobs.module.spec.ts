@@ -3,9 +3,13 @@ import { Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { BackgroundJobsModule } from './background-jobs.module';
 import { IdempotentJobRunner } from './idempotent-job-runner.service';
+import { NoopJobRunRecorder } from './noop-job-run-recorder';
+import { JobRunRecorder } from './job-run-recorder.interface';
 import { ScheduledJob } from './scheduled-job.interface';
+import { JOB_RUN_RECORDER } from './tokens';
 
 const DB_CONNECTION = Symbol('DB_CONNECTION');
+const FAKE_RECORDER = Symbol('FAKE_RECORDER');
 
 /**
  * Stands in for a consuming app's own Drizzle db provider. BackgroundJobsModule.forRoot()
@@ -44,5 +48,40 @@ describe('BackgroundJobsModule.forRoot — real DI wiring', () => {
     // resolved to that same PostgresAdvisoryLock instance — a missing binding or a
     // useExisting mismatch anywhere in that chain would have thrown at compile() instead.
     expect(job.processItem).toHaveBeenCalledWith('x');
+  });
+
+  it('binds JOB_RUN_RECORDER to NoopJobRunRecorder when no jobRunRecorderToken is given', async () => {
+    const moduleRef = await buildTestModule();
+    expect(moduleRef.get(JOB_RUN_RECORDER)).toBeInstanceOf(NoopJobRunRecorder);
+  });
+
+  it('aliases JOB_RUN_RECORDER to the supplied token and the runner writes each run through it', async () => {
+    const recordRun = vi.fn().mockResolvedValue(undefined);
+
+    @Module({
+      providers: [{ provide: FAKE_RECORDER, useValue: { recordRun } satisfies JobRunRecorder }],
+      exports: [FAKE_RECORDER],
+    })
+    class FakeRecorderModule {}
+
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        BackgroundJobsModule.forRoot({
+          sqlExecutorToken: DB_CONNECTION,
+          imports: [FakeDatabaseModule, FakeRecorderModule],
+          jobRunRecorderToken: FAKE_RECORDER,
+        }),
+      ],
+    }).compile();
+
+    await moduleRef.get(IdempotentJobRunner).run(
+      { name: 'wiring-test-job', findDueItems: vi.fn().mockResolvedValue(['x']), processItem: vi.fn() },
+      { trigger: 'manual' },
+    );
+
+    expect(recordRun).toHaveBeenCalledTimes(1);
+    expect(recordRun).toHaveBeenCalledWith(
+      expect.objectContaining({ jobName: 'wiring-test-job', trigger: 'manual', outcome: 'completed', itemsDue: 1 }),
+    );
   });
 });

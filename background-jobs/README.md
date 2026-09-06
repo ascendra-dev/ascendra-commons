@@ -16,14 +16,17 @@ The motivating case was invoice payment reminders (a project's brief promising
 automatic follow-up on overdue amounts), but that's one consumer of this
 pattern, not what the pattern is about — see the worked example below.
 
-Built and audited against `MODULE-STANDARD.md` (this repo's root). Neither
-`applicationId` nor `tenantId` appears anywhere in this module, both
-deliberately: a run never leaves the process it happens in (no `applicationId`
-use case), and `IdempotentJobRunner`/`AdvisoryLock` never see an individual
-item's tenant at all — tenancy, if relevant, lives entirely inside the
+Built and audited against `MODULE-STANDARD.md` (this repo's root). `tenantId`
+appears nowhere: `IdempotentJobRunner`/`AdvisoryLock` never see an individual
+item's tenant — tenancy, if relevant, lives entirely inside the
 project-supplied `ScheduledJob.findDueItems()`/`processItem()` (see the worked
-example's own `withTenantContext` calls). There's nothing tenant-shaped for
-this module's own logic to take a parameter for.
+example's own `withTenantContext` calls). `applicationId` appears nowhere in
+the **core** — a run never leaves the process it happens in — but the
+`adapters/postgres-drizzle` run-history table carries an `application` column
+and every read filters by it, the same dimension-4 call `notification` and
+`audit-logging` make: `job_run` is the one surface where multiple Ascendra
+apps' output could plausibly land in one shared operational database, so the
+column is carried now to avoid a later backfill.
 
 ## The pieces
 
@@ -118,24 +121,28 @@ resembling a database shape.
 ### `IdempotentJobRunner` — the safety mechanism, implemented once
 
 ```typescript
-async run(job: ScheduledJob<unknown>): Promise<void> {
+async run(job: ScheduledJob<unknown>, options?: { trigger?: JobRunTrigger }): Promise<void> {
   const lockKey = `scheduler:${job.name}`;
-  if (!(await this.lock.tryAcquire(lockKey))) return;
+  if (!(await this.lock.tryAcquire(lockKey))) return; // not a run — not recorded
+  // ...capture startedAt + item counters...
   try {
     const due = await job.findDueItems();
     for (let i = 0; i < due.length; i++) {
       try {
-        await job.processItem(due[i]);
+        await job.processItem(due[i]);          // itemsProcessed++
       } catch (err) {
-        this.logger.error(
-          `Scheduled job "${job.name}" failed on ${this.describe(job, due[i], i, due.length)} — it stays due and retries next run`,
-          err instanceof Error ? err.stack : String(err),
-        );
+        // itemsFailed++, failedItemRefs.push(describe(...)) capped at 50
+        this.logger.error(`Scheduled job "${job.name}" failed on ${this.describe(...)} …`, err.stack);
       }
     }
+  } catch (err) {
+    outcome = 'job_failed'; jobError = err.stack;  // findDueItems() threw
+    throw err;
   } finally {
     // guarded: a failure to *unlock* must never replace the primary error from the try block
     await this.lock.release(lockKey).catch((err) => this.logger.error(/* ... */));
+    // best-effort: a failure to *record* must never mask or compound the real outcome
+    await this.record({ jobName: job.name, trigger: options?.trigger ?? 'scheduled', outcome, ... });
   }
 }
 ```
@@ -149,7 +156,9 @@ whole job failed to even query, rather than that being silently swallowed.
 The `release()` in `finally` is `.catch`-guarded for exactly that reason: an
 unguarded rejecting `await` in a `finally` replaces whatever the `try` block
 was throwing, so a transient unlock failure would otherwise mask the real
-job-level error. A failed release is logged, never rethrown.
+job-level error. A failed release is logged, never rethrown — and the run
+recording that follows it is guarded the same way, for the same reason (see
+"Job-run observability" below).
 
 ### Scheduling composition — left to each job, not owned by the runner
 
@@ -163,12 +172,13 @@ export class SomeJobSchedule implements OnApplicationBootstrap {
   constructor(private readonly runner: IdempotentJobRunner, private readonly job: SomeJob) {}
 
   async onApplicationBootstrap() {
-    await this.runner.run(this.job); // catches up if the scheduled fire below was missed
+    // catches up if the scheduled fire below was missed; trigger tags the run in the history
+    await this.runner.run(this.job, { trigger: 'bootstrap' });
   }
 
   @Cron('0 8 * * *') // this job's own cadence — not shared with any other job
   async scheduledRun() {
-    await this.runner.run(this.job);
+    await this.runner.run(this.job); // trigger defaults to 'scheduled'
   }
 }
 ```
@@ -178,10 +188,12 @@ A genuine alternative was considered and set aside, not overlooked: `@nestjs/sch
 ## Model 1 — In-Process Loop, Postgres Advisory Lock (current)
 
 What's shipped in this folder: `ScheduledJob<TItem>`, `AdvisoryLock`,
-`PostgresAdvisoryLock`, `IdempotentJobRunner`, and
-`BackgroundJobsModule.forRoot()`. No queue, no backoff policy, no
-dead-letter path, no scheduling built in — each job supplies its own
-`@Cron`/`OnApplicationBootstrap` wiring around the shared runner.
+`PostgresAdvisoryLock`, `IdempotentJobRunner`, the `JobRunRecorder` port +
+`NoopJobRunRecorder`, and `BackgroundJobsModule.forRoot()`. Plus
+`adapters/postgres-drizzle/` — a ready-made `PostgresJobRunRecorder` (+ its
+`job_run` table) and a reference `JobRunPrunerJob`. No queue, no backoff
+policy, no dead-letter path, no scheduling built in — each job supplies its
+own `@Cron`/`OnApplicationBootstrap` wiring around the shared runner.
 
 Accepted limitations, each covered above where it's relevant:
 
@@ -192,51 +204,70 @@ Accepted limitations, each covered above where it's relevant:
   processed **serially** — a job that falls far behind, or one with a large
   due-set and per-item latency, holds the lock for the full batch. A job can
   self-limit its batch, but then catch-up rate is bounded by cadence.
-- **A permanently-failing item retries every run forever**, logging each time
-  — no attempt counter, no dead-letter. This is the Model 2 trigger.
+- **A permanently-failing item retries every run forever** — no attempt
+  counter, no dead-letter. It's logged each run, and (with a recorder wired)
+  shows up in each run's `failedItemRefs`, so "same item failing every run" is
+  at least visible — but nothing *stops* it. This is the Model 2 trigger.
 - **`hashtext()` is a 32-bit hash** — two distinct job names could in
   principle collide onto one lock. Keep names in one catalog; a handful of
   jobs makes this negligible.
 - **`onApplicationBootstrap` runs the job on every pod at every deploy** (the
   lock means only one executes) — not just after a genuine missed fire.
 
-### Not built: job-run observability — a real Model 1 extension, not Model 2
+### Job-run observability
 
-Recorded so it isn't lost, not built speculatively: today `IdempotentJobRunner.run()`
-has zero observability beyond a logged per-item failure — no record of a run
-happening, succeeding, or failing anywhere queryable, and no way for an admin
-screen to show "did this job run, and did it work." The design, when a real
-admin-ops screen story asks for it:
+`IdempotentJobRunner` assembles one `JobRunSummary` per execution that
+acquired the lock and hands it to a `JobRunRecorder`:
 
 ```typescript
-export interface JobRunSummary {
+type JobRunTrigger = 'scheduled' | 'bootstrap' | 'manual';
+type JobRunOutcome = 'completed' | 'job_failed'; // job_failed = findDueItems() itself threw
+
+interface JobRunSummary {
   jobName: string;
+  trigger: JobRunTrigger;
   startedAt: Date;
   finishedAt: Date;
-  outcome: 'completed' | 'job_failed'; // job_failed = findDueItems() itself threw
+  outcome: JobRunOutcome;
+  itemsDue: number;       // 0 on a job_failed run
   itemsProcessed: number;
   itemsFailed: number;
-  error?: string;
+  failedItemRefs: string[]; // describeItem() output for failed items, capped at 50
+  error?: string;          // job-level stack, only when outcome === 'job_failed'
 }
 
-export interface JobRunRecorder {
-  recordRun(summary: JobRunSummary): Promise<void>; // best-effort — must never propagate a failure itself
+interface JobRunRecorder {
+  recordRun(summary: JobRunSummary): Promise<void>; // best-effort — must never throw
 }
 ```
 
-`IdempotentJobRunner.run()` would track `startedAt` and running item counts,
-then call `recorder.recordRun(...)` once at the end, wrapped in its own
-try/catch so a failure to *record* the outcome can never mask or compound the
-real one. Deliberately not the `audit-logging` pattern's `AuditEventRepository`,
-even though both look like "something happened, record it" — the reliability
-postures are opposite. Audit writes are critical by design (a failed write
-should roll back the triggering operation); a job-run record must never
-itself fail loudly enough to compound a real job failure, and its query shape
-(`outcome`, `started_at`, `job_name` as real columns, not values buried in
-generic JSONB) is different too. A lock-not-acquired return shouldn't get a
-run record at all — a rolling deploy's overlap window makes that a normal,
-frequent, uninteresting event, not something worth cluttering the history
-with.
+What it answers:
+
+- **Did it work?** `outcome` (`job_failed` = `findDueItems()` threw, nothing
+  processed) plus `itemsFailed` (a run where some `processItem()` calls threw
+  is still `completed`, with those items left due).
+- **What's stuck?** `failedItemRefs` — "invoice a1b2 failed the last 6 runs"
+  becomes a query. Capped; it's a diagnosis sample, not a dead-letter queue
+  (per-item retry policy is Model 2).
+- **Did it run at all / missed schedule?** *Derived*, not recorded — you
+  cannot write a row for a run that never happened. Alert on "no `completed`
+  run for job X in longer than its cadence." `trigger` sharpens it: a spike of
+  `bootstrap` runs processing large batches means scheduled fires were being
+  missed and the `OnApplicationBootstrap` catch-up compensated.
+
+Design constraints, each deliberate:
+
+- **Best-effort, the opposite of `audit-logging`.** An audit write is critical
+  (a failure should roll the triggering operation back). A run record must
+  never mask or compound a real job failure — so `JobRunRecorder` implementations
+  must not throw, *and* `IdempotentJobRunner` guards the call anyway.
+- **A lock-not-acquired return is not a run** and is never recorded — a rolling
+  deploy's overlap window makes that frequent, uninteresting noise.
+- **The runner owns no persistence.** `NoopJobRunRecorder` is the default;
+  `BackgroundJobsModule.forRoot({ jobRunRecorderToken })` swaps in a real one.
+  `adapters/postgres-drizzle/` ships `PostgresJobRunRecorder` and its `job_run`
+  table — see that folder's README. A different stack provides its own
+  `JobRunRecorder` against the same port.
 
 ## Model 2 — Dedicated Job Queue (future target)
 
@@ -280,15 +311,28 @@ export class SchedulerDbModule {}
   imports: [
     BackgroundJobsModule.forRoot({
       sqlExecutorToken: SCHEDULER_DB,   // the dedicated connection above — NOT the app's DATABASE_CONNECTION pool
-      imports: [SchedulerDbModule],     // whatever module exports that token — useExisting can't see it otherwise
+      imports: [
+        SchedulerDbModule,             // exports SCHEDULER_DB — useExisting can't see it otherwise
+        // optional — run-history recording; omit for no-op. Uses the app's NORMAL pooled db, not SCHEDULER_DB.
+        PostgresJobRunRecorderModule.forRoot({
+          sqlExecutorToken: DRIZZLE,
+          application: 'ascendra-pay',
+          imports: [],                 // DRIZZLE is @Global in pay-api
+        }),
+      ],
+      jobRunRecorderToken: POSTGRES_JOB_RUN_RECORDER, // omit → NoopJobRunRecorder
     }),
+    // optional — keeps job_run pruned; give JobRunPrunerJob a cadence with a schedule class
+    JobRunPrunerModule.forRoot({ sqlExecutorToken: DRIZZLE, application: 'ascendra-pay', retentionDays: 90 }),
   ],
 })
 export class AppModule {}
 ```
 
 Each job's own `findDueItems()` / `processItem()` still use the app's normal
-pooled `db` — only the lock needs the dedicated connection.
+pooled `db` — only the advisory lock needs the dedicated connection. The
+run recorder and pruner also use the normal pooled `db` (see
+`adapters/postgres-drizzle/README.md`).
 
 `imports` is required unless the module providing `sqlExecutorToken` is itself
 marked `global: true` — `useExisting` only resolves a token NestJS can already
