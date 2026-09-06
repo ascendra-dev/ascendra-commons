@@ -4,12 +4,17 @@ Living checklist for adding, per module, the read/query surface an admin UI need
 ("observe") and the safe config mutations ("administer"). Pattern, matching what
 `background-jobs` already ships:
 
-- Everything lives in `<module>/adapters/postgres-drizzle/`, **flat folder**, one
-  `index.ts` barrel, opt-in via a `forRoot`.
-- The module ships the **service + typed DTOs**. The consuming project writes the
-  HTTP controller and gates it with its own `Authorizer` — `ascendra-commons` is
-  backend-pattern-only (no shipped controllers/UI).
-- Reads are `application`-scoped and keyset-paginated where they can be large.
+- For a single-folder module: everything lives in
+  `<module>/adapters/postgres-drizzle/`, **flat folder**, one `index.ts` barrel,
+  opt-in via a `forRoot`.
+- **For a module split into packages (MODULE-STANDARD §1b, e.g. `authorization`
+  as of 2026-09-07):** the **port** (interface + DTOs) lives in the
+  `.core.<family>` package; the **implementation** lives in the stack adapter's
+  `admin/` sub-folder; the HTTP **endpoints** live in the `.api` package. A
+  second Model 2 stack re-implements the port, nothing else.
+- The module ships the **service + typed DTOs** (and, for a split module, the
+  `.api` controllers too — MODULE-STANDARD dimension 8). Reads are
+  `application`-scoped and keyset-paginated where they can be large.
 - Read services never mutate; admin operations are separate, explicit methods.
 
 Status key: ☐ todo · ◐ in progress · ☑ done

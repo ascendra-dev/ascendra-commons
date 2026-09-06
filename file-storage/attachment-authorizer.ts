@@ -1,5 +1,5 @@
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
-import { AUTHORIZER, type Actor, type Authorizer } from '../authorization';
+import { AUTHORIZER, type Actor, type Authorizer } from '../authorization/authorization.core';
 import type { EntityAccessChecker } from './entity-access-checker.interface';
 import { ENTITY_ACCESS_CHECKERS } from './tokens';
 

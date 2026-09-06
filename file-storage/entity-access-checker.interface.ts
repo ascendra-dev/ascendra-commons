@@ -1,4 +1,4 @@
-import type { Actor } from '../authorization';
+import type { Actor } from '../authorization/authorization.core';
 
 /**
  * Answers "does this actor have a relationship to *this* entity" — one

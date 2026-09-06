@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
 import { RegistryAttachmentAuthorizer } from './attachment-authorizer';
-import { Authorizer, Actor } from '../authorization';
+import { Authorizer, Actor } from '../authorization/authorization.core';
 import { EntityAccessChecker } from './entity-access-checker.interface';
 
 const actor: Actor = { id: 'u1', persona: 'issuer', tenantId: 't1' };

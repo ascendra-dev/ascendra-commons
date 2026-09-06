@@ -6,7 +6,8 @@ import { FILE_STORE, ATTACHMENT_STORE } from './tokens';
 import { FileStore } from './file-store.interface';
 import { AttachmentStore } from './attachment-store';
 import { RegistryAttachmentAuthorizer } from './attachment-authorizer';
-import { AuthorizationModule, Actor } from '../authorization';
+import { AuthorizationModule, Actor } from '../authorization/authorization.core';
+import { StaticMapAuthorizerModule, STATIC_MAP_AUTHORIZER } from '../authorization/authorization.core.static-map';
 
 const SUPABASE_CLIENT_IMPL = Symbol('SUPABASE_CLIENT_IMPL');
 const ATTACHMENT_STORE_IMPL = Symbol('ATTACHMENT_STORE_IMPL');
@@ -40,7 +41,12 @@ class FakeInfraModule {}
 // dynamic module object reused across imports arrays, the safe way to share a
 // configured dynamic module between two importing modules in the same graph.
 const configuredAuthorizationModule = AuthorizationModule.forRoot({
-  personaActions: { issuer: ['attachment.upload', 'attachment.view'], payer: [] },
+  authorizerToken: STATIC_MAP_AUTHORIZER,
+  imports: [
+    StaticMapAuthorizerModule.forRoot({
+      personaActions: { issuer: ['attachment.upload', 'attachment.view'], payer: [] },
+    }),
+  ],
 });
 
 async function buildTestModule() {

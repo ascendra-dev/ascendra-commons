@@ -39,6 +39,15 @@ NestJS `Test.createTestingModule`, since wiring bugs (a missing binding, a
 when a real container resolves the dependency graph, not from typecheck or
 hand-constructed unit tests alone.
 
+A pattern that has outgrown one folder — a real Model 1 *and* Model 2, more than
+one plausible Model 2 stack, an admin/observability surface — becomes a
+**container folder of dot-named packages** (`authorization.core`,
+`authorization.core.static-map`, `authorization.core.permission-table`,
+`authorization.core.permission-table.postgres-drizzle`, `authorization.api`),
+each an independent copy unit with its own barrel and README, dependencies
+one-way toward `.core`. See `MODULE-STANDARD.md` §1b. `authorization` (2026-09-07)
+is the first; the others follow when they hit the same signals.
+
 See `MODULE-STANDARD.md` for the full checklist every pattern is built and
 audited against — export boundary, packaging, `applicationId`/`tenantId`
 seams, the Model 1/Model 2 split, persistence ownership, UI contract, naming,

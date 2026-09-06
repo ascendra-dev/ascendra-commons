@@ -24,16 +24,48 @@ audit checklist against the six that already exist.
 
 ---
 
+## 1b. Package roles (added 2026-09-07, first applied to `authorization`)
+
+A module that has grown a real Model 1 / Model 2 split, more than one plausible
+Model 2 stack, and an admin/observability surface is no longer one folder. It is
+a **container folder** of dot-named **packages**, each an independent copy unit
+(own `index.ts`, `README.md`, specs, real-DI boot test):
+
+| Package | Role |
+|---|---|
+| `<module>.core` | The contract only — interfaces, the cross-cutting mechanism (guard/decorators/compute helpers), `forRoot()` as pure token wiring, a `Missing*` throwing stub. **No working implementation.** |
+| `<module>.core.<capability>` | A Model 1-style single implementation (e.g. `authorization.core.static-map`). |
+| `<module>.core.<family>` | A Model 2 family — stack-agnostic: ports a stack adapter implements, DTOs, pure rules, the port-based implementation. No SQL. |
+| `<module>.core.<family>.<db>-<orm>` | One stack (e.g. `…permission-table.postgres-drizzle`) — schema, migration, repositories, seed **only**. Sub-folders by job allowed here; `index.ts` stays the sole public surface and exports modules, not classes. |
+| `<module>.api` | Opt-in HTTP controllers + thin `.api` services + request DTOs, over the family **ports**. Never imports a stack adapter — wired to one at the vertical via tokens. |
+| `<module>.ui` | Reserved — React, ships from `ascendra-commons-ui`, not here. |
+
+**Dependency direction is one-way toward `.core`.** A vendored module that
+depends on another (`file-storage` → `authorization`) depends on its **`.core`
+package only** — never a `.static-map`, `.<family>`, `.<stack>`, or `.api`.
+
+**Naming:** container folder per module; child folder names repeat the module
+prefix (`authorization.core`, not `core`) so each is self-identifying when
+copied; name by capability (`static-map`, `permission-table`), not slot
+(`model1`/`model2`); stack is `<db>-<orm>`.
+
+**Don't split preemptively.** A module with a prose-only Model 2 and no admin
+surface stays one folder (dimension 6). The split is earned by the same signals
+a real stub is (dimension 6) plus a concrete second consumer of the family ports
+(the `.api` package is one).
+
 ## 2. The eleven dimensions
 
 ### 1. Export boundary
 
-One `index.ts` barrel per module. Anything not re-exported through it is
-invisible outside the module — feature code, and other modules, import only
-`from './index'` (or the consumer's path-aliased equivalent), never a file
-inside the module directly. This is what makes the copy-distribution model and
-the Model 1 → Model 2 swap both low-friction: nothing outside the module has
-ever depended on anything but its exported surface.
+One `index.ts` barrel per **package** (see 1b) — for a single-folder module
+that's the module; for a split one it's each dot-named package. Anything not
+re-exported through it is invisible outside that package — feature code, other
+modules, and *sibling packages* import only `from '<sibling>/index'` (or the
+path-aliased equivalent), never a file inside. This is what makes the
+copy-distribution model, the Model 1 → Model 2 swap, and the family/stack split
+all low-friction: nothing outside a package has ever depended on anything but its
+exported surface.
 
 ### 2. Packaging & distribution
 
@@ -134,10 +166,18 @@ building it — never "eventually" or "when we scale."
 **Default: prose only, no stub class, no token, no seam in code.** A real
 stub (interface + placeholder implementation that throws, wired through
 `forRoot()`) is the exception, earned by a *named, near-term* signal — the
-same bar `PermissionTableAuthorizer` and `DOMAIN_EVENTS_APPLICATION_ID` were
-held to. Seaming
+same bar `DOMAIN_EVENTS_APPLICATION_ID` was held to. Seaming
 every module preemptively is the noise this standard exists to prevent, not
 create.
+
+**Once both models are real, they become separate packages (1b), not classes
+in one folder.** `authorization` (2026-09-07) is the worked example: `.core`
+ships only the `Authorizer` interface + a `MissingAuthorizer` throwing stub;
+Model 1 is `authorization.core.static-map`; Model 2 is the
+`authorization.core.permission-table` family + a per-stack adapter. `forRoot()`
+in `.core` stops importing any concrete model — it is pure token wiring, and
+both models wire through it identically (`authorizerToken` + the module that
+provides it).
 
 ### 7. Persistence ownership
 
@@ -183,13 +223,21 @@ Two different questions, not one — score them separately:
 - **Administration UI.** Does the module need a management surface for
   *configuring itself* — defining roles, editing templates, browsing records?
   This is a separate concern from the first, and a module can score
-  differently on each (`authorization` is a full Pass on the first, and only a
-  one-paragraph sketch — appropriately, since it's downstream of an
-  unbuilt Model 2, not a Gap — on the second).
+  differently on each.
 
 Modules with no user-facing surface at all on either question
 (`domain-events`, `background-jobs`, `idempotency-key`) are marked **N/A** on
 both.
+
+**The "no shipped controllers" rule is relaxed for a `.api` package (1b).**
+Originally this repo shipped services + DTOs only and left the HTTP controller
+to the consumer. That still holds for a single-folder module. But once a module
+has a `.core.<family>` with admin/observability **ports**, a `.api` package may
+ship generic NestJS controllers against those ports — they carry no
+app-specific logic, are gated by the consumer's own `Authorizer` via
+`@RequiresAction`, and the actor-scoped rules (tenant/role ceiling) live in a
+thin `.api` service between controller and port. `authorization.api`
+(2026-09-07) is the first. React stays out — that's `ascendra-commons-ui`.
 
 ### 9. Naming convention
 
