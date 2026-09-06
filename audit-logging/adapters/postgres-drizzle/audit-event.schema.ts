@@ -38,12 +38,12 @@ export const auditEventTable = pgTable(
     /** The business fact's own time, not the moment the audit row was written. */
     occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'date' }).notNull(),
     /**
-     * Which Ascendra application wrote this row (e.g. `'ascendra-pay'`). Passive
-     * metadata — stamped on insert from
-     * `PostgresAuditPersistenceModule.forRoot({ application })`, never filtered
-     * on. Free to carry now (before any row exists); it removes an
-     * otherwise-necessary backfill migration if audit data is ever consolidated
-     * for cross-product compliance reporting (see `MODULE-STANDARD.md`
+     * Which Ascendra application wrote this row (e.g. `'ascendra-pay'`) —
+     * stamped on insert from `PostgresAuditPersistenceModule.forRoot({ application })`
+     * and filtered on (`application = $1`) by `PostgresAuditEventReader`, so an
+     * app's own admin screen sees only its own rows. Constant within one app's
+     * database; the column keeps this table correct if audit history is ever
+     * consolidated for cross-product compliance reporting (see `MODULE-STANDARD.md`
      * dimension 4, and this module's README "the one to watch" note).
      */
     application: text('application').notNull(),

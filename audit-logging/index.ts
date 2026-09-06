@@ -1,6 +1,7 @@
 export type { AuditEvent, AuditEventInput } from './audit-event.interface';
 export { AuditRecordRaised } from './audit-record-raised';
 export type { AuditEventRepository } from './audit-event-repository';
+export type { AuditEventReader, AuditQuery, AuditQueryResult } from './audit-event-reader';
 export { persistAuditRecord } from './persist-audit-record';
 export { AuditListener } from './audit-listener';
 export { runWithCorrelationId, getCurrentCorrelationId } from './correlation-context';

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
-import { PostgresJobStatusService } from './job-status.service';
+import { PostgresJobObservabilityService } from './job-observability.service';
 import type { SqlExecutor } from './sql-executor';
 
 const dialect = new PgDialect();
@@ -37,10 +37,10 @@ function row(over: Partial<Record<string, unknown>> = {}): Record<string, unknow
 
 const NOW = new Date('2026-06-10T00:00:00Z').getTime();
 function svc(db: SqlExecutor, cadences: Record<string, string | number> = {}) {
-  return new PostgresJobStatusService(db, 'ascendra-pay', cadences);
+  return new PostgresJobObservabilityService(db, 'ascendra-pay', cadences);
 }
 
-describe('PostgresJobStatusService.getRunHistory', () => {
+describe('PostgresJobObservabilityService.getRunHistory', () => {
   it('maps rows and scopes to the application', async () => {
     const db = fakeDb([row({ job_name: 'a' }), row({ job_name: 'b' })]);
     const page = await svc(db).getRunHistory();
@@ -88,7 +88,7 @@ describe('PostgresJobStatusService.getRunHistory', () => {
   });
 });
 
-describe('PostgresJobStatusService.listJobStatus', () => {
+describe('PostgresJobObservabilityService.listJobStatus', () => {
   beforeEach(() => {
     vi.useFakeTimers({ now: NOW });
   });

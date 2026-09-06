@@ -7,7 +7,7 @@ import { pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
  * works through a transaction-mode pooler — unlike the session-level
  * `pg_advisory_lock` the core's `PostgresAdvisoryLock` uses.
  *
- * Source of truth for the reference schema; `scheduler-lock.migration.sql` in
+ * Source of truth for the reference schema; `lease-lock.migration.sql` in
  * this folder is the hand-kept DDL form, and `postgres-lease-lock.ts`'s
  * statements are the third copy — keep the three in sync.
  *
@@ -18,7 +18,7 @@ import { pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
  * `application` scopes the lock the same way it scopes `commons_jobs_job_run` — two
  * Ascendra apps sharing one database don't contend on a same-named job's lock.
  */
-export const schedulerLockTable = pgTable(
+export const leaseLockTable = pgTable(
   'commons_jobs_lock',
   {
     application: text('application').notNull(),

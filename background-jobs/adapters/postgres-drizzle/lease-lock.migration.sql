@@ -4,10 +4,10 @@
 --
 -- This library never runs migrations against a consumer's database (see
 -- MODULE-STANDARD.md dimension 7). Copy this into the consuming project's own
--- migration tooling, or export `schedulerLockTable` from
--- `scheduler-lock.schema.ts` and let `drizzle-kit generate` produce it.
+-- migration tooling, or export `leaseLockTable` from
+-- `lease-lock.schema.ts` and let `drizzle-kit generate` produce it.
 --
--- Keep this in sync with `scheduler-lock.schema.ts` and the statements in
+-- Keep this in sync with `lease-lock.schema.ts` and the statements in
 -- `postgres-lease-lock.ts` — the three describe one table.
 --
 -- `locked_until` is the lease: a holder that crashes without releasing lets the

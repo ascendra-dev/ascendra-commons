@@ -6,10 +6,10 @@ export type { PostgresJobRunRecorderModuleConfig } from './postgres-job-run-reco
 export { JobRunPrunerJob } from './job-run-pruner.job';
 export { JobRunPrunerModule } from './job-run-pruner.module';
 export type { JobRunPrunerModuleConfig } from './job-run-pruner.module';
-export { PostgresJobStatusService } from './job-status.service';
-export { PostgresJobStatusModule } from './job-status.module';
-export type { PostgresJobStatusModuleConfig } from './job-status.module';
-export { schedulerLockTable } from './scheduler-lock.schema';
+export { PostgresJobObservabilityService } from './job-observability.service';
+export { PostgresJobObservabilityModule } from './job-observability.module';
+export type { PostgresJobObservabilityModuleConfig } from './job-observability.module';
+export { leaseLockTable } from './lease-lock.schema';
 export { PostgresLeaseLock } from './postgres-lease-lock';
 export { PostgresLeaseLockModule } from './postgres-lease-lock.module';
 export type { PostgresLeaseLockModuleConfig } from './postgres-lease-lock.module';
@@ -19,12 +19,12 @@ export type {
   JobCadenceView,
   RunHistoryQuery,
   RunHistoryPage,
-} from './job-status.types';
+} from './job-observability.types';
 export {
   JOB_RUN_SQL_EXECUTOR,
   JOB_RUN_APPLICATION_ID,
   JOB_RUN_RETENTION_DAYS,
-  JOB_STATUS_CADENCES,
+  JOB_OBSERVABILITY_CADENCES,
   POSTGRES_JOB_RUN_RECORDER,
   LEASE_LOCK_SQL_EXECUTOR,
   LEASE_LOCK_APPLICATION_ID,

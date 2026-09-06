@@ -6,7 +6,7 @@ application name:
 
 - `JobRunRecorder` — run-history observability (the `commons_jobs_job_run` table)
 - `JobRunPrunerJob` — a reference retention job
-- `PostgresJobStatusService` — read-only reporting for an admin UI: the
+- `PostgresJobObservabilityService` — read-only reporting for an admin UI: the
   run-history log and the jobs dashboard (with overdue detection)
 - `PostgresLeaseLock` — a pool-safe `AdvisoryLock` (the `commons_jobs_lock`
   table), an alternative to the core's session-level `PostgresAdvisoryLock`
@@ -32,18 +32,18 @@ different stack ignores it and provides its own.
 | `postgres-job-run-recorder.module.ts` | `PostgresJobRunRecorderModule.forRoot(...)` — binds the recorder to your db token, exports it as `POSTGRES_JOB_RUN_RECORDER`. |
 | `job-run-pruner.job.ts` | `JobRunPrunerJob` — a reference `ScheduledJob` that deletes this application's `commons_jobs_job_run` rows past a retention window. The module dogfooding its own interface. |
 | `job-run-pruner.module.ts` | `JobRunPrunerModule.forRoot(...)` — provides `JobRunPrunerJob` bound to your db, application, and `retentionDays` (default 90). |
-| `job-status.service.ts` | `PostgresJobStatusService` — `getRunHistory()` (paginated log) + `listJobStatus()` (per-job dashboard with overdue detection). Read-only. |
-| `job-status.module.ts` | `PostgresJobStatusModule.forRoot(...)` — binds the service to your db token, application, and optional `cadences`. |
+| `job-observability.service.ts` | `PostgresJobObservabilityService` — `getRunHistory()` (paginated log) + `listJobStatus()` (per-job dashboard with overdue detection). Read-only. |
+| `job-observability.module.ts` | `PostgresJobObservabilityModule.forRoot(...)` — binds the service to your db token, application, and optional `cadences`. |
 | `cadence.ts` | Parses the `cadences` hints (`'1d'`, `'2h'`, seconds …). |
-| `scheduler-lock.schema.ts` / `scheduler-lock.migration.sql` | The `commons_jobs_lock` table for `PostgresLeaseLock`. |
+| `lease-lock.schema.ts` / `lease-lock.migration.sql` | The `commons_jobs_lock` table for `PostgresLeaseLock`. |
 | `postgres-lease-lock.ts` | `PostgresLeaseLock` — a lease-row `AdvisoryLock`: conditional-upsert claim, heartbeat renewal, `DELETE` release. Pool-safe. |
 | `postgres-lease-lock.module.ts` | `PostgresLeaseLockModule.forRoot(...)` — binds the lock to your db token, application, `leaseSeconds`; exports `POSTGRES_LEASE_LOCK`. |
 | `sql-executor.ts` | The minimal db shape these need (`execute(sql)`), so the adapter never imports your generated schema. |
 
 Two tables, each with three copies to keep in sync: `commons_jobs_job_run`
 (`job-run.schema.ts` / `job-run.migration.sql` / the INSERT in
-`postgres-job-run-recorder.ts`) and `commons_jobs_lock` (`scheduler-lock.schema.ts`
-/ `scheduler-lock.migration.sql` / the statements in `postgres-lease-lock.ts`).
+`postgres-job-run-recorder.ts`) and `commons_jobs_lock` (`lease-lock.schema.ts`
+/ `lease-lock.migration.sql` / the statements in `postgres-lease-lock.ts`).
 
 ## Consuming it
 
@@ -121,10 +121,10 @@ its own runs show up in `commons_jobs_job_run` too, under `job-run-pruner`. Add
 `JobRunPrunerModule` in `imports`) to also make it triggerable on demand via
 `JobTrigger`.
 
-### 4. (optional) Reporting for an admin UI — `PostgresJobStatusService`
+### 4. (optional) Reporting for an admin UI — `PostgresJobObservabilityService`
 
 ```typescript
-PostgresJobStatusModule.forRoot({
+PostgresJobObservabilityModule.forRoot({
   sqlExecutorToken: DATABASE_CONNECTION,   // normal pooled db — reads only
   application: 'ascendra-pay',
   cadences: { 'invoice-reminder': '1d', 'session-cleanup': '1h' }, // optional; see below
@@ -179,8 +179,8 @@ The core's default `PostgresAdvisoryLock` uses a **session-level**
 connection and is unsupported through a transaction-mode pooler (see the module
 README). `PostgresLeaseLock` replaces it with a `commons_jobs_lock` **row**:
 
-- **Create the table** — `export { schedulerLockTable }` for `drizzle-kit`, or
-  paste `scheduler-lock.migration.sql`.
+- **Create the table** — `export { leaseLockTable }` for `drizzle-kit`, or
+  paste `lease-lock.migration.sql`.
 - **Wire it** as the lock:
 
 ```typescript
@@ -228,7 +228,7 @@ How it behaves:
 - **`commons_jobs_lock` doesn't need pruning** — it's at most one row per job,
   reused in place. A stale row from a crashed holder is harmless (the next
   claim overwrites it once the lease expires).
-- **Reads: `PostgresJobStatusService` or your own query.** The service covers
+- **Reads: `PostgresJobObservabilityService` or your own query.** The service covers
   the common UI shapes (history log + dashboard); for anything else, query
   `commons_jobs_job_run` directly through the re-exported `jobRunTable` with your own
   Drizzle client. `PostgresJobRunRecorder` only writes.

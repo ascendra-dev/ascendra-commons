@@ -1261,7 +1261,7 @@ every other provider here.
 updated for the new return type), typecheck clean.
 
 **Follow-up, same day — read-side reporting for the admin UI
-(`PostgresJobStatusService`).** Once there's a job registry and a `commons_jobs_job_run`
+(`PostgresJobObservabilityService`).** Once there's a job registry and a `commons_jobs_job_run`
 history, the UI needs to *read* both. Built in `adapters/postgres-drizzle/`
 (reads `commons_jobs_job_run`, so Postgres-specific and opt-in — no core change):
 
@@ -1273,7 +1273,7 @@ history, the UI needs to *read* both. Built in `adapters/postgres-drizzle/`
   `overdueBy`.
 - **The missed-schedule question.** The adapter never sees `@Cron` (it's a
   decorator in the vertical; reading it needs `@nestjs/schedule` + a cron
-  parser this module doesn't depend on). `PostgresJobStatusModule.forRoot({ cadences })`
+  parser this module doesn't depend on). `PostgresJobObservabilityModule.forRoot({ cadences })`
   takes a *separate, hand-typed* hint per job (`'1d'` / `'2h'` / seconds) — a
   loose max-gap bound, not the cron. `overdue` = gap since last run > cadence ×
   1.5, or a `cadences`-listed job never ran. The hint is echoed back in the
@@ -1283,12 +1283,12 @@ history, the UI needs to *read* both. Built in `adapters/postgres-drizzle/`
   runs (≥ 3 needed), flagged `source: 'inferred'`. Deliberately **not**
   enumerating each missed occurrence — needs a cron engine, synthesises
   never-recorded rows, and "overdue by 3 days" is the actionable form.
-- **`PostgresJobStatusService` is a service, not a controller** — the consumer
+- **`PostgresJobObservabilityService` is a service, not a controller** — the consumer
   writes the endpoint and gates it with their `Authorizer`. Dimension 8 stays
   N/A (typed read DTOs shipped: `JobStatus`, `JobRunRecord`, `RunHistoryPage`;
   no frontend contract).
-- **New files:** `job-status.service.ts` / `.module.ts` / `.spec.ts` ×2,
-  `job-status.types.ts`, `cadence.ts` / `.spec.ts`.
+- **New files:** `job-observability.service.ts` / `.module.ts` / `.spec.ts` ×2,
+  `job-observability.types.ts`, `cadence.ts` / `.spec.ts`.
 
 **Tests:** 317/317 pass (19 new), typecheck clean.
 
@@ -1351,7 +1351,7 @@ Touched: every `*.schema.ts`, `*.migration.sql`, the raw-SQL statements in each
 repository/store/service, all specs asserting on rendered SQL, the adapter and
 module READMEs, and the historical entries in this file (prose only — an
 internal design doc, not a record to preserve verbatim). Export identifiers
-(`authzRole`, `auditEventTable`, `jobRunTable`, `schedulerLockTable`, …) and
+(`authzRole`, `auditEventTable`, `jobRunTable`, `leaseLockTable`, …) and
 hyphenated file names are unchanged.
 
 **Breaking for existing consumers** — any project that already ran a prior
@@ -1360,3 +1360,45 @@ the new reference DDL. `pay-api` has `notification` tables today; its migration
 needs the rename.
 
 **Tests:** 326/326 pass (no new tests — pure rename), typecheck clean.
+
+---
+
+## 2026-09-06 — observability & administration rollout (see `OBSERVABILITY-ROLLOUT.md`)
+
+A per-module effort: ship the read/query surface an admin UI needs and the safe
+config mutations, following the `background-jobs` pattern (service + typed DTOs
+in `adapters/postgres-drizzle/`, consumer writes the gated controller).
+
+### Item 0 — `background-jobs` rename + tidy
+
+- `job-status.*` → `job-observability.*`; `PostgresJobStatusModule/Service/ModuleConfig`
+  → `PostgresJobObservability*`; `JOB_STATUS_CADENCES` → `JOB_OBSERVABILITY_CADENCES`.
+  "Status" undersold a module that also does history + overdue. `Postgres` prefix
+  kept (adapter convention; it's raw SQL).
+- `scheduler-lock.*` → `lease-lock.*`, `schedulerLockTable` → `leaseLockTable` —
+  one file prefix for the lock concern.
+- Adapters stay **flat** (no sub-folders) — every other adapter in the repo is
+  flat, the `index.ts` barrel is the boundary, file-name prefixes group.
+
+### Item 1 — `audit-logging` read API
+
+- **`AuditEventReader` port** (core) — `find(query: AuditQuery): Promise<AuditQueryResult>`.
+  A **separate port** from `AuditEventRepository`, not a method on it: a custom
+  write-repo consumer isn't forced to implement reads, and write-once stays
+  self-evident from the write port. Supersedes the README sketch's "on the
+  existing interface" note, for the same reason `background-jobs` split
+  recorder/reader. `AuditQuery` gained `action` and `correlationId` over the
+  sketch.
+- **`PostgresAuditEventReader`** + **`PostgresAuditObservabilityModule.forRoot({ sqlExecutorToken, application, imports })`**
+  — one `SELECT` with dynamic `WHERE`, keyset pagination on `(occurred_at, id)`,
+  `application`-scoped. Independent of `PostgresAuditPersistenceModule`.
+- `application` column is now **filtered on** by the reader (was "passive,
+  never filtered") — schema comment + adapter README Notes updated. A
+  cross-product compliance view queries `commons_audit_event` directly.
+- README "Not built: reading audit records" → "Reading audit records" (built).
+- Dimension 8: still N/A for a shipped UI contract; the reader ships typed DTOs
+  (`AuditQuery`, `AuditQueryResult`), the controller is the consumer's.
+- **New files:** `audit-event-reader.ts` (core), `postgres-audit-event-reader.ts`,
+  `postgres-audit-observability.module.ts`, 2 specs.
+
+**Tests:** 332/332 pass (6 new), typecheck clean. Items 2-4 pending.

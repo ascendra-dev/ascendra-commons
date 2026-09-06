@@ -1,8 +1,8 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { PostgresJobStatusService } from './job-status.service';
-import { JOB_RUN_APPLICATION_ID, JOB_RUN_SQL_EXECUTOR, JOB_STATUS_CADENCES } from './tokens';
+import { PostgresJobObservabilityService } from './job-observability.service';
+import { JOB_RUN_APPLICATION_ID, JOB_RUN_SQL_EXECUTOR, JOB_OBSERVABILITY_CADENCES } from './tokens';
 
-export interface PostgresJobStatusModuleConfig {
+export interface PostgresJobObservabilityModuleConfig {
   /** The token the consuming app provides its Drizzle db under — the normal pooled connection is fine (reads only). */
   sqlExecutorToken: string | symbol | (new (...args: never[]) => unknown);
 
@@ -28,22 +28,22 @@ export interface PostgresJobStatusModuleConfig {
 /**
  * Read-only reporting over `commons_jobs_job_run` for an admin UI: `getRunHistory()` (the
  * drill-down log) and `listJobStatus()` (the jobs dashboard, with overdue
- * detection). Exports `PostgresJobStatusService`; the consumer writes the
+ * detection). Exports `PostgresJobObservabilityService`; the consumer writes the
  * controller and gates it with their own `Authorizer`.
  */
 @Module({})
-export class PostgresJobStatusModule {
-  static forRoot(config: PostgresJobStatusModuleConfig): DynamicModule {
+export class PostgresJobObservabilityModule {
+  static forRoot(config: PostgresJobObservabilityModuleConfig): DynamicModule {
     return {
-      module: PostgresJobStatusModule,
+      module: PostgresJobObservabilityModule,
       imports: config.imports ?? [],
       providers: [
         { provide: JOB_RUN_SQL_EXECUTOR, useExisting: config.sqlExecutorToken },
         { provide: JOB_RUN_APPLICATION_ID, useValue: config.application },
-        { provide: JOB_STATUS_CADENCES, useValue: config.cadences ?? {} },
-        PostgresJobStatusService,
+        { provide: JOB_OBSERVABILITY_CADENCES, useValue: config.cadences ?? {} },
+        PostgresJobObservabilityService,
       ],
-      exports: [PostgresJobStatusService],
+      exports: [PostgresJobObservabilityService],
     };
   }
 }

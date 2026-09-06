@@ -2,9 +2,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import { sql, type SQL } from 'drizzle-orm';
 import type { JobRunOutcome } from '../../job-run-recorder.interface';
 import { humanizeDuration, parseCadence, type ParsedCadence } from './cadence';
-import type { JobRunRecord, JobStatus, RunHistoryPage, RunHistoryQuery } from './job-status.types';
+import type { JobRunRecord, JobStatus, RunHistoryPage, RunHistoryQuery } from './job-observability.types';
 import type { SqlExecutor } from './sql-executor';
-import { JOB_RUN_APPLICATION_ID, JOB_RUN_SQL_EXECUTOR, JOB_STATUS_CADENCES } from './tokens';
+import { JOB_RUN_APPLICATION_ID, JOB_RUN_SQL_EXECUTOR, JOB_OBSERVABILITY_CADENCES } from './tokens';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -27,13 +27,13 @@ const RUN_COLUMNS = sql`
  * writes.
  */
 @Injectable()
-export class PostgresJobStatusService {
+export class PostgresJobObservabilityService {
   private readonly cadences: Map<string, ParsedCadence>;
 
   constructor(
     @Inject(JOB_RUN_SQL_EXECUTOR) private readonly db: SqlExecutor,
     @Inject(JOB_RUN_APPLICATION_ID) private readonly application: string,
-    @Inject(JOB_STATUS_CADENCES) cadences: Record<string, string | number>,
+    @Inject(JOB_OBSERVABILITY_CADENCES) cadences: Record<string, string | number>,
   ) {
     this.cadences = new Map(Object.entries(cadences).map(([name, c]) => [name, parseCadence(c)]));
   }

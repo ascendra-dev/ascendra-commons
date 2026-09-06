@@ -26,3 +26,6 @@ export const AUDIT_APPLICATION_ID = Symbol('AUDIT_APPLICATION_ID');
  * persistence module in that same call's `imports`.
  */
 export const POSTGRES_AUDIT_EVENT_REPOSITORY = Symbol('POSTGRES_AUDIT_EVENT_REPOSITORY');
+
+/** What `PostgresAuditObservabilityModule` exports — the read-only `AuditEventReader` for an admin screen. */
+export const POSTGRES_AUDIT_EVENT_READER = Symbol('POSTGRES_AUDIT_EVENT_READER');

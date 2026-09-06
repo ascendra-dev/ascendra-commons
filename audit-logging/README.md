@@ -372,53 +372,54 @@ see "The pieces" above). A consumer needing to read audit records back today
 has to query its own audit table directly, outside this module's own
 interface. See below for the deferred design, not built.
 
-### Not built: reading audit records — a real Model 1 extension, not Model 2
+### Reading audit records — the `AuditEventReader` port
 
-**Scored against `MODULE-STANDARD.md` dimension 8's end-user/admin split**
-(introduced after this module's own Audit 1 pass, so restated here explicitly):
+**Scored against `MODULE-STANDARD.md` dimension 8's end-user/admin split:**
 **end-user UI contract is N/A** — an audit trail has no per-record
 show/hide/enable concern reaching a tenant's own user the way `authorization`'s
-`computeActionAvailability` or `notification`'s delivery status does; nobody's
-own audit history is something they show/hide for themselves in this
-pattern's scope. What follows is squarely the **administration**-UI side
-(compliance/ops staff browsing or exporting records) — appropriately a
-prose-only, not-built sketch, downstream of the query API below not existing
-yet, the same treatment `authorization`'s own admin-UI paragraph gets for its
-unbuilt Model 2 (see that module's review in `MODULE-STANDARD-AUDIT.md`).
-
-Recorded so it isn't lost, not built speculatively — same treatment
-`background-jobs` gives its own not-yet-built `JobRunRecorder`. The design,
-when a real activity-feed or compliance-export story asks for it:
+`computeActionAvailability` or `notification`'s delivery status does. This is
+squarely the **administration**-UI side (compliance/ops staff browsing or
+exporting records).
 
 ```typescript
 export interface AuditQuery {
   entityType?: string;
   entityId?: string;
-  tenantId?: string | null;
+  tenantId?: string | null;  // absent = no filter; null = platform-level only (tenant_id IS NULL)
   actor?: string;
+  action?: string;
+  correlationId?: string;    // "everything in one request" — a cross-module trace
   occurredAfter?: Date;
   occurredBefore?: Date;
-  limit?: number;
-  cursor?: string; // opaque, from a previous page's result
+  limit?: number;            // default 50, capped 200
+  cursor?: string;           // opaque, from a previous page's result
 }
 
 export interface AuditQueryResult {
-  records: AuditEvent[];
-  nextCursor?: string; // present only if more records exist
+  records: AuditEvent[];     // newest first
+  nextCursor?: string;       // present only if more records exist
+}
+
+export interface AuditEventReader {
+  find(query: AuditQuery): Promise<AuditQueryResult>;
 }
 ```
 
-Added as `AuditEventRepository.find(query: AuditQuery): Promise<AuditQueryResult>`
-— on the existing interface, not a new one, since it's the same persistence
-port, just a second capability on it. This does not weaken "audit records are
-write-once by construction" (the README's own claim for the interface today):
-`find()` reads, never mutates or deletes, so the write-once guarantee holds
-exactly as before. An "activity feed" (per the Overview's own distinction) is
-then a thin UI layer calling `find()` and rendering the result — never a
-second system with its own storage.
+**A separate port from `AuditEventRepository`, not a `find()` added to it** —
+so a consumer with a custom write repository isn't forced to implement reads,
+and "audit records are write-once" stays self-evident from the write port's
+shape (`insert()` only). This mirrors `background-jobs`' split between
+`JobRunRecorder` (write) and `PostgresJobObservabilityService` (read). `find()`
+reads, never mutates or deletes — the write-once guarantee is unaffected. An
+"activity feed" is then a thin UI layer calling `find()` — never a second
+system with its own storage.
 
-**Not built either: the API and web pieces a real admin UI needs, once `find()`
-exists.** Neither ships from `ascendra-commons` itself — this library is
+`adapters/postgres-drizzle` ships `PostgresAuditEventReader` +
+`PostgresAuditObservabilityModule` against this port — see that folder's
+README. A different stack provides its own `AuditEventReader`.
+
+**Not built: the API and web pieces a real admin UI needs on top of `find()`.**
+Neither ships from `ascendra-commons` itself — this library is
 backend-pattern-only, same as `authorization`'s own admin UI, which stays a
 paragraph here rather than shipped code until a frontend counterpart library
 (`ascendra-commons-ui`) exists. The shape, for when a real compliance/ops

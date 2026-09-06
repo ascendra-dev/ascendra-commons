@@ -1,5 +1,5 @@
 /**
- * Cadence hints for job-status reporting. A cadence is a rough "if it hasn't
+ * Cadence hints for job-observability reporting. A cadence is a rough "if it hasn't
  * run in this long, something is wrong" bound — NOT the job's real cron
  * expression, which the adapter never sees. `'1d'` / `'2h'` / `'30m'` / `'90s'`,
  * or a plain number of seconds.

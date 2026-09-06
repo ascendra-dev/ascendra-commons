@@ -20,6 +20,8 @@ which token/module goes into `forRoot()`.
 | `audit-event.migration.sql` | The same table as hand-written DDL — paste into your migration tooling if you don't route this through `drizzle-kit`. |
 | `postgres-audit-event.repository.ts` | `PostgresAuditEventRepository` — one `INSERT`, `application` stamped on write. |
 | `postgres-audit-persistence.module.ts` | `PostgresAuditPersistenceModule.forRoot(...)` — binds the repo to your db token and exports it as `POSTGRES_AUDIT_EVENT_REPOSITORY`. |
+| `postgres-audit-event-reader.ts` | `PostgresAuditEventReader` — read-only `find(query)` for a compliance/ops admin screen. |
+| `postgres-audit-observability.module.ts` | `PostgresAuditObservabilityModule.forRoot(...)` — binds the reader, exports `POSTGRES_AUDIT_EVENT_READER`. |
 | `sql-executor.ts` | The minimal db shape the repo needs (`execute(sql)`), so this adapter never imports your generated schema. |
 
 ## Consuming it
@@ -70,21 +72,55 @@ That's the whole persistence setup. `AuditListener` (shipped by
 `PostgresAuditEventRepository`. The producer side is unchanged — see the module
 README's "raising an audit record" example.
 
+### 3. (optional) Reading records back — `PostgresAuditObservabilityModule`
+
+Independent of the persistence module — import either or both (both take the
+same `sqlExecutorToken` / `application`):
+
+```typescript
+import {
+  PostgresAuditObservabilityModule,
+  POSTGRES_AUDIT_EVENT_READER,
+} from 'src/ascendra-commons/audit-logging/adapters/postgres-drizzle';
+import type { AuditEventReader } from 'src/ascendra-commons/audit-logging';
+
+PostgresAuditObservabilityModule.forRoot({
+  sqlExecutorToken: DATABASE_CONNECTION, // normal pooled db — reads only
+  application: 'ascendra-pay',
+  imports: [DatabaseModule],
+})
+```
+
+`AuditEventReader.find(query)` — `query` fields are all optional and ANDed:
+`entityType`+`entityId` ("this record's history"), `tenantId` (absent = no
+filter; `null` = platform-level only), `actor`, `action`, `correlationId`
+("everything in one request" — a cross-module trace when jobs / notifications
+also record the id), `occurredAfter` / `occurredBefore`, `limit` (default 50,
+max 200), `cursor`. Returns `{ records, nextCursor? }`, newest first,
+keyset-paginated. Read-only — the write-once guarantee is unaffected.
+
+The endpoint is yours (`ascendra-commons` ships no controllers), gated with
+your own `Authorizer` on a dedicated action (e.g. `'audit.view'`, restricted
+to a platform/compliance persona — never a tenant user). The reader is scoped
+to one `application`; a cross-product compliance view that needs every app's
+rows queries `commons_audit_event` directly.
+
 ## Notes
 
 - **`application` is a plain string, not `domain-events`'
   `DOMAIN_EVENTS_APPLICATION_ID` token.** Pass the same value you give
   `DomainEventsModule.forRoot({ application })` if you set that. Kept as a value
   here so the adapter works whether or not that token is bound and exported.
-- **The `application` column is stamped on insert, never read back by this
-  adapter** — passive metadata (see `MODULE-STANDARD.md` dimension 4). It exists
-  so a future cross-product compliance-reporting consolidation doesn't need a
-  backfill migration.
-- **Write-once.** The repository exposes `insert()` only. To enforce it at the
+- **The `application` column** is stamped on insert by
+  `PostgresAuditEventRepository` and filtered on (`application = $1`) by
+  `PostgresAuditEventReader`, scoping an app's own admin screen to its own
+  rows. Constant within one app's database; the column keeps
+  `commons_audit_event` correct if history is ever consolidated into one shared
+  compliance database (see `MODULE-STANDARD.md` dimension 4).
+- **Write-once.** `AuditEventRepository` exposes `insert()` only; `find()` is a
+  separate `AuditEventReader` port that never mutates. To enforce it at the
   database too, `REVOKE update, delete ON commons_audit_event` from the app role.
 - **Keep the three table definitions in sync** — `audit-event.schema.ts`, the
   column list in `postgres-audit-event.repository.ts`, and
-  `audit-event.migration.sql` all describe one table.
-- **No `find()` / read path** — same as the module core. `AuditEventRepository`
-  is write-only today; see the module README's "Not built: reading audit
-  records" for the deferred `AuditQuery` shape.
+  `audit-event.migration.sql` all describe one table. `postgres-audit-event-reader.ts`
+  reads a subset of the same columns.

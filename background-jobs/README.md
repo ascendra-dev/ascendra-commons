@@ -202,7 +202,7 @@ What's shipped in this folder: `ScheduledJob<TItem>`, `AdvisoryLock` +
 `NoopJobRunRecorder`, `ScheduledJobRegistry` + `JobTrigger` (admin-initiated
 out-of-schedule runs), and `BackgroundJobsModule.forRoot()`. Plus
 `adapters/postgres-drizzle/` — `PostgresJobRunRecorder` (+ its `commons_jobs_job_run`
-table), a reference `JobRunPrunerJob`, `PostgresJobStatusService` (history +
+table), a reference `JobRunPrunerJob`, `PostgresJobObservabilityService` (history +
 dashboard reads), and `PostgresLeaseLock` (+ its `commons_jobs_lock` table) as a
 pool-safe alternative to the session-level lock. No queue, no backoff policy,
 no dead-letter path, no scheduling built in — each job supplies its own
@@ -267,7 +267,7 @@ What it answers:
   (per-item retry policy is Model 2).
 - **Did it run at all / missed schedule?** *Derived*, not recorded — you
   cannot write a row for a run that never happened. The Postgres adapter's
-  `PostgresJobStatusService.listJobStatus()` computes an `overdue` flag per job
+  `PostgresJobObservabilityService.listJobStatus()` computes an `overdue` flag per job
   from a hand-supplied (or history-inferred) cadence hint — see that folder's
   README. `trigger` sharpens it: a spike of `bootstrap` runs processing large
   batches means scheduled fires were being missed and the
@@ -284,7 +284,7 @@ Design constraints, each deliberate:
 - **The runner owns no persistence.** `NoopJobRunRecorder` is the default;
   `BackgroundJobsModule.forRoot({ jobRunRecorderToken })` swaps in a real one.
   `adapters/postgres-drizzle/` ships `PostgresJobRunRecorder` and its `commons_jobs_job_run`
-  table, plus `PostgresJobStatusService` for reading it back (history log +
+  table, plus `PostgresJobObservabilityService` for reading it back (history log +
   jobs dashboard) — see that folder's README. A different stack provides its
   own `JobRunRecorder` against the same port.
 
