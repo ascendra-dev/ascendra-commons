@@ -36,3 +36,19 @@ export const JOB_STATUS_CADENCES = Symbol('JOB_STATUS_CADENCES');
  * module in that same call's `imports`.
  */
 export const POSTGRES_JOB_RUN_RECORDER = Symbol('POSTGRES_JOB_RUN_RECORDER');
+
+/** The consumer's Drizzle db for the lease lock — from `PostgresLeaseLockModule.forRoot({ sqlExecutorToken })`. Any pooled connection; no affinity requirement. */
+export const LEASE_LOCK_SQL_EXECUTOR = Symbol('LEASE_LOCK_SQL_EXECUTOR');
+
+/** Which Ascendra application this process is — scopes each `scheduler_lock` row. From `PostgresLeaseLockModule.forRoot({ application })`. */
+export const LEASE_LOCK_APPLICATION_ID = Symbol('LEASE_LOCK_APPLICATION_ID');
+
+/** Lease duration in seconds — a crashed holder's lock frees after this. From `PostgresLeaseLockModule.forRoot({ leaseSeconds })`. */
+export const LEASE_LOCK_SECONDS = Symbol('LEASE_LOCK_SECONDS');
+
+/**
+ * What `PostgresLeaseLockModule` exports — pass as
+ * `BackgroundJobsModule.forRoot({ advisoryLockToken })` to replace the
+ * session-level `PostgresAdvisoryLock` with the pool-safe lease-table lock.
+ */
+export const POSTGRES_LEASE_LOCK = Symbol('POSTGRES_LEASE_LOCK');

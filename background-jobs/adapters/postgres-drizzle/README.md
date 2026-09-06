@@ -8,11 +8,13 @@ application name:
 - `JobRunPrunerJob` — a reference retention job
 - `PostgresJobStatusService` — read-only reporting for an admin UI: the
   run-history log and the jobs dashboard (with overdue detection)
+- `PostgresLeaseLock` — a pool-safe `AdvisoryLock` (the `scheduler_lock`
+  table), an alternative to the core's session-level `PostgresAdvisoryLock`
 
 The `background-jobs/` core stays stack-agnostic — it ships the `JobRunRecorder`
-port and `NoopJobRunRecorder`, never a database implementation. This folder is
-one concrete implementation; a project on a different stack ignores it and
-provides its own `JobRunRecorder` (and its own reporting queries).
+and `AdvisoryLock` ports, never a database implementation beyond the
+session-level lock. This folder is concrete implementations; a project on a
+different stack ignores it and provides its own.
 
 > The core's advisory lock (`SQL_EXECUTOR`) needs a **dedicated single
 > connection** — see the module README. The recorder and pruner here have **no
@@ -33,11 +35,15 @@ provides its own `JobRunRecorder` (and its own reporting queries).
 | `job-status.service.ts` | `PostgresJobStatusService` — `getRunHistory()` (paginated log) + `listJobStatus()` (per-job dashboard with overdue detection). Read-only. |
 | `job-status.module.ts` | `PostgresJobStatusModule.forRoot(...)` — binds the service to your db token, application, and optional `cadences`. |
 | `cadence.ts` | Parses the `cadences` hints (`'1d'`, `'2h'`, seconds …). |
+| `scheduler-lock.schema.ts` / `scheduler-lock.migration.sql` | The `scheduler_lock` table for `PostgresLeaseLock`. |
+| `postgres-lease-lock.ts` | `PostgresLeaseLock` — a lease-row `AdvisoryLock`: conditional-upsert claim, heartbeat renewal, `DELETE` release. Pool-safe. |
+| `postgres-lease-lock.module.ts` | `PostgresLeaseLockModule.forRoot(...)` — binds the lock to your db token, application, `leaseSeconds`; exports `POSTGRES_LEASE_LOCK`. |
 | `sql-executor.ts` | The minimal db shape these need (`execute(sql)`), so the adapter never imports your generated schema. |
 
-Keep the three table definitions in sync — `job-run.schema.ts`, the column list
-in `postgres-job-run-recorder.ts`, and `job-run.migration.sql` all describe one
-table.
+Two tables, each with three copies to keep in sync: `job_run`
+(`job-run.schema.ts` / `job-run.migration.sql` / the INSERT in
+`postgres-job-run-recorder.ts`) and `scheduler_lock` (`scheduler-lock.schema.ts`
+/ `scheduler-lock.migration.sql` / the statements in `postgres-lease-lock.ts`).
 
 ## Consuming it
 
@@ -166,15 +172,62 @@ What it deliberately does **not** do: enumerate each individual missed fire
 synthesises rows that were never recorded; "overdue by 3 days, expected every
 1 day" is the actionable form and is what the dashboard shows.
 
+### 5. (optional) Pool-safe locking — `PostgresLeaseLock`
+
+The core's default `PostgresAdvisoryLock` uses a **session-level**
+`pg_advisory_lock`, which only works if `SQL_EXECUTOR` is a dedicated single
+connection and is unsupported through a transaction-mode pooler (see the module
+README). `PostgresLeaseLock` replaces it with a `scheduler_lock` **row**:
+
+- **Create the table** — `export { schedulerLockTable }` for `drizzle-kit`, or
+  paste `scheduler-lock.migration.sql`.
+- **Wire it** as the lock:
+
+```typescript
+BackgroundJobsModule.forRoot({
+  advisoryLockToken: POSTGRES_LEASE_LOCK,   // replaces PostgresAdvisoryLock; no sqlExecutorToken needed
+  imports: [
+    PostgresLeaseLockModule.forRoot({
+      sqlExecutorToken: DATABASE_CONNECTION, // the NORMAL pooled db — no affinity requirement
+      application: 'ascendra-pay',
+      leaseSeconds: 900,                     // default; see below
+      imports: [DatabaseModule],
+    }),
+  ],
+})
+```
+
+How it behaves:
+
+- **Claim** is a conditional upsert — `INSERT … ON CONFLICT DO UPDATE …
+  WHERE locked_until < now()`. Take-over only when the previous lease has
+  expired; Postgres re-checks the `WHERE` against the row-locked tuple, so two
+  instances racing an expired lock never both win.
+- **`leaseSeconds`** (default 900 / 15 min, min 3) is how long a crashed
+  holder's lock stays stuck before the next run can reclaim it. Set it
+  comfortably above a job's worst-case run time — **too short risks two
+  instances overlapping**, too long only slows crash recovery.
+- **Heartbeat** — while a run holds the lock, the lease is renewed every
+  `leaseSeconds / 3`, so a run legitimately longer than one lease keeps going.
+  If a heartbeat ever finds the row gone (the lease lapsed and another instance
+  took over), it logs a `WARN` — raise `leaseSeconds`.
+- **`holder`** is `hostname#pid#uuid` per process; release and heartbeat only
+  ever touch this process's own row. `SELECT * FROM scheduler_lock` shows
+  what's held right now.
+- Timers are `unref`'d and cleared on `onModuleDestroy`.
+
 ## Notes
 
-- **`application` is on every row and every read must filter by it.** Constant
-  within one app's own database (one value); the column and the
-  `application = $1` filter keep `job_run` correct if history is ever
-  consolidated into one shared operational database. Same
-  `MODULE-STANDARD.md` dimension-4 call `notification` and `audit-logging`
-  make. `JobRunPrunerJob`'s DELETE is `application`-scoped for the same reason
-  — it never touches another app's rows.
+- **`application` is on every row of both tables and every read filters by
+  it.** Constant within one app's own database (one value); the column keeps
+  `job_run` and `scheduler_lock` correct if ever consolidated into one shared
+  operational database. Same `MODULE-STANDARD.md` dimension-4 call
+  `notification` and `audit-logging` make. `JobRunPrunerJob`'s DELETE and every
+  `PostgresLeaseLock` statement are `application`-scoped for the same reason —
+  they never touch another app's rows.
+- **`scheduler_lock` doesn't need pruning** — it's at most one row per job,
+  reused in place. A stale row from a crashed holder is harmless (the next
+  claim overwrites it once the lease expires).
 - **Reads: `PostgresJobStatusService` or your own query.** The service covers
   the common UI shapes (history log + dashboard); for anything else, query
   `job_run` directly through the re-exported `jobRunTable` with your own

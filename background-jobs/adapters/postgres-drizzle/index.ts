@@ -9,6 +9,10 @@ export type { JobRunPrunerModuleConfig } from './job-run-pruner.module';
 export { PostgresJobStatusService } from './job-status.service';
 export { PostgresJobStatusModule } from './job-status.module';
 export type { PostgresJobStatusModuleConfig } from './job-status.module';
+export { schedulerLockTable } from './scheduler-lock.schema';
+export { PostgresLeaseLock } from './postgres-lease-lock';
+export { PostgresLeaseLockModule } from './postgres-lease-lock.module';
+export type { PostgresLeaseLockModuleConfig } from './postgres-lease-lock.module';
 export type {
   JobRunRecord,
   JobStatus,
@@ -22,4 +26,8 @@ export {
   JOB_RUN_RETENTION_DAYS,
   JOB_STATUS_CADENCES,
   POSTGRES_JOB_RUN_RECORDER,
+  LEASE_LOCK_SQL_EXECUTOR,
+  LEASE_LOCK_APPLICATION_ID,
+  LEASE_LOCK_SECONDS,
+  POSTGRES_LEASE_LOCK,
 } from './tokens';

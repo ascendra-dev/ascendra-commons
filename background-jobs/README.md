@@ -74,7 +74,7 @@ throws, the runner logs *which* item failed. Return a bare id or reference,
 never PII or the whole row. Omit it and the runner logs the item's batch
 position instead.
 
-### `AdvisoryLock` / `PostgresAdvisoryLock` (Model 1) — the lock, swappable
+### `AdvisoryLock` — the lock, swappable — two implementations
 
 ```typescript
 export interface AdvisoryLock {
@@ -83,34 +83,44 @@ export interface AdvisoryLock {
 }
 ```
 
-`PostgresAdvisoryLock` implements this over `pg_try_advisory_lock` /
-`pg_advisory_unlock`, keyed via `hashtext()` so callers never manage numeric
-lock ids. The guarantee is enforced by Postgres itself, not in-process
-coordination that only one instance can see — the same reasoning as RLS for
-tenancy and an atomic claim for idempotency keys elsewhere in this stack.
-Session-scoped advisory locks release automatically when the holding
-connection closes, so a crashed process never leaves one stuck.
+The guarantee is enforced by Postgres, not by in-process coordination only one
+instance can see — the same reasoning as RLS for tenancy and an atomic claim
+for idempotency keys elsewhere in this stack. Two implementations ship; pick
+one at `forRoot`:
 
-**Connection-affinity requirement.** A session-level advisory lock belongs to
-one physical connection. `tryAcquire()` and `release()` must run on the *same*
-session — otherwise the unlock is a no-op on a connection that never held the
-lock, the acquiring connection keeps the lock until it is idle-closed, and the
-job silently skips every run in between. Through a **transaction-mode pooler**
-(PgBouncer, Supabase "Transaction pooler") session-level advisory locks are
-unsupported outright. So the provider wired to `SQL_EXECUTOR` must be a
-**dedicated single connection**, distinct from the app's request-serving pool
-— `drizzle(new Pool({ max: 1, idleTimeoutMillis: 0 }))` — pointed at a direct
-connection or a session-mode pooler, never a transaction pooler. As a canary,
-`release()` logs a `WARN` whenever `pg_advisory_unlock` reports the lock
-wasn't held — if that line ever appears, `SQL_EXECUTOR` is misconfigured.
+| | `PostgresAdvisoryLock` (core, default) | `PostgresLeaseLock` (`adapters/postgres-drizzle`) |
+|---|---|---|
+| Mechanism | `pg_try_advisory_lock` / `pg_advisory_unlock` (session-level) | a `scheduler_lock` row with a `locked_until` lease |
+| Extra DB objects | none | one small table + migration |
+| Connection wiring | **must** be a dedicated single connection | any pooled connection |
+| Transaction-mode pooler (PgBouncer / Supabase "Transaction pooler") | ❌ unsupported | ✅ fine |
+| Crash frees the lock | when the connection closes | when the lease expires (`leaseSeconds`, default 900) |
+| Long run | just works | renews the lease on a heartbeat (`leaseSeconds / 3`) |
+| "What holds what" | invisible | `SELECT * FROM scheduler_lock` |
+| Knobs | none | `leaseSeconds` |
 
-This is Model 1's accepted sharp edge, mitigated by wiring + detection rather
-than removed. The lease-table approach that removes it entirely (pool-agnostic,
-self-recovering) is a real Model 1 extension — deferred, along with the one
-small table it needs, until job-run observability is built (they share that
-table). Until then: dedicated connection, and watch for the WARN.
+**`PostgresAdvisoryLock` — connection-affinity requirement.** A session-level
+advisory lock belongs to one physical connection. `tryAcquire()` and
+`release()` must run on the *same* session — otherwise the unlock is a no-op on
+a connection that never held the lock, the acquiring connection keeps the lock
+until it is idle-closed, and the job silently skips every run in between.
+Through a transaction-mode pooler it is unsupported outright. So the provider
+wired to `SQL_EXECUTOR` must be a **dedicated single connection** —
+`drizzle(new Pool({ max: 1, idleTimeoutMillis: 0 }))` — pointed at a direct
+connection or a session-mode pooler. As a canary, `release()` logs a `WARN`
+whenever `pg_advisory_unlock` reports the lock wasn't held.
 
-It depends on `SqlExecutor` — deliberately the *minimal* shape needed
+**`PostgresLeaseLock`** removes that sharp edge: the lock is a row, so any
+pooled connection can claim/renew/release it, and it works through any pooler.
+`tryAcquire` is a conditional upsert (`INSERT … ON CONFLICT DO UPDATE …
+WHERE locked_until < now()`) — the take-over only fires when the previous
+lease has expired, and Postgres re-checks that against the row-locked tuple so
+two instances racing an expired lock never both win. Crash safety is the
+lease, not a connection: a dead holder's row just expires. Wire it with
+`forRoot({ advisoryLockToken: POSTGRES_LEASE_LOCK })` (then `sqlExecutorToken`
+is not needed) — see the adapter README.
+
+`PostgresAdvisoryLock` depends on `SqlExecutor` — deliberately the *minimal* shape needed
 (`execute(query): Promise<{ rows }>`), not a consumer's full schema-typed
 Drizzle client, so this library never depends on any project's generated
 schema. `AdvisoryLock` is kept separate from `IdempotentJobRunner` specifically
@@ -187,20 +197,25 @@ A genuine alternative was considered and set aside, not overlooked: `@nestjs/sch
 
 ## Model 1 — In-Process Loop, Postgres Advisory Lock (current)
 
-What's shipped in this folder: `ScheduledJob<TItem>`, `AdvisoryLock`,
+What's shipped in this folder: `ScheduledJob<TItem>`, `AdvisoryLock` +
 `PostgresAdvisoryLock`, `IdempotentJobRunner`, the `JobRunRecorder` port +
 `NoopJobRunRecorder`, `ScheduledJobRegistry` + `JobTrigger` (admin-initiated
 out-of-schedule runs), and `BackgroundJobsModule.forRoot()`. Plus
-`adapters/postgres-drizzle/` — a ready-made `PostgresJobRunRecorder` (+ its
-`job_run` table) and a reference `JobRunPrunerJob`. No queue, no backoff
-policy, no dead-letter path, no scheduling built in — each job supplies its
-own `@Cron`/`OnApplicationBootstrap` wiring around the shared runner.
+`adapters/postgres-drizzle/` — `PostgresJobRunRecorder` (+ its `job_run`
+table), a reference `JobRunPrunerJob`, `PostgresJobStatusService` (history +
+dashboard reads), and `PostgresLeaseLock` (+ its `scheduler_lock` table) as a
+pool-safe alternative to the session-level lock. No queue, no backoff policy,
+no dead-letter path, no scheduling built in — each job supplies its own
+`@Cron`/`OnApplicationBootstrap` wiring around the shared runner.
 
 Accepted limitations, each covered above where it's relevant:
 
-- **`SQL_EXECUTOR` must be a dedicated single connection** (never a
-  transaction-mode pooler) — the session-level lock's connection-affinity
-  requirement. Mitigated by wiring + a `release()` WARN canary, not removed.
+- **The default `PostgresAdvisoryLock` needs a dedicated single connection**
+  (never a transaction-mode pooler) — the session-level lock's
+  connection-affinity requirement, mitigated by wiring + a `release()` WARN
+  canary. `PostgresLeaseLock` (adapter) removes this entirely at the cost of
+  one table + a `leaseSeconds` knob — use it if you're behind a transaction
+  pooler or want forgiving wiring.
 - **`findDueItems()` returns the whole due set** into memory and items are
   processed **serially** — a job that falls far behind, or one with a large
   due-set and per-item latency, holds the lock for the full batch. A job can
@@ -385,6 +400,30 @@ Each job's own `findDueItems()` / `processItem()` still use the app's normal
 pooled `db` — only the advisory lock needs the dedicated connection. The
 run recorder and pruner also use the normal pooled `db` (see
 `adapters/postgres-drizzle/README.md`).
+
+**Or skip the dedicated connection entirely** with the lease-table lock — then
+everything, the lock included, runs on the normal pool, and it works through a
+transaction-mode pooler:
+
+```typescript
+BackgroundJobsModule.forRoot({
+  advisoryLockToken: POSTGRES_LEASE_LOCK,   // no sqlExecutorToken, no SchedulerDbModule
+  imports: [
+    InvoiceModule,
+    PostgresLeaseLockModule.forRoot({
+      sqlExecutorToken: DRIZZLE,             // the normal pooled db
+      application: 'ascendra-pay',
+      leaseSeconds: 900,                     // > worst-case job run time; renewed every 300s while running
+      imports: [],
+    }),
+    PostgresJobRunRecorderModule.forRoot({ sqlExecutorToken: DRIZZLE, application: 'ascendra-pay', imports: [] }),
+  ],
+  jobRunRecorderToken: POSTGRES_JOB_RUN_RECORDER,
+  jobs: [InvoiceReminderJob],
+})
+```
+
+Requires the `scheduler_lock` migration — see the adapter README.
 
 `imports` is required unless the module providing `sqlExecutorToken` is itself
 marked `global: true` — `useExisting` only resolves a token NestJS can already

@@ -1291,3 +1291,40 @@ history, the UI needs to *read* both. Built in `adapters/postgres-drizzle/`
   `job-status.types.ts`, `cadence.ts` / `.spec.ts`.
 
 **Tests:** 317/317 pass (19 new), typecheck clean.
+
+**Follow-up, same day — G1 resolved: lease-table lock built (Option C).** The
+user reviewed the plain-terms comparison and chose the lease lock over keeping
+Option D. `adapters/postgres-drizzle/`:
+
+- **`scheduler_lock` table** — `(application, lock_key)` PK, `holder`,
+  `locked_until` (the lease). One row per held/recently-held job lock; no
+  pruning needed (reused in place).
+- **`PostgresLeaseLock implements AdvisoryLock`** — the lock is a *row*, so
+  `tryAcquire`/`release` run on any pooled connection and it works through a
+  transaction-mode pooler (the two things Option D can't do). Claim is a
+  conditional upsert (`ON CONFLICT DO UPDATE … WHERE locked_until < now()` —
+  Postgres re-checks the WHERE against the row-locked tuple, so two instances
+  racing an expired lock never both win). Crash safety is the lease expiring,
+  not a connection closing. A self-managed heartbeat (`setInterval`, `unref`'d,
+  cleared on `onModuleDestroy`) renews `locked_until` every `leaseSeconds / 3`
+  while a run holds the lock; a heartbeat that finds the row gone logs a WARN.
+  `holder` = `hostname#pid#uuid` per process — release/heartbeat only touch
+  this process's own row.
+- **`PostgresLeaseLockModule.forRoot({ sqlExecutorToken, application, leaseSeconds? })`**
+  — `leaseSeconds` default 900, min 3 (validated at `forRoot`). Exports
+  `POSTGRES_LEASE_LOCK`.
+- **Core: `BackgroundJobsModule.forRoot` gains `advisoryLockToken?`** — when
+  set, binds `ADVISORY_LOCK` to it and **`sqlExecutorToken` becomes optional**
+  (the session lock and its `SQL_EXECUTOR` are not provided at all). `forRoot`
+  throws if neither token is given. Existing default-path wiring is unchanged.
+- **Trade-off documented** (README table + adapter section): lease too short →
+  overlapping runs; too long → slow crash recovery. `leaseSeconds` is a real
+  knob the session lock doesn't have. Default path (session lock + dedicated
+  connection) stays supported for consumers who don't want the table.
+
+Dimension 7 unchanged (Pass) — `scheduler_lock` is another shared *reference*
+schema + migration, DB instance consumer-owned. Dimension 4: `scheduler_lock`
+also carries active `application`, same call as `job_run`.
+
+**Tests:** 326/326 pass (9 new — `postgres-lease-lock.spec.ts` ×6,
+`postgres-lease-lock.module.spec.ts` ×3), typecheck clean.

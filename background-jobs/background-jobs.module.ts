@@ -9,12 +9,24 @@ import { ADVISORY_LOCK, JOB_RUN_RECORDER, SQL_EXECUTOR } from './tokens';
 
 export interface BackgroundJobsModuleConfig {
   /**
-   * The injection token the consuming app already provides its Drizzle db
-   * client under. This library never provides its own database connection —
-   * it aliases the consumer's existing one via useExisting, the same
-   * reasoning AuthorizationModule uses for AUTHORIZER.
+   * The injection token the consuming app provides its Drizzle db client
+   * under — used by the default session-level `PostgresAdvisoryLock`, which
+   * requires it to be a **dedicated single connection** (see the README).
+   *
+   * Required **unless** `advisoryLockToken` is given: a lease-table lock
+   * (`POSTGRES_LEASE_LOCK`) brings its own db wiring, and this module needs no
+   * `SqlExecutor` of its own in that case.
    */
-  sqlExecutorToken: string | symbol | (new (...args: never[]) => unknown);
+  sqlExecutorToken?: string | symbol | (new (...args: never[]) => unknown);
+
+  /**
+   * Optional. The token an alternative `AdvisoryLock` implementation is
+   * provided under — e.g. `POSTGRES_LEASE_LOCK` from
+   * `adapters/postgres-drizzle`, the pool-safe lease-table lock. Omit and the
+   * session-level `PostgresAdvisoryLock` is used (and `sqlExecutorToken`
+   * becomes required). Whatever module exports this token must be in `imports`.
+   */
+  advisoryLockToken?: string | symbol | (new (...args: never[]) => unknown);
 
   /**
    * Whatever module(s) export the provider behind sqlExecutorToken.
@@ -70,13 +82,27 @@ export class BackgroundJobsModule {
       inject: config.jobs ?? [],
     };
 
+    let lockProviders: Provider[];
+    if (config.advisoryLockToken) {
+      lockProviders = [{ provide: ADVISORY_LOCK, useExisting: config.advisoryLockToken }];
+    } else {
+      if (!config.sqlExecutorToken) {
+        throw new Error(
+          'BackgroundJobsModule.forRoot: sqlExecutorToken is required unless advisoryLockToken is provided.',
+        );
+      }
+      lockProviders = [
+        { provide: SQL_EXECUTOR, useExisting: config.sqlExecutorToken },
+        PostgresAdvisoryLock,
+        { provide: ADVISORY_LOCK, useExisting: PostgresAdvisoryLock },
+      ];
+    }
+
     return {
       module: BackgroundJobsModule,
       imports: config.imports ?? [],
       providers: [
-        { provide: SQL_EXECUTOR, useExisting: config.sqlExecutorToken },
-        PostgresAdvisoryLock,
-        { provide: ADVISORY_LOCK, useExisting: PostgresAdvisoryLock },
+        ...lockProviders,
         recorderProvider,
         IdempotentJobRunner,
         registryProvider,
