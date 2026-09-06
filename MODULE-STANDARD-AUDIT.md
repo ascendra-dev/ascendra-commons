@@ -1038,10 +1038,10 @@ import, never re-exported from `notification/index.ts`.
 
 ### Design (discussed decision-by-decision with the user)
 
-- **3 tables**, `notification_` prefix:
-  - `notification_channel_route` (notification_type, tenant_id nullable, channels[])
-  - `notification_template` (channel, notification_type, tenant_id nullable, subject, body, is_html)
-  - `notification_provider_credential` (channel, tenant_id NOT NULL, api_key, from, from_name)
+- **3 tables**, `notification_` prefix, every row carrying `application`:
+  - `notification_channel_route` (application, notification_type, tenant_id nullable, channels[])
+  - `notification_template` (application, channel, notification_type, tenant_id nullable, subject, body, is_html)
+  - `notification_provider_credential` (application, channel, tenant_id NOT NULL, api_key, from, from_name)
 - **Tenant-first fall-through** for routing + templates via
   `ORDER BY tenant_id IS NULL LIMIT 1` (`false` sorts first). Fixed a latent bug
   the old README example carried — `ORDER BY tenant_id DESC` puts NULLs *first*
@@ -1060,10 +1060,22 @@ import, never re-exported from `notification/index.ts`.
   otherwise repeat identical queries. Time-bounded (not request-bounded like the
   authorization adapter's) because a batch job has no request. Bounded map
   (evicts expired, then oldest).
-- **Seed helper** — `seedNotificationConfigFromData(db, NotificationConfigData)`
+- **Seed helper** — `seedNotificationConfigFromData(db, application, data)`
   writes the static shape as `tenant_id NULL` deployment-default rows, so
   `model: 'static'` → `'database'` is behaviour-preserving; tenant override rows
   are added later through the vertical's own admin path.
+- **`application` — active, not passive** (user's call, after discussion). Every
+  table has an `application` column and every read filters `WHERE application = $1`,
+  from `PostgresNotificationConfigModule.forRoot({ application })` (required).
+  Constant within one app's own database → costs nothing there, but the tables
+  stay correct if all Ascendra apps' notification config is ever consolidated
+  into one shared database. Justified because notification *types* genuinely
+  collide across products (`invoice.sent` in both pay and erp), unlike
+  `authorization`'s role catalog which is project-specific (Decision 5 there:
+  no column). This is the "one step further" case now written into
+  `MODULE-STANDARD.md` dimension 4 — an active `application` filter that
+  resolves to one value per deployment is not the `domain-events` mistake (the
+  parameter has a reader).
 
 ### Wiring
 
@@ -1071,12 +1083,18 @@ import, never re-exported from `notification/index.ts`.
 NotificationModule.forRoot({
   model: 'database',
   configToken: POSTGRES_NOTIFICATION_CONFIG,
-  imports: [PostgresNotificationConfigModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, imports: [DatabaseModule] })],
+  imports: [PostgresNotificationConfigModule.forRoot({
+    sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', imports: [DatabaseModule],
+  })],
 })
 ```
 
 ### Dimension notes
 
+- **4 (`applicationId`)** — the core `NotificationConfig` interface stays free
+  of it; the adapter carries it as an **active** filter (see above), and
+  `MODULE-STANDARD.md` dimension 4 gained the "one step further" paragraph for
+  cross-product-colliding rows.
 - **6 (Model 1/Model 2)** — Model 2 is now built as an adapter, matching
   `audit-logging` / `authorization`. `model: 'database'` with no `configToken`
   throws at `forRoot` (there is no meaningful stub for notification config).
@@ -1092,3 +1110,24 @@ NotificationModule.forRoot({
 section rewritten to point at the adapter.
 
 259/259 tests pass (up from 240 — 19 new in the adapter), typecheck clean.
+
+**Follow-up, same day — `application` made active.** The user flagged that the
+adapter tables had no `application` column, so two products could define the
+same `notificationType`. Discussed passive vs. active; the user chose active.
+Added `application` to all three tables + unique constraints, `WHERE application = $1`
+to all three reads, `forRoot({ application })` (required), and the seed helper's
+signature. `MODULE-STANDARD.md` dimension 4 gained the "one step further"
+paragraph distinguishing this (a filter with a reader, one value per
+deployment) from the `domain-events` unread-required-field mistake. 259/259
+tests pass (assertions added to existing adapter specs), typecheck clean.
+
+**Follow-up, same day — `ProviderConfig` made opaque.** The user pointed out
+that `{ apiKey, from, fromName? }` is a guess that doesn't fit every provider
+(SES needs access key + secret + region; OAuth providers a token; Twilio a SID
++ auth token + number). Changed `ProviderConfig` to `Record<string, unknown>` —
+an opaque JSON blob the library never reads inside; the consumer's real `send()`
+interprets it. `notification_provider_credential`'s `api_key`/`from`/`from_name`
+columns collapse to one `config jsonb`. The stub senders stop logging the
+provider config (it may hold secrets) — they log only the rendered message.
+`Notifier` and `NotificationConfig` untouched; the seam is unchanged, just
+honestly typed. 259/259 tests pass, typecheck clean.

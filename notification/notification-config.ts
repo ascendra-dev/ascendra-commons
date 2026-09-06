@@ -2,17 +2,16 @@ import { NotificationChannel } from './notification.types';
 import { NotificationTemplate } from './notification-template';
 
 /**
- * Provider-agnostic delivery credentials for one channel, for one tenant.
- * `from` is the sender identity — an address for email, a number/sender id for
- * SMS/WhatsApp. Field names are not any vendor's own shape (SendGrid/Twilio/
- * Meta) — this library ships the seam, a consumer's real delivery call maps
- * these onto whichever provider they pick.
+ * Delivery credentials/settings for one channel, for one tenant — an **opaque
+ * JSON object**. This library never reads inside it: the shape varies by
+ * provider (a single API key; an access key + secret + region; an OAuth token;
+ * an account SID + auth token + from-number) and can't be anticipated. The
+ * consumer's real `send()` implementation interprets it. The Postgres adapter
+ * stores it as one `jsonb` column.
+ *
+ * Must be JSON-serialisable — it round-trips through `jsonb`.
  */
-export interface ProviderConfig {
-  apiKey: string;
-  from: string;
-  fromName?: string;
-}
+export type ProviderConfig = Record<string, unknown>;
 
 /**
  * The one configuration surface a consumer supplies: channel routing,

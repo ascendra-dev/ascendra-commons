@@ -1,4 +1,4 @@
-import { boolean, index, pgTable, primaryKey, text, unique } from 'drizzle-orm/pg-core';
+import { boolean, index, jsonb, pgTable, primaryKey, text, unique } from 'drizzle-orm/pg-core';
 
 /**
  * The reference `notification_*` schema — one concrete Postgres/Drizzle shape
@@ -9,6 +9,12 @@ import { boolean, index, pgTable, primaryKey, text, unique } from 'drizzle-orm/p
  * Three tables, one per `NotificationConfig` method. Re-export from your own
  * schema barrel for `drizzle-kit`, or paste the migration. Requires
  * PostgreSQL 15+ (NULLS NOT DISTINCT).
+ *
+ * Every row carries `application` (which Ascendra app it belongs to), and every
+ * read filters by it — so these tables stay correct whether each app keeps its
+ * own database (the common case, one constant value) or they are ever
+ * consolidated into one shared config database (rows disambiguated). Stamped
+ * from `PostgresNotificationConfigModule.forRoot({ application })`.
  */
 
 /**
@@ -18,12 +24,13 @@ import { boolean, index, pgTable, primaryKey, text, unique } from 'drizzle-orm/p
 export const notificationChannelRoute = pgTable(
   'notification_channel_route',
   {
+    application: text('application').notNull(),
     notificationType: text('notification_type').notNull(),
     tenantId: text('tenant_id'),
     channels: text('channels').array().notNull(),
   },
   (t) => ({
-    uq: unique('notification_channel_route_uq').on(t.notificationType, t.tenantId).nullsNotDistinct(),
+    uq: unique('notification_channel_route_uq').on(t.application, t.notificationType, t.tenantId).nullsNotDistinct(),
   }),
 );
 
@@ -35,6 +42,7 @@ export const notificationChannelRoute = pgTable(
 export const notificationTemplate = pgTable(
   'notification_template',
   {
+    application: text('application').notNull(),
     channel: text('channel').notNull(),
     notificationType: text('notification_type').notNull(),
     tenantId: text('tenant_id'),
@@ -43,30 +51,36 @@ export const notificationTemplate = pgTable(
     isHtml: boolean('is_html').notNull().default(false),
   },
   (t) => ({
-    uq: unique('notification_template_uq').on(t.channel, t.notificationType, t.tenantId).nullsNotDistinct(),
+    uq: unique('notification_template_uq')
+      .on(t.application, t.channel, t.notificationType, t.tenantId)
+      .nullsNotDistinct(),
   }),
 );
 
 /**
- * Per-tenant delivery-provider credentials for one channel. `tenant_id` is
- * NOT NULL — credentials never fall through to a default (a missing row is a
+ * Per-tenant delivery-provider settings for one channel. `tenant_id` is NOT
+ * NULL — never falls through to a default (a missing row is a
  * `no_provider_config` failure, not "use another tenant's account").
  *
- * `api_key` is a live secret. Encrypt it at rest — Supabase Vault, `pgcrypto`,
- * or a decrypting view — or store a secret-manager reference and resolve it in
- * a `PostgresNotificationConfig` subclass. The adapter reads the column as-is.
+ * `config` is one opaque `jsonb` blob — the adapter returns it verbatim as
+ * `ProviderConfig`, because provider credential shapes vary and can't be
+ * anticipated (a single API key; access key + secret + region; an OAuth token;
+ * SID + auth token + number). The consumer's real `send()` interprets it.
+ *
+ * It typically holds live secrets — encrypt at rest (Supabase Vault, `pgcrypto`,
+ * a decrypting view), or store secret-manager references in the JSON and
+ * resolve them in a `PostgresNotificationConfig` subclass.
  */
 export const notificationProviderCredential = pgTable(
   'notification_provider_credential',
   {
+    application: text('application').notNull(),
     channel: text('channel').notNull(),
     tenantId: text('tenant_id').notNull(),
-    apiKey: text('api_key').notNull(),
-    from: text('from').notNull(),
-    fromName: text('from_name'),
+    config: jsonb('config').notNull().$type<Record<string, unknown>>(),
   },
   (t) => ({
-    pk: primaryKey({ columns: [t.channel, t.tenantId] }),
-    byTenant: index('notification_provider_credential_tenant').on(t.tenantId),
+    pk: primaryKey({ columns: [t.application, t.channel, t.tenantId] }),
+    byTenant: index('notification_provider_credential_tenant').on(t.application, t.tenantId),
   }),
 );

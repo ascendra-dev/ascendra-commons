@@ -22,7 +22,7 @@ describe('PostgresNotificationConfigModule wired into NotificationModule', () =>
         NotificationModule.forRoot({
           model: 'database',
           configToken: POSTGRES_NOTIFICATION_CONFIG,
-          imports: [PostgresNotificationConfigModule.forRoot({ sqlExecutorToken: DB, imports: [FakeDbModule] })],
+          imports: [PostgresNotificationConfigModule.forRoot({ sqlExecutorToken: DB, application: 'ascendra-pay', imports: [FakeDbModule] })],
         }),
       ],
     }).compile();
@@ -46,7 +46,7 @@ describe('PostgresNotificationConfigModule wired into NotificationModule', () =>
       const text = new PgDialect().sqlToQuery(q as never).sql;
       if (text.includes('notification_channel_route')) return { rows: [{ channels: ['email'] }] };
       if (text.includes('notification_template')) return { rows: [{ subject: 'Invoice', body: 'Hi', is_html: false }] };
-      if (text.includes('notification_provider_credential')) return { rows: [{ api_key: 'k', from: 'b@e.com', from_name: null }] };
+      if (text.includes('notification_provider_credential')) return { rows: [{ config: { apiKey: 'k', from: 'b@e.com' } }] };
       return { rows: [] };
     });
     @Module({ providers: [{ provide: DB, useValue: { execute } }], exports: [DB] })
@@ -58,7 +58,7 @@ describe('PostgresNotificationConfigModule wired into NotificationModule', () =>
           model: 'database',
           configToken: POSTGRES_NOTIFICATION_CONFIG,
           imports: [
-            PostgresNotificationConfigModule.forRoot({ sqlExecutorToken: DB, cacheTtlSeconds: 0, imports: [FakeDbModule] }),
+            PostgresNotificationConfigModule.forRoot({ sqlExecutorToken: DB, application: 'ascendra-pay', cacheTtlSeconds: 0, imports: [FakeDbModule] }),
           ],
         }),
       ],

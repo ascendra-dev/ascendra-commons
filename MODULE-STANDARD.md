@@ -96,11 +96,20 @@ added after real rows exist is a genuine backfill migration. The two are not
 the same request: an active parameter with no reader repeats the
 `domain-events` mistake above; a passive column with no reader is closer to
 `created_at` — cheap insurance against a future data consolidation (analytics,
-a reporting export — never a live shared database, which this repo has
-already ruled out as an architecture; see the root README's distribution
-model) rather than a live thing every call site must carry. `notification`'s
-reference schema (`NotificationConfig`'s database-backed worked example) does
-this — see its own README for the concrete shape.
+a reporting export) rather than a live thing every call site must carry.
+`audit-logging`'s adapter does this (`application` column, stamped on insert,
+never read — `find()` isn't built).
+
+**One step further, when a module's rows are conceptually cross-product:** an
+*active* `application` filter (`WHERE application = $1` on every read, from
+`forRoot({ application })`) is acceptable even though it repeats the same
+constant value within one app's own database — because it costs nothing there
+and keeps the tables correct if that config is ever consolidated. This is not
+the `domain-events` mistake: the parameter *has* a reader (every query), it
+just resolves to one value per deployment. Reserve it for rows that genuinely
+collide across products — `notification`'s adapter does this (a `notificationType`
+like `invoice.sent` that both `ascendra-pay` and `ascendra-erp` define) — not
+for project-specific rows like `authorization`'s role catalog.
 
 ### 5. `tenantId`
 

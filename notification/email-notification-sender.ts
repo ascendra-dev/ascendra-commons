@@ -24,7 +24,9 @@ export class EmailNotificationSender implements NotificationSender {
     if (!template) return { status: 'failed', reason: 'template_not_found' };
 
     const rendered = renderTemplate(template, request.variables);
-    console.log('email', { from: provider.from, to, ...rendered });
+    // Stub: log the message that would be sent. The provider config (checked
+    // above) is not logged — it is an opaque blob that may hold secrets.
+    console.log('email', { to, ...rendered });
     return { status: 'sent' };
   }
 

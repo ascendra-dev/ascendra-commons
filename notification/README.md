@@ -14,14 +14,15 @@ templates, or feature code.
 
 Built and audited against `MODULE-STANDARD.md` (this repo's root).
 
-- **No `applicationId`** anywhere in this module's interfaces — deliberately
-  N/A. Every table a database-backed implementation queries belongs to one
-  app's own database, so there's nothing to disambiguate at read time, and a
-  notification never lands anywhere a second Ascendra application also publishes
-  to (no broker, no shared sink). If you want an app-id value on a
-  database-backed schema for future cross-app reporting, stamp it as a **passive
-  column** written on insert, never a query parameter — declare your own token
-  in your own module and inject it there (see `MODULE-STANDARD.md` dimension 4).
+- **No `applicationId` in the core `NotificationConfig` interface** — dispatch
+  and rendering never need it. The **Postgres/Drizzle adapter** *does* carry an
+  `application` column on every table and filters every read by it (from
+  `PostgresNotificationConfigModule.forRoot({ application })`) — constant, and
+  therefore free, within one app's own database, but it keeps those tables
+  correct if all Ascendra apps' notification config is ever consolidated into
+  one shared database (a `notificationType` both `ascendra-pay` and
+  `ascendra-erp` define stays distinct). A consumer on another stack writing
+  their own `NotificationConfig` scopes queries however their deployment needs.
 - **`tenantId`** *is* threaded as a real parameter, on `NotificationRequest` and
   every method of `NotificationConfig`. `StaticNotificationConfig` honors it for
   `providerConfigFor` and ignores it for `channelsFor`/`templateFor` — see
@@ -66,10 +67,11 @@ templates, per-channel delivery credentials. `channelsFor` returns which
 channels a type uses; `templateFor`/`providerConfigFor` take the channel as a
 parameter (the calling sender always knows its own).
 
-**`ProviderConfig`** is `{ apiKey, from, fromName? }` — `from` is the sender
-identity (an address for email, a number/sender id for SMS/WhatsApp). Field
-names are provider-agnostic (not SendGrid's/Twilio's/Meta's shape); a
-consumer's real delivery call maps them onto whichever provider they pick.
+**`ProviderConfig`** is `Record<string, unknown>` — an **opaque JSON object**.
+This library never reads inside it: credential shapes vary by provider (a single
+API key; access key + secret + region; an OAuth token; SID + auth token +
+number) and can't be anticipated. The consumer's real `send()` interprets it;
+the Postgres adapter stores it as one `jsonb` column. Must be JSON-serialisable.
 
 **`StaticNotificationConfig`** is the Model 1 implementation, built from an
 in-memory object:
@@ -112,10 +114,11 @@ An interface — Email/WhatsApp/SMS share no behavior. Each sender injects
 `NOTIFICATION_CONFIG` and (email/SMS) `USER_CONTACT_RESOLVER`.
 
 - **`EmailNotificationSender`** / **`SMSNotificationSender`** — resolve the
-  recipient's address, resolve that tenant's credentials
+  recipient's address, resolve that tenant's provider config
   (`config.providerConfigFor('email', …)`), look up the channel's template
   (`config.templateFor('email', …)`), render it, and (today) log the rendered
-  result with the `from` identity. Fails in this order — cheapest check first:
+  message. The provider config is *not* logged — it's an opaque blob that may
+  hold secrets. Fails in this order — cheapest check first:
   `'no_address_available'` → `'no_provider_config'` → `'template_not_found'`.
 - **`WhatsappNotificationSender`** — a stub for templates/delivery,
   deliberately (see `NotificationTemplate` above). It does resolve provider
@@ -162,8 +165,9 @@ Copy `notification/` and `domain-events/` into `src/ascendra-commons/`, then:
         },
       },
       providerConfigs: {
+        // opaque per-provider blob — your send() reads it, this library doesn't
         email: { 'tenant-a': { apiKey: 'sg-...', from: 'billing@tenant-a.com' } },
-        sms:   { 'tenant-a': { apiKey: 'tw-...', from: '+15551234567' } },
+        sms:   { 'tenant-a': { accountSid: 'AC...', authToken: 'tw-...', from: '+15551234567' } },
       },
     }),
   ],
@@ -197,7 +201,11 @@ NotificationModule.forRoot({
   model: 'database',
   configToken: POSTGRES_NOTIFICATION_CONFIG,
   imports: [
-    PostgresNotificationConfigModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, imports: [DatabaseModule] }),
+    PostgresNotificationConfigModule.forRoot({
+      sqlExecutorToken: DATABASE_CONNECTION,
+      application: 'ascendra-pay',
+      imports: [DatabaseModule],
+    }),
   ],
 });
 ```

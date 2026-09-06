@@ -24,7 +24,8 @@ export class SMSNotificationSender implements NotificationSender {
     if (!template) return { status: 'failed', reason: 'template_not_found' };
 
     const rendered = renderTemplate(template, request.variables);
-    console.log('sms', { from: provider.from, to, ...rendered });
+    // Stub: the provider config (checked above) is not logged — it may hold secrets.
+    console.log('sms', { to, ...rendered });
     return { status: 'sent' };
   }
 

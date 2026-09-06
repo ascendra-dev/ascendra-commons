@@ -5,7 +5,7 @@ import { PostgresNotificationConfig } from './postgres-notification-config';
 import type { SqlExecutor } from './sql-executor';
 
 const dialect = new PgDialect();
-const OPTIONS = { cacheTtlSeconds: 0 }; // cache off for deterministic query counts
+const OPTIONS = { application: 'ascendra-pay', cacheTtlSeconds: 0 };
 
 function fakeDb(byTable: { route?: unknown[]; template?: unknown[]; credential?: unknown[] } = {}) {
   const execute = vi.fn(async (q: SQL) => {
@@ -37,9 +37,11 @@ describe('PostgresNotificationConfig', () => {
       const db = fakeDb({ route: [{ channels: ['email'] }] });
       await new PostgresNotificationConfig(db, OPTIONS).channelsFor('invoice.sent', 't1');
 
-      const text = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).sql;
+      const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
       expect(text).toMatch(/ORDER BY tenant_id IS NULL/i);
       expect(text).toMatch(/tenant_id = \$\d+ OR tenant_id IS NULL/i);
+      expect(text).toMatch(/application = \$\d+/i);
+      expect(params).toContain('ascendra-pay');
     });
   });
 
@@ -58,12 +60,12 @@ describe('PostgresNotificationConfig', () => {
   });
 
   describe('providerConfigFor', () => {
-    it('maps a credential row to ProviderConfig', async () => {
-      const db = fakeDb({ credential: [{ api_key: 'k', from: 'b@e.com', from_name: 'Billing' }] });
+    it('returns the config jsonb verbatim — whatever shape the row holds', async () => {
+      const db = fakeDb({ credential: [{ config: { accessKeyId: 'A', secretAccessKey: 'S', region: 'eu-west-1' } }] });
       await expect(new PostgresNotificationConfig(db, OPTIONS).providerConfigFor('email', 't1')).resolves.toEqual({
-        apiKey: 'k',
-        from: 'b@e.com',
-        fromName: 'Billing',
+        accessKeyId: 'A',
+        secretAccessKey: 'S',
+        region: 'eu-west-1',
       });
     });
 
@@ -90,7 +92,7 @@ describe('PostgresNotificationConfig', () => {
   describe('caching', () => {
     it('with a non-zero TTL, repeated lookups for the same key query once', async () => {
       const db = fakeDb({ route: [{ channels: ['email'] }] });
-      const config = new PostgresNotificationConfig(db, { cacheTtlSeconds: 30 });
+      const config = new PostgresNotificationConfig(db, { application: 'ascendra-pay', cacheTtlSeconds: 30 });
 
       await config.channelsFor('invoice.sent', 't1');
       await config.channelsFor('invoice.sent', 't1');
@@ -100,7 +102,7 @@ describe('PostgresNotificationConfig', () => {
 
     it('different args are cached separately', async () => {
       const db = fakeDb({ route: [{ channels: ['email'] }] });
-      const config = new PostgresNotificationConfig(db, { cacheTtlSeconds: 30 });
+      const config = new PostgresNotificationConfig(db, { application: 'ascendra-pay', cacheTtlSeconds: 30 });
 
       await config.channelsFor('invoice.sent', 't1');
       await config.channelsFor('invoice.sent', 't2');

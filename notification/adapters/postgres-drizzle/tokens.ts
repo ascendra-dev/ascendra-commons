@@ -6,7 +6,7 @@
 /** Bound to the consumer's Drizzle db via `PostgresNotificationConfigModule.forRoot({ sqlExecutorToken })`. */
 export const NOTIFICATION_CONFIG_SQL_EXECUTOR = Symbol('NOTIFICATION_CONFIG_SQL_EXECUTOR');
 
-/** `{ cacheTtlSeconds }` from `PostgresNotificationConfigModule.forRoot()`. */
+/** `{ cacheTtlSeconds, application }` from `PostgresNotificationConfigModule.forRoot()`. */
 export const NOTIFICATION_CONFIG_OPTIONS = Symbol('NOTIFICATION_CONFIG_OPTIONS');
 
 /**

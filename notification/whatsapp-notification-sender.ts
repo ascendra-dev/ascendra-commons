@@ -20,7 +20,8 @@ export class WhatsappNotificationSender implements NotificationSender {
     const provider = await this.config.providerConfigFor('whatsapp', request.tenantId ?? null);
     if (!provider) return { status: 'failed', reason: 'no_provider_config' };
 
-    console.log('whatsapp', { from: provider.from, ...request });
+    // Stub: the provider config (checked above) is not logged — it may hold secrets.
+    console.log('whatsapp', { ...request });
     return { status: 'sent' };
   }
 }

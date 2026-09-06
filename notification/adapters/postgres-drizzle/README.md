@@ -36,6 +36,13 @@ Resolution picks the tenant-specific row over the default with
 matches only the default rows; for credentials it short-circuits to `null` with
 no query.
 
+**Every row carries `application`** and every read filters `WHERE application = $1`
+(stamped from `forRoot({ application })`). Constant within one app's own
+database, so it costs nothing there — but it means these tables are also
+correct if all Ascendra apps' notification config is ever consolidated into one
+shared database (rows disambiguated, a notificationType like `invoice.sent`
+that both `ascendra-pay` and `ascendra-erp` define stays distinct).
+
 ## Wiring it
 
 ### 1. Create the tables
@@ -58,7 +65,7 @@ the switch changes nothing until you add tenant override rows:
 ```typescript
 import { seedNotificationConfigFromData } from '.../adapters/postgres-drizzle';
 
-await seedNotificationConfigFromData(db, {
+await seedNotificationConfigFromData(db, 'ascendra-pay', {   // same `application` as forRoot()
   channels: { 'invoice.sent': ['email'], 'payment.confirmed': ['email', 'sms'] },
   templates: { email: { 'invoice.sent': { subject: '...', body: '...' } } },
   providerConfigs: { email: { 'tenant-a': { apiKey: '...', from: 'billing@tenant-a.com' } } },
@@ -79,6 +86,7 @@ NotificationModule.forRoot({
   imports: [
     PostgresNotificationConfigModule.forRoot({
       sqlExecutorToken: DATABASE_CONNECTION,
+      application: 'ascendra-pay',   // written on every row, filtered on every read
       cacheTtlSeconds: 30,           // optional, default 30; 0 disables
       imports: [DatabaseModule],
     }),
@@ -104,22 +112,27 @@ a routing/template/credential change is visible after at most the TTL. Not
 shared across processes (no Redis); config changes rarely enough that a brief
 per-node staleness window is fine.
 
-## Credentials — encrypt `api_key`
+## Credentials — one opaque `config` jsonb
 
-`notification_provider_credential.api_key` is a live provider secret stored as
-plain `text`. The adapter reads the column as-is — **encrypt it at rest**:
+`notification_provider_credential.config` is a single `jsonb` column. The
+adapter returns it **verbatim** as `ProviderConfig` — provider credential
+shapes vary (a single API key; access key + secret + region; an OAuth token;
+SID + auth token + number) and can't be anticipated, so the library never reads
+inside it. Your real `send()` interprets it.
 
-- Supabase **Vault** (store the secret there, keep its id in the column, resolve
-  it in a `PostgresNotificationConfig` subclass), or
-- `pgcrypto` with a key from your app config and a decrypting view, or
+It typically holds live secrets — **encrypt at rest**:
+
+- Supabase **Vault** (keep secret ids in the JSON, resolve them in a
+  `PostgresNotificationConfig` subclass), or
+- `pgcrypto` + a decrypting view, or
 - `REVOKE select ON notification_provider_credential` from the ordinary read
   role and grant it only to the notification service's role.
 
-If your near-term need is only per-tenant *routing and templates*, you can skip
-this table entirely: `class C extends PostgresNotificationConfig` — no, simpler:
-subclass `StaticNotificationConfig`, override `channelsFor`/`templateFor` to
-hit the DB, and leave `providerConfigFor` reading the static `providerConfigs`
-(see the module README, "Going database-backed for one method only").
+If your near-term need is only per-tenant *routing and templates*, skip this
+table entirely: subclass `StaticNotificationConfig`, override
+`channelsFor`/`templateFor` to hit the DB, and leave `providerConfigFor`
+reading the static `providerConfigs` passed to `super()` (see the module
+README, "Going database-backed for one method only").
 
 ## Deferred (not built)
 
