@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Module } from '@nestjs/common';
+import { Injectable, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { BackgroundJobsModule } from './background-jobs.module';
 import { IdempotentJobRunner } from './idempotent-job-runner.service';
+import { JobTrigger } from './job-trigger';
 import { NoopJobRunRecorder } from './noop-job-run-recorder';
 import { JobRunRecorder } from './job-run-recorder.interface';
 import { ScheduledJob } from './scheduled-job.interface';
@@ -83,5 +84,49 @@ describe('BackgroundJobsModule.forRoot — real DI wiring', () => {
     expect(recordRun).toHaveBeenCalledWith(
       expect.objectContaining({ jobName: 'wiring-test-job', trigger: 'manual', outcome: 'completed', itemsDue: 1 }),
     );
+  });
+
+  it('registers `jobs` so JobTrigger can run one by name, out of schedule', async () => {
+    const processItem = vi.fn().mockResolvedValue(undefined);
+
+    @Injectable()
+    class DemoJob implements ScheduledJob<string> {
+      readonly name = 'demo-job';
+      findDueItems = vi.fn().mockResolvedValue(['a', 'b']);
+      processItem = processItem;
+    }
+
+    @Module({ providers: [DemoJob], exports: [DemoJob] })
+    class DemoModule {}
+
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        BackgroundJobsModule.forRoot({
+          sqlExecutorToken: DB_CONNECTION,
+          imports: [FakeDatabaseModule, DemoModule],
+          jobs: [DemoJob],
+        }),
+      ],
+    }).compile();
+
+    const trigger = moduleRef.get(JobTrigger);
+    expect(trigger.availableJobs()).toEqual(['demo-job']);
+
+    const result = await trigger.trigger('demo-job');
+    expect(result).toEqual({
+      status: 'completed',
+      itemsDue: 2,
+      itemsProcessed: 2,
+      itemsFailed: 0,
+      failedItemRefs: [],
+    });
+    expect(processItem).toHaveBeenCalledTimes(2);
+
+    expect(await trigger.trigger('never-registered')).toEqual({ status: 'unknown_job' });
+  });
+
+  it('JobTrigger resolves with an empty registry when `jobs` is omitted', async () => {
+    const moduleRef = await buildTestModule();
+    expect(moduleRef.get(JobTrigger).availableJobs()).toEqual([]);
   });
 });

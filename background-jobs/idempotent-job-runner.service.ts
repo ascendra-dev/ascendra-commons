@@ -38,10 +38,19 @@ export class IdempotentJobRunner {
     this.recorder = recorder ?? new NoopJobRunRecorder();
   }
 
-  async run(job: ScheduledJob<unknown>, options?: JobRunOptions): Promise<void> {
+  /**
+   * Resolves with the run's {@link JobRunSummary} on a completed run (even one
+   * with `itemsFailed > 0`), or `null` if the advisory lock was not acquired
+   * (another instance or an overlapping run already owns the job — not a run,
+   * not recorded). **Rejects** if `findDueItems()` itself threw — the
+   * `job_failed` summary is recorded first, then the error propagates, so the
+   * scheduled `@Cron` caller still learns the whole job failed to even query.
+   * `JobTrigger` turns that rejection into a `job_failed` result for a UI.
+   */
+  async run(job: ScheduledJob<unknown>, options?: JobRunOptions): Promise<JobRunSummary | null> {
     const lockKey = `scheduler:${job.name}`;
     const acquired = await this.lock.tryAcquire(lockKey);
-    if (!acquired) return; // another instance already owns this job — including a rolling deploy's overlap window. Not a run; not recorded.
+    if (!acquired) return null; // another instance already owns this job — including a rolling deploy's overlap window. Not a run; not recorded.
 
     const startedAt = new Date();
     let itemsDue = 0;
@@ -50,6 +59,7 @@ export class IdempotentJobRunner {
     const failedItemRefs: string[] = [];
     let outcome: JobRunOutcome = 'completed';
     let jobError: string | undefined;
+    let summary: JobRunSummary | undefined;
 
     try {
       const due = await job.findDueItems();
@@ -87,7 +97,7 @@ export class IdempotentJobRunner {
           err instanceof Error ? err.stack : String(err),
         ),
       );
-      await this.record({
+      summary = {
         jobName: job.name,
         trigger: options?.trigger ?? 'scheduled',
         startedAt,
@@ -98,8 +108,13 @@ export class IdempotentJobRunner {
         itemsFailed,
         failedItemRefs,
         error: jobError,
-      });
+      };
+      await this.record(summary);
     }
+
+    // The finally block above always assigns `summary` before this line is reached;
+    // `?? null` only satisfies the type-checker, which can't see that.
+    return summary ?? null;
   }
 
   /**

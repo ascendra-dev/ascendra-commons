@@ -1,7 +1,10 @@
-import { DynamicModule, Module, Provider } from '@nestjs/common';
+import { DynamicModule, Module, Provider, Type } from '@nestjs/common';
 import { PostgresAdvisoryLock } from './postgres-advisory-lock';
 import { IdempotentJobRunner } from './idempotent-job-runner.service';
+import { JobTrigger } from './job-trigger';
 import { NoopJobRunRecorder } from './noop-job-run-recorder';
+import { ScheduledJob } from './scheduled-job.interface';
+import { ScheduledJobRegistry } from './scheduled-job-registry';
 import { ADVISORY_LOCK, JOB_RUN_RECORDER, SQL_EXECUTOR } from './tokens';
 
 export interface BackgroundJobsModuleConfig {
@@ -31,6 +34,15 @@ export interface BackgroundJobsModuleConfig {
    * rule as `sqlExecutorToken`.
    */
   jobRunRecorderToken?: string | symbol | (new (...args: never[]) => unknown);
+
+  /**
+   * Optional. `ScheduledJob` provider classes an admin can run on demand by
+   * name via `JobTrigger` — the hook behind a "run now" / "retry" button. Each
+   * must be resolvable from `imports` (its own feature module, which must
+   * `exports` it). A job left out of this list still runs on its `@Cron`
+   * schedule; it just can't be triggered out of schedule. Defaults to none.
+   */
+  jobs?: Array<Type<ScheduledJob<unknown>>>;
 }
 
 /**
@@ -40,9 +52,10 @@ export interface BackgroundJobsModuleConfig {
  * module's own doc comment).
  *
  * Does not schedule anything itself — no @Cron, no OnApplicationBootstrap.
- * It only provides IdempotentJobRunner; each job gets its own thin wiring
- * class deciding when to call runner.run(job), since different jobs may need
- * different cadences. See this module's README.
+ * It provides IdempotentJobRunner (each job gets its own thin wiring class
+ * deciding when to call runner.run(job), since different jobs may need
+ * different cadences), plus JobTrigger + ScheduledJobRegistry for
+ * admin-initiated out-of-schedule runs. See this module's README.
  */
 @Module({})
 export class BackgroundJobsModule {
@@ -50,6 +63,12 @@ export class BackgroundJobsModule {
     const recorderProvider: Provider = config.jobRunRecorderToken
       ? { provide: JOB_RUN_RECORDER, useExisting: config.jobRunRecorderToken }
       : { provide: JOB_RUN_RECORDER, useClass: NoopJobRunRecorder };
+
+    const registryProvider: Provider = {
+      provide: ScheduledJobRegistry,
+      useFactory: (...jobs: ScheduledJob<unknown>[]) => new ScheduledJobRegistry(jobs),
+      inject: config.jobs ?? [],
+    };
 
     return {
       module: BackgroundJobsModule,
@@ -60,8 +79,10 @@ export class BackgroundJobsModule {
         { provide: ADVISORY_LOCK, useExisting: PostgresAdvisoryLock },
         recorderProvider,
         IdempotentJobRunner,
+        registryProvider,
+        JobTrigger,
       ],
-      exports: [IdempotentJobRunner],
+      exports: [IdempotentJobRunner, JobTrigger, ScheduledJobRegistry],
     };
   }
 }

@@ -133,7 +133,7 @@ describe('IdempotentJobRunner', () => {
       findDueItems: vi.fn().mockResolvedValue(['a']),
       processItem: vi.fn().mockResolvedValue(undefined),
     };
-    await expect(new IdempotentJobRunner(lock).run(okJob)).resolves.toBeUndefined();
+    await expect(new IdempotentJobRunner(lock).run(okJob)).resolves.toMatchObject({ outcome: 'completed' });
     expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('failed to release'), expect.any(String));
 
     // job-level failure: the findDueItems error propagates, not the unlock error
@@ -215,13 +215,14 @@ describe('IdempotentJobRunner', () => {
       expect(summary.error).toContain('query failed');
     });
 
-    it('does not record anything when the lock was not acquired', async () => {
+    it('records nothing and returns null when the lock was not acquired', async () => {
       const recorder = fakeRecorder();
-      await new IdempotentJobRunner(fakeLock(false), recorder).run({
+      const result = await new IdempotentJobRunner(fakeLock(false), recorder).run({
         name: 'j',
         findDueItems: vi.fn(),
         processItem: vi.fn(),
       });
+      expect(result).toBeNull();
       expect(recorder.recordRun).not.toHaveBeenCalled();
     });
 
@@ -250,20 +251,19 @@ describe('IdempotentJobRunner', () => {
           findDueItems: vi.fn().mockResolvedValue([]),
           processItem: vi.fn(),
         }),
-      ).resolves.toBeUndefined();
+      ).resolves.toMatchObject({ outcome: 'completed' });
 
       expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('recording its run failed'), expect.any(String));
     });
 
-    it('records nothing by default (NoopJobRunRecorder) when constructed without a recorder', async () => {
-      // no assertion target beyond "does not throw" — the point is the 1-arg constructor still works
+    it('returns the summary and does not throw with the 1-arg constructor (NoopJobRunRecorder default)', async () => {
       await expect(
         new IdempotentJobRunner(fakeLock(true)).run({
           name: 'j',
           findDueItems: vi.fn().mockResolvedValue([]),
           processItem: vi.fn(),
         }),
-      ).resolves.toBeUndefined();
+      ).resolves.toMatchObject({ jobName: 'j', outcome: 'completed', itemsDue: 0 });
     });
   });
 });

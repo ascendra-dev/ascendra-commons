@@ -103,7 +103,10 @@ export class JobRunPrunerSchedule implements OnApplicationBootstrap {
 ```
 
 The pruner runs through the same `IdempotentJobRunner` as every other job — so
-its own runs show up in `job_run` too, under `job-run-pruner`.
+its own runs show up in `job_run` too, under `job-run-pruner`. Add
+`JobRunPrunerJob` to `BackgroundJobsModule.forRoot({ jobs: [...] })` (with
+`JobRunPrunerModule` in `imports`) to also make it triggerable on demand via
+`JobTrigger`.
 
 ## Notes
 

@@ -1223,3 +1223,39 @@ the schedule wrapper knows why it fired, the runner doesn't.
 **Tests:** 287/287 pass (from 259 at the start of this session — 28 new across
 the G2/G3/G4 + Option D fixes and the observability adapter; all in
 `background-jobs`, which goes 10 → 38), typecheck clean.
+
+**Follow-up, same day — on-demand job trigger (the admin "run now" / "retry"
+hook).** Once observability gives an admin screen showing failed runs, the
+natural next ask is a button to re-run one out of schedule. Built in the core
+(stack-agnostic, no DB):
+
+- `IdempotentJobRunner.run()` now returns `JobRunSummary | null` instead of
+  `void` — `null` = lock not acquired; still **rejects** if `findDueItems()`
+  threw (the `@Cron` contract is unchanged). Backward-compatible for callers
+  that ignore the return.
+- `ScheduledJobRegistry` — name → `ScheduledJob` instance, populated by
+  `BackgroundJobsModule.forRoot({ jobs: [...] })` (explicit list, no
+  `DiscoveryService`, matching the module's rejection of dynamic cron
+  registration). Duplicate name → startup error (name is the lock key).
+- `JobTrigger.trigger(name)` → discriminated result (`unknown_job` /
+  `already_running` / `completed` with counts + `failedItemRefs` /
+  `job_failed` with error). Runs with `trigger: 'manual'`. Both exported from
+  `BackgroundJobsModule`.
+- **Not per-item retry** — `failedItemRefs` are opaque `describeItem()`
+  strings; re-run is whole-job and relies on level-triggered `findDueItems()`
+  (which the module already mandates). Per-item retry stays Model 2.
+- **No controller shipped** — `JobTrigger` is a service; the consumer writes
+  the ~3-line endpoint and gates it with their own `Authorizer`. Dimension 8
+  stays N/A (no frontend contract, no DTO).
+- **`forFeature` multi-provider registration considered and rejected** — the
+  cross-module DI plumbing is fragile; a central `jobs: [...]` list at
+  `forRoot` is more in keeping with this module's explicit-wiring style. Noted
+  in the README.
+
+Also confirmed this repo's test transpile emits no `design:paramtypes`, so
+`JobTrigger` uses explicit `@Inject(Class)` on its constructor params like
+every other provider here.
+
+**Tests:** 298/298 pass (11 new — `scheduled-job-registry.spec.ts` ×4,
+`job-trigger.spec.ts` ×5, 2 added to the module spec; existing runner specs
+updated for the new return type), typecheck clean.

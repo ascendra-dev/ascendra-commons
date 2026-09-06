@@ -189,7 +189,8 @@ A genuine alternative was considered and set aside, not overlooked: `@nestjs/sch
 
 What's shipped in this folder: `ScheduledJob<TItem>`, `AdvisoryLock`,
 `PostgresAdvisoryLock`, `IdempotentJobRunner`, the `JobRunRecorder` port +
-`NoopJobRunRecorder`, and `BackgroundJobsModule.forRoot()`. Plus
+`NoopJobRunRecorder`, `ScheduledJobRegistry` + `JobTrigger` (admin-initiated
+out-of-schedule runs), and `BackgroundJobsModule.forRoot()`. Plus
 `adapters/postgres-drizzle/` — a ready-made `PostgresJobRunRecorder` (+ its
 `job_run` table) and a reference `JobRunPrunerJob`. No queue, no backoff
 policy, no dead-letter path, no scheduling built in — each job supplies its
@@ -269,6 +270,52 @@ Design constraints, each deliberate:
   table — see that folder's README. A different stack provides its own
   `JobRunRecorder` against the same port.
 
+### Triggering a job out of schedule — `JobTrigger`
+
+The natural companion to a run-history admin screen: a "run now" / "retry"
+button. `IdempotentJobRunner.run()` already accepts `{ trigger: 'manual' }`;
+what's missing for an HTTP controller is resolving a job **name** (what the UI
+sends) to the job **instance**. That's `ScheduledJobRegistry` +
+`JobTrigger`, both provided by `forRoot()`:
+
+```typescript
+BackgroundJobsModule.forRoot({
+  sqlExecutorToken: SCHEDULER_DB,
+  imports: [SchedulerDbModule, InvoiceModule /* exports InvoiceReminderJob */],
+  jobs: [InvoiceReminderJob, JobRunPrunerJob], // the jobs an admin may trigger by name
+})
+```
+
+```typescript
+@Post('admin/jobs/:name/run')          // gate with your own Authorizer — a manual run is privileged
+run(@Param('name') name: string) {
+  return this.jobTrigger.trigger(name); // JobTrigger is exported by BackgroundJobsModule
+}
+```
+
+`trigger(name)` returns a discriminated result: `unknown_job` /
+`already_running` (the lock was held — a scheduled fire or another click is
+mid-run) / `completed` with `{ itemsDue, itemsProcessed, itemsFailed, failedItemRefs }`
+/ `job_failed` with the error. The run is recorded with `trigger: 'manual'`.
+
+What it is and isn't:
+
+- **"Retry" and "run now" are the same call.** `run()` re-queries
+  `findDueItems()`, so a **level-triggered** job (the shape this module asks
+  for) picks up the items that failed last run automatically. A job whose
+  `findDueItems()` is edge-triggered won't — that's a job bug, not a trigger
+  limitation.
+- **Not per-item retry.** `failedItemRefs` are opaque `describeItem()` strings;
+  the runner can't turn one back into an item and process it alone. Per-item
+  retry state is Model 2.
+- **`trigger()` awaits the whole run.** For a job that can run long, the
+  controller should fire-and-forget and return `202` — `void this.jobTrigger.trigger(name)`
+  — then let the admin screen poll the run history. The lock still stops a
+  double-click starting a second run.
+- **A job left out of `jobs: [...]` still runs on its `@Cron`** — it just
+  can't be triggered on demand. Two jobs with the same `name` in the list is a
+  startup error (the name is also the lock key).
+
 ## Model 2 — Dedicated Job Queue (future target)
 
 A proper job queue (e.g. `pg-boss`, staying Postgres-backed rather than
@@ -313,6 +360,7 @@ export class SchedulerDbModule {}
       sqlExecutorToken: SCHEDULER_DB,   // the dedicated connection above — NOT the app's DATABASE_CONNECTION pool
       imports: [
         SchedulerDbModule,             // exports SCHEDULER_DB — useExisting can't see it otherwise
+        InvoiceModule,                 // must `exports: [InvoiceReminderJob]` for `jobs` below to resolve
         // optional — run-history recording; omit for no-op. Uses the app's NORMAL pooled db, not SCHEDULER_DB.
         PostgresJobRunRecorderModule.forRoot({
           sqlExecutorToken: DRIZZLE,
@@ -321,6 +369,7 @@ export class SchedulerDbModule {}
         }),
       ],
       jobRunRecorderToken: POSTGRES_JOB_RUN_RECORDER, // omit → NoopJobRunRecorder
+      jobs: [InvoiceReminderJob],      // optional — jobs an admin can trigger by name via JobTrigger
     }),
     // optional — keeps job_run pruned; give JobRunPrunerJob a cadence with a schedule class
     JobRunPrunerModule.forRoot({ sqlExecutorToken: DRIZZLE, application: 'ascendra-pay', retentionDays: 90 }),

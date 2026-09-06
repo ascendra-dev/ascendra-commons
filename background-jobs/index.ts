@@ -13,4 +13,7 @@ export type {
   JobRunTrigger,
 } from './job-run-recorder.interface';
 export { NoopJobRunRecorder } from './noop-job-run-recorder';
+export { ScheduledJobRegistry } from './scheduled-job-registry';
+export { JobTrigger } from './job-trigger';
+export type { JobTriggerResult } from './job-trigger';
 export { SQL_EXECUTOR, ADVISORY_LOCK, JOB_RUN_RECORDER } from './tokens';
