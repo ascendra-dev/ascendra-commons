@@ -251,10 +251,12 @@ What it answers:
   becomes a query. Capped; it's a diagnosis sample, not a dead-letter queue
   (per-item retry policy is Model 2).
 - **Did it run at all / missed schedule?** *Derived*, not recorded — you
-  cannot write a row for a run that never happened. Alert on "no `completed`
-  run for job X in longer than its cadence." `trigger` sharpens it: a spike of
-  `bootstrap` runs processing large batches means scheduled fires were being
-  missed and the `OnApplicationBootstrap` catch-up compensated.
+  cannot write a row for a run that never happened. The Postgres adapter's
+  `PostgresJobStatusService.listJobStatus()` computes an `overdue` flag per job
+  from a hand-supplied (or history-inferred) cadence hint — see that folder's
+  README. `trigger` sharpens it: a spike of `bootstrap` runs processing large
+  batches means scheduled fires were being missed and the
+  `OnApplicationBootstrap` catch-up compensated.
 
 Design constraints, each deliberate:
 
@@ -267,8 +269,9 @@ Design constraints, each deliberate:
 - **The runner owns no persistence.** `NoopJobRunRecorder` is the default;
   `BackgroundJobsModule.forRoot({ jobRunRecorderToken })` swaps in a real one.
   `adapters/postgres-drizzle/` ships `PostgresJobRunRecorder` and its `job_run`
-  table — see that folder's README. A different stack provides its own
-  `JobRunRecorder` against the same port.
+  table, plus `PostgresJobStatusService` for reading it back (history log +
+  jobs dashboard) — see that folder's README. A different stack provides its
+  own `JobRunRecorder` against the same port.
 
 ### Triggering a job out of schedule — `JobTrigger`
 

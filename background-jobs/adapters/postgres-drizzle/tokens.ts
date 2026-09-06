@@ -23,6 +23,14 @@ export const JOB_RUN_APPLICATION_ID = Symbol('JOB_RUN_APPLICATION_ID');
 export const JOB_RUN_RETENTION_DAYS = Symbol('JOB_RUN_RETENTION_DAYS');
 
 /**
+ * Per-job cadence hints (`Record<string, string | number>`) for
+ * `PostgresJobStatusService`'s overdue detection — from
+ * `PostgresJobStatusModule.forRoot({ cadences })`. A rough max-gap bound, not
+ * the real cron; the adapter never sees `@Cron`.
+ */
+export const JOB_STATUS_CADENCES = Symbol('JOB_STATUS_CADENCES');
+
+/**
  * What `PostgresJobRunRecorderModule` exports — pass this as
  * `BackgroundJobsModule.forRoot({ jobRunRecorderToken })`, with the recorder
  * module in that same call's `imports`.

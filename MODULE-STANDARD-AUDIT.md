@@ -1259,3 +1259,35 @@ every other provider here.
 **Tests:** 298/298 pass (11 new — `scheduled-job-registry.spec.ts` ×4,
 `job-trigger.spec.ts` ×5, 2 added to the module spec; existing runner specs
 updated for the new return type), typecheck clean.
+
+**Follow-up, same day — read-side reporting for the admin UI
+(`PostgresJobStatusService`).** Once there's a job registry and a `job_run`
+history, the UI needs to *read* both. Built in `adapters/postgres-drizzle/`
+(reads `job_run`, so Postgres-specific and opt-in — no core change):
+
+- `getRunHistory({ jobName?, outcome?, since?, until?, limit?, cursor? })` —
+  keyset-paginated log, newest first, `application`-scoped, `limit` capped 200.
+- `listJobStatus()` — one `JobStatus` per job (every job that's run + every job
+  named in `cadences`): `lastRun`, `lastSuccessAt`, `consecutiveFailures`
+  (leading `job_failed` **or** `itemsFailed > 0`), `cadence`, `overdue`,
+  `overdueBy`.
+- **The missed-schedule question.** The adapter never sees `@Cron` (it's a
+  decorator in the vertical; reading it needs `@nestjs/schedule` + a cron
+  parser this module doesn't depend on). `PostgresJobStatusModule.forRoot({ cadences })`
+  takes a *separate, hand-typed* hint per job (`'1d'` / `'2h'` / seconds) — a
+  loose max-gap bound, not the cron. `overdue` = gap since last run > cadence ×
+  1.5, or a `cadences`-listed job never ran. The hint is echoed back in the
+  result so the UI shows "last run 3d ago / expected every 1d" and the human
+  needn't know the schedule. Where no hint is given, a cadence is **inferred**
+  from the median gap of that job's recent `trigger: 'scheduled'` non-failed
+  runs (≥ 3 needed), flagged `source: 'inferred'`. Deliberately **not**
+  enumerating each missed occurrence — needs a cron engine, synthesises
+  never-recorded rows, and "overdue by 3 days" is the actionable form.
+- **`PostgresJobStatusService` is a service, not a controller** — the consumer
+  writes the endpoint and gates it with their `Authorizer`. Dimension 8 stays
+  N/A (typed read DTOs shipped: `JobStatus`, `JobRunRecord`, `RunHistoryPage`;
+  no frontend contract).
+- **New files:** `job-status.service.ts` / `.module.ts` / `.spec.ts` ×2,
+  `job-status.types.ts`, `cadence.ts` / `.spec.ts`.
+
+**Tests:** 317/317 pass (19 new), typecheck clean.
