@@ -1,13 +1,16 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   NotificationChannel,
   NotificationChannelResult,
+  NotificationRecipient,
   NotificationRequest,
   NotificationResult,
 } from './notification.types';
 import { NotificationConfig } from './notification-config';
+import type { DeliveryAttempt, NotificationDeliveryRecorder } from './notification-delivery-recorder';
+import { NoopNotificationDeliveryRecorder } from './noop-notification-delivery-recorder';
 import { NotificationSender } from './notification-sender';
-import { NOTIFICATION_CHANNEL_SENDERS, NOTIFICATION_CONFIG } from './tokens';
+import { NOTIFICATION_CHANNEL_SENDERS, NOTIFICATION_CONFIG, NOTIFICATION_DELIVERY_RECORDER } from './tokens';
 
 /** Carries the full NotificationResult so a caller catching this can still see per-channel detail. */
 export class NotificationDeliveryError extends Error {
@@ -27,10 +30,18 @@ export class NotificationDeliveryError extends Error {
  */
 @Injectable()
 export class Notifier {
+  private readonly logger = new Logger(Notifier.name);
+  private readonly deliveryRecorder: NotificationDeliveryRecorder;
+
   constructor(
     @Inject(NOTIFICATION_CONFIG) private readonly config: NotificationConfig,
     @Inject(NOTIFICATION_CHANNEL_SENDERS) private readonly senders: Map<NotificationChannel, NotificationSender>,
-  ) {}
+    @Optional() @Inject(NOTIFICATION_DELIVERY_RECORDER) deliveryRecorder?: NotificationDeliveryRecorder,
+  ) {
+    // NotificationModule.forRoot() always binds the token; the fallback keeps
+    // `new Notifier(config, senders)` (tests, ad hoc wiring) working.
+    this.deliveryRecorder = deliveryRecorder ?? new NoopNotificationDeliveryRecorder();
+  }
 
   async notify(request: NotificationRequest): Promise<NotificationResult> {
     let channels: NotificationChannel[];
@@ -61,7 +72,40 @@ export class Notifier {
     const status: NotificationResult['status'] =
       sentCount === entries.length ? 'sent' : sentCount === 0 ? 'failed' : 'partial';
 
+    await this.recordDelivery(request, entries);
     return { status, channels: channelResults };
+  }
+
+  /**
+   * Best-effort — a failure to write the delivery log is swallowed and logged,
+   * never allowed to change the notification's own outcome (contrast
+   * audit-logging, where a failed write is critical). The recorder itself is
+   * also contractually non-throwing; this is the belt-and-braces.
+   */
+  private async recordDelivery(
+    request: NotificationRequest,
+    entries: Array<[NotificationChannel, NotificationChannelResult]>,
+  ): Promise<void> {
+    const now = new Date();
+    const attempts: DeliveryAttempt[] = entries.map(([channel, result]) => ({
+      notificationType: request.notificationType,
+      channel,
+      tenantId: request.tenantId ?? null,
+      recipientRef: recipientRef(request.recipient),
+      status: result.status,
+      reason: result.reason,
+      providerMessageId: result.providerMessageId,
+      attemptedAt: now,
+      correlationId: request.correlationId,
+    }));
+    try {
+      await this.deliveryRecorder.recordAttempts(attempts);
+    } catch (err) {
+      this.logger.error(
+        `notify("${request.notificationType}") delivered, but recording the delivery log failed`,
+        err instanceof Error ? err.stack : String(err),
+      );
+    }
   }
 
   /**
@@ -107,4 +151,12 @@ export class Notifier {
       return [channel, { status: 'failed', reason: err instanceof Error ? err.message : 'unknown_error' }];
     }
   }
+}
+
+/** Redacted recipient identity for the delivery log — never the actual address. */
+function recipientRef(recipient: NotificationRecipient): string {
+  if (recipient.type === 'user') return `user:${recipient.id}`;
+  if (recipient.email) return 'raw:email';
+  if (recipient.phone) return 'raw:phone';
+  return 'raw';
 }

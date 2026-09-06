@@ -46,23 +46,23 @@ No new table.
 - ☑ adapter README ("Admin surface") + module README (shipped/deferred table)
 - ☑ audit doc entry · 346/346
 
-## 3 · notification — delivery history + config admin
+## 3 · notification — delivery history + config admin ☑ (2026-09-06)
 
 **New table** `commons_notification_delivery`.
 
-- ☐ `commons_notification_delivery` schema + migration (type, recipient, channel, tenant, status, provider_message_id, error, timestamps, application, correlation_id)
-- ☐ `NotificationDeliveryRecorder` port + `NoopNotificationDeliveryRecorder`, wired into `Notifier` best-effort (like `JobRunRecorder`)
-- ☐ `PostgresNotificationDeliveryRecorder` + a status-update path for provider webhooks (queued→sent→delivered/failed/bounced)
-- ☐ `PostgresNotificationObservabilityService` — delivery history query; config-coverage gaps (route w/o template, routed channel w/o credential)
-- ☐ config admin: CRUD on routes / templates / provider credentials; test-send
-- ☐ module(s), specs, READMEs, audit doc entry
+- ☑ schema + migration (id, application, notification_type, channel, tenant_id, recipient_ref *redacted*, status, reason, provider_message_id, attempted_at, updated_at, correlation_id)
+- ☑ `NotificationDeliveryRecorder` port + `NoopNotificationDeliveryRecorder`, wired into `Notifier` best-effort; `NotificationChannelResult.providerMessageId?` added
+- ☑ `PostgresNotificationDeliveryRecorder` — batched INSERT + `updateDeliveryStatus` (webhook: sent→delivered/bounced)
+- ☑ `PostgresNotificationObservabilityService` — `getDeliveryHistory` (paginated) + `configCoverageGaps` (route w/o template, tenant route w/o credential)
+- ☑ `PostgresNotificationConfigAdminService` — CRUD routes/templates/credentials (creds list redacted). Test-send = call `Notifier.notify()` (documented, not a method).
+- ☑ `PostgresNotificationDeliveryRecorderModule` + `PostgresNotificationAdminModule`, specs, READMEs, audit doc · 363/363
 
-## 4 · correlation-id cross-cut
+## 4 · correlation-id cross-cut ☑ (2026-09-06)
 
-- ☐ nullable `correlation_id` column on `commons_jobs_job_run` (+ `commons_notification_delivery`)
-- ☐ pluggable `CorrelationIdProvider` per recorder module; `JobTrigger` captures request context; audit already has it
-- ☐ all three read services filterable by `correlationId` → cross-module trace
-- ☐ docs
+- ☑ `commons_jobs_job_run.correlation_id` column (schema/migration/INSERT/`JobRunSummary`); `commons_notification_delivery` already had it; `commons_audit_event` already had it + `persistAuditRecord` populates it
+- ☑ threading: `JobRunOptions.correlationId` → `JobTrigger.trigger(name, correlationId)`; `NotificationRequest.correlationId` → `Notifier` → delivery row. **Caller-supplied**, no cross-module dep / no ALS magic.
+- ☑ all three read services filter by `correlationId` (`RunHistoryQuery`, `AuditQuery`, `DeliveryHistoryQuery`)
+- ☑ READMEs — "Cross-module trace" notes in bg-jobs + notification adapters · 364/364
 
 ## 5 · domain-events — deferred
 
@@ -78,3 +78,5 @@ thin merit. Revisit when the outbox lands.
 - 2026-09-06 — item 0 done (background-jobs rename/tidy). 326/326.
 - 2026-09-06 — item 1 done (audit-logging `AuditEventReader` + Postgres adapter). 332/332.
 - 2026-09-06 — item 2 done (authorization observability + admin services). 346/346.
+- 2026-09-06 — item 3 done (notification delivery log + config admin). 363/363.
+- 2026-09-06 — item 4 done (correlation-id cross-cut). 364/364. Items 0-4 complete; item 5 (domain-events) deferred by design.

@@ -25,3 +25,11 @@ export const NOTIFICATION_CHANNEL_SENDERS = Symbol('NOTIFICATION_CHANNEL_SENDERS
 
 /** What feature/listener code injects — `Notifier` is a class, but call sites depend on this token so the strategy can be swapped without touching them. */
 export const NOTIFIER = Symbol('NOTIFIER');
+
+/**
+ * The `NotificationDeliveryRecorder` `Notifier` writes each send's per-channel
+ * outcome through. `NotificationModule.forRoot()` binds this to
+ * `NoopNotificationDeliveryRecorder` unless the consumer passes
+ * `deliveryRecorderToken` (e.g. `POSTGRES_NOTIFICATION_DELIVERY_RECORDER`).
+ */
+export const NOTIFICATION_DELIVERY_RECORDER = Symbol('NOTIFICATION_DELIVERY_RECORDER');

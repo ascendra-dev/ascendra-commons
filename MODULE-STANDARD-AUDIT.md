@@ -1434,3 +1434,99 @@ No new table (`commons_authz_*` unchanged). New `adapters/postgres-drizzle/`:
   `authz-admin.service.ts`, `postgres-authz-admin.module.ts`, 3 specs.
 
 **Tests:** 346/346 pass (14 new), typecheck clean. Items 3-4 pending.
+
+### Item 3 — `notification` delivery log + config admin (2026-09-06)
+
+**New table** `commons_notification_delivery` (bigserial id, application,
+notification_type, channel, tenant_id, `recipient_ref` *redacted*, status,
+reason, provider_message_id, attempted_at, updated_at, correlation_id).
+
+Core:
+
+- `NotificationChannelResult` gains optional `providerMessageId` (a real sender
+  returns it; stubs don't) — backward-compatible.
+- **`NotificationDeliveryRecorder`** port (`recordAttempts` + `updateDeliveryStatus`)
+  + `NoopNotificationDeliveryRecorder` (default).
+- `Notifier` gains an `@Optional()` recorder; after aggregating channel results
+  it calls `recordAttempts` once, best-effort (own try/catch — a log failure
+  never changes the notification outcome). `recipientRef()` redacts the
+  recipient to `user:<id>` / `raw:email` / `raw:phone` / `raw` — never an
+  address.
+- `NotificationModule.forRoot({ deliveryRecorderToken })` binds it (noop
+  default).
+
+Adapter (`notification/adapters/postgres-drizzle/`):
+
+- **`PostgresNotificationDeliveryRecorder`** — one batched `INSERT` per
+  `notify()`; `UPDATE … WHERE provider_message_id = $` for webhooks. Best-effort.
+- **`PostgresNotificationObservabilityService`** — `getDeliveryHistory(query)`
+  (keyset-paginated) + `configCoverageGaps()` (routed channel w/o template;
+  tenant route w/o credential — same tenant→default fall-through as the config
+  reader).
+- **`PostgresNotificationConfigAdminService`** — upsert/delete/list on all
+  three `commons_notification_*` config tables. `listProviderCredentials()`
+  returns `(channel, tenant)` only, never the secret `config`.
+- **`PostgresNotificationDeliveryRecorderModule`** (recorder) +
+  **`PostgresNotificationAdminModule`** (observability + config admin), each
+  `forRoot({ sqlExecutorToken, application, imports })`. Separate `admin-tokens.ts`
+  (`NOTIFICATION_ADMIN_*`) from the config reader's `tokens.ts`.
+- Dimension 4: `commons_notification_delivery` carries active `application`,
+  same call as the config tables. Dimension 8: typed DTOs shipped
+  (`DeliveryRecord`, `CoverageGap`, `ChannelRouteView`, …); UI is the consumer's.
+- READMEs updated (adapter "Delivery log + admin surface"; module "Delivery log
+  (opt-in)"). Retention is consumer-owned (documented).
+- **New files:** core `notification-delivery-recorder.ts`,
+  `noop-notification-delivery-recorder.ts`; adapter
+  `notification-delivery.schema.ts` / `.migration.sql`,
+  `notification-admin.types.ts`, `admin-tokens.ts`,
+  `postgres-notification-delivery-recorder.ts` (+ `.module.ts`),
+  `notification-observability.service.ts`, `notification-config-admin.service.ts`,
+  `postgres-notification-admin.module.ts`, 5 specs.
+
+**Tests:** 363/363 pass (17 new), typecheck clean. Item 4 pending.
+
+### Item 4 — correlation-id cross-cut (2026-09-06)
+
+The seam for a "one request → its job run → its notifications → its audit rows"
+trace. Deliberately **caller-supplied** — no dependency on `audit-logging`'s
+correlation-context, no AsyncLocalStorage in these modules.
+
+- `commons_jobs_job_run` gains a nullable `correlation_id` column
+  (schema/migration/INSERT/`JobRunSummary`/`JobRunRecord`). `JobRunOptions`
+  gains `correlationId`; `JobTrigger.trigger(jobName, correlationId?)` forwards
+  it (a manual run from an HTTP request is where it matters).
+- `commons_notification_delivery` already had the column; `NotificationRequest`
+  gains `correlationId?`, `Notifier` copies it onto every `DeliveryAttempt`.
+- `commons_audit_event` already had `correlation_id` + `persistAuditRecord`
+  fills it from `getCurrentCorrelationId()`.
+- All three read services filter on it: `RunHistoryQuery.correlationId`,
+  `AuditQuery.correlationId`, `DeliveryHistoryQuery.correlationId`.
+- Cross-module-trace notes added to the bg-jobs and notification adapter READMEs.
+
+**Tests:** 364/364 pass (1 new), typecheck clean.
+
+### Item 5 — `domain-events`: not started, deferred
+
+Model 1 in-process events don't persist — nothing to observe historically.
+Real domain-events observability arrives with a transactional outbox (a Model 2
+concern); listener-registry introspection is the only Model 1 read and has thin
+merit. Revisit when the outbox lands.
+
+---
+
+## Rollout summary (2026-09-06)
+
+| Module | Observe | Administer | New table |
+|---|---|---|---|
+| `audit-logging` | `AuditEventReader.find` (entity / tenant / actor / action / correlation) | — (write-once) | no |
+| `authorization` | `explainAccess`, `listRoles`, `listUserRoleAssignments`, `listDelegations`, `actionCatalogHealth` | `assignRole` / `revokeRole` / `setActionDescription` | no |
+| `notification` | `getDeliveryHistory`, `configCoverageGaps` | route / template / credential CRUD | `commons_notification_delivery` |
+| `background-jobs` | (shipped earlier) `getRunHistory`, `listJobStatus`; `JobTrigger` | `JobTrigger.trigger` | (`commons_jobs_job_run` earlier) |
+| `domain-events` | deferred (needs outbox) | — | — |
+
+Every read service: `application`-scoped, keyset-paginated, typed DTOs, no
+shipped controller/UI (the consumer writes the endpoint + `Authorizer` gate).
+Cross-module trace via `correlation_id` on all three recorder tables.
+
+**Tests:** 326 → 364 over items 0–4 (audit-reader ×6, authz ×14, notification ×17,
+correlation ×1). Typecheck clean throughout.

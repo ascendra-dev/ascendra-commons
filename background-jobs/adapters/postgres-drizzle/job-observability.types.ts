@@ -14,12 +14,16 @@ export interface JobRunRecord {
   itemsFailed: number;
   failedItemRefs: string[];
   error: string | null;
+  /** The request/trace id this run belonged to, when a manual run supplied one. */
+  correlationId: string | null;
 }
 
 export interface RunHistoryQuery {
   /** One job's history; omit for all jobs interleaved, newest first. */
   jobName?: string;
   outcome?: JobRunOutcome;
+  /** Join a run to the same id in audit / notification-delivery for a cross-module trace. */
+  correlationId?: string;
   /** Inclusive lower bound on `startedAt`. */
   since?: Date;
   /** Exclusive upper bound on `startedAt`. */

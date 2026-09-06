@@ -46,6 +46,14 @@ export interface JobRunSummary {
   failedItemRefs: string[];
   /** The job-level error's stack, present only when `outcome === 'job_failed'`. */
   error?: string;
+  /**
+   * The request/trace id this run belongs to, when the caller supplies one via
+   * `JobRunOptions.correlationId` — normally only for a `'manual'` trigger
+   * fired from an HTTP request. Recorded so a run can be joined to the same id
+   * in `commons_audit_event` / `commons_notification_delivery` for a
+   * cross-module trace.
+   */
+  correlationId?: string;
 }
 
 export interface JobRunRecorder {

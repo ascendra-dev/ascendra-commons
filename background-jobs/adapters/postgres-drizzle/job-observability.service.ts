@@ -17,7 +17,7 @@ const MIN_RUNS_TO_INFER = 3;
 
 const RUN_COLUMNS = sql`
   id, job_name, trigger, started_at, finished_at, outcome,
-  items_due, items_processed, items_failed, failed_item_refs, error
+  items_due, items_processed, items_failed, failed_item_refs, error, correlation_id
 `;
 
 /**
@@ -45,6 +45,7 @@ export class PostgresJobObservabilityService {
     const conds: SQL[] = [sql`application = ${this.application}`];
     if (query.jobName) conds.push(sql`job_name = ${query.jobName}`);
     if (query.outcome) conds.push(sql`outcome = ${query.outcome}`);
+    if (query.correlationId) conds.push(sql`correlation_id = ${query.correlationId}`);
     if (query.since) conds.push(sql`started_at >= ${query.since}`);
     if (query.until) conds.push(sql`started_at < ${query.until}`);
     const cursor = query.cursor ? decodeCursor(query.cursor) : null;
@@ -155,6 +156,7 @@ function mapRow(row: Record<string, unknown>): JobRunRecord {
     itemsFailed: Number(row.items_failed),
     failedItemRefs: Array.isArray(row.failed_item_refs) ? row.failed_item_refs.map(String) : [],
     error: row.error == null ? null : String(row.error),
+    correlationId: row.correlation_id == null ? null : String(row.correlation_id),
   };
 }
 

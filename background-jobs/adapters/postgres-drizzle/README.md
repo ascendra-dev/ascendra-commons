@@ -134,7 +134,7 @@ PostgresJobObservabilityModule.forRoot({
 
 Two methods, both `application`-scoped, both read-only:
 
-- **`getRunHistory({ jobName?, outcome?, since?, until?, limit?, cursor? })`** —
+- **`getRunHistory({ jobName?, outcome?, correlationId?, since?, until?, limit?, cursor? })`** —
   the drill-down log. Newest first, keyset-paginated: a result with `nextCursor`
   has more; pass it back as `cursor`. `limit` defaults to 50, capped at 200.
 - **`listJobStatus()`** — the dashboard, one `JobStatus` per job: `lastRun`,
@@ -244,3 +244,8 @@ How it behaves:
   the hand-supplied `cadences` hint (or an inferred one), not by reading
   `@Cron`. There is no watchdog process; the UI (or an alert querying the same
   data) decides what to do with an `overdue: true` row.
+- **Cross-module trace.** `commons_jobs_job_run.correlation_id` is populated
+  when a manual run supplies one — `JobTrigger.trigger(jobName, correlationId)`,
+  or `runner.run(job, { trigger: 'manual', correlationId })` directly. The same
+  id in `commons_audit_event` and `commons_notification_delivery` joins "this
+  request → this job run → these notifications → these audit rows".

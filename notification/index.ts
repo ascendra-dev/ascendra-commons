@@ -22,6 +22,13 @@ export { NullUserContactResolver } from './user-contact-resolver';
 
 export { Notifier, NotificationDeliveryError } from './notifier';
 
+export type {
+  NotificationDeliveryRecorder,
+  DeliveryAttempt,
+  DeliveryStatusUpdate,
+} from './notification-delivery-recorder';
+export { NoopNotificationDeliveryRecorder } from './noop-notification-delivery-recorder';
+
 export { NotificationModule } from './notification.module';
 export type { NotificationModuleConfig, NotificationConfigModel } from './notification.module';
 
@@ -30,4 +37,5 @@ export {
   USER_CONTACT_RESOLVER,
   NOTIFICATION_CHANNEL_SENDERS,
   NOTIFIER,
+  NOTIFICATION_DELIVERY_RECORDER,
 } from './tokens';

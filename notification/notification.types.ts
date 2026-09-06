@@ -47,6 +47,14 @@ export interface NotificationRequest {
    * way `Actor` carries it for `can()`.
    */
   tenantId?: string | null;
+  /**
+   * Optional — the ambient request/trace id. When set, it is written on each
+   * `commons_notification_delivery` row, so a send can be joined to the same id
+   * in `commons_audit_event` / `commons_jobs_job_run` for a cross-module trace.
+   * The caller supplies it (e.g. from `getCurrentCorrelationId()` in a listener);
+   * nothing here derives it.
+   */
+  correlationId?: string;
 }
 
 /**
@@ -59,6 +67,13 @@ export type NotificationChannel = 'email' | 'whatsapp' | 'sms';
 export interface NotificationChannelResult {
   status: 'sent' | 'failed';
   reason?: string;
+  /**
+   * Optional — a provider's own id for the accepted message (e.g. an SES
+   * MessageId, a Twilio SID). A real sender returns it; the stub senders don't.
+   * When present it is recorded on the delivery row, so a later provider
+   * webhook (`delivered` / `bounced`) can be matched back to it.
+   */
+  providerMessageId?: string;
 }
 
 export interface NotificationResult {

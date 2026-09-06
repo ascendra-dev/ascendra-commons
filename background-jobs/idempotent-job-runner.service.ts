@@ -15,6 +15,12 @@ export interface JobRunOptions {
    * admin-triggered run. Defaults to `'scheduled'`.
    */
   trigger?: JobRunTrigger;
+  /**
+   * The ambient request/trace id, when there is one — normally only for a
+   * `'manual'` trigger from an HTTP request (`JobTrigger` forwards it).
+   * Recorded on the run summary for a cross-module trace.
+   */
+  correlationId?: string;
 }
 
 /**
@@ -108,6 +114,7 @@ export class IdempotentJobRunner {
         itemsFailed,
         failedItemRefs,
         error: jobError,
+        correlationId: options?.correlationId,
       };
       await this.record(summary);
     }

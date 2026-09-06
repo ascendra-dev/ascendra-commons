@@ -21,7 +21,12 @@ implementation. A project on another stack ignores it and provides its own
 | `postgres-notification-config.ts` | `PostgresNotificationConfig` — the three-method implementation, behind a TTL cache |
 | `postgres-notification-config.module.ts` | `forRoot({ sqlExecutorToken, cacheTtlSeconds?, imports })` → exports `POSTGRES_NOTIFICATION_CONFIG` |
 | `seed-from-static-data.ts` | `seedNotificationConfigFromData(db, data)` — behaviour-preserving `model: 'static'` → `'database'` |
-| `config-cache.ts` · `sql-executor.ts` · `sql-helpers.ts` · `tokens.ts` | plumbing |
+| `notification-delivery.schema.ts` / `.migration.sql` | the `commons_notification_delivery` log |
+| `postgres-notification-delivery-recorder.ts` (+ `.module.ts`) | `PostgresNotificationDeliveryRecorder` — batched `INSERT` per `notify()`, webhook `UPDATE`; wired via `NotificationModule.forRoot({ deliveryRecorderToken })` |
+| `notification-observability.service.ts` | `PostgresNotificationObservabilityService` — `getDeliveryHistory`, `configCoverageGaps` |
+| `notification-config-admin.service.ts` | `PostgresNotificationConfigAdminService` — CRUD on routes / templates / credentials |
+| `postgres-notification-admin.module.ts` | `forRoot({ sqlExecutorToken, application, imports })` → exports the observability + config-admin services |
+| `config-cache.ts` · `sql-executor.ts` · `sql-helpers.ts` · `tokens.ts` · `admin-tokens.ts` | plumbing |
 
 ## The tables
 
@@ -134,10 +139,53 @@ table entirely: subclass `StaticNotificationConfig`, override
 reading the static `providerConfigs` passed to `super()` (see the module
 README, "Going database-backed for one method only").
 
+## Delivery log + admin surface
+
+Three opt-in pieces for a "did it actually send / edit the config" admin screen,
+each with its own `forRoot` (all take `sqlExecutorToken` / `application`):
+
+**Delivery log** — `NotificationModule.forRoot({ deliveryRecorderToken: POSTGRES_NOTIFICATION_DELIVERY_RECORDER })`
+plus `PostgresNotificationDeliveryRecorderModule.forRoot(...)` in `imports`.
+`Notifier` then writes one `commons_notification_delivery` row per channel per
+`notify()` — `notificationType`, `channel`, `tenantId`, a **redacted**
+`recipient_ref` (`user:<id>` / `raw:email` / `raw:phone` / `raw` — never an
+address), `status` (`sent`/`failed`), `reason`, `provider_message_id`.
+Best-effort: a logging failure never changes the notification's outcome.
+
+For provider webhooks, call `recorder.updateDeliveryStatus({ providerMessageId,
+status: 'delivered' | 'bounced', detail? })` from your webhook controller —
+matched on `provider_message_id`. Requires the sender to return
+`providerMessageId` on its `NotificationChannelResult` (the stub senders don't;
+a real one does).
+
+**`PostgresNotificationAdminModule.forRoot(...)`** exports:
+
+- `POSTGRES_NOTIFICATION_OBSERVABILITY` — `getDeliveryHistory(query)`
+  (keyset-paginated; filters: `notificationType`, `channel`, `tenantId`,
+  `recipientRef`, `status`, `correlationId`, `since`/`until`) and `configCoverageGaps()`
+  (routed channel with no template; tenant route with no provider credential).
+- `POSTGRES_NOTIFICATION_CONFIG_ADMIN` — `setChannelRoute` / `deleteChannelRoute`
+  / `setTemplate` / `deleteTemplate` / `setProviderCredential` /
+  `deleteProviderCredential` (upserts on each table's unique key; `tenant_id`
+  NULL = deployment default) + `list*` reads. `listProviderCredentials()`
+  returns only `(channel, tenant)` pairs, never the secret `config`.
+
+The endpoints and their `Authorizer` gating are the consumer's. Retention on
+`commons_notification_delivery` is the consumer's too (a `DELETE … WHERE
+attempted_at < now() - interval '90 days'`, or a `JobRunPrunerJob`-style
+`ScheduledJob`).
+
+**Cross-module trace.** `NotificationRequest.correlationId` (set by the caller —
+e.g. from `getCurrentCorrelationId()` in a listener) is written on every
+delivery row. The same id in `commons_audit_event` and `commons_jobs_job_run`
+joins one request's notifications to its audit trail and any job run behind it.
+
 ## Deferred (not built)
 
-- Admin UI for editing config rows.
+- Admin **UI** for editing config rows / browsing the delivery log (frontend).
 - Config-change audit / versioning (emit an `AuditRecordRaised` from your
   admin write path).
+- Retry-a-failed-delivery from the log (needs the original `variables`, which
+  the log deliberately does not store).
 - A shared "default provider account" — model it as a real sentinel `tenant_id`
   row your own code chooses, never a NULL fallback.

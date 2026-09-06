@@ -11,10 +11,12 @@ import { EmailNotificationSender } from './email-notification-sender';
 import { WhatsappNotificationSender } from './whatsapp-notification-sender';
 import { SMSNotificationSender } from './sms-notification-sender';
 import { Notifier } from './notifier';
+import { NoopNotificationDeliveryRecorder } from './noop-notification-delivery-recorder';
 import { NullUserContactResolver } from './user-contact-resolver';
 import {
   NOTIFICATION_CHANNEL_SENDERS,
   NOTIFICATION_CONFIG,
+  NOTIFICATION_DELIVERY_RECORDER,
   NOTIFIER,
   USER_CONTACT_RESOLVER,
 } from './tokens';
@@ -71,6 +73,14 @@ export interface NotificationModuleConfig {
    */
   userContactResolverToken?: OverrideToken;
 
+  /**
+   * Optional — the token a `NotificationDeliveryRecorder` is provided under
+   * (e.g. `POSTGRES_NOTIFICATION_DELIVERY_RECORDER` from
+   * `adapters/postgres-drizzle`). Omit and the delivery log is a no-op.
+   * `Notifier` writes each send's per-channel outcome through it, best-effort.
+   */
+  deliveryRecorderToken?: OverrideToken;
+
   /** Whatever module(s) export the token(s) above — `useExisting` only resolves a token this module can already see. */
   imports?: DynamicModule['imports'];
 }
@@ -106,12 +116,17 @@ export class NotificationModule {
       ? { provide: USER_CONTACT_RESOLVER, useExisting: config.userContactResolverToken }
       : { provide: USER_CONTACT_RESOLVER, useClass: NullUserContactResolver };
 
+    const deliveryRecorderProvider: Provider = config.deliveryRecorderToken
+      ? { provide: NOTIFICATION_DELIVERY_RECORDER, useExisting: config.deliveryRecorderToken }
+      : { provide: NOTIFICATION_DELIVERY_RECORDER, useClass: NoopNotificationDeliveryRecorder };
+
     return {
       module: NotificationModule,
       imports: config.imports ?? [],
       providers: [
         configProvider,
         userResolverProvider,
+        deliveryRecorderProvider,
 
         EmailNotificationSender,
         WhatsappNotificationSender,

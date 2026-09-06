@@ -44,6 +44,8 @@ export const jobRunTable = pgTable(
     failedItemRefs: text('failed_item_refs').array().notNull().default([]),
     /** Nullable — the job-level error's stack, present only when outcome = 'job_failed'. */
     error: text('error'),
+    /** Nullable — the request/trace id a manual run belongs to (rollout item 4 / cross-module trace). */
+    correlationId: text('correlation_id'),
   },
   (t) => ({
     /** "this application's runs of this job" — the run-history admin screen's main query, and the pruner's scan. */

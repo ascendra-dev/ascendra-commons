@@ -47,12 +47,17 @@ export class JobTrigger {
     @Inject(IdempotentJobRunner) private readonly runner: IdempotentJobRunner,
   ) {}
 
-  async trigger(jobName: string): Promise<JobTriggerResult> {
+  /**
+   * @param correlationId  the ambient request/trace id, if the controller has one —
+   *   recorded on the run so it can be joined to `commons_audit_event` /
+   *   `commons_notification_delivery` for a cross-module trace.
+   */
+  async trigger(jobName: string, correlationId?: string): Promise<JobTriggerResult> {
     const job = this.registry.get(jobName);
     if (!job) return { status: 'unknown_job' };
 
     try {
-      const summary = await this.runner.run(job, { trigger: 'manual' });
+      const summary = await this.runner.run(job, { trigger: 'manual', correlationId });
       if (!summary) return { status: 'already_running' };
       return {
         status: 'completed',

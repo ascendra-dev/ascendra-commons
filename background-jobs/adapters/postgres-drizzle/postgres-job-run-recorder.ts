@@ -35,11 +35,11 @@ export class PostgresJobRunRecorder implements JobRunRecorder {
       await this.db.execute(sql`
         insert into commons_jobs_job_run (
           application, job_name, trigger, started_at, finished_at,
-          outcome, items_due, items_processed, items_failed, failed_item_refs, error
+          outcome, items_due, items_processed, items_failed, failed_item_refs, error, correlation_id
         ) values (
           ${this.application}, ${summary.jobName}, ${summary.trigger}, ${summary.startedAt}, ${summary.finishedAt},
           ${summary.outcome}, ${summary.itemsDue}, ${summary.itemsProcessed}, ${summary.itemsFailed},
-          ${this.textArray(summary.failedItemRefs)}, ${summary.error ?? null}
+          ${this.textArray(summary.failedItemRefs)}, ${summary.error ?? null}, ${summary.correlationId ?? null}
         )
       `);
     } catch (err) {

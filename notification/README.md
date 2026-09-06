@@ -251,6 +251,22 @@ does **not** reach them. Passing your token through `forRoot()` (which then
 binds it in the right scope) is the actual seam. (`@nestjs/testing`'s
 `.overrideProvider()` can reach across scopes, but that's test-only.)
 
+## Delivery log (opt-in)
+
+`NotificationModule.forRoot({ deliveryRecorderToken })` wires a
+`NotificationDeliveryRecorder`; `Notifier` then writes one row per channel per
+`notify()` — best-effort, never affecting the notification's own outcome. The
+Postgres adapter ships `PostgresNotificationDeliveryRecorder` (+ its
+`commons_notification_delivery` table), a `PostgresNotificationObservabilityService`
+(`getDeliveryHistory` / `configCoverageGaps`), and a
+`PostgresNotificationConfigAdminService` (route/template/credential CRUD) — see
+that folder's README. Omit `deliveryRecorderToken` and it's a no-op
+(`NoopNotificationDeliveryRecorder`).
+
+`NotificationChannelResult` gained an optional `providerMessageId` so a real
+sender can return the provider's id and a later `delivered`/`bounced` webhook
+can be matched back via `recorder.updateDeliveryStatus(...)`.
+
 ## What's not built yet
 
 - **No real `WhatsappNotificationSender`** — needs its own template shape first.
@@ -258,4 +274,7 @@ binds it in the right scope) is the actual seam. (`@nestjs/testing`'s
   per-tenant credentials now but still only logs the rendered message. Swapping
   in a real provider call means changing what a sender's `send()` does with the
   `ProviderConfig` it already has — nothing about `Notifier`, `NotificationConfig`,
-  or the templates.
+  or the templates. A real sender should also populate `providerMessageId` on
+  its result.
+- **No admin UI** for the delivery log or config editing — frontend, a future
+  `ascendra-commons-ui` concern. The backend services exist.

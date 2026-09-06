@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS "commons_jobs_job_run" (
   "items_processed"  integer     NOT NULL,
   "items_failed"     integer     NOT NULL,
   "failed_item_refs" text[]      NOT NULL DEFAULT '{}',
-  "error"            text
+  "error"            text,
+  "correlation_id"   text
 );
 
 -- "this application's runs of this job" — the run-history admin screen's main

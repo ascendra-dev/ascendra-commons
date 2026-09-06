@@ -79,3 +79,19 @@ describe('JobTrigger', () => {
     expect(t.availableJobs().sort()).toEqual(['a', 'b']);
   });
 });
+
+describe('JobTrigger — correlation id', () => {
+  it('forwards a correlation id into the run so it lands on the recorded summary', async () => {
+    const recordRun = vi.fn().mockResolvedValue(undefined);
+    const runner = new IdempotentJobRunner(lock(true), { recordRun });
+    const job: ScheduledJob<never> = {
+      name: 'j',
+      findDueItems: vi.fn().mockResolvedValue([]),
+      processItem: vi.fn(),
+    };
+
+    await new JobTrigger(new ScheduledJobRegistry([job]), runner).trigger('j', 'trace-abc');
+
+    expect(recordRun).toHaveBeenCalledWith(expect.objectContaining({ trigger: 'manual', correlationId: 'trace-abc' }));
+  });
+});
