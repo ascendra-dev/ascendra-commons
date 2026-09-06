@@ -99,3 +99,5 @@ thin merit. Revisit when the outbox lands.
 - 2026-09-06 — item 3 done (notification delivery log + config admin). 363/363.
 - 2026-09-06 — item 4 done (correlation-id cross-cut). 364/364. Items 0-4 complete; item 5 (domain-events) deferred by design.
 - 2026-09-06 — item 6 done (notification message-content archive, light `jsonb` scope, opt-in). 368/368.
+- 2026-09-07 — `authorization` split into `.core` / `.core.static-map` / `.core.permission-table` (+ `.postgres-drizzle`) / `.api` packages (MODULE-STANDARD §1b). Observability/admin services now implement family ports; `authorization.api` ships the HTTP surface. 413/413.
+- 2026-09-07 — `notification` split the same way: `.core` / `.core.static` / `.core.database` (+ `.postgres-drizzle`) / `.api`. Delivery-log + config-admin services implement `NotificationObservabilityPort` / `NotificationConfigAdminPort` in `notification.core.database`; `notification.api` ships deliveries/coverage-gaps reads, route/template/credential CRUD, and `POST /test-send`. 433/433.

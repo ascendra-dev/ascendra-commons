@@ -24,7 +24,7 @@ audit checklist against the six that already exist.
 
 ---
 
-## 1b. Package roles (added 2026-09-07, first applied to `authorization`)
+## 1b. Package roles (added 2026-09-07, applied to `authorization` and `notification`)
 
 A module that has grown a real Model 1 / Model 2 split, more than one plausible
 Model 2 stack, and an admin/observability surface is no longer one folder. It is
@@ -35,7 +35,7 @@ a **container folder** of dot-named **packages**, each an independent copy unit
 |---|---|
 | `<module>.core` | The contract only — interfaces, the cross-cutting mechanism (guard/decorators/compute helpers), `forRoot()` as pure token wiring, a `Missing*` throwing stub. **No working implementation.** |
 | `<module>.core.<capability>` | A Model 1-style single implementation (e.g. `authorization.core.static-map`). |
-| `<module>.core.<family>` | A Model 2 family — stack-agnostic: ports a stack adapter implements, DTOs, pure rules, the port-based implementation. No SQL. |
+| `<module>.core.<family>` | A Model 2 family — stack-agnostic: ports a stack adapter implements, DTOs, pure rules, the port-based implementation. No SQL. May be thin (`notification.core.database` is just a cache util, a cursor helper, and the admin ports/DTOs — notification's DB story has no shared *algorithm* the way `authorization.core.permission-table` does) — that's still worth its own package so a second stack adapter shares it. |
 | `<module>.core.<family>.<db>-<orm>` | One stack (e.g. `…permission-table.postgres-drizzle`) — schema, migration, repositories, seed **only**. Sub-folders by job allowed here; `index.ts` stays the sole public surface and exports modules, not classes. |
 | `<module>.api` | Opt-in HTTP controllers + thin `.api` services + request DTOs, over the family **ports**. Never imports a stack adapter — wired to one at the vertical via tokens. |
 | `<module>.ui` | Reserved — React, ships from `ascendra-commons-ui`, not here. |
@@ -236,8 +236,11 @@ has a `.core.<family>` with admin/observability **ports**, a `.api` package may
 ship generic NestJS controllers against those ports — they carry no
 app-specific logic, are gated by the consumer's own `Authorizer` via
 `@RequiresAction`, and the actor-scoped rules (tenant/role ceiling) live in a
-thin `.api` service between controller and port. `authorization.api`
-(2026-09-07) is the first. React stays out — that's `ascendra-commons-ui`.
+thin `.api` service between controller and port. `authorization.api` and
+`notification.api` (2026-09-07) are the first two — `notification.api` also
+ships a `POST /notifications/test-send` that calls `Notifier` directly, and a
+generic `CurrentActor` param decorator was promoted to `authorization.core` for
+both to share. React stays out — that's `ascendra-commons-ui`.
 
 ### 9. Naming convention
 

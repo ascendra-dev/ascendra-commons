@@ -1,0 +1,54 @@
+import { DynamicModule, Module } from '@nestjs/common';
+import { NOTIFICATION_API_OPTIONS, NOTIFICATION_AUDIT_EMITTER } from './tokens';
+import { resolveNotificationApiOptions, type NotificationApiModuleConfig } from './notification-api.options';
+import { NoopNotificationAuditEmitter } from './notification-audit.port';
+import { NotificationObservabilityApiService } from './observability/notification-observability-api.service';
+import { NotificationObservabilityController } from './observability/notification-observability.controller';
+import { NotificationConfigAdminApiService } from './config-admin/notification-config-admin-api.service';
+import { NotificationConfigAdminController } from './config-admin/notification-config-admin.controller';
+import { NotificationTestSendApiService } from './test-send/notification-test-send-api.service';
+import { NotificationTestSendController } from './test-send/notification-test-send.controller';
+
+/**
+ * HTTP endpoints for a notification admin / observability UI, over the
+ * `notification.core.database` ports + `Notifier`. Opt-in, stack-agnostic — it
+ * depends on `NOTIFICATION_OBSERVABILITY_PORT` / `NOTIFICATION_CONFIG_ADMIN_PORT`
+ * / `NOTIFIER` (brought in via `imports`), never on a stack adapter directly.
+ *
+ * Requires `AuthorizationGuard` wired globally as `APP_GUARD` — the endpoints
+ * declare `@RequiresAction('notification.*')`. Audit is opt-in via
+ * `auditEmitterToken`.
+ *
+ * ```typescript
+ * NotificationApiModule.forRoot({
+ *   auditEmitterToken: MY_AUDIT_EMITTER,        // optional
+ *   imports: [
+ *     PostgresNotificationAdminModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', imports: [DatabaseModule] }),
+ *     // NotificationModule.forRoot(...) exports NOTIFIER — import it here too if it isn't otherwise visible.
+ *   ],
+ * })
+ * ```
+ */
+@Module({})
+export class NotificationApiModule {
+  static forRoot(config: NotificationApiModuleConfig = {}): DynamicModule {
+    return {
+      module: NotificationApiModule,
+      imports: config.imports ?? [],
+      controllers: [
+        NotificationObservabilityController,
+        NotificationConfigAdminController,
+        NotificationTestSendController,
+      ],
+      providers: [
+        { provide: NOTIFICATION_API_OPTIONS, useValue: resolveNotificationApiOptions(config) },
+        config.auditEmitterToken
+          ? { provide: NOTIFICATION_AUDIT_EMITTER, useExisting: config.auditEmitterToken }
+          : { provide: NOTIFICATION_AUDIT_EMITTER, useClass: NoopNotificationAuditEmitter },
+        NotificationObservabilityApiService,
+        NotificationConfigAdminApiService,
+        NotificationTestSendApiService,
+      ],
+    };
+  }
+}
