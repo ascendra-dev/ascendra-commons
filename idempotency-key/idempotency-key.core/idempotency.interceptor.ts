@@ -2,8 +2,8 @@ import { CallHandler, ConflictException, ExecutionContext, HttpException, Inject
 import { HTTP_CODE_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
 import { Observable, catchError, from, map, of, switchMap, throwError } from 'rxjs';
-import type { IdempotencyStore } from './idempotency-store';
-import type { IdempotencyScopeResolver } from './idempotency-scope-resolver.interface';
+import type { IdempotencyStore } from './idempotency-store.port';
+import type { IdempotencyScopeResolver } from './idempotency-scope-resolver.port';
 import { IDEMPOTENCY_SCOPE_RESOLVER, IDEMPOTENCY_STORE } from './tokens';
 
 interface MinimalRequest {
@@ -45,6 +45,8 @@ export class IdempotencyInterceptor implements NestInterceptor {
     }
     if (claim.status === 'in_progress') throw new ConflictException();
 
+    const { claimId } = claim;
+
     // The real status this handler will return — @HttpCode() if set, otherwise NestJS's own
     // default (201 for POST, 200 otherwise). Never hardcoded: every endpoint this pattern is
     // meant for is a POST that plausibly returns 201, and a cached response claiming 200 would
@@ -57,7 +59,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
       // a response before this write actually lands. A retry arriving in that window would
       // still see the row as 'pending' and get a wrong 409 instead of the correct cached
       // response. Awaiting here, before the response is emitted, closes that race.
-      switchMap((body) => from(this.store.complete(key, scope, { statusCode, body })).pipe(map(() => body))),
+      switchMap((body) => from(this.store.complete(key, scope, claimId, { statusCode, body })).pipe(map(() => body))),
       catchError((err: unknown) => {
         // Only a definitive HttpException (the handler explicitly rejected this request —
         // validation, a business-rule violation) is cached and replayed verbatim. An
@@ -66,7 +68,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
         // forever until the claim goes stale.
         const cache =
           err instanceof HttpException
-            ? this.store.complete(key, scope, { statusCode: err.getStatus(), body: err.getResponse() })
+            ? this.store.complete(key, scope, claimId, { statusCode: err.getStatus(), body: err.getResponse() })
             : Promise.resolve();
         return from(cache).pipe(switchMap(() => throwError(() => err)));
       }),

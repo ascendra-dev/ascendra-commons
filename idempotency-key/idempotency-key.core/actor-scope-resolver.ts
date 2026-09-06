@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import type { IdempotencyScopeResolver } from './idempotency-scope-resolver.interface';
+import type { IdempotencyScopeResolver } from './idempotency-scope-resolver.port';
 
 /**
  * Only the two fields actually needed — not authorization's own Actor type,

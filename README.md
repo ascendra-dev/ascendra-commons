@@ -46,12 +46,12 @@ one plausible Model 2 stack, an admin/observability surface — becomes a
 `authorization.core.permission-table.postgres-drizzle`, `authorization.api`),
 each an independent copy unit with its own barrel and README, dependencies
 one-way toward `.core`. See `MODULE-STANDARD.md` §1b. `authorization`,
-`notification`, `audit-logging`, `background-jobs` and `domain-events`
-(2026-09-07) are split this way — `audit-logging`/`background-jobs` use only
-`.core` / `.core.postgres-drizzle` / `.api` (no Model 1/2 config split);
-`domain-events` uses `.core` / `.core.in-process` / `.core.broker` (a real
-transport seam, but nothing to persist or administer). `file-storage` and
-`idempotency-key` stay single-folder until they hit the same signals.
+`notification`, `audit-logging`, `background-jobs`, `domain-events` and
+`idempotency-key` (2026-09-07) are split this way — `audit-logging`/`background-jobs`
+use `.core` / `.core.postgres-drizzle` / `.api`; `domain-events` uses `.core` /
+`.core.in-process` / `.core.broker`; `idempotency-key` uses `.core` /
+`.core.postgres-drizzle` / `.core.redis`. `file-storage` stays single-folder
+until it hits the same signals.
 
 See `MODULE-STANDARD.md` for the full checklist every pattern is built and
 audited against — export boundary, packaging, `applicationId`/`tenantId`

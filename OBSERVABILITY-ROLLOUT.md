@@ -96,6 +96,21 @@ to `.core.broker` (a broker-only concern). No `.api`. `audit-logging`'s
 `../../domain-events` imports now target `domain-events.core` (+ `.core.in-process`
 for the transport in its specs). 454/454.
 
+## 7 · idempotency-key — package split + Model 1 locking hardening ☑ (2026-09-07)
+
+Split into `.core` / `.core.postgres-drizzle` / `.core.redis` (the Redis store is
+a throwing stub — the seam was *made* real, `forRoot({ storeToken })` token-only).
+**Model 1 locking hardening:** (a) the defensive fallback re-INSERT was a plain
+`INSERT` that PK-violated → 500 under a delete-then-double-claim race — now
+`ON CONFLICT DO NOTHING RETURNING` + re-read; (b) a new `claim_id` ownership
+token — `complete(key, scope, claimId, response)` is guarded `WHERE claim_id = $`,
+so an evicted-then-slow claimer's late `complete()` no-ops instead of corrupting
+the current owner's cached response; (c) `forRoot` throws unless
+`staleAfterSeconds > 0`; (d) `SqlExecutor` → `{ rows }`-only, check `rows.length`
+not `rowCount`. **Migration:** `idempotency-key.schema.ts` + `.migration.sql`
+added (the module had none) — with `claim_id` and a `created_at` index for the
+24h cleanup. 461/461.
+
 ---
 
 ## Progress log

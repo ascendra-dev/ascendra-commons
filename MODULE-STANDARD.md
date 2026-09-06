@@ -24,7 +24,7 @@ audit checklist against the six that already exist.
 
 ---
 
-## 1b. Package roles (added 2026-09-07, applied to `authorization`, `notification`, `audit-logging`, `background-jobs`, `domain-events`)
+## 1b. Package roles (added 2026-09-07, applied to `authorization`, `notification`, `audit-logging`, `background-jobs`, `domain-events`, `idempotency-key`)
 
 A module that has grown a real Model 1 / Model 2 split, more than one plausible
 Model 2 stack, and an admin/observability surface is no longer one folder. It is
@@ -52,15 +52,27 @@ stack and no admin surface. `domain-events` (2026-09-07) split on that alone:
 throwing stub), so it became `domain-events.core` / `.core.in-process` /
 `.core.broker`, `forRoot()` went token-only (`emitterToken`), and the `transport`
 string selector was dropped — exactly what happened to `authorization`'s
-`model:`. A module whose Model 2 is *only prose* (`file-storage`,
-`idempotency-key`) stays one folder.
+`model:`.
+
+**A prose-only Model 2 can be *made* real as part of a split — a deliberate
+choice, not a default.** `idempotency-key` (2026-09-07) had no store selector at
+all — `forRoot()` hardwired `PostgresIdempotencyStore` — so by the bar above it
+wouldn't have qualified. The split made the seam real: `forRoot({ storeToken })`
+token-only, `PostgresIdempotencyStore` → `idempotency-key.core.postgres-drizzle`
+(Model 1), a throwing `RedisIdempotencyStore` stub → `idempotency-key.core.redis`
+(Model 2). Do this only when you're already opening the module for other reasons
+and the second backend is genuinely planned — the same bar `background-jobs`'
+`advisoryLockToken` was held to. A module whose Model 2 is *only prose* and that
+you have no reason to touch (`file-storage`) stays one folder.
 
 **Not every split module uses every row.** `audit-logging` and `background-jobs`
 (2026-09-07) have **no Model 1 / Model 2 config split** — one model behind a
 port — so no `.core.<capability>`, no `.core.<family>`: just `.core` /
-`.core.postgres-drizzle` / `.api`. `domain-events` has the Model 1/2 split but
-no adapter/`.api` (nothing to persist or administer). The rows are a menu, not a
-checklist. What still applies:
+`.core.postgres-drizzle` / `.api`. `domain-events` and `idempotency-key` have
+the Model 1/2 split but no `.api` (nothing to administer); `idempotency-key`
+also gained a `schema.ts` + `.migration.sql` it never had (aligning with the
+other Postgres adapters — dimension 7). The rows are a menu, not a checklist.
+What still applies:
 - **A stack-coupled class in `.core` moves to the adapter.** `background-jobs`
   shipped `PostgresAdvisoryLock` as `.core`'s *default* lock; the split moved it
   to `background-jobs.core.postgres-drizzle/lock/` and made `advisoryLockToken`
