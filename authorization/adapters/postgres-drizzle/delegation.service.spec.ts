@@ -20,7 +20,7 @@ function inDays(n: number): Date {
 function fakeDb(insertReturn: Record<string, unknown> = {}) {
   const execute = vi.fn(async (q: SQL) => {
     const text = dialect.sqlToQuery(q).sql;
-    if (text.includes('INSERT INTO authz_delegation')) {
+    if (text.includes('INSERT INTO commons_authz_delegation')) {
       return {
         rows: [
           {
@@ -128,7 +128,7 @@ describe('DelegationService.revokeDelegation', () => {
     await new DelegationService(db, OPTIONS, granterHolds()).revokeDelegation('d1', 'admin');
 
     const text = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).sql;
-    expect(text).toMatch(/UPDATE authz_delegation/i);
+    expect(text).toMatch(/UPDATE commons_authz_delegation/i);
     expect(text).toMatch(/revoked_at IS NULL/i);
   });
 });

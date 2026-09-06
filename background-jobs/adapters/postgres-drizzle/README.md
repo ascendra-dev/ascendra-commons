@@ -4,11 +4,11 @@ For the common Ascendra stack — Postgres + Drizzle — a consuming project wri
 **no persistence code**; it hands these its existing db connection and an
 application name:
 
-- `JobRunRecorder` — run-history observability (the `job_run` table)
+- `JobRunRecorder` — run-history observability (the `commons_jobs_job_run` table)
 - `JobRunPrunerJob` — a reference retention job
 - `PostgresJobStatusService` — read-only reporting for an admin UI: the
   run-history log and the jobs dashboard (with overdue detection)
-- `PostgresLeaseLock` — a pool-safe `AdvisoryLock` (the `scheduler_lock`
+- `PostgresLeaseLock` — a pool-safe `AdvisoryLock` (the `commons_jobs_lock`
   table), an alternative to the core's session-level `PostgresAdvisoryLock`
 
 The `background-jobs/` core stays stack-agnostic — it ships the `JobRunRecorder`
@@ -26,23 +26,23 @@ different stack ignores it and provides its own.
 
 | File | What it is |
 |---|---|
-| `job-run.schema.ts` | Drizzle `pgTable` for `job_run` — source of truth for the reference schema. `export` it from your schema barrel for `drizzle-kit generate`, and read your run-history admin screen through it (this adapter ships no read path). |
+| `job-run.schema.ts` | Drizzle `pgTable` for `commons_jobs_job_run` — source of truth for the reference schema. `export` it from your schema barrel for `drizzle-kit generate`, and read your run-history admin screen through it (this adapter ships no read path). |
 | `job-run.migration.sql` | The same table as hand-written DDL — paste into your migration tooling if you don't route through `drizzle-kit`. |
 | `postgres-job-run-recorder.ts` | `PostgresJobRunRecorder` — one `INSERT`, `application` stamped on write, a failed write logged and swallowed (best-effort by contract). |
 | `postgres-job-run-recorder.module.ts` | `PostgresJobRunRecorderModule.forRoot(...)` — binds the recorder to your db token, exports it as `POSTGRES_JOB_RUN_RECORDER`. |
-| `job-run-pruner.job.ts` | `JobRunPrunerJob` — a reference `ScheduledJob` that deletes this application's `job_run` rows past a retention window. The module dogfooding its own interface. |
+| `job-run-pruner.job.ts` | `JobRunPrunerJob` — a reference `ScheduledJob` that deletes this application's `commons_jobs_job_run` rows past a retention window. The module dogfooding its own interface. |
 | `job-run-pruner.module.ts` | `JobRunPrunerModule.forRoot(...)` — provides `JobRunPrunerJob` bound to your db, application, and `retentionDays` (default 90). |
 | `job-status.service.ts` | `PostgresJobStatusService` — `getRunHistory()` (paginated log) + `listJobStatus()` (per-job dashboard with overdue detection). Read-only. |
 | `job-status.module.ts` | `PostgresJobStatusModule.forRoot(...)` — binds the service to your db token, application, and optional `cadences`. |
 | `cadence.ts` | Parses the `cadences` hints (`'1d'`, `'2h'`, seconds …). |
-| `scheduler-lock.schema.ts` / `scheduler-lock.migration.sql` | The `scheduler_lock` table for `PostgresLeaseLock`. |
+| `scheduler-lock.schema.ts` / `scheduler-lock.migration.sql` | The `commons_jobs_lock` table for `PostgresLeaseLock`. |
 | `postgres-lease-lock.ts` | `PostgresLeaseLock` — a lease-row `AdvisoryLock`: conditional-upsert claim, heartbeat renewal, `DELETE` release. Pool-safe. |
 | `postgres-lease-lock.module.ts` | `PostgresLeaseLockModule.forRoot(...)` — binds the lock to your db token, application, `leaseSeconds`; exports `POSTGRES_LEASE_LOCK`. |
 | `sql-executor.ts` | The minimal db shape these need (`execute(sql)`), so the adapter never imports your generated schema. |
 
-Two tables, each with three copies to keep in sync: `job_run`
+Two tables, each with three copies to keep in sync: `commons_jobs_job_run`
 (`job-run.schema.ts` / `job-run.migration.sql` / the INSERT in
-`postgres-job-run-recorder.ts`) and `scheduler_lock` (`scheduler-lock.schema.ts`
+`postgres-job-run-recorder.ts`) and `commons_jobs_lock` (`scheduler-lock.schema.ts`
 / `scheduler-lock.migration.sql` / the statements in `postgres-lease-lock.ts`).
 
 ## Consuming it
@@ -57,7 +57,7 @@ export { jobRunTable } from 'src/ascendra-commons/background-jobs/adapters/postg
 ```
 
 …or copy `job-run.migration.sql` into your migrations directory. Both produce
-the same `job_run` table plus its index.
+the same `commons_jobs_job_run` table plus its index.
 
 ### 2. Wire the recorder
 
@@ -74,7 +74,7 @@ BackgroundJobsModule.forRoot({
     SchedulerDbModule,
     PostgresJobRunRecorderModule.forRoot({
       sqlExecutorToken: DATABASE_CONNECTION, // your app's NORMAL pooled Drizzle db
-      application: 'ascendra-pay',           // stamped into every job_run row's `application` column
+      application: 'ascendra-pay',           // stamped into every commons_jobs_job_run row's `application` column
       imports: [DatabaseModule],             // the module that exports DATABASE_CONNECTION
     }),
   ],
@@ -116,7 +116,7 @@ export class JobRunPrunerSchedule implements OnApplicationBootstrap {
 ```
 
 The pruner runs through the same `IdempotentJobRunner` as every other job — so
-its own runs show up in `job_run` too, under `job-run-pruner`. Add
+its own runs show up in `commons_jobs_job_run` too, under `job-run-pruner`. Add
 `JobRunPrunerJob` to `BackgroundJobsModule.forRoot({ jobs: [...] })` (with
 `JobRunPrunerModule` in `imports`) to also make it triggerable on demand via
 `JobTrigger`.
@@ -177,7 +177,7 @@ synthesises rows that were never recorded; "overdue by 3 days, expected every
 The core's default `PostgresAdvisoryLock` uses a **session-level**
 `pg_advisory_lock`, which only works if `SQL_EXECUTOR` is a dedicated single
 connection and is unsupported through a transaction-mode pooler (see the module
-README). `PostgresLeaseLock` replaces it with a `scheduler_lock` **row**:
+README). `PostgresLeaseLock` replaces it with a `commons_jobs_lock` **row**:
 
 - **Create the table** — `export { schedulerLockTable }` for `drizzle-kit`, or
   paste `scheduler-lock.migration.sql`.
@@ -212,7 +212,7 @@ How it behaves:
   If a heartbeat ever finds the row gone (the lease lapsed and another instance
   took over), it logs a `WARN` — raise `leaseSeconds`.
 - **`holder`** is `hostname#pid#uuid` per process; release and heartbeat only
-  ever touch this process's own row. `SELECT * FROM scheduler_lock` shows
+  ever touch this process's own row. `SELECT * FROM commons_jobs_lock` shows
   what's held right now.
 - Timers are `unref`'d and cleared on `onModuleDestroy`.
 
@@ -220,25 +220,25 @@ How it behaves:
 
 - **`application` is on every row of both tables and every read filters by
   it.** Constant within one app's own database (one value); the column keeps
-  `job_run` and `scheduler_lock` correct if ever consolidated into one shared
+  `commons_jobs_job_run` and `commons_jobs_lock` correct if ever consolidated into one shared
   operational database. Same `MODULE-STANDARD.md` dimension-4 call
   `notification` and `audit-logging` make. `JobRunPrunerJob`'s DELETE and every
   `PostgresLeaseLock` statement are `application`-scoped for the same reason —
   they never touch another app's rows.
-- **`scheduler_lock` doesn't need pruning** — it's at most one row per job,
+- **`commons_jobs_lock` doesn't need pruning** — it's at most one row per job,
   reused in place. A stale row from a crashed holder is harmless (the next
   claim overwrites it once the lease expires).
 - **Reads: `PostgresJobStatusService` or your own query.** The service covers
   the common UI shapes (history log + dashboard); for anything else, query
-  `job_run` directly through the re-exported `jobRunTable` with your own
+  `commons_jobs_job_run` directly through the re-exported `jobRunTable` with your own
   Drizzle client. `PostgresJobRunRecorder` only writes.
 - **`application` is a plain string, not `domain-events`'
   `DOMAIN_EVENTS_APPLICATION_ID` token** — pass the same value, supplied here
   as a value so the adapter works whether or not that token is bound.
-- **Retention is yours to run.** `job_run` is one row per job per run — a
+- **Retention is yours to run.** `commons_jobs_job_run` is one row per job per run — a
   daily job is ~365 rows/year (trivial); a per-minute job is ~525k/year (still
   small, but prune it). `JobRunPrunerModule` is the ready-made way; a plain
-  `DELETE FROM job_run WHERE application = $1 AND started_at < now() - interval '90 days'`
+  `DELETE FROM commons_jobs_job_run WHERE application = $1 AND started_at < now() - interval '90 days'`
   on any schedule is equivalent.
 - **Missed-schedule detection is `listJobStatus()`'s `overdue`** — driven by
   the hand-supplied `cadences` hint (or an inferred one), not by reading

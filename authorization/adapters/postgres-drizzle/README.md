@@ -16,16 +16,16 @@ project on another stack ignores this folder and provides its own `Authorizer`.
 `persona` (on `Actor`) stays a **coarse label** — the DB authorizer never reads
 it. All permission comes from **roles**:
 
-- **`authz_role`** — the catalog. Platform-owned, small. `grants_all = true` is
-  the `'*'` wildcard (every action, no `authz_role_permission` rows needed).
-- **`authz_role_permission`** — which actions a role grants. `action` is a FK
-  into `authz_action`.
-- **`authz_action`** — the action catalog. `name` synced from your code's
+- **`commons_authz_role`** — the catalog. Platform-owned, small. `grants_all = true` is
+  the `'*'` wildcard (every action, no `commons_authz_role_permission` rows needed).
+- **`commons_authz_role_permission`** — which actions a role grants. `action` is a FK
+  into `commons_authz_action`.
+- **`commons_authz_action`** — the action catalog. `name` synced from your code's
   `Actions` const; `description` ships empty and is edited later in an admin UI.
-- **`authz_user_role`** — assignments. Tenant-scoped: the same user can hold
+- **`commons_authz_user_role`** — assignments. Tenant-scoped: the same user can hold
   different roles in different tenants. `tenant_id` NULL = applies everywhere
   (a platform admin).
-- **`authz_delegation`** — one user granting a subset of their own role-derived
+- **`commons_authz_delegation`** — one user granting a subset of their own role-derived
   actions to another, within a tenant, time-boxed. See "Delegation" below.
 
 `can()` resolves as: *does any assigned role (matching this tenant, or global)
@@ -57,7 +57,7 @@ import { Actions } from '@/auth/actions';
 await syncActions(db, Object.values(Actions));               // catalog the action keys
 await seedRolesFromPersonaMap(db, personaActions);           // one role per persona, same grants
 // then assign each user to their persona-role — you own the users table:
-//   INSERT INTO authz_user_role (user_id, tenant_id, role_id)
+//   INSERT INTO commons_authz_user_role (user_id, tenant_id, role_id)
 //   SELECT id, tenant_id, persona FROM app_user;
 ```
 
@@ -131,24 +131,24 @@ request instead of ~60.
 
 ## Managing roles
 
-CRUD on `authz_role` / `authz_role_permission` / `authz_user_role` is **yours**
+CRUD on `commons_authz_role` / `commons_authz_role_permission` / `commons_authz_user_role` is **yours**
 to write against the documented schema — simple SQL, no adapter machinery. The
 security split to keep:
 
 - **Role definition** (which actions a role grants) — platform-admin only.
   Consider a dedicated action like `authz.manage_roles`, and REVOKE write grants
-  on `authz_role*` from the ordinary app DB role.
+  on `commons_authz_role*` from the ordinary app DB role.
 - **Role assignment** (which existing role a user holds) — ordinary
   tenant-scoped self-service (`authz.assign_roles`), naturally bounded by the
   same tenancy as everything that actor touches.
 
 Serve the action list to your admin UI from your `Actions` const (or
-`SELECT name, description FROM authz_action`) so the "grant permission" form is
+`SELECT name, description FROM commons_authz_action`) so the "grant permission" form is
 a dropdown, not a free-text field.
 
 ## Deferred (documented, not built)
 
-- **Role hierarchy** — `authz_role.parent_id`, a recursive resolution query,
+- **Role hierarchy** — `commons_authz_role.parent_id`, a recursive resolution query,
   cycle detection, an inherited-vs-direct distinction in the matrix UI. Add
   `parent_id` (cheap on a small table) + swap `PermissionLoader`'s role query
   when overlapping roles become a maintenance pain.

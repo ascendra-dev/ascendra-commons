@@ -14,7 +14,7 @@
 -- row expire, and the next run claims it via the conditional upsert. The holder
 -- renews `locked_until` on a heartbeat while its run is in progress.
 
-CREATE TABLE IF NOT EXISTS "scheduler_lock" (
+CREATE TABLE IF NOT EXISTS "commons_jobs_lock" (
   "application"  text        NOT NULL,
   "lock_key"     text        NOT NULL,
   "holder"       text        NOT NULL,

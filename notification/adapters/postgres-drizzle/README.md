@@ -27,9 +27,9 @@ implementation. A project on another stack ignores it and provides its own
 
 | Table | Method | Fall-through |
 |---|---|---|
-| `notification_channel_route` | `channelsFor` | tenant row → `tenant_id IS NULL` deployment default |
-| `notification_template` | `templateFor` | tenant row → `tenant_id IS NULL` deployment default |
-| `notification_provider_credential` | `providerConfigFor` | **none** — a missing row is `no_provider_config`, never another tenant's account |
+| `commons_notification_channel_route` | `channelsFor` | tenant row → `tenant_id IS NULL` deployment default |
+| `commons_notification_template` | `templateFor` | tenant row → `tenant_id IS NULL` deployment default |
+| `commons_notification_provider_credential` | `providerConfigFor` | **none** — a missing row is `no_provider_config`, never another tenant's account |
 
 Resolution picks the tenant-specific row over the default with
 `ORDER BY tenant_id IS NULL LIMIT 1` (`false` sorts first). A `null` tenantId
@@ -100,7 +100,7 @@ NotificationModule.forRoot({
 ### 4. Per-tenant overrides
 
 After seeding, add rows with a real `tenant_id` through your own admin path —
-an `INSERT`/`UPSERT` into `notification_channel_route` / `notification_template`
+an `INSERT`/`UPSERT` into `commons_notification_channel_route` / `commons_notification_template`
 for that tenant. The adapter picks them up automatically (within the cache TTL).
 
 ## Caching
@@ -114,7 +114,7 @@ per-node staleness window is fine.
 
 ## Credentials — one opaque `config` jsonb
 
-`notification_provider_credential.config` is a single `jsonb` column. The
+`commons_notification_provider_credential.config` is a single `jsonb` column. The
 adapter returns it **verbatim** as `ProviderConfig` — provider credential
 shapes vary (a single API key; access key + secret + region; an OAuth token;
 SID + auth token + number) and can't be anticipated, so the library never reads
@@ -125,7 +125,7 @@ It typically holds live secrets — **encrypt at rest**:
 - Supabase **Vault** (keep secret ids in the JSON, resolve them in a
   `PostgresNotificationConfig` subclass), or
 - `pgcrypto` + a decrypting view, or
-- `REVOKE select ON notification_provider_credential` from the ordinary read
+- `REVOKE select ON commons_notification_provider_credential` from the ordinary read
   role and grant it only to the notification service's role.
 
 If your near-term need is only per-tenant *routing and templates*, skip this

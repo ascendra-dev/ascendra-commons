@@ -187,8 +187,8 @@ failure). `model: 'database'` binds your own `NotificationConfig` via
 
 On the common Postgres/Drizzle stack, **use the shipped adapter** —
 `notification/adapters/postgres-drizzle/`. It's one `NotificationConfig`
-implementation over three tables (`notification_channel_route`,
-`notification_template`, `notification_provider_credential`), a TTL cache, a
+implementation over three tables (`commons_notification_channel_route`,
+`commons_notification_template`, `commons_notification_provider_credential`), a TTL cache, a
 migration, and a seed helper. See that folder's README; the wiring is:
 
 ```typescript

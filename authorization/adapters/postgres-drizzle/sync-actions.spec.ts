@@ -24,7 +24,7 @@ describe('syncActions', () => {
     await syncActions(db, ['invoice.view', 'invoice.void', 'invoice.view']);
 
     const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
-    expect(text).toMatch(/INSERT INTO authz_action \(name\)/i);
+    expect(text).toMatch(/INSERT INTO commons_authz_action \(name\)/i);
     expect(text).toMatch(/ON CONFLICT \(name\) DO NOTHING/i);
     expect(text).not.toMatch(/description/i);
     expect(text).not.toMatch(/DELETE/i);

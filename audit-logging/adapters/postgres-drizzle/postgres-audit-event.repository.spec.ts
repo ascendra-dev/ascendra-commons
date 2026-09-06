@@ -41,7 +41,7 @@ describe('PostgresAuditEventRepository', () => {
     await new PostgresAuditEventRepository(db, 'ascendra-pay').insert(input());
 
     expect(db.execute).toHaveBeenCalledTimes(1);
-    expect(rendered(db).sql).toMatch(/insert into audit_event/i);
+    expect(rendered(db).sql).toMatch(/insert into commons_audit_event/i);
   });
 
   it('stamps the injected application, not anything off the record', async () => {
@@ -53,7 +53,7 @@ describe('PostgresAuditEventRepository', () => {
 
   it('binds the event fields as parameters — nothing string-interpolated into the SQL text', async () => {
     const db = fakeDb();
-    const actor = "Robert'); DROP TABLE audit_event;--";
+    const actor = "Robert'); DROP TABLE commons_audit_event;--";
     await new PostgresAuditEventRepository(db, 'ascendra-pay').insert(input({ actor }));
 
     const { sql: text, params } = rendered(db);

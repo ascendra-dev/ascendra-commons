@@ -1,7 +1,7 @@
 import { pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
 
 /**
- * The reference `scheduler_lock` table — one row per held (or recently held)
+ * The reference `commons_jobs_lock` table — one row per held (or recently held)
  * job lock, for `PostgresLeaseLock`. A distributed mutex as a *row*, not a
  * connection: any pooled connection can claim, renew, or release it, and it
  * works through a transaction-mode pooler — unlike the session-level
@@ -15,11 +15,11 @@ import { pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
  * lets the row expire, and the next run claims it. The holder renews
  * `locked_until` on a heartbeat while its run is in progress.
  *
- * `application` scopes the lock the same way it scopes `job_run` — two
+ * `application` scopes the lock the same way it scopes `commons_jobs_job_run` — two
  * Ascendra apps sharing one database don't contend on a same-named job's lock.
  */
 export const schedulerLockTable = pgTable(
-  'scheduler_lock',
+  'commons_jobs_lock',
   {
     application: text('application').notNull(),
     /** The lock key as `IdempotentJobRunner` forms it, e.g. `scheduler:invoice-reminder`. */

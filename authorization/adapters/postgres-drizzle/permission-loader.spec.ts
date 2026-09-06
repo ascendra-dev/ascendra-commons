@@ -13,8 +13,8 @@ const ACTOR: Actor = { id: 'u1', persona: 'issuer', tenantId: 't1' };
 function fakeDb(responses: { roles?: unknown[]; delegations?: unknown[] } = {}) {
   const execute = vi.fn(async (q: SQL) => {
     const text = dialect.sqlToQuery(q).sql;
-    if (text.includes('authz_user_role')) return { rows: responses.roles ?? [] };
-    if (text.includes('authz_delegation')) return { rows: responses.delegations ?? [] };
+    if (text.includes('commons_authz_user_role')) return { rows: responses.roles ?? [] };
+    if (text.includes('commons_authz_delegation')) return { rows: responses.delegations ?? [] };
     return { rows: [] };
   });
   return { execute } as unknown as SqlExecutor & { execute: ReturnType<typeof vi.fn> };
@@ -57,7 +57,7 @@ describe('PermissionLoader', () => {
     await new PermissionLoader(db).effectivePermissions({ id: 'admin', persona: 'admin', tenantId: null });
 
     const tables = db.execute.mock.calls.map((c) => dialect.sqlToQuery(c[0] as SQL).sql);
-    expect(tables.some((t) => t.includes('authz_delegation'))).toBe(false);
+    expect(tables.some((t) => t.includes('commons_authz_delegation'))).toBe(false);
   });
 
   it('within a permission-cache scope, repeated lookups for the same actor query once', async () => {
@@ -70,7 +70,7 @@ describe('PermissionLoader', () => {
       await loader.effectivePermissions(ACTOR);
     });
 
-    const roleQueries = db.execute.mock.calls.filter((c) => dialect.sqlToQuery(c[0] as SQL).sql.includes('authz_user_role'));
+    const roleQueries = db.execute.mock.calls.filter((c) => dialect.sqlToQuery(c[0] as SQL).sql.includes('commons_authz_user_role'));
     expect(roleQueries).toHaveLength(1);
   });
 
@@ -81,7 +81,7 @@ describe('PermissionLoader', () => {
     await loader.rolePermissions(ACTOR);
     await loader.rolePermissions(ACTOR);
 
-    const roleQueries = db.execute.mock.calls.filter((c) => dialect.sqlToQuery(c[0] as SQL).sql.includes('authz_user_role'));
+    const roleQueries = db.execute.mock.calls.filter((c) => dialect.sqlToQuery(c[0] as SQL).sql.includes('commons_authz_user_role'));
     expect(roleQueries).toHaveLength(2);
   });
 });

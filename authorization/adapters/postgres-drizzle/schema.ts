@@ -1,7 +1,7 @@
 import { boolean, index, pgTable, primaryKey, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 
 /**
- * The reference `authz_*` schema — one concrete Postgres/Drizzle shape of the
+ * The reference `commons_authz_*` schema — one concrete Postgres/Drizzle shape of the
  * database-backed authorization model (Model 2). Source of truth for the
  * columns; `authorization.migration.sql` in this folder is the hand-kept DDL
  * form of the same tables — keep the two in sync.
@@ -10,16 +10,17 @@ import { boolean, index, pgTable, primaryKey, text, timestamp, unique, uuid } fr
  * schema barrel so `drizzle-kit generate` produces the migration; a project on
  * another stack ignores this folder and provides its own `Authorizer`.
  *
- * Tables are `authz_`-prefixed on purpose — `role` / `user_role` are names a
- * vertical is likely to want for its own tables.
+ * Tables are `commons_authz_`-prefixed on purpose — `role` / `user_role` are
+ * names a vertical is likely to want for its own tables, and the `commons_`
+ * prefix groups every vendored table (see this repo's other adapters).
  */
 
 /** The role catalog — platform-owned, small, not tenant-editable. */
-export const authzRole = pgTable('authz_role', {
+export const authzRole = pgTable('commons_authz_role', {
   /** Stable slug (`'issuer'`, `'issuer_owner'`), not a uuid — referenced from seeds and the admin matrix. */
   id: text('id').primaryKey(),
   description: text('description'),
-  /** The `'*'` wildcard equivalent — this role grants every action, no `authz_role_permission` rows needed. */
+  /** The `'*'` wildcard equivalent — this role grants every action, no `commons_authz_role_permission` rows needed. */
   grantsAll: boolean('grants_all').notNull().default(false),
 });
 
@@ -28,14 +29,14 @@ export const authzRole = pgTable('authz_role', {
  * sync by `syncActions()`. `description` ships empty and is filled in later
  * through the admin UI — never set by the sync.
  */
-export const authzAction = pgTable('authz_action', {
+export const authzAction = pgTable('commons_authz_action', {
   name: text('name').primaryKey(),
   description: text('description'),
 });
 
 /** Which actions each role grants. Ignored when the role's `grants_all` is true. */
 export const authzRolePermission = pgTable(
-  'authz_role_permission',
+  'commons_authz_role_permission',
   {
     roleId: text('role_id')
       .notNull()
@@ -54,7 +55,7 @@ export const authzRolePermission = pgTable(
  * no-tenant context (a platform admin).
  */
 export const authzUserRole = pgTable(
-  'authz_user_role',
+  'commons_authz_user_role',
   {
     userId: text('user_id').notNull(),
     tenantId: text('tenant_id'),
@@ -66,8 +67,8 @@ export const authzUserRole = pgTable(
   },
   (table) => ({
     // NULLS NOT DISTINCT so (user, NULL, role) can't be double-inserted (Postgres 15+).
-    uq: unique('authz_user_role_uq').on(table.userId, table.tenantId, table.roleId).nullsNotDistinct(),
-    lookup: index('authz_user_role_lookup').on(table.userId, table.tenantId),
+    uq: unique('commons_authz_user_role_uq').on(table.userId, table.tenantId, table.roleId).nullsNotDistinct(),
+    lookup: index('commons_authz_user_role_lookup').on(table.userId, table.tenantId),
   }),
 );
 
@@ -78,7 +79,7 @@ export const authzUserRole = pgTable(
  * adapter README for what the snapshot model defers.
  */
 export const authzDelegation = pgTable(
-  'authz_delegation',
+  'commons_authz_delegation',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     granterId: text('granter_id').notNull(),
@@ -92,5 +93,5 @@ export const authzDelegation = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     createdBy: text('created_by').notNull(),
   },
-  (table) => ({ byGrantee: index('authz_delegation_grantee').on(table.granteeId, table.tenantId) }),
+  (table) => ({ byGrantee: index('commons_authz_delegation_grantee').on(table.granteeId, table.tenantId) }),
 );

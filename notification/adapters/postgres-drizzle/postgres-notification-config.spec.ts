@@ -10,9 +10,9 @@ const OPTIONS = { application: 'ascendra-pay', cacheTtlSeconds: 0 };
 function fakeDb(byTable: { route?: unknown[]; template?: unknown[]; credential?: unknown[] } = {}) {
   const execute = vi.fn(async (q: SQL) => {
     const text = dialect.sqlToQuery(q).sql;
-    if (text.includes('notification_channel_route')) return { rows: byTable.route ?? [] };
-    if (text.includes('notification_template')) return { rows: byTable.template ?? [] };
-    if (text.includes('notification_provider_credential')) return { rows: byTable.credential ?? [] };
+    if (text.includes('commons_notification_channel_route')) return { rows: byTable.route ?? [] };
+    if (text.includes('commons_notification_template')) return { rows: byTable.template ?? [] };
+    if (text.includes('commons_notification_provider_credential')) return { rows: byTable.credential ?? [] };
     return { rows: [] };
   });
   return { execute } as unknown as SqlExecutor & { execute: ReturnType<typeof vi.fn> };

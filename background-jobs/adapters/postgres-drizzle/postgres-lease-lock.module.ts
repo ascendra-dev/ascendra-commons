@@ -15,7 +15,7 @@ export interface PostgresLeaseLockModuleConfig {
    */
   sqlExecutorToken: string | symbol | (new (...args: never[]) => unknown);
 
-  /** Which Ascendra application this process is — scopes each `scheduler_lock` row. */
+  /** Which Ascendra application this process is — scopes each `commons_jobs_lock` row. */
   application: string;
 
   /**

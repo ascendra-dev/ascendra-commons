@@ -15,7 +15,7 @@ export interface PostgresJobRunRecorderModuleConfig {
 
   /**
    * Which Ascendra application this process is (e.g. `'ascendra-pay'`) —
-   * stamped into every `job_run` row's `application` column.
+   * stamped into every `commons_jobs_job_run` row's `application` column.
    */
   application: string;
 

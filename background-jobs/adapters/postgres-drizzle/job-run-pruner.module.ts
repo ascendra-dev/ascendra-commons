@@ -9,7 +9,7 @@ export interface JobRunPrunerModuleConfig {
   /** Which Ascendra application this process is — the pruner's DELETE is scoped to it. */
   application: string;
 
-  /** `job_run` rows older than this many days are deleted each run. Default 90. */
+  /** `commons_jobs_job_run` rows older than this many days are deleted each run. Default 90. */
   retentionDays?: number;
 
   /**

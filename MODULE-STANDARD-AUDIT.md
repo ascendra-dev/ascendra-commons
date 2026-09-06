@@ -644,7 +644,7 @@ a cost, incurred here for no reason.
 sub-folder, so a second adapter for a different stack slots in beside it
 without touching anything):
 
-- `audit-event.schema.ts` — Drizzle `pgTable` for `audit_event`, the source of
+- `audit-event.schema.ts` — Drizzle `pgTable` for `commons_audit_event`, the source of
   truth for the reference schema. Columns map 1:1 to `AuditEvent`, plus a
   passive `application` column (dimension 4 — stamped on insert, never queried).
   The two indexes from the earlier worked example carried over, still justified
@@ -654,7 +654,7 @@ without touching anything):
   says the DB instance and migration *execution* stay consumer-owned (still
   true — the consumer copies this into its own migration tooling or exports the
   `pgTable` for `drizzle-kit`), but shipping the canonical DDL *text* means
-  every vertical's `audit_event` is byte-identical instead of independently
+  every vertical's `commons_audit_event` is byte-identical instead of independently
   hand-rolled. `idempotency-key` does the same thing in a doc-comment; this is
   that, in a file.
 - `postgres-audit-event.repository.ts` — `PostgresAuditEventRepository`, one
@@ -843,12 +843,12 @@ was built — a self-contained `adapters/postgres-drizzle/` folder.
 ### Core model
 
 - **Roles supersede persona.** Under Model 2 the DB authorizer resolves `can()`
-  from `authz_user_role → authz_role → authz_role_permission` (+ active
+  from `commons_authz_user_role → commons_authz_role → commons_authz_role_permission` (+ active
   delegations), never from `actor.persona` — which stays a coarse label.
   `seedRolesFromPersonaMap()` converts a Model 1 `personaActions` map into
   roles so the switch is behaviour-preserving. Model 1 ↔ Model 2 stays a
   wiring-time switch (`model:` string), one active at a time.
-- **`authz_role.grants_all boolean`** is the `'*'` wildcard — no magic row.
+- **`commons_authz_role.grants_all boolean`** is the `'*'` wildcard — no magic row.
 - **`authz_` table prefix** — `role` / `user_role` are names a vertical wants.
 - **No `application` column** — role catalogs are project-specific; the
   cross-product-analytics case is too weak, and these tables are small enough
@@ -876,15 +876,15 @@ one optional method on `Authorizer`.)*
 
 ### In v1
 
-- **Minimal delegation** — `authz_delegation` table, **snapshot** model
+- **Minimal delegation** — `commons_authz_delegation` table, **snapshot** model
   (actions fixed at grant time; mandatory `expires_at` capped at
   `maxDelegationDays`, default 90; one-call revoke). Grant-time check uses the
   granter's **role** permissions only, so **chains are blocked** by
   construction. `DelegationService` ships `delegate` / `revokeDelegation` /
   `listDelegations`. Audit is the consumer's to wire from its controller — the
   service takes no dependency on `domain-events` / `audit-logging`.
-- **Action catalog** — `authz_action` (`name` PK + nullable `description`).
-  `authz_role_permission.action` is a FK (`ON DELETE RESTRICT`). `syncActions()`
+- **Action catalog** — `commons_authz_action` (`name` PK + nullable `description`).
+  `commons_authz_role_permission.action` is a FK (`ON DELETE RESTRICT`). `syncActions()`
   is insert-only — new keys get a null description, existing rows (incl.
   UI-entered descriptions) are never touched, nothing is deleted. Reversed the
   initial "defer" call at the user's request: descriptions need a home, and a
@@ -1039,9 +1039,9 @@ import, never re-exported from `notification/index.ts`.
 ### Design (discussed decision-by-decision with the user)
 
 - **3 tables**, `notification_` prefix, every row carrying `application`:
-  - `notification_channel_route` (application, notification_type, tenant_id nullable, channels[])
-  - `notification_template` (application, channel, notification_type, tenant_id nullable, subject, body, is_html)
-  - `notification_provider_credential` (application, channel, tenant_id NOT NULL, api_key, from, from_name)
+  - `commons_notification_channel_route` (application, notification_type, tenant_id nullable, channels[])
+  - `commons_notification_template` (application, channel, notification_type, tenant_id nullable, subject, body, is_html)
+  - `commons_notification_provider_credential` (application, channel, tenant_id NOT NULL, api_key, from, from_name)
 - **Tenant-first fall-through** for routing + templates via
   `ORDER BY tenant_id IS NULL LIMIT 1` (`false` sorts first). Fixed a latent bug
   the old README example carried — `ORDER BY tenant_id DESC` puts NULLs *first*
@@ -1126,7 +1126,7 @@ that `{ apiKey, from, fromName? }` is a guess that doesn't fit every provider
 (SES needs access key + secret + region; OAuth providers a token; Twilio a SID
 + auth token + number). Changed `ProviderConfig` to `Record<string, unknown>` —
 an opaque JSON blob the library never reads inside; the consumer's real `send()`
-interprets it. `notification_provider_credential`'s `api_key`/`from`/`from_name`
+interprets it. `commons_notification_provider_credential`'s `api_key`/`from`/`from_name`
 columns collapse to one `config jsonb`. The stub senders stop logging the
 provider config (it may hold secrets) — they log only the rendered message.
 `Notifier` and `NotificationConfig` untouched; the seam is unchanged, just
@@ -1187,7 +1187,7 @@ the schedule wrapper knows why it fired, the runner doesn't.
   real one; omitted → no-op, zero behaviour change.
 - **`background-jobs/adapters/postgres-drizzle/`** (new, matching the
   `audit-logging` / `notification` / `authorization` adapter pattern):
-  `job-run.schema.ts` + `job-run.migration.sql` (`job_run` table),
+  `job-run.schema.ts` + `job-run.migration.sql` (`commons_jobs_job_run` table),
   `postgres-job-run-recorder.ts` (one `INSERT`, `application` stamped, failed
   write logged and swallowed), `postgres-job-run-recorder.module.ts`,
   `job-run-pruner.job.ts` + `.module.ts` (reference `JobRunPrunerJob` — the
@@ -1195,21 +1195,21 @@ the schedule wrapper knows why it fired, the runner doesn't.
   DELETE, `retentionDays` default 90), `sql-executor.ts` (duplicated),
   `tokens.ts`, `index.ts`, `README.md`, 3 spec files.
 - **`application` — active, per the user's request**, same call as
-  `notification`: every `job_run` row carries it (from
+  `notification`: every `commons_jobs_job_run` row carries it (from
   `PostgresJobRunRecorderModule.forRoot({ application })`), every read must
-  filter by it, the pruner's DELETE is scoped to it. `job_run` is the one
+  filter by it, the pruner's DELETE is scoped to it. `commons_jobs_job_run` is the one
   `background-jobs` surface where multiple Ascendra apps' output could land in
   one shared operational database.
 - **Missed-schedule detection is downstream, not built** — you cannot record a
   run that didn't happen; alert on "no `completed` run of job X in longer than
   its cadence." `trigger` distinguishes a normal fire from a bootstrap catch-up.
 - **No read/query API, no watchdog, no UI contract** — the consumer's admin
-  screen queries `job_run` directly through the re-exported `jobRunTable`.
+  screen queries `commons_jobs_job_run` directly through the re-exported `jobRunTable`.
 
 ### Dimension notes
 
 - **4 (`applicationId`)** — core stays N/A (a run never leaves its process).
-  The adapter's `job_run` carries an **active** `application` filter, exactly
+  The adapter's `commons_jobs_job_run` carries an **active** `application` filter, exactly
   the `notification` "one step further" case already in `MODULE-STANDARD.md`
   dimension 4 (a filter with a reader, one value per deployment — not the
   `domain-events` mistake). Summary-table verdict unchanged (N/A tracks the
@@ -1217,7 +1217,7 @@ the schedule wrapper knows why it fired, the runner doesn't.
 - **6 (Model 1/Model 2)** — still Model 1. Observability is a Model 1 extension
   (was the "Not built" section, now built), not the Model 2 queue.
 - **7 (persistence)** — still Pass. The advisory lock owns no DB; the new
-  `job_run` table is a shared *reference* schema + migration, DB instance and
+  `commons_jobs_job_run` table is a shared *reference* schema + migration, DB instance and
   migration execution consumer-owned, matching every other adapter.
 
 **Tests:** 287/287 pass (from 259 at the start of this session — 28 new across
@@ -1261,9 +1261,9 @@ every other provider here.
 updated for the new return type), typecheck clean.
 
 **Follow-up, same day — read-side reporting for the admin UI
-(`PostgresJobStatusService`).** Once there's a job registry and a `job_run`
+(`PostgresJobStatusService`).** Once there's a job registry and a `commons_jobs_job_run`
 history, the UI needs to *read* both. Built in `adapters/postgres-drizzle/`
-(reads `job_run`, so Postgres-specific and opt-in — no core change):
+(reads `commons_jobs_job_run`, so Postgres-specific and opt-in — no core change):
 
 - `getRunHistory({ jobName?, outcome?, since?, until?, limit?, cursor? })` —
   keyset-paginated log, newest first, `application`-scoped, `limit` capped 200.
@@ -1296,7 +1296,7 @@ history, the UI needs to *read* both. Built in `adapters/postgres-drizzle/`
 user reviewed the plain-terms comparison and chose the lease lock over keeping
 Option D. `adapters/postgres-drizzle/`:
 
-- **`scheduler_lock` table** — `(application, lock_key)` PK, `holder`,
+- **`commons_jobs_lock` table** — `(application, lock_key)` PK, `holder`,
   `locked_until` (the lease). One row per held/recently-held job lock; no
   pruning needed (reused in place).
 - **`PostgresLeaseLock implements AdvisoryLock`** — the lock is a *row*, so
@@ -1322,9 +1322,41 @@ Option D. `adapters/postgres-drizzle/`:
   knob the session lock doesn't have. Default path (session lock + dedicated
   connection) stays supported for consumers who don't want the table.
 
-Dimension 7 unchanged (Pass) — `scheduler_lock` is another shared *reference*
-schema + migration, DB instance consumer-owned. Dimension 4: `scheduler_lock`
-also carries active `application`, same call as `job_run`.
+Dimension 7 unchanged (Pass) — `commons_jobs_lock` is another shared *reference*
+schema + migration, DB instance consumer-owned. Dimension 4: `commons_jobs_lock`
+also carries active `application`, same call as `commons_jobs_job_run`.
 
 **Tests:** 326/326 pass (9 new — `postgres-lease-lock.spec.ts` ×6,
 `postgres-lease-lock.module.spec.ts` ×3), typecheck clean.
+
+---
+
+## 2026-09-06 — repo-wide: `commons_` table-name prefix
+
+The user asked for every table any module ships to be prefixed so a consumer
+can identify the vendored tables and keep them together.
+`MODULE-STANDARD.md` dimension 7 gained the rule (`commons_<module>_<table>`,
+indexes/constraints too, Drizzle export identifiers unchanged). Mechanical
+rename across all five modules with tables:
+
+| Module | Old | New |
+|---|---|---|
+| `authorization` | `authz_role` / `authz_action` / `authz_role_permission` / `authz_user_role` / `authz_delegation` | `commons_authz_*` (+ `commons_authz_user_role_uq`, `commons_authz_user_role_lookup`, `commons_authz_delegation_grantee`; FKs updated) |
+| `notification` | `notification_channel_route` / `notification_template` / `notification_provider_credential` | `commons_notification_*` (+ `_uq` / `_tenant`) |
+| `audit-logging` | `audit_event` | `commons_audit_event` (+ `commons_audit_event_entity_idx`, `commons_audit_event_tenant_time_idx`) |
+| `idempotency-key` | `idempotency_key` | `commons_idempotency_key` |
+| `background-jobs` | `job_run` / `scheduler_lock` | `commons_jobs_job_run` / `commons_jobs_lock` (+ `commons_jobs_job_run_application_job_time_idx`) — the two unprefixed tables get a `jobs` module segment; `scheduler_lock` shortened to `lock` under it, per the user |
+
+Touched: every `*.schema.ts`, `*.migration.sql`, the raw-SQL statements in each
+repository/store/service, all specs asserting on rendered SQL, the adapter and
+module READMEs, and the historical entries in this file (prose only — an
+internal design doc, not a record to preserve verbatim). Export identifiers
+(`authzRole`, `auditEventTable`, `jobRunTable`, `schedulerLockTable`, …) and
+hyphenated file names are unchanged.
+
+**Breaking for existing consumers** — any project that already ran a prior
+migration must rename its tables (`ALTER TABLE … RENAME TO …`) or re-run from
+the new reference DDL. `pay-api` has `notification` tables today; its migration
+needs the rename.
+
+**Tests:** 326/326 pass (no new tests — pure rename), typecheck clean.

@@ -26,7 +26,7 @@ export interface PostgresJobStatusModuleConfig {
 }
 
 /**
- * Read-only reporting over `job_run` for an admin UI: `getRunHistory()` (the
+ * Read-only reporting over `commons_jobs_job_run` for an admin UI: `getRunHistory()` (the
  * drill-down log) and `listJobStatus()` (the jobs dashboard, with overdue
  * detection). Exports `PostgresJobStatusService`; the consumer writes the
  * controller and gates it with their own `Authorizer`.

@@ -1,7 +1,7 @@
 import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 /**
- * The reference `audit_event` table — one concrete Postgres/Drizzle shape of
+ * The reference `commons_audit_event` table — one concrete Postgres/Drizzle shape of
  * the generic `AuditEvent` interface (see `../../audit-event.interface.ts`).
  *
  * Every column maps 1:1 to an `AuditEvent` field, plus `application` (see its
@@ -16,7 +16,7 @@ import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-cor
  * provides its own `AuditEventRepository` (see the adapter README).
  */
 export const auditEventTable = pgTable(
-  'audit_event',
+  'commons_audit_event',
   {
     /** Assigned by Postgres on insert — never supplied by the caller, so it is not part of `AuditEventInput`. */
     id: uuid('id').primaryKey().defaultRandom(),
@@ -50,8 +50,8 @@ export const auditEventTable = pgTable(
   },
   (table) => ({
     /** "this record's full history" — the not-yet-built `AuditQuery` by `entityType`+`entityId`. */
-    byEntity: index('audit_event_entity_idx').on(table.entityType, table.entityId),
+    byEntity: index('commons_audit_event_entity_idx').on(table.entityType, table.entityId),
     /** "this tenant's activity feed, recent first" — `AuditQuery` by `tenantId`+`occurredAfter`/`occurredBefore`. */
-    byTenantAndTime: index('audit_event_tenant_time_idx').on(table.tenantId, table.occurredAt),
+    byTenantAndTime: index('commons_audit_event_tenant_time_idx').on(table.tenantId, table.occurredAt),
   }),
 );

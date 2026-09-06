@@ -30,9 +30,9 @@ export class PermissionLoader {
     return memoizePermissionLookup(cacheKey('role', actor), async () => {
       const { rows } = await this.db.execute<{ action: string | null; grants_all: boolean }>(sql`
         SELECT rp.action, bool_or(r.grants_all) OVER () AS grants_all
-        FROM authz_user_role ur
-        JOIN authz_role r ON r.id = ur.role_id
-        LEFT JOIN authz_role_permission rp ON rp.role_id = r.id
+        FROM commons_authz_user_role ur
+        JOIN commons_authz_role r ON r.id = ur.role_id
+        LEFT JOIN commons_authz_role_permission rp ON rp.role_id = r.id
         WHERE ur.user_id = ${actor.id}
           AND (ur.tenant_id = ${actor.tenantId} OR ur.tenant_id IS NULL)
       `);
@@ -49,7 +49,7 @@ export class PermissionLoader {
       if (actor.tenantId === null) return new Set<string>(); // delegation is always within a tenant
       const { rows } = await this.db.execute<{ action: string }>(sql`
         SELECT DISTINCT unnest(actions) AS action
-        FROM authz_delegation
+        FROM commons_authz_delegation
         WHERE grantee_id = ${actor.id}
           AND tenant_id = ${actor.tenantId}
           AND revoked_at IS NULL

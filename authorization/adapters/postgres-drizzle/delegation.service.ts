@@ -91,7 +91,7 @@ export class DelegationService {
     }
 
     const { rows } = await this.db.execute<DelegationRow>(sql`
-      INSERT INTO authz_delegation (granter_id, grantee_id, tenant_id, actions, expires_at, reason, created_by)
+      INSERT INTO commons_authz_delegation (granter_id, grantee_id, tenant_id, actions, expires_at, reason, created_by)
       VALUES (
         ${input.granterId}, ${input.granteeId}, ${input.tenantId}, ${textArray(input.actions)},
         ${input.expiresAt}, ${input.reason ?? null}, ${input.createdBy ?? input.granterId}
@@ -104,7 +104,7 @@ export class DelegationService {
   /** Sets `revoked_at` if the delegation is still active. Idempotent — revoking an already-revoked row is a no-op. */
   async revokeDelegation(id: string, revokedBy: string): Promise<void> {
     await this.db.execute(sql`
-      UPDATE authz_delegation SET revoked_at = now(), revoked_by = ${revokedBy}
+      UPDATE commons_authz_delegation SET revoked_at = now(), revoked_by = ${revokedBy}
       WHERE id = ${id} AND revoked_at IS NULL
     `);
   }
@@ -113,7 +113,7 @@ export class DelegationService {
   async listDelegations(actor: Actor): Promise<{ granted: DelegationRecord[]; received: DelegationRecord[] }> {
     const { rows } = await this.db.execute<DelegationRow & { granter_id: string; grantee_id: string }>(sql`
       SELECT id, granter_id, grantee_id, tenant_id, actions, expires_at, revoked_at, reason, created_at
-      FROM authz_delegation
+      FROM commons_authz_delegation
       WHERE tenant_id = ${actor.tenantId}
         AND (granter_id = ${actor.id} OR grantee_id = ${actor.id})
       ORDER BY created_at DESC

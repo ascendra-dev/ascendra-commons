@@ -33,7 +33,7 @@ export class PostgresJobRunRecorder implements JobRunRecorder {
   async recordRun(summary: JobRunSummary): Promise<void> {
     try {
       await this.db.execute(sql`
-        insert into job_run (
+        insert into commons_jobs_job_run (
           application, job_name, trigger, started_at, finished_at,
           outcome, items_due, items_processed, items_failed, failed_item_refs, error
         ) values (

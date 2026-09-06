@@ -31,7 +31,7 @@ export class PostgresAuditEventRepository implements AuditEventRepository {
     // `application` is stamped here, never a field `AuditEventInput` carries —
     // it's an ambient fact about this process, not about the change being audited.
     await this.db.execute(sql`
-      insert into audit_event (
+      insert into commons_audit_event (
         entity_type, entity_id, tenant_id, actor, action,
         before, after, correlation_id, reason, occurred_at, application
       ) values (

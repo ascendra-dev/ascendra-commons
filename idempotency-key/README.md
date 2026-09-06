@@ -121,7 +121,7 @@ catch, not the primary defense.
 ### `PostgresIdempotencyStore` — the atomic claim, and its one real number
 
 ```sql
-create table idempotency_key (
+create table commons_idempotency_key (
   key text not null,
   scope text not null,
   status text not null default 'pending',
@@ -168,7 +168,7 @@ plain table and one interceptor, applied by explicit inclusion via
 duplicate is genuinely costly, never by default.
 
 **Cleanup is a bare `@Cron()` handler, not `background-jobs`'s
-`IdempotentJobRunner`.** A bulk `DELETE FROM idempotency_key WHERE created_at < now() - interval '24 hours'`
+`IdempotentJobRunner`.** A bulk `DELETE FROM commons_idempotency_key WHERE created_at < now() - interval '24 hours'`
 is already safe under concurrent execution by construction — two instances
 issuing it at once is redundant, not harmful, and Postgres serializes it
 correctly on its own. `IdempotentJobRunner`'s lock and per-item isolation

@@ -22,7 +22,7 @@ function rendered(db: ReturnType<typeof fakeDb>, call: number) {
 function grants(db: ReturnType<typeof fakeDb>) {
   db.execute.mockImplementation(async (q: SQL) => {
     const { sql: text, params } = dialect.sqlToQuery(q);
-    if (/insert into scheduler_lock/i.test(text)) return { rows: [{ holder: params[2] }] };
+    if (/insert into commons_jobs_lock/i.test(text)) return { rows: [{ holder: params[2] }] };
     return { rows: [{ lock_key: 'k' }] };
   });
 }
@@ -41,9 +41,9 @@ describe('PostgresLeaseLock.tryAcquire', () => {
     await expect(lock.tryAcquire('scheduler:invoice-reminder')).resolves.toBe(true);
 
     const { sql: text, params } = rendered(db, 0);
-    expect(text).toMatch(/insert into scheduler_lock/i);
+    expect(text).toMatch(/insert into commons_jobs_lock/i);
     expect(text).toMatch(/on conflict .*do update/is);
-    expect(text).toMatch(/where scheduler_lock\.locked_until < now\(\)/i);
+    expect(text).toMatch(/where commons_jobs_lock\.locked_until < now\(\)/i);
     expect(params).toEqual(expect.arrayContaining(['ascendra-pay', 'scheduler:invoice-reminder', 900]));
 
     await lock.release('scheduler:invoice-reminder');
@@ -68,7 +68,7 @@ describe('PostgresLeaseLock.release', () => {
     await lock.release('scheduler:x');
 
     const { sql: text, params } = rendered(db, 0);
-    expect(text).toMatch(/delete from scheduler_lock/i);
+    expect(text).toMatch(/delete from commons_jobs_lock/i);
     expect(text).toMatch(/holder =/i);
     expect(params).toContain('ascendra-erp');
     expect(params).toContain('scheduler:x');
@@ -90,7 +90,7 @@ describe('PostgresLeaseLock heartbeat', () => {
 
     await vi.advanceTimersByTimeAsync(300_000);
     expect(db.execute).toHaveBeenCalledTimes(1);
-    expect(rendered(db, 0).sql).toMatch(/update scheduler_lock\s+set locked_until/i);
+    expect(rendered(db, 0).sql).toMatch(/update commons_jobs_lock\s+set locked_until/i);
 
     await vi.advanceTimersByTimeAsync(300_000);
     expect(db.execute).toHaveBeenCalledTimes(2);

@@ -32,7 +32,7 @@ describe('JobRunPrunerJob', () => {
     await new JobRunPrunerJob(db, 'ascendra-erp', 90).processItem(cutoff);
 
     const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
-    expect(text).toMatch(/delete from job_run/i);
+    expect(text).toMatch(/delete from commons_jobs_job_run/i);
     expect(text).toMatch(/application =/i);
     expect(text).toMatch(/started_at </i);
     expect(params).toContain('ascendra-erp');

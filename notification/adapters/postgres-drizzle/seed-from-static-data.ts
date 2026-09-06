@@ -25,7 +25,7 @@ export async function seedNotificationConfigFromData(
 ): Promise<void> {
   for (const [notificationType, channels] of Object.entries(data.channels)) {
     await db.execute(sql`
-      INSERT INTO notification_channel_route (application, notification_type, tenant_id, channels)
+      INSERT INTO commons_notification_channel_route (application, notification_type, tenant_id, channels)
       VALUES (${application}, ${notificationType}, NULL, ${textArray(channels)})
       ON CONFLICT (application, notification_type, tenant_id)
         DO UPDATE SET channels = EXCLUDED.channels
@@ -35,7 +35,7 @@ export async function seedNotificationConfigFromData(
   for (const [channel, byType] of Object.entries(data.templates ?? {})) {
     for (const [notificationType, tpl] of Object.entries(byType ?? {})) {
       await db.execute(sql`
-        INSERT INTO notification_template (application, channel, notification_type, tenant_id, subject, body, is_html)
+        INSERT INTO commons_notification_template (application, channel, notification_type, tenant_id, subject, body, is_html)
         VALUES (${application}, ${channel}, ${notificationType}, NULL, ${tpl.subject ?? null}, ${tpl.body}, ${tpl.isHtml ?? false})
         ON CONFLICT (application, channel, notification_type, tenant_id)
           DO UPDATE SET subject = EXCLUDED.subject, body = EXCLUDED.body, is_html = EXCLUDED.is_html
@@ -46,7 +46,7 @@ export async function seedNotificationConfigFromData(
   for (const [channel, byTenant] of Object.entries(data.providerConfigs ?? {})) {
     for (const [tenantId, cfg] of Object.entries(byTenant ?? {})) {
       await db.execute(sql`
-        INSERT INTO notification_provider_credential (application, channel, tenant_id, config)
+        INSERT INTO commons_notification_provider_credential (application, channel, tenant_id, config)
         VALUES (${application}, ${channel}, ${tenantId}, ${JSON.stringify(cfg)}::jsonb)
         ON CONFLICT (application, channel, tenant_id)
           DO UPDATE SET config = EXCLUDED.config

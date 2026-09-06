@@ -15,7 +15,7 @@ const dialect = new PgDialect();
 function lockDbModule() {
   const execute = vi.fn().mockImplementation(async (q: SQL) => {
     const { sql: text, params } = dialect.sqlToQuery(q);
-    if (/insert into scheduler_lock/i.test(text)) return { rows: [{ holder: params[2] }] };
+    if (/insert into commons_jobs_lock/i.test(text)) return { rows: [{ holder: params[2] }] };
     return { rows: [{ lock_key: 'k' }] };
   });
   @Module({ providers: [{ provide: LOCK_DB, useValue: { execute } }], exports: [LOCK_DB] })
@@ -52,9 +52,9 @@ describe('PostgresLeaseLockModule wired into BackgroundJobsModule via advisoryLo
     await moduleRef.close(); // triggers onModuleDestroy → clears the heartbeat
 
     expect(job.processItem).toHaveBeenCalledWith('x');
-    const claimCall = execute.mock.calls.find((c) => /insert into scheduler_lock/i.test(dialect.sqlToQuery(c[0] as SQL).sql));
+    const claimCall = execute.mock.calls.find((c) => /insert into commons_jobs_lock/i.test(dialect.sqlToQuery(c[0] as SQL).sql));
     expect(claimCall).toBeDefined();
-    const releaseCall = execute.mock.calls.find((c) => /delete from scheduler_lock/i.test(dialect.sqlToQuery(c[0] as SQL).sql));
+    const releaseCall = execute.mock.calls.find((c) => /delete from commons_jobs_lock/i.test(dialect.sqlToQuery(c[0] as SQL).sql));
     expect(releaseCall).toBeDefined();
   });
 

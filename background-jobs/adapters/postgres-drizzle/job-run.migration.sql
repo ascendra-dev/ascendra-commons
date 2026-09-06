@@ -15,7 +15,7 @@
 -- consolidated into one shared operational database. Stamped from
 -- PostgresJobRunRecorderModule.forRoot({ application }).
 
-CREATE TABLE IF NOT EXISTS "job_run" (
+CREATE TABLE IF NOT EXISTS "commons_jobs_job_run" (
   "id"               bigserial   PRIMARY KEY,
   "application"      text        NOT NULL,
   "job_name"         text        NOT NULL,
@@ -32,5 +32,5 @@ CREATE TABLE IF NOT EXISTS "job_run" (
 
 -- "this application's runs of this job" — the run-history admin screen's main
 -- query, and the scan JobRunPrunerJob's DELETE uses.
-CREATE INDEX IF NOT EXISTS "job_run_application_job_time_idx"
-  ON "job_run" ("application", "job_name", "started_at");
+CREATE INDEX IF NOT EXISTS "commons_jobs_job_run_application_job_time_idx"
+  ON "commons_jobs_job_run" ("application", "job_name", "started_at");

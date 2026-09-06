@@ -25,17 +25,17 @@ describe('seedNotificationConfigFromData', () => {
     });
 
     const all = rendered(db);
-    const route = all.find((q) => q.sql.includes('notification_channel_route'))!;
-    expect(route.sql).toMatch(/INSERT INTO notification_channel_route \(application, notification_type, tenant_id, channels\)/i);
+    const route = all.find((q) => q.sql.includes('commons_notification_channel_route'))!;
+    expect(route.sql).toMatch(/INSERT INTO commons_notification_channel_route \(application, notification_type, tenant_id, channels\)/i);
     expect(route.sql).toMatch(/VALUES \(\$\d+, \$\d+, NULL, ARRAY\[/i);
     expect(route.sql).toMatch(/ON CONFLICT \(application, notification_type, tenant_id\)/i);
     expect(route.params).toContain('ascendra-pay');
 
-    const tpl = all.find((q) => q.sql.includes('notification_template'))!;
+    const tpl = all.find((q) => q.sql.includes('commons_notification_template'))!;
     expect(tpl.params).toContain('S');
     expect(tpl.params).toContain('B');
 
-    const cred = all.find((q) => q.sql.includes('notification_provider_credential'))!;
+    const cred = all.find((q) => q.sql.includes('commons_notification_provider_credential'))!;
     expect(cred.sql).toMatch(/\(application, channel, tenant_id, config\)/i);
     expect(cred.sql).toMatch(/::jsonb/i);
     expect(cred.params).toContain('t1');
@@ -49,6 +49,6 @@ describe('seedNotificationConfigFromData', () => {
 
     const all = rendered(db);
     expect(all).toHaveLength(1);
-    expect(all[0].sql).toMatch(/notification_channel_route/);
+    expect(all[0].sql).toMatch(/commons_notification_channel_route/);
   });
 });

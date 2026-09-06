@@ -9,7 +9,7 @@
 -- Keep this in sync with `audit-event.schema.ts` and
 -- `postgres-audit-event.repository.ts` — the three describe one table.
 
-CREATE TABLE IF NOT EXISTS "audit_event" (
+CREATE TABLE IF NOT EXISTS "commons_audit_event" (
   "id"             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "entity_type"    text NOT NULL,
   "entity_id"      text NOT NULL,
@@ -25,14 +25,14 @@ CREATE TABLE IF NOT EXISTS "audit_event" (
 );
 
 -- "this record's full history"
-CREATE INDEX IF NOT EXISTS "audit_event_entity_idx"
-  ON "audit_event" ("entity_type", "entity_id");
+CREATE INDEX IF NOT EXISTS "commons_audit_event_entity_idx"
+  ON "commons_audit_event" ("entity_type", "entity_id");
 
 -- "this tenant's activity feed, recent first"
-CREATE INDEX IF NOT EXISTS "audit_event_tenant_time_idx"
-  ON "audit_event" ("tenant_id", "occurred_at");
+CREATE INDEX IF NOT EXISTS "commons_audit_event_tenant_time_idx"
+  ON "commons_audit_event" ("tenant_id", "occurred_at");
 
 -- No UPDATE/DELETE grants are modelled here: audit records are write-once by
 -- construction of `AuditEventRepository` (insert() only). A deployment that
 -- wants that enforced at the database can additionally REVOKE update, delete
--- on "audit_event" from the application role.
+-- on "commons_audit_event" from the application role.

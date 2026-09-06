@@ -40,12 +40,12 @@ function summary(overrides: Partial<JobRunSummary> = {}): JobRunSummary {
 }
 
 describe('PostgresJobRunRecorder', () => {
-  it('issues exactly one insert into job_run', async () => {
+  it('issues exactly one insert into commons_jobs_job_run', async () => {
     const db = fakeDb();
     await new PostgresJobRunRecorder(db, 'ascendra-pay').recordRun(summary());
 
     expect(db.execute).toHaveBeenCalledTimes(1);
-    expect(rendered(db).sql).toMatch(/insert into job_run/i);
+    expect(rendered(db).sql).toMatch(/insert into commons_jobs_job_run/i);
   });
 
   it('stamps the injected application, not anything off the summary', async () => {
@@ -57,7 +57,7 @@ describe('PostgresJobRunRecorder', () => {
 
   it('binds summary fields as parameters — nothing string-interpolated', async () => {
     const db = fakeDb();
-    const nasty = "'); drop table job_run;--";
+    const nasty = "'); drop table commons_jobs_job_run;--";
     await new PostgresJobRunRecorder(db, 'ascendra-pay').recordRun(summary({ failedItemRefs: [nasty] }));
 
     const { sql: text, params } = rendered(db);

@@ -10,7 +10,7 @@ import { IDEMPOTENCY_STORE_OPTIONS, SQL_EXECUTOR } from './tokens';
 /**
  * Corresponding table:
  *
- * create table idempotency_key (
+ * create table commons_idempotency_key (
  *   key text not null,
  *   scope text not null,
  *   status text not null default 'pending',  -- 'pending' | 'completed'
@@ -31,18 +31,18 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
     // Atomic regardless of which server node issues it — the guarantee comes from Postgres's
     // own conflict handling on the (key, scope) primary key, not from in-process coordination.
     const claimed = await this.db.execute(sql`
-      insert into idempotency_key (key, scope, status)
+      insert into commons_idempotency_key (key, scope, status)
       values (${key}, ${scope}, 'pending')
       on conflict (key, scope) do update
         set status = 'pending', created_at = now()
-        where idempotency_key.status = 'pending'
-          and idempotency_key.created_at < now() - make_interval(secs => ${this.options.staleAfterSeconds})
+        where commons_idempotency_key.status = 'pending'
+          and commons_idempotency_key.created_at < now() - make_interval(secs => ${this.options.staleAfterSeconds})
       returning status
     `);
     if (claimed.rowCount === 1) return { status: 'claimed' };
 
     const existing = await this.db.execute(
-      sql`select status, status_code, response_body from idempotency_key where key = ${key} and scope = ${scope}`,
+      sql`select status, status_code, response_body from commons_idempotency_key where key = ${key} and scope = ${scope}`,
     );
     const row = existing.rows[0];
     // Defensive: the row this same claim attempt just failed to win could, in principle, be
@@ -51,7 +51,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
     // report 'claimed' without ever having written the row, or complete() below would have
     // nothing to update and no concurrent duplicate would be caught.
     if (!row) {
-      await this.db.execute(sql`insert into idempotency_key (key, scope, status) values (${key}, ${scope}, 'pending')`);
+      await this.db.execute(sql`insert into commons_idempotency_key (key, scope, status) values (${key}, ${scope}, 'pending')`);
       return { status: 'claimed' };
     }
     return row.status === 'completed'
@@ -61,7 +61,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
 
   async complete(key: string, scope: string, response: CachedResponse): Promise<void> {
     await this.db.execute(sql`
-      update idempotency_key set status = 'completed', status_code = ${response.statusCode}, response_body = ${response.body}
+      update commons_idempotency_key set status = 'completed', status_code = ${response.statusCode}, response_body = ${response.body}
       where key = ${key} and scope = ${scope}
     `);
   }

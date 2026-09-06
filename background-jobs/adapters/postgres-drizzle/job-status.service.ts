@@ -21,7 +21,7 @@ const RUN_COLUMNS = sql`
 `;
 
 /**
- * Read-only reporting over the `job_run` table for an admin UI — the drill-down
+ * Read-only reporting over the `commons_jobs_job_run` table for an admin UI — the drill-down
  * log (`getRunHistory`) and the jobs dashboard (`listJobStatus`). Both scoped to
  * one `application`. No write path; the adapter's `PostgresJobRunRecorder` owns
  * writes.
@@ -56,7 +56,7 @@ export class PostgresJobStatusService {
 
     const rows = (
       await this.db.execute(sql`
-        select ${RUN_COLUMNS} from job_run
+        select ${RUN_COLUMNS} from commons_jobs_job_run
         where ${sql.join(conds, sql` and `)}
         order by started_at desc, id desc
         limit ${limit + 1}
@@ -76,7 +76,7 @@ export class PostgresJobStatusService {
       await this.db.execute(sql`
         select ${RUN_COLUMNS} from (
           select *, row_number() over (partition by job_name order by started_at desc) as rn
-          from job_run
+          from commons_jobs_job_run
           where application = ${this.application}
         ) ranked
         where rn <= ${STATUS_RUNS_PER_JOB}

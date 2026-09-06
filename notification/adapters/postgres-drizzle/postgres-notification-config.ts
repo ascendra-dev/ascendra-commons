@@ -47,7 +47,7 @@ export class PostgresNotificationConfig implements NotificationConfig {
   channelsFor(notificationType: string, tenantId: string | null): Promise<NotificationChannel[]> {
     return this.cache.get(`route:${notificationType}:${tenantId ?? ''}`, async () => {
       const { rows } = await this.db.execute<{ channels: string[] }>(sql`
-        SELECT channels FROM notification_channel_route
+        SELECT channels FROM commons_notification_channel_route
         WHERE application = ${this.application} AND notification_type = ${notificationType}
           AND (tenant_id = ${tenantId} OR tenant_id IS NULL)
         ORDER BY tenant_id IS NULL
@@ -64,7 +64,7 @@ export class PostgresNotificationConfig implements NotificationConfig {
   ): Promise<NotificationTemplate | null> {
     return this.cache.get(`tpl:${channel}:${notificationType}:${tenantId ?? ''}`, async () => {
       const { rows } = await this.db.execute<{ subject: string | null; body: string; is_html: boolean }>(sql`
-        SELECT subject, body, is_html FROM notification_template
+        SELECT subject, body, is_html FROM commons_notification_template
         WHERE application = ${this.application} AND channel = ${channel} AND notification_type = ${notificationType}
           AND (tenant_id = ${tenantId} OR tenant_id IS NULL)
         ORDER BY tenant_id IS NULL
@@ -80,7 +80,7 @@ export class PostgresNotificationConfig implements NotificationConfig {
     if (tenantId === null) return Promise.resolve(null);
     return this.cache.get(`cred:${channel}:${tenantId}`, async () => {
       const { rows } = await this.db.execute<{ config: Record<string, unknown> }>(sql`
-        SELECT config FROM notification_provider_credential
+        SELECT config FROM commons_notification_provider_credential
         WHERE application = ${this.application} AND channel = ${channel} AND tenant_id = ${tenantId}
       `);
       return rows[0]?.config ?? null; // returned verbatim — opaque to this library

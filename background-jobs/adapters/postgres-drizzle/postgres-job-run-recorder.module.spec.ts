@@ -65,7 +65,7 @@ describe('PostgresJobRunRecorderModule wired into BackgroundJobsModule', () => {
     // The app-db executor was hit exactly once — the run-history INSERT (the lock ran on LOCK_DB).
     expect(execute).toHaveBeenCalledTimes(1);
     const { sql: text, params } = dialect.sqlToQuery(execute.mock.calls[0][0] as SQL);
-    expect(text).toMatch(/insert into job_run/i);
+    expect(text).toMatch(/insert into commons_jobs_job_run/i);
     expect(params).toEqual(expect.arrayContaining(['ascendra-erp', 'invoice-reminder', 'manual']));
   });
 

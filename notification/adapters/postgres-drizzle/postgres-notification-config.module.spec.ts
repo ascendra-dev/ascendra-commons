@@ -44,9 +44,9 @@ describe('PostgresNotificationConfigModule wired into NotificationModule', () =>
     const execute = vi.fn(async (q: unknown) => {
       const { PgDialect } = await import('drizzle-orm/pg-core');
       const text = new PgDialect().sqlToQuery(q as never).sql;
-      if (text.includes('notification_channel_route')) return { rows: [{ channels: ['email'] }] };
-      if (text.includes('notification_template')) return { rows: [{ subject: 'Invoice', body: 'Hi', is_html: false }] };
-      if (text.includes('notification_provider_credential')) return { rows: [{ config: { apiKey: 'k', from: 'b@e.com' } }] };
+      if (text.includes('commons_notification_channel_route')) return { rows: [{ channels: ['email'] }] };
+      if (text.includes('commons_notification_template')) return { rows: [{ subject: 'Invoice', body: 'Hi', is_html: false }] };
+      if (text.includes('commons_notification_provider_credential')) return { rows: [{ config: { apiKey: 'k', from: 'b@e.com' } }] };
       return { rows: [] };
     });
     @Module({ providers: [{ provide: DB, useValue: { execute } }], exports: [DB] })

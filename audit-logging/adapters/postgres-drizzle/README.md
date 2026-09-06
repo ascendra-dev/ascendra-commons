@@ -16,7 +16,7 @@ which token/module goes into `forRoot()`.
 
 | File | What it is |
 |---|---|
-| `audit-event.schema.ts` | Drizzle `pgTable` for `audit_event` — the source of truth for the reference schema. `export` it from your own schema barrel to let `drizzle-kit generate` produce the migration. |
+| `audit-event.schema.ts` | Drizzle `pgTable` for `commons_audit_event` — the source of truth for the reference schema. `export` it from your own schema barrel to let `drizzle-kit generate` produce the migration. |
 | `audit-event.migration.sql` | The same table as hand-written DDL — paste into your migration tooling if you don't route this through `drizzle-kit`. |
 | `postgres-audit-event.repository.ts` | `PostgresAuditEventRepository` — one `INSERT`, `application` stamped on write. |
 | `postgres-audit-persistence.module.ts` | `PostgresAuditPersistenceModule.forRoot(...)` — binds the repo to your db token and exports it as `POSTGRES_AUDIT_EVENT_REPOSITORY`. |
@@ -34,7 +34,7 @@ export { auditEventTable } from 'src/ascendra-commons/audit-logging/adapters/pos
 ```
 
 …or copy `audit-event.migration.sql` into your migrations directory. Both
-produce the same `audit_event` table plus its two indexes.
+produce the same `commons_audit_event` table plus its two indexes.
 
 ### 2. Wire the modules
 
@@ -81,7 +81,7 @@ README's "raising an audit record" example.
   so a future cross-product compliance-reporting consolidation doesn't need a
   backfill migration.
 - **Write-once.** The repository exposes `insert()` only. To enforce it at the
-  database too, `REVOKE update, delete ON audit_event` from the app role.
+  database too, `REVOKE update, delete ON commons_audit_event` from the app role.
 - **Keep the three table definitions in sync** — `audit-event.schema.ts`, the
   column list in `postgres-audit-event.repository.ts`, and
   `audit-event.migration.sql` all describe one table.

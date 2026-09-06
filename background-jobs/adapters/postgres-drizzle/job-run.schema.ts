@@ -1,7 +1,7 @@
 import { bigserial, index, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 /**
- * The reference `job_run` table — one concrete Postgres/Drizzle shape of the
+ * The reference `commons_jobs_job_run` table — one concrete Postgres/Drizzle shape of the
  * generic `JobRunSummary` (see `../../job-run-recorder.interface.ts`), plus
  * `application`. This is the single source of truth for the reference schema:
  * `PostgresJobRunRecorder` writes exactly these columns, and
@@ -25,7 +25,7 @@ import { bigserial, index, integer, pgTable, text, timestamp } from 'drizzle-orm
  * backfill.
  */
 export const jobRunTable = pgTable(
-  'job_run',
+  'commons_jobs_job_run',
   {
     /** Assigned by Postgres on insert — an append-only ordered log, never looked up by id from outside. */
     id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -47,6 +47,6 @@ export const jobRunTable = pgTable(
   },
   (t) => ({
     /** "this application's runs of this job" — the run-history admin screen's main query, and the pruner's scan. */
-    byApplicationJobTime: index('job_run_application_job_time_idx').on(t.application, t.jobName, t.startedAt),
+    byApplicationJobTime: index('commons_jobs_job_run_application_job_time_idx').on(t.application, t.jobName, t.startedAt),
   }),
 );

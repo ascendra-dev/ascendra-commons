@@ -150,6 +150,15 @@ definitions) — never core transactional data. Per-consumer migration drift and
 "no automatic fix propagation" are accepted costs of this tradeoff (see
 `module-packaging-pattern.md` §4), not bugs to solve by centralizing.
 
+**Table names are `commons_<module>_<table>`.** Every table a vendored module
+ships is prefixed `commons_` so a consumer can tell at a glance which tables
+came from `ascendra-commons` and keep them together
+(`commons_authz_role`, `commons_notification_template`, `commons_audit_event`,
+`commons_idempotency_key`, `commons_jobs_job_run`, `commons_jobs_lock`, …).
+Indexes and constraints carry the same prefix. The Drizzle `pgTable` *export
+identifiers* keep their short names (`authzRole`, `jobRunTable`) — only the SQL
+name strings are prefixed.
+
 **N/A here comes in two different strengths — say which.** A module whose
 Model 1 *and* every plausible Model 2 have no database at all (`authorization`'s
 `applicationId`, by analogy) is N/A permanently. A module whose *current*

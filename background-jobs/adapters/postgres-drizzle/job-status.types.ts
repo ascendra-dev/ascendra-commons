@@ -1,6 +1,6 @@
 import type { JobRunOutcome, JobRunTrigger } from '../../job-run-recorder.interface';
 
-/** One `job_run` row, mapped and typed — what a run-history UI table renders. */
+/** One `commons_jobs_job_run` row, mapped and typed — what a run-history UI table renders. */
 export interface JobRunRecord {
   /** The `bigserial` id as a string (Postgres returns bigint as text to avoid precision loss). */
   id: string;

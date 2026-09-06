@@ -7,7 +7,7 @@ import type { SqlExecutor } from './sql-executor';
 import { LEASE_LOCK_APPLICATION_ID, LEASE_LOCK_SECONDS, LEASE_LOCK_SQL_EXECUTOR } from './tokens';
 
 /**
- * A distributed lock backed by a `scheduler_lock` row instead of a Postgres
+ * A distributed lock backed by a `commons_jobs_lock` row instead of a Postgres
  * session-level advisory lock. The lock is a *row*, so:
  *
  *   - `tryAcquire` and `release` can run on any pooled connection — no
@@ -46,11 +46,11 @@ export class PostgresLeaseLock implements AdvisoryLock, OnModuleDestroy {
     // tuple, so two instances racing an expired lock — one wins, the other sees the
     // freshly-extended locked_until and gets 0 rows.
     const result = await this.db.execute(sql`
-      insert into scheduler_lock (application, lock_key, holder, acquired_at, locked_until)
+      insert into commons_jobs_lock (application, lock_key, holder, acquired_at, locked_until)
       values (${this.application}, ${key}, ${this.holder}, now(), now() + (${this.leaseSeconds} * interval '1 second'))
       on conflict (application, lock_key) do update
         set holder = excluded.holder, acquired_at = now(), locked_until = excluded.locked_until
-        where scheduler_lock.locked_until < now()
+        where commons_jobs_lock.locked_until < now()
       returning holder
     `);
 
@@ -62,7 +62,7 @@ export class PostgresLeaseLock implements AdvisoryLock, OnModuleDestroy {
   async release(key: string): Promise<void> {
     this.stopHeartbeat(key);
     const result = await this.db.execute(sql`
-      delete from scheduler_lock
+      delete from commons_jobs_lock
       where application = ${this.application} and lock_key = ${key} and holder = ${this.holder}
       returning lock_key
     `);
@@ -99,7 +99,7 @@ export class PostgresLeaseLock implements AdvisoryLock, OnModuleDestroy {
   private async beat(key: string): Promise<void> {
     try {
       const result = await this.db.execute(sql`
-        update scheduler_lock
+        update commons_jobs_lock
         set locked_until = now() + (${this.leaseSeconds} * interval '1 second')
         where application = ${this.application} and lock_key = ${key} and holder = ${this.holder}
         returning lock_key

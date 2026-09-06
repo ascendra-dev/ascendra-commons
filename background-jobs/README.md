@@ -24,7 +24,7 @@ example's own `withTenantContext` calls). `applicationId` appears nowhere in
 the **core** — a run never leaves the process it happens in — but the
 `adapters/postgres-drizzle` run-history table carries an `application` column
 and every read filters by it, the same dimension-4 call `notification` and
-`audit-logging` make: `job_run` is the one surface where multiple Ascendra
+`audit-logging` make: `commons_jobs_job_run` is the one surface where multiple Ascendra
 apps' output could plausibly land in one shared operational database, so the
 column is carried now to avoid a later backfill.
 
@@ -90,13 +90,13 @@ one at `forRoot`:
 
 | | `PostgresAdvisoryLock` (core, default) | `PostgresLeaseLock` (`adapters/postgres-drizzle`) |
 |---|---|---|
-| Mechanism | `pg_try_advisory_lock` / `pg_advisory_unlock` (session-level) | a `scheduler_lock` row with a `locked_until` lease |
+| Mechanism | `pg_try_advisory_lock` / `pg_advisory_unlock` (session-level) | a `commons_jobs_lock` row with a `locked_until` lease |
 | Extra DB objects | none | one small table + migration |
 | Connection wiring | **must** be a dedicated single connection | any pooled connection |
 | Transaction-mode pooler (PgBouncer / Supabase "Transaction pooler") | ❌ unsupported | ✅ fine |
 | Crash frees the lock | when the connection closes | when the lease expires (`leaseSeconds`, default 900) |
 | Long run | just works | renews the lease on a heartbeat (`leaseSeconds / 3`) |
-| "What holds what" | invisible | `SELECT * FROM scheduler_lock` |
+| "What holds what" | invisible | `SELECT * FROM commons_jobs_lock` |
 | Knobs | none | `leaseSeconds` |
 
 **`PostgresAdvisoryLock` — connection-affinity requirement.** A session-level
@@ -201,9 +201,9 @@ What's shipped in this folder: `ScheduledJob<TItem>`, `AdvisoryLock` +
 `PostgresAdvisoryLock`, `IdempotentJobRunner`, the `JobRunRecorder` port +
 `NoopJobRunRecorder`, `ScheduledJobRegistry` + `JobTrigger` (admin-initiated
 out-of-schedule runs), and `BackgroundJobsModule.forRoot()`. Plus
-`adapters/postgres-drizzle/` — `PostgresJobRunRecorder` (+ its `job_run`
+`adapters/postgres-drizzle/` — `PostgresJobRunRecorder` (+ its `commons_jobs_job_run`
 table), a reference `JobRunPrunerJob`, `PostgresJobStatusService` (history +
-dashboard reads), and `PostgresLeaseLock` (+ its `scheduler_lock` table) as a
+dashboard reads), and `PostgresLeaseLock` (+ its `commons_jobs_lock` table) as a
 pool-safe alternative to the session-level lock. No queue, no backoff policy,
 no dead-letter path, no scheduling built in — each job supplies its own
 `@Cron`/`OnApplicationBootstrap` wiring around the shared runner.
@@ -283,7 +283,7 @@ Design constraints, each deliberate:
   deploy's overlap window makes that frequent, uninteresting noise.
 - **The runner owns no persistence.** `NoopJobRunRecorder` is the default;
   `BackgroundJobsModule.forRoot({ jobRunRecorderToken })` swaps in a real one.
-  `adapters/postgres-drizzle/` ships `PostgresJobRunRecorder` and its `job_run`
+  `adapters/postgres-drizzle/` ships `PostgresJobRunRecorder` and its `commons_jobs_job_run`
   table, plus `PostgresJobStatusService` for reading it back (history log +
   jobs dashboard) — see that folder's README. A different stack provides its
   own `JobRunRecorder` against the same port.
@@ -389,7 +389,7 @@ export class SchedulerDbModule {}
       jobRunRecorderToken: POSTGRES_JOB_RUN_RECORDER, // omit → NoopJobRunRecorder
       jobs: [InvoiceReminderJob],      // optional — jobs an admin can trigger by name via JobTrigger
     }),
-    // optional — keeps job_run pruned; give JobRunPrunerJob a cadence with a schedule class
+    // optional — keeps commons_jobs_job_run pruned; give JobRunPrunerJob a cadence with a schedule class
     JobRunPrunerModule.forRoot({ sqlExecutorToken: DRIZZLE, application: 'ascendra-pay', retentionDays: 90 }),
   ],
 })
@@ -423,7 +423,7 @@ BackgroundJobsModule.forRoot({
 })
 ```
 
-Requires the `scheduler_lock` migration — see the adapter README.
+Requires the `commons_jobs_lock` migration — see the adapter README.
 
 `imports` is required unless the module providing `sqlExecutorToken` is itself
 marked `global: true` — `useExisting` only resolves a token NestJS can already

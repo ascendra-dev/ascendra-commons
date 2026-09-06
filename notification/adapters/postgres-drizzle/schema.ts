@@ -1,7 +1,7 @@
 import { boolean, index, jsonb, pgTable, primaryKey, text, unique } from 'drizzle-orm/pg-core';
 
 /**
- * The reference `notification_*` schema — one concrete Postgres/Drizzle shape
+ * The reference `commons_notification_*` schema — one concrete Postgres/Drizzle shape
  * of the `NotificationConfig` interface (Model 2). Source of truth for the
  * columns; `notification-config.migration.sql` in this folder is the hand-kept
  * DDL form — keep the two in sync.
@@ -22,7 +22,7 @@ import { boolean, index, jsonb, pgTable, primaryKey, text, unique } from 'drizzl
  * default; a tenant-specific row (if present) wins over it.
  */
 export const notificationChannelRoute = pgTable(
-  'notification_channel_route',
+  'commons_notification_channel_route',
   {
     application: text('application').notNull(),
     notificationType: text('notification_type').notNull(),
@@ -30,7 +30,7 @@ export const notificationChannelRoute = pgTable(
     channels: text('channels').array().notNull(),
   },
   (t) => ({
-    uq: unique('notification_channel_route_uq').on(t.application, t.notificationType, t.tenantId).nullsNotDistinct(),
+    uq: unique('commons_notification_channel_route_uq').on(t.application, t.notificationType, t.tenantId).nullsNotDistinct(),
   }),
 );
 
@@ -40,7 +40,7 @@ export const notificationChannelRoute = pgTable(
  * email-only — SMS rows leave `subject` null.
  */
 export const notificationTemplate = pgTable(
-  'notification_template',
+  'commons_notification_template',
   {
     application: text('application').notNull(),
     channel: text('channel').notNull(),
@@ -51,7 +51,7 @@ export const notificationTemplate = pgTable(
     isHtml: boolean('is_html').notNull().default(false),
   },
   (t) => ({
-    uq: unique('notification_template_uq')
+    uq: unique('commons_notification_template_uq')
       .on(t.application, t.channel, t.notificationType, t.tenantId)
       .nullsNotDistinct(),
   }),
@@ -72,7 +72,7 @@ export const notificationTemplate = pgTable(
  * resolve them in a `PostgresNotificationConfig` subclass.
  */
 export const notificationProviderCredential = pgTable(
-  'notification_provider_credential',
+  'commons_notification_provider_credential',
   {
     application: text('application').notNull(),
     channel: text('channel').notNull(),
@@ -81,6 +81,6 @@ export const notificationProviderCredential = pgTable(
   },
   (t) => ({
     pk: primaryKey({ columns: [t.application, t.channel, t.tenantId] }),
-    byTenant: index('notification_provider_credential_tenant').on(t.application, t.tenantId),
+    byTenant: index('commons_notification_provider_credential_tenant').on(t.application, t.tenantId),
   }),
 );
