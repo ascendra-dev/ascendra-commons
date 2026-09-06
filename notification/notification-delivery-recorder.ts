@@ -1,6 +1,20 @@
 import type { NotificationChannel } from './notification.types';
 
 /**
+ * The full-fidelity rendered message plus the variables that produced it —
+ * PII-bearing. Written to `commons_notification_delivery.content` (a nullable
+ * `jsonb`) **only when the recorder is configured with `storeContent: true`**.
+ * The "light" message archive: kept in the same row, pruned with the same
+ * retention. For a long-retention / legal archive, use `file-storage` instead.
+ */
+export interface DeliveryContent {
+  subject: string | null;
+  body: string;
+  isHtml: boolean;
+  variables: Record<string, string | number>;
+}
+
+/**
  * One channel's send attempt, as `Notifier` observed it — one row in the
  * delivery log. `recipientRef` is deliberately *redacted*: `user:<id>` for a
  * known user, or just `raw:email` / `raw:phone` / `raw` for a raw recipient —
@@ -17,6 +31,12 @@ export interface DeliveryAttempt {
   attemptedAt: Date;
   /** The ambient correlation id, when the consumer threads one in (see the delivery adapter). */
   correlationId?: string;
+  /**
+   * The rendered message (from the sender) + the request variables. Carried
+   * whenever the sender rendered a template; the recorder persists it only
+   * when `storeContent: true`, else the `content` column stays NULL.
+   */
+  content?: DeliveryContent;
 }
 
 /** A later status change for a row, matched by `providerMessageId` — fed from a provider webhook. */

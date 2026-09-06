@@ -1,4 +1,5 @@
 import type { NotificationChannel } from '../../notification.types';
+import type { DeliveryContent } from '../../notification-delivery-recorder';
 
 /** One `commons_notification_delivery` row, typed for a UI. */
 export interface DeliveryRecord {
@@ -13,6 +14,18 @@ export interface DeliveryRecord {
   attemptedAt: Date;
   updatedAt: Date;
   correlationId: string | null;
+  /** Whether the rendered `content` was stored for this row (the recorder's `storeContent`). */
+  hasContent: boolean;
+}
+
+/** One row's stored rendered content — from `getDeliveryContent(id)`, null when not stored. */
+export interface DeliveryContentRecord {
+  id: string;
+  notificationType: string;
+  channel: NotificationChannel;
+  recipientRef: string;
+  attemptedAt: Date;
+  content: DeliveryContent;
 }
 
 export interface DeliveryHistoryQuery {

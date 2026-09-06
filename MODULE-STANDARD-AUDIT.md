@@ -1530,3 +1530,35 @@ Cross-module trace via `correlation_id` on all three recorder tables.
 
 **Tests:** 326 → 364 over items 0–4 (audit-reader ×6, authz ×14, notification ×17,
 correlation ×1). Typecheck clean throughout.
+
+### Item 6 — `notification` message-content archive, light scope (2026-09-06)
+
+"Save the sent notification for later reference." Chose the **light** scope (a
+nullable `jsonb` column, pruned with the row) over a `file-storage`-backed
+long-retention archive — the latter needs an async finalize job and a legal
+retention posture most consumers won't want.
+
+- `NotificationChannelResult.rendered?` — email/SMS senders return the rendered
+  subject/body (WhatsApp doesn't — Meta side-templates). `Notifier` composes
+  `DeliveryAttempt.content` from `rendered` + `request.variables`, and **strips
+  `rendered` from the public `notify()` result** (plumbing to the recorder
+  only; PII-bearing).
+- `commons_notification_delivery.content jsonb` nullable
+  (`DeliveryContent = { subject, body, isHtml, variables }`).
+- `PostgresNotificationDeliveryRecorderModule.forRoot({ storeContent?: boolean })`
+  — **default false**; the recorder writes NULL to `content` unless opted in,
+  even when the attempt carries it.
+- `PostgresNotificationObservabilityService.getDeliveryContent(id)` — a
+  separate read (kept off the paginated list, which is large/PII); the list
+  rows carry `hasContent: boolean` so a UI knows whether a "view content"
+  action applies.
+- Async vs sync: the write stays **synchronous + best-effort** like the rest of
+  `recordAttempts` — it's one `jsonb` in the same INSERT, not a blob upload.
+  The sync-capture / async-finalize split is only needed for the
+  `file-storage` archive, which this isn't.
+- **New:** `DeliveryContent` (core), `content` column, `storeContent` config +
+  token, `getDeliveryContent`, `DeliveryContentRecord` / `DeliveryRecord.hasContent`.
+  Existing sender/notifier specs loosened (`toEqual({status:'sent'})` →
+  `toMatchObject`).
+
+**Tests:** 368/368 pass, typecheck clean.

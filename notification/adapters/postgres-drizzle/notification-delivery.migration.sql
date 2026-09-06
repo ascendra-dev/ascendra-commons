@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS "commons_notification_delivery" (
   "provider_message_id" text,
   "attempted_at"        timestamptz NOT NULL,
   "updated_at"          timestamptz NOT NULL DEFAULT now(),
-  "correlation_id"      text
+  "correlation_id"      text,
+  -- rendered message + variables; written only when the recorder is `storeContent: true`. PII-bearing.
+  "content"             jsonb
 );
 
 CREATE INDEX IF NOT EXISTS "commons_notification_delivery_type_time_idx"

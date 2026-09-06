@@ -74,6 +74,14 @@ export interface NotificationChannelResult {
    * webhook (`delivered` / `bounced`) can be matched back to it.
    */
   providerMessageId?: string;
+  /**
+   * Optional — the rendered message this channel sent (the text after template
+   * interpolation). A sender that renders a template returns it; WhatsApp (Meta
+   * side-templated) and a bare failure don't. Recorded on the delivery row's
+   * `content` column **only when the recorder is configured with
+   * `storeContent: true`** — it is full-fidelity, PII-bearing message text.
+   */
+  rendered?: { subject?: string; body: string; isHtml?: boolean };
 }
 
 export interface NotificationResult {

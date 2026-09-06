@@ -31,10 +31,13 @@ function attempt(over: Partial<DeliveryAttempt> = {}): DeliveryAttempt {
   };
 }
 
+const recorder = (db: SqlExecutor, application: string, storeContent = false) =>
+  new PostgresNotificationDeliveryRecorder(db, application, storeContent);
+
 describe('PostgresNotificationDeliveryRecorder', () => {
   it('batches all attempts into one insert, application stamped', async () => {
     const db = fakeDb();
-    await new PostgresNotificationDeliveryRecorder(db, 'ascendra-erp').recordAttempts([
+    await recorder(db, 'ascendra-erp').recordAttempts([
       attempt({ channel: 'email', status: 'sent', providerMessageId: 'm1' }),
       attempt({ channel: 'sms', status: 'failed', reason: 'no_phone' }),
     ]);
@@ -45,9 +48,28 @@ describe('PostgresNotificationDeliveryRecorder', () => {
     expect(params).toEqual(expect.arrayContaining(['ascendra-erp', 'invoice.sent', 'email', 'sms', 'user:u1', 'm1', 'no_phone']));
   });
 
+  it('with storeContent off (default), the content column is written NULL even when the attempt carries content', async () => {
+    const db = fakeDb();
+    await recorder(db, 'a').recordAttempts([
+      attempt({ content: { subject: 's', body: 'b', isHtml: false, variables: { x: 1 } } }),
+    ]);
+    const { sql: text, params } = rendered(db);
+    expect(text).not.toMatch(/::jsonb/i);
+    expect(params).not.toContain(JSON.stringify({ subject: 's', body: 'b', isHtml: false, variables: { x: 1 } }));
+  });
+
+  it('with storeContent on, the rendered content is written as a jsonb param', async () => {
+    const db = fakeDb();
+    const content = { subject: 'Hi Sam', body: 'You owe 40', isHtml: false, variables: { name: 'Sam', amount: 40 } };
+    await recorder(db, 'a', true).recordAttempts([attempt({ content })]);
+    const { sql: text, params } = rendered(db);
+    expect(text).toMatch(/::jsonb/i);
+    expect(params).toContain(JSON.stringify(content));
+  });
+
   it('no-ops on an empty attempt list', async () => {
     const db = fakeDb();
-    await new PostgresNotificationDeliveryRecorder(db, 'a').recordAttempts([]);
+    await recorder(db, 'a').recordAttempts([]);
     expect(db.execute).not.toHaveBeenCalled();
   });
 
@@ -56,13 +78,13 @@ describe('PostgresNotificationDeliveryRecorder', () => {
     const db = fakeDb();
     db.execute.mockRejectedValueOnce(new Error('constraint'));
 
-    await expect(new PostgresNotificationDeliveryRecorder(db, 'a').recordAttempts([attempt()])).resolves.toBeUndefined();
+    await expect(recorder(db, 'a').recordAttempts([attempt()])).resolves.toBeUndefined();
     expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('Failed to record'), expect.any(String));
   });
 
   it('updateDeliveryStatus matches on application + provider_message_id and coalesces the detail', async () => {
     const db = fakeDb();
-    await new PostgresNotificationDeliveryRecorder(db, 'ascendra-pay').updateDeliveryStatus({
+    await recorder(db, 'ascendra-pay').updateDeliveryStatus({
       providerMessageId: 'ses-9',
       status: 'bounced',
       detail: 'mailbox full',

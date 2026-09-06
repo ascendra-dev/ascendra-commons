@@ -265,7 +265,11 @@ that folder's README. Omit `deliveryRecorderToken` and it's a no-op
 
 `NotificationChannelResult` gained an optional `providerMessageId` so a real
 sender can return the provider's id and a later `delivered`/`bounced` webhook
-can be matched back via `recorder.updateDeliveryStatus(...)`.
+can be matched back via `recorder.updateDeliveryStatus(...)`, and an optional
+`rendered` so the recorder can archive the exact message text. Email/SMS
+senders return `rendered`; `Notifier` strips it from the public result and
+passes it only to the recorder, which stores it (as a nullable `content` jsonb)
+**only when configured `storeContent: true`** — see the adapter README.
 
 ## What's not built yet
 

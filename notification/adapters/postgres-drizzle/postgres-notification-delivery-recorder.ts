@@ -6,7 +6,11 @@ import type {
   NotificationDeliveryRecorder,
 } from '../../notification-delivery-recorder';
 import type { SqlExecutor } from './sql-executor';
-import { NOTIFICATION_ADMIN_APPLICATION_ID, NOTIFICATION_ADMIN_SQL_EXECUTOR } from './admin-tokens';
+import {
+  NOTIFICATION_ADMIN_APPLICATION_ID,
+  NOTIFICATION_ADMIN_SQL_EXECUTOR,
+  NOTIFICATION_ADMIN_STORE_CONTENT,
+} from './admin-tokens';
 
 /**
  * Reference `NotificationDeliveryRecorder` for Postgres — one batched `INSERT`
@@ -24,25 +28,27 @@ export class PostgresNotificationDeliveryRecorder implements NotificationDeliver
   constructor(
     @Inject(NOTIFICATION_ADMIN_SQL_EXECUTOR) private readonly db: SqlExecutor,
     @Inject(NOTIFICATION_ADMIN_APPLICATION_ID) private readonly application: string,
+    @Inject(NOTIFICATION_ADMIN_STORE_CONTENT) private readonly storeContent: boolean,
   ) {}
 
   async recordAttempts(attempts: DeliveryAttempt[]): Promise<void> {
     if (attempts.length === 0) return;
     try {
       const rows = sql.join(
-        attempts.map(
-          (a) => sql`(
+        attempts.map((a) => {
+          const content = this.storeContent && a.content ? sql`${JSON.stringify(a.content)}::jsonb` : sql`null`;
+          return sql`(
             ${this.application}, ${a.notificationType}, ${a.channel}, ${a.tenantId},
             ${a.recipientRef}, ${a.status}, ${a.reason ?? null}, ${a.providerMessageId ?? null},
-            ${a.attemptedAt}, ${a.attemptedAt}, ${a.correlationId ?? null}
-          )`,
-        ),
+            ${a.attemptedAt}, ${a.attemptedAt}, ${a.correlationId ?? null}, ${content}
+          )`;
+        }),
         sql`, `,
       );
       await this.db.execute(sql`
         insert into commons_notification_delivery
           (application, notification_type, channel, tenant_id, recipient_ref, status, reason,
-           provider_message_id, attempted_at, updated_at, correlation_id)
+           provider_message_id, attempted_at, updated_at, correlation_id, content)
         values ${rows}
       `);
     } catch (err) {

@@ -158,11 +158,22 @@ matched on `provider_message_id`. Requires the sender to return
 `providerMessageId` on its `NotificationChannelResult` (the stub senders don't;
 a real one does).
 
+**Storing the message content (light archive).** Pass
+`PostgresNotificationDeliveryRecorderModule.forRoot({ …, storeContent: true })`
+and the `content` jsonb column gets the rendered `{ subject, body, isHtml,
+variables }` for each row — the exact message that went out. **Default off** —
+it's full-fidelity PII, and it's pruned with the row (same retention). Read one
+row's content with `PostgresNotificationObservabilityService.getDeliveryContent(id)`
+(kept off the paginated list, which carries only a `hasContent` flag). For a
+long-retention / legal archive, use `file-storage` instead — a `jsonb` column
+is the "keep it for support / disputes" tier, not the "retain for 7 years" one.
+
 **`PostgresNotificationAdminModule.forRoot(...)`** exports:
 
 - `POSTGRES_NOTIFICATION_OBSERVABILITY` — `getDeliveryHistory(query)`
   (keyset-paginated; filters: `notificationType`, `channel`, `tenantId`,
-  `recipientRef`, `status`, `correlationId`, `since`/`until`) and `configCoverageGaps()`
+  `recipientRef`, `status`, `correlationId`, `since`/`until`; rows carry
+  `hasContent`), `getDeliveryContent(id)`, and `configCoverageGaps()`
   (routed channel with no template; tenant route with no provider credential).
 - `POSTGRES_NOTIFICATION_CONFIG_ADMIN` — `setChannelRoute` / `deleteChannelRoute`
   / `setTemplate` / `deleteTemplate` / `setProviderCredential` /

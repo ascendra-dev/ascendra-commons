@@ -26,7 +26,7 @@ export class SMSNotificationSender implements NotificationSender {
     const rendered = renderTemplate(template, request.variables);
     // Stub: the provider config (checked above) is not logged — it may hold secrets.
     console.log('sms', { to, ...rendered });
-    return { status: 'sent' };
+    return { status: 'sent', rendered };
   }
 
   private async resolvePhone(recipient: NotificationRecipient): Promise<string | null> {

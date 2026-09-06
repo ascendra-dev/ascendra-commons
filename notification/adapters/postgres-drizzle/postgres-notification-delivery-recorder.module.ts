@@ -3,6 +3,7 @@ import { PostgresNotificationDeliveryRecorder } from './postgres-notification-de
 import {
   NOTIFICATION_ADMIN_APPLICATION_ID,
   NOTIFICATION_ADMIN_SQL_EXECUTOR,
+  NOTIFICATION_ADMIN_STORE_CONTENT,
   POSTGRES_NOTIFICATION_DELIVERY_RECORDER,
 } from './admin-tokens';
 
@@ -12,6 +13,14 @@ export interface PostgresNotificationDeliveryRecorderModuleConfig {
 
   /** Which Ascendra application this process is — stamped on every delivery row. */
   application: string;
+
+  /**
+   * When `true`, the recorder writes the rendered message + variables to the
+   * nullable `content` jsonb column — a light message archive, pruned with the
+   * row. **Full-fidelity, PII-bearing.** Default `false` (the `content` column
+   * stays NULL). For long-retention / legal archival use `file-storage`, not this.
+   */
+  storeContent?: boolean;
 
   /** Whatever module(s) export the provider behind `sqlExecutorToken`. Omit only if that module is `global: true`. */
   imports?: DynamicModule['imports'];
@@ -47,6 +56,7 @@ export class PostgresNotificationDeliveryRecorderModule {
       providers: [
         { provide: NOTIFICATION_ADMIN_SQL_EXECUTOR, useExisting: config.sqlExecutorToken },
         { provide: NOTIFICATION_ADMIN_APPLICATION_ID, useValue: config.application },
+        { provide: NOTIFICATION_ADMIN_STORE_CONTENT, useValue: config.storeContent ?? false },
         PostgresNotificationDeliveryRecorder,
         { provide: POSTGRES_NOTIFICATION_DELIVERY_RECORDER, useExisting: PostgresNotificationDeliveryRecorder },
       ],

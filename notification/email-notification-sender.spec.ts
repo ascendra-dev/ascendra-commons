@@ -25,7 +25,8 @@ describe('EmailNotificationSender', () => {
 
     const result = await sender.send({ ...REQUEST, recipient: { type: 'raw', email: 'payer@example.com' } });
 
-    expect(result).toEqual({ status: 'sent' });
+    expect(result).toMatchObject({ status: 'sent' });
+    expect(result.rendered?.body).toBeDefined();
     expect(users.findById).not.toHaveBeenCalled();
   });
 
@@ -34,7 +35,8 @@ describe('EmailNotificationSender', () => {
 
     const result = await sender.send({ ...REQUEST, recipient: { type: 'user', id: 'issuer-1' } });
 
-    expect(result).toEqual({ status: 'sent' });
+    expect(result).toMatchObject({ status: 'sent' });
+    expect(result.rendered?.body).toBeDefined();
     expect(users.findById).toHaveBeenCalledWith('issuer-1');
   });
 

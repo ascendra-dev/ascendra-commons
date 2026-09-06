@@ -64,6 +64,19 @@ No new table.
 - ☑ all three read services filter by `correlationId` (`RunHistoryQuery`, `AuditQuery`, `DeliveryHistoryQuery`)
 - ☑ READMEs — "Cross-module trace" notes in bg-jobs + notification adapters · 364/364
 
+## 6 · notification — message content archive (light scope) ☑ (2026-09-06)
+
+"Save the sent notification for later reference" — the **light** scope: a
+nullable `content jsonb` column on `commons_notification_delivery`, pruned with
+the row. (A long-retention / legal archive would use `file-storage` + an async
+job — deliberately not this.)
+
+- ☑ `NotificationChannelResult.rendered?` — email/SMS senders return the rendered subject/body; `Notifier` builds `DeliveryAttempt.content` from it + `request.variables`. `rendered` is stripped from the public `notify()` result (plumbing only, PII-bearing).
+- ☑ `commons_notification_delivery.content jsonb` nullable (`DeliveryContent = { subject, body, isHtml, variables }`)
+- ☑ `PostgresNotificationDeliveryRecorderModule.forRoot({ storeContent?: boolean })` — default **false**; when false the column is written NULL even if the attempt carries content
+- ☑ `PostgresNotificationObservabilityService.getDeliveryContent(id)` (off the list query — large/PII); `DeliveryRecord.hasContent` boolean on the list
+- ☑ specs, README notes · 368/368
+
 ## 5 · domain-events — deferred
 
 Model 1 in-process events don't persist; real observability needs a transactional
@@ -80,3 +93,4 @@ thin merit. Revisit when the outbox lands.
 - 2026-09-06 — item 2 done (authorization observability + admin services). 346/346.
 - 2026-09-06 — item 3 done (notification delivery log + config admin). 363/363.
 - 2026-09-06 — item 4 done (correlation-id cross-cut). 364/364. Items 0-4 complete; item 5 (domain-events) deferred by design.
+- 2026-09-06 — item 6 done (notification message-content archive, light `jsonb` scope, opt-in). 368/368.

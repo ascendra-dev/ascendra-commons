@@ -57,6 +57,25 @@ describe('getDeliveryHistory', () => {
   });
 });
 
+describe('getDeliveryContent', () => {
+  it('returns the stored content for one row, application-scoped', async () => {
+    const content = { subject: 'Hi', body: 'You owe 40', isHtml: false, variables: { amount: 40 } };
+    const db = fakeDb((text) =>
+      /select id, notification_type, channel, recipient_ref, attempted_at, content/i.test(text)
+        ? [{ id: 7, notification_type: 'invoice.sent', channel: 'email', recipient_ref: 'user:u1', attempted_at: new Date('2026-06-01T08:00:00Z'), content }]
+        : [],
+    );
+    const rec = await svc(db).getDeliveryContent('7');
+    expect(rec).toMatchObject({ id: '7', channel: 'email', content });
+    expect(dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).params).toEqual(expect.arrayContaining(['ascendra-pay', '7']));
+  });
+
+  it('returns null when the row has no stored content', async () => {
+    const db = fakeDb(() => [{ id: 7, notification_type: 'x', channel: 'email', recipient_ref: 'r', attempted_at: new Date(), content: null }]);
+    expect(await svc(db).getDeliveryContent('7')).toBeNull();
+  });
+});
+
 describe('configCoverageGaps', () => {
   it('flags a routed channel with no template and a tenant route with no provider credential', async () => {
     const db = fakeDb((text) => {

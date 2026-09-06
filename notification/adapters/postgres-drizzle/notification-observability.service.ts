@@ -3,8 +3,10 @@ import { sql, type SQL } from 'drizzle-orm';
 import type { NotificationChannel } from '../../notification.types';
 import type { SqlExecutor } from './sql-executor';
 import { NOTIFICATION_ADMIN_APPLICATION_ID, NOTIFICATION_ADMIN_SQL_EXECUTOR } from './admin-tokens';
+import type { DeliveryContent } from '../../notification-delivery-recorder';
 import type {
   CoverageGap,
+  DeliveryContentRecord,
   DeliveryHistoryPage,
   DeliveryHistoryQuery,
   DeliveryRecord,
@@ -49,7 +51,8 @@ export class PostgresNotificationObservabilityService {
     const rows = (
       await this.db.execute<DeliveryRow>(sql`
         select id, notification_type, channel, tenant_id, recipient_ref, status, reason,
-               provider_message_id, attempted_at, updated_at, correlation_id
+               provider_message_id, attempted_at, updated_at, correlation_id,
+               (content is not null) as has_content
         from commons_notification_delivery
         where ${sql.join(conds, sql` and `)}
         order by attempted_at desc, id desc
@@ -63,6 +66,36 @@ export class PostgresNotificationObservabilityService {
       return { deliveries, nextCursor: encodeCursor(last.attemptedAt, last.id) };
     }
     return { deliveries: rows };
+  }
+
+  /**
+   * The stored rendered content for one delivery row — `null` when the row
+   * doesn't exist or `storeContent` was off when it was written. Kept off the
+   * list query on purpose (large, PII-bearing).
+   */
+  async getDeliveryContent(id: string): Promise<DeliveryContentRecord | null> {
+    const { rows } = await this.db.execute<{
+      id: string | number;
+      notification_type: string;
+      channel: string;
+      recipient_ref: string;
+      attempted_at: string | Date;
+      content: DeliveryContent | null;
+    }>(sql`
+      select id, notification_type, channel, recipient_ref, attempted_at, content
+      from commons_notification_delivery
+      where application = ${this.application} and id = ${id}::bigint
+    `);
+    const row = rows[0];
+    if (!row || row.content == null) return null;
+    return {
+      id: String(row.id),
+      notificationType: row.notification_type,
+      channel: row.channel as NotificationChannel,
+      recipientRef: row.recipient_ref,
+      attemptedAt: asDate(row.attempted_at),
+      content: row.content,
+    };
   }
 
   /**
@@ -127,6 +160,7 @@ interface DeliveryRow {
   attempted_at: string | Date;
   updated_at: string | Date;
   correlation_id: string | null;
+  has_content: boolean;
 }
 
 function mapRow(row: DeliveryRow): DeliveryRecord {
@@ -142,6 +176,7 @@ function mapRow(row: DeliveryRow): DeliveryRecord {
     attemptedAt: asDate(row.attempted_at),
     updatedAt: asDate(row.updated_at),
     correlationId: row.correlation_id,
+    hasContent: row.has_content === true,
   };
 }
 

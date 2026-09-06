@@ -26,6 +26,7 @@ export { PostgresNotificationAdminModule } from './postgres-notification-admin.m
 export type { PostgresNotificationAdminModuleConfig } from './postgres-notification-admin.module';
 export type {
   DeliveryRecord,
+  DeliveryContentRecord,
   DeliveryHistoryQuery,
   DeliveryHistoryPage,
   CoverageGap,
@@ -36,6 +37,7 @@ export type {
 export {
   NOTIFICATION_ADMIN_SQL_EXECUTOR,
   NOTIFICATION_ADMIN_APPLICATION_ID,
+  NOTIFICATION_ADMIN_STORE_CONTENT,
   POSTGRES_NOTIFICATION_DELIVERY_RECORDER,
   POSTGRES_NOTIFICATION_OBSERVABILITY,
   POSTGRES_NOTIFICATION_CONFIG_ADMIN,

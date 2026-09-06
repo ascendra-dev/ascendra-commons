@@ -26,6 +26,7 @@ export type {
   NotificationDeliveryRecorder,
   DeliveryAttempt,
   DeliveryStatusUpdate,
+  DeliveryContent,
 } from './notification-delivery-recorder';
 export { NoopNotificationDeliveryRecorder } from './noop-notification-delivery-recorder';
 

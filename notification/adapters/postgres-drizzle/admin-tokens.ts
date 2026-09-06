@@ -12,6 +12,9 @@ export const NOTIFICATION_ADMIN_APPLICATION_ID = Symbol('NOTIFICATION_ADMIN_APPL
 /** What `PostgresNotificationDeliveryRecorderModule` exports — pass as `NotificationModule.forRoot({ deliveryRecorderToken })`. */
 export const POSTGRES_NOTIFICATION_DELIVERY_RECORDER = Symbol('POSTGRES_NOTIFICATION_DELIVERY_RECORDER');
 
+/** `boolean` — whether `PostgresNotificationDeliveryRecorder` writes the PII-bearing `content` column. Default `false`. */
+export const NOTIFICATION_ADMIN_STORE_CONTENT = Symbol('NOTIFICATION_ADMIN_STORE_CONTENT');
+
 /** `PostgresNotificationObservabilityService` — delivery history + config-coverage gaps. */
 export const POSTGRES_NOTIFICATION_OBSERVABILITY = Symbol('POSTGRES_NOTIFICATION_OBSERVABILITY');
 

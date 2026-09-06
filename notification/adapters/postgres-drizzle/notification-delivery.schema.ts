@@ -1,4 +1,5 @@
-import { bigserial, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { bigserial, index, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import type { DeliveryContent } from '../../notification-delivery-recorder';
 
 /**
  * The reference `commons_notification_delivery` table — one row per channel
@@ -34,6 +35,12 @@ export const notificationDelivery = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     /** Nullable — the caller's `NotificationRequest.correlationId`, when set, for a cross-module trace. */
     correlationId: text('correlation_id'),
+    /**
+     * Nullable — the rendered message + variables, written **only** when the
+     * recorder is configured `storeContent: true`. Full-fidelity, PII-bearing;
+     * pruned with the row. The "light" message archive (rollout item 6).
+     */
+    content: jsonb('content').$type<DeliveryContent>(),
   },
   (t) => ({
     byTypeTime: index('commons_notification_delivery_type_time_idx').on(t.application, t.notificationType, t.attemptedAt),

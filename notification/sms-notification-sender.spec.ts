@@ -25,7 +25,8 @@ describe('SMSNotificationSender', () => {
 
     const result = await sender.send({ ...REQUEST, recipient: { type: 'raw', phone: '+923001234567' } });
 
-    expect(result).toEqual({ status: 'sent' });
+    expect(result).toMatchObject({ status: 'sent' });
+    expect(result.rendered?.body).toBeDefined();
     expect(users.findById).not.toHaveBeenCalled();
   });
 
@@ -34,7 +35,8 @@ describe('SMSNotificationSender', () => {
 
     const result = await sender.send({ ...REQUEST, recipient: { type: 'user', id: 'issuer-1' } });
 
-    expect(result).toEqual({ status: 'sent' });
+    expect(result).toMatchObject({ status: 'sent' });
+    expect(result.rendered?.body).toBeDefined();
     expect(users.findById).toHaveBeenCalledWith('issuer-1');
   });
 

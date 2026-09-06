@@ -27,7 +27,7 @@ export class EmailNotificationSender implements NotificationSender {
     // Stub: log the message that would be sent. The provider config (checked
     // above) is not logged — it is an opaque blob that may hold secrets.
     console.log('email', { to, ...rendered });
-    return { status: 'sent' };
+    return { status: 'sent', rendered };
   }
 
   private async resolveEmail(recipient: NotificationRecipient): Promise<string | null> {

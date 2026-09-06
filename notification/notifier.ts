@@ -66,7 +66,11 @@ export class Notifier {
       channels.map((channel): Promise<[NotificationChannel, NotificationChannelResult]> => this.dispatch(channel, request)),
     );
 
-    const channelResults = Object.fromEntries(entries) as Partial<Record<NotificationChannel, NotificationChannelResult>>;
+    // `rendered` is plumbing from the sender to the delivery log only — never surfaced
+    // in the public result (it is full-fidelity, PII-bearing message text).
+    const channelResults = Object.fromEntries(
+      entries.map(([channel, { rendered: _rendered, ...pub }]) => [channel, pub]),
+    ) as Partial<Record<NotificationChannel, NotificationChannelResult>>;
     const sentCount = entries.filter(([, result]) => result.status === 'sent').length;
 
     const status: NotificationResult['status'] =
@@ -97,6 +101,14 @@ export class Notifier {
       providerMessageId: result.providerMessageId,
       attemptedAt: now,
       correlationId: request.correlationId,
+      content: result.rendered
+        ? {
+            subject: result.rendered.subject ?? null,
+            body: result.rendered.body,
+            isHtml: result.rendered.isHtml ?? false,
+            variables: request.variables,
+          }
+        : undefined,
     }));
     try {
       await this.deliveryRecorder.recordAttempts(attempts);
