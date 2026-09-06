@@ -19,3 +19,9 @@ export const AUTHZ_DELEGATION_SERVICE = Symbol('AUTHZ_DELEGATION_SERVICE');
 
 /** `DelegationOptions` — `{ maxDelegationDays }`, from `PostgresAuthorizationModule.forRoot()`. */
 export const AUTHZ_DELEGATION_OPTIONS = Symbol('AUTHZ_DELEGATION_OPTIONS');
+
+/** Read-only `PostgresAuthzObservabilityService` — the role/assignment/delegation/explain reads for an admin screen. */
+export const POSTGRES_AUTHZ_OBSERVABILITY = Symbol('POSTGRES_AUTHZ_OBSERVABILITY');
+
+/** `PostgresAuthzAdminService` — `assignRole` / `revokeRole` / `setActionDescription`. */
+export const POSTGRES_AUTHZ_ADMIN = Symbol('POSTGRES_AUTHZ_ADMIN');

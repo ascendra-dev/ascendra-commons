@@ -129,22 +129,50 @@ request instead of ~60.
   before/after = the delegated actions). The service takes no dependency on the
   audit-logging module.
 
-## Managing roles
+## Admin surface — `PostgresAuthzAdminModule`
 
-CRUD on `commons_authz_role` / `commons_authz_role_permission` / `commons_authz_user_role` is **yours**
-to write against the documented schema — simple SQL, no adapter machinery. The
-security split to keep:
+For a role-management / access-audit screen. Independent of
+`PostgresAuthorizationModule` — import either or both (same `sqlExecutorToken`):
 
-- **Role definition** (which actions a role grants) — platform-admin only.
-  Consider a dedicated action like `authz.manage_roles`, and REVOKE write grants
-  on `commons_authz_role*` from the ordinary app DB role.
-- **Role assignment** (which existing role a user holds) — ordinary
-  tenant-scoped self-service (`authz.assign_roles`), naturally bounded by the
-  same tenancy as everything that actor touches.
+```typescript
+PostgresAuthzAdminModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, imports: [DatabaseModule] })
+```
 
-Serve the action list to your admin UI from your `Actions` const (or
-`SELECT name, description FROM commons_authz_action`) so the "grant permission" form is
-a dropdown, not a free-text field.
+Exports two services; the endpoints and their `Authorizer` gating are yours.
+
+**`POSTGRES_AUTHZ_OBSERVABILITY` — `PostgresAuthzObservabilityService`** (read-only):
+
+| Method | For |
+|---|---|
+| `listRoles()` | the role catalog — each role's granted actions, `grantsAll` |
+| `listUserRoleAssignments({ userId?, tenantId?, roleId? })` | who holds what, with `grantedAt` / `grantedBy` (up to 2000 rows — filter) |
+| `explainAccess(userId, tenantId, action?)` | **"can this user do X, and why"** — roles held, active delegations, effective action set, and (with `action`) an `allowed` + `reason` verdict (`granted by role 'issuer'` / `granted by delegation d1 from boss` / `denied — …`) |
+| `listDelegations({ granterId?, granteeId?, tenantId?, status? })` | the delegation ledger, keyset-paginated |
+| `actionCatalogHealth(knownActions)` | drift: in-code-not-in-DB (run `syncActions()`), in-DB-not-in-code, granted-but-undescribed |
+
+**`POSTGRES_AUTHZ_ADMIN` — `PostgresAuthzAdminService`** (mutations):
+
+| Method | Notes |
+|---|---|
+| `assignRole({ userId, tenantId, roleId, grantedBy })` | idempotent; throws `RoleNotFoundError` for an unknown role |
+| `revokeRole({ userId, tenantId, roleId })` | idempotent |
+| `setActionDescription(action, description)` | fills the free-text catalog description; throws `ActionNotFoundError` |
+
+Delegation create/revoke stays in `DelegationService` (from
+`PostgresAuthorizationModule`). Audit is yours — call these from a controller
+and emit an `AuditRecordRaised` there.
+
+### The security split to keep
+
+- **Role definition** (which actions a role grants — `commons_authz_role_permission`)
+  is **not** in this service: platform-admin territory, changed by
+  migration/seed. Consider `REVOKE insert, update, delete ON commons_authz_role,
+  commons_authz_role_permission, commons_authz_action` from the ordinary app DB
+  role, granting them only to a migration/admin role.
+- **Role assignment** (`assignRole` / `revokeRole`) is ordinary tenant-scoped
+  self-service — gate on an action like `'authz.assign_roles'`.
+- Serve the "grant permission" form's dropdown from `listRoles()` /
+  `actionCatalogHealth()`, never a free-text field.
 
 ## Deferred (documented, not built)
 
@@ -158,7 +186,8 @@ a dropdown, not a free-text field.
 - **Resource-level grants** — `can(actor, action, resource?)` + an
   `authz_resource_grant` table + RLS policies aware of it. For deliberate
   cross-boundary sharing; the everyday case is already covered by tenant RLS.
-- **A role-management service** — this adapter ships the decision path +
-  delegation ops + schema/seed; role CRUD stays the vertical's.
+- **Role→permission editing at runtime** — `PostgresAuthzAdminService` covers
+  assignment + action descriptions, but which actions a role grants stays a
+  migration/seed concern (see "The security split to keep").
 - **The admin matrix UI** — frontend, a future `ascendra-commons-ui` concern.
 - **Node-level TTL permission memo** (+ optional pub/sub invalidation).

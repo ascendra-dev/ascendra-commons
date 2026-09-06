@@ -1402,3 +1402,35 @@ in `adapters/postgres-drizzle/`, consumer writes the gated controller).
   `postgres-audit-observability.module.ts`, 2 specs.
 
 **Tests:** 332/332 pass (6 new), typecheck clean. Items 2-4 pending.
+
+### Item 2 — `authorization` access explainer + assignment admin (2026-09-06)
+
+No new table (`commons_authz_*` unchanged). New `adapters/postgres-drizzle/`:
+
+- **`PostgresAuthzObservabilityService`** (read-only) — `listRoles`,
+  `listUserRoleAssignments({ userId?, tenantId?, roleId? })`,
+  **`explainAccess(userId, tenantId, action?)`** (the high-value one — roles
+  held + active delegations + effective set + an `allowed`/`reason` verdict),
+  `listDelegations({ granterId?, granteeId?, tenantId?, status? })`
+  (keyset-paginated), `actionCatalogHealth(knownActions)` (code↔DB drift +
+  granted-but-undescribed).
+- **`PostgresAuthzAdminService`** (mutations) — `assignRole` (idempotent, checks
+  the role exists → `RoleNotFoundError`), `revokeRole` (idempotent),
+  `setActionDescription` (→ `ActionNotFoundError`). Role→permission editing
+  deliberately **not** here — migration/seed territory, `REVOKE`d from the app
+  role.
+- **`PostgresAuthzAdminModule.forRoot({ sqlExecutorToken, imports })`** provides
+  both, exports `POSTGRES_AUTHZ_OBSERVABILITY` / `POSTGRES_AUTHZ_ADMIN`.
+  Independent of `PostgresAuthorizationModule`. No `application` param — authz
+  tables carry no `application` column (dimension 4 N/A: the role catalog is
+  project-specific).
+- Adapter + module READMEs updated: "Managing roles" → "Admin surface"; the
+  "vertical writes role CRUD" / "a role-management service (deferred)" lines
+  now point at the shipped services.
+- Dimension 8: still N/A for a shipped UI; typed DTOs shipped
+  (`RoleView`, `AccessExplanation`, `DelegationView`, `ActionCatalogHealth`, …),
+  controller is the consumer's.
+- **New files:** `authz-admin.types.ts`, `authz-observability.service.ts`,
+  `authz-admin.service.ts`, `postgres-authz-admin.module.ts`, 3 specs.
+
+**Tests:** 346/346 pass (14 new), typecheck clean. Items 3-4 pending.

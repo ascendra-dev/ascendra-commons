@@ -28,9 +28,25 @@ export {
 } from './permission-cache';
 export { PostgresAuthorizationModule } from './postgres-authorization.module';
 export type { PostgresAuthorizationModuleConfig } from './postgres-authorization.module';
+export { PostgresAuthzObservabilityService } from './authz-observability.service';
+export { PostgresAuthzAdminService, RoleNotFoundError, ActionNotFoundError } from './authz-admin.service';
+export type { AssignRoleInput, RevokeRoleInput } from './authz-admin.service';
+export { PostgresAuthzAdminModule } from './postgres-authz-admin.module';
+export type { PostgresAuthzAdminModuleConfig } from './postgres-authz-admin.module';
+export type {
+  RoleView,
+  UserRoleAssignment,
+  DelegationView,
+  DelegationQuery,
+  DelegationPage,
+  AccessExplanation,
+  ActionCatalogHealth,
+} from './authz-admin.types';
 export {
   AUTHZ_SQL_EXECUTOR,
   AUTHZ_DELEGATION_OPTIONS,
   AUTHZ_DELEGATION_SERVICE,
   POSTGRES_PERMISSION_TABLE_AUTHORIZER,
+  POSTGRES_AUTHZ_OBSERVABILITY,
+  POSTGRES_AUTHZ_ADMIN,
 } from './tokens';

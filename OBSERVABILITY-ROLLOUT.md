@@ -35,16 +35,16 @@ No new table. No admin surface — records are write-once.
 - ☑ adapter README + module README ("Not built: reading audit records" → built); `application` now filtered-on (schema comment + Notes updated)
 - ☑ audit doc entry · 332/332 tests
 
-## 2 · authorization — access explainer + assignment admin
+## 2 · authorization — access explainer + assignment admin ☑ (2026-09-06)
 
 No new table.
 
-- ☐ Read: `explainAccess(userId, tenantId, action?)` → decision trace (roles→actions, active delegations); `listRoles()`; `listDelegations({ granteeId?, granterId?, tenantId?, state? })`; `actionCatalogHealth()` (in `Actions` const not in DB / granted-but-undescribed)
-- ☐ Admin: `assignRole` / `revokeRole` (`commons_authz_user_role`); `setActionDescription`; `revokeDelegation`
-- ☐ `PostgresAuthzAdminModule.forRoot(...)`
-- ☐ specs
-- ☐ adapter README + module README
-- ☐ audit doc entry
+- ☑ `PostgresAuthzObservabilityService`: `explainAccess(userId, tenantId, action?)` (roles + delegations + effective set + allowed/reason), `listRoles()`, `listUserRoleAssignments()`, `listDelegations()` (paginated), `actionCatalogHealth(knownActions)`
+- ☑ `PostgresAuthzAdminService`: `assignRole` (→ `RoleNotFoundError`) / `revokeRole` / `setActionDescription` (→ `ActionNotFoundError`). `revokeDelegation` stays in `DelegationService`.
+- ☑ `PostgresAuthzAdminModule.forRoot({ sqlExecutorToken, imports })` → `POSTGRES_AUTHZ_OBSERVABILITY` / `POSTGRES_AUTHZ_ADMIN`
+- ☑ specs (observability, admin, module — 14 tests)
+- ☑ adapter README ("Admin surface") + module README (shipped/deferred table)
+- ☑ audit doc entry · 346/346
 
 ## 3 · notification — delivery history + config admin
 
@@ -77,3 +77,4 @@ thin merit. Revisit when the outbox lands.
 - 2026-09-06 — checklist created.
 - 2026-09-06 — item 0 done (background-jobs rename/tidy). 326/326.
 - 2026-09-06 — item 1 done (audit-logging `AuditEventReader` + Postgres adapter). 332/332.
+- 2026-09-06 — item 2 done (authorization observability + admin services). 346/346.

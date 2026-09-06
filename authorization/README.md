@@ -278,8 +278,8 @@ authorizer is the adapter, or your own class on a different stack.
 
 | | |
 |---|---|
-| Shipped | `can` / `allowedActions` resolution · per-request cache · minimal delegation (snapshot, capped expiry, blocked chains) · schema + migration + `seedRolesFromPersonaMap` / `syncActions` |
-| The vertical writes | role / assignment CRUD (documented schema, simple SQL) · the admin UI · delegation audit events (emit from your controller) |
+| Shipped | `can` / `allowedActions` resolution · per-request cache · minimal delegation (snapshot, capped expiry, blocked chains) · schema + migration + `seedRolesFromPersonaMap` / `syncActions` · **admin surface** (`PostgresAuthzAdminModule`: `explainAccess` / `listRoles` / `listUserRoleAssignments` / `listDelegations` / `actionCatalogHealth` reads; `assignRole` / `revokeRole` / `setActionDescription` writes) |
+| The vertical writes | the admin **UI** · delegation audit events (emit from your controller) · role→permission editing (migration/seed, not runtime) |
 | Deferred | role hierarchy · delegation advanced (live re-check, cascade-revoke, chains, resource scoping, approvals) · resource-level grants · node-level TTL memo |
 
 **Data model: RBAC, not ReBAC.** Role→permission and user→role is role-based
