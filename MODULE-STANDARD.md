@@ -24,7 +24,7 @@ audit checklist against the six that already exist.
 
 ---
 
-## 1b. Package roles (added 2026-09-07, applied to `authorization`, `notification`, `audit-logging`, `background-jobs`, `domain-events`, `idempotency-key`)
+## 1b. Package roles (added 2026-09-07, applied to `authorization`, `notification`, `audit-logging`, `background-jobs`, `domain-events`, `idempotency-key`, `file-storage`)
 
 A module that has grown a real Model 1 / Model 2 split, more than one plausible
 Model 2 stack, and an admin/observability surface is no longer one folder. It is
@@ -62,8 +62,13 @@ token-only, `PostgresIdempotencyStore` → `idempotency-key.core.postgres-drizzl
 (Model 1), a throwing `RedisIdempotencyStore` stub → `idempotency-key.core.redis`
 (Model 2). Do this only when you're already opening the module for other reasons
 and the second backend is genuinely planned — the same bar `background-jobs`'
-`advisoryLockToken` was held to. A module whose Model 2 is *only prose* and that
-you have no reason to touch (`file-storage`) stays one folder.
+`advisoryLockToken` was held to. `file-storage` (2026-09-07) went the same way:
+opened to add observability + the file-category catalog, its prose-only
+S3/"provider portability" Model 2 was made a real seam (`fileStoreToken`
+token-only, `SupabaseFileStore` → `file-storage.core.supabase` Model 1, a
+throwing `S3FileStore` stub → `file-storage.core.s3` Model 2). A module whose
+Model 2 is *only prose* and that you have no reason to open stays one folder —
+the split is still earned, never preemptive.
 
 **Not every split module uses every row.** `audit-logging` and `background-jobs`
 (2026-09-07) have **no Model 1 / Model 2 config split** — one model behind a
@@ -71,7 +76,17 @@ port — so no `.core.<capability>`, no `.core.<family>`: just `.core` /
 `.core.postgres-drizzle` / `.api`. `domain-events` and `idempotency-key` have
 the Model 1/2 split but no `.api` (nothing to administer); `idempotency-key`
 also gained a `schema.ts` + `.migration.sql` it never had (aligning with the
-other Postgres adapters — dimension 7). The rows are a menu, not a checklist.
+other Postgres adapters — dimension 7). `file-storage` (2026-09-07) is the
+first to use rows on **two axes at once**: the `FileStore` blob backend is a
+Model 1/2 capability split (`.core.supabase` / `.core.s3` siblings), while the
+`AttachmentStore` + file-category catalog + access log + observability are one
+metadata stack adapter on a different axis (`.core.postgres-drizzle`), and it
+ships a `.api`. Its `.core` carries `AttachmentService` — an orchestration
+*handler* (validate → scan → upload → persist, tenant-isolation on every
+actor-bearing path), not just contracts — because the vertical owns the
+controllers and needs a handler to call, not raw ports. The file-category
+catalog is DB-backed and admin-mutable (a two-layer base/per-tenant-override
+table, tenant overrides may only tighten). The rows are a menu, not a checklist.
 What still applies:
 - **A stack-coupled class in `.core` moves to the adapter.** `background-jobs`
   shipped `PostgresAdvisoryLock` as `.core`'s *default* lock; the split moved it
@@ -282,11 +297,17 @@ NestJS controllers against those ports — they carry no app-specific logic, are
 gated by the consumer's own `Authorizer` via `@RequiresAction`, and the
 actor-scoped rules (tenant/role ceiling, or "force the query to the actor's
 tenant") live in a thin `.api` service between controller and port.
-`authorization.api`, `notification.api`, `audit-logging.api` and
-`background-jobs.api` (2026-09-07) are the first four — `notification.api` also
-ships `POST /notifications/test-send` (calls `Notifier`), `background-jobs.api`
-ships `POST /jobs/:name/run` (calls `JobTrigger`); `audit-logging.api` is
-read-only. A generic `CurrentActor` param decorator was promoted to
+`authorization.api`, `notification.api`, `audit-logging.api`,
+`background-jobs.api` and `file-storage.api` (2026-09-07) are the first five —
+`notification.api` also ships `POST /notifications/test-send` (calls
+`Notifier`), `background-jobs.api` ships `POST /jobs/:name/run` (calls
+`JobTrigger`); `audit-logging.api` is read-only. `file-storage.api` is
+deliberately narrow — the ops/compliance file inventory, storage usage,
+orphans, the file-category catalog (read + tenant-override CRUD), and the two
+destructive ops (`DELETE /files/:id`, detach) that delegate to
+`AttachmentService`. The per-entity upload/view/download endpoints stay in the
+vertical's own controllers (`RegistryAttachmentAuthorizer` is the tool they
+use). A generic `CurrentActor` param decorator was promoted to
 `authorization.core` for all of them to share. React stays out — that's
 `ascendra-commons-ui`.
 

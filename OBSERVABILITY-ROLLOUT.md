@@ -111,6 +111,20 @@ not `rowCount`. **Migration:** `idempotency-key.schema.ts` + `.migration.sql`
 added (the module had none) — with `claim_id` and a `created_at` index for the
 24h cleanup. 461/461.
 
+## 8 · file-storage — observability + administration + package split ☑ (2026-09-07)
+
+**New tables** `commons_file_record`, `commons_attachment`, `commons_file_category`,
+`commons_file_access` (the module previously shipped *no* persistence — `AttachmentStore`
+was a port with no adapter).
+
+Split into `.core` / `.core.supabase` / `.core.s3` (throwing stub — the
+S3/"provider portability" Model 2 seam made real) / `.core.postgres-drizzle` / `.api`.
+
+- ☑ `.core`: `FileStore`/`AttachmentStore` ports (`AttachmentStore` gained `link`/`detach`/`getById`/`deleteFileCascade`), `AttachmentService` orchestration handler (validate → scan → upload → persist; best-effort blob cleanup on persistence failure; **tenant-isolation on every actor-bearing path** — no RLS behind storage objects), `FileValidator` + `RuleBasedFileValidator` (app-global ceiling/denylist), `FileScanner` + `NoopFileScanner` (verdict `clean`/`infected`/`unscannable`, per-category `onUnscannable` policy), `FileAccessRecorder` + `NoopFileAccessRecorder`, `SignedLinkResolver` + `MissingSignedLinkResolver`, `FileCategory`/`FileCategoryRegistry`, `FileStorageObservabilityPort` + `FileCategoryAdminPort` + DTOs, keyset cursor helper, `FileStorageModule.forRoot` token-only
+- ☑ `.core.postgres-drizzle`: 4 schemas + migrations; `PostgresAttachmentStore` (writable-CTE `attach`/`deleteFileCascade` — atomic without a tx handle); `PostgresFileCategoryRegistry` (two-layer base + per-tenant-override merge, TTL cache) + `PostgresFileCategoryAdminService` (override may only *tighten* — `CategoryLooseningNotAllowedError`) + `seedFileCategories` (insert-if-absent on boot); `PostgresFileAccessRecorder`; `PostgresFileStorageObservabilityService` (`listFiles`/`getFile`/`storageUsage`/`listOrphanedFileRecords`/`getAccessLog`/`categoryUsage`, keyset-paginated)
+- ☑ `.api`: `GET /files` (+ `/:id`, `/:id/access-log`, `/storage-usage`, `/orphans`), `DELETE /files/:id`, `DELETE /files/:id/attachments/:aid`; `GET /files/categories` (+ `/:key`), `PATCH /files/categories/:key`, `DELETE /files/categories/:key`. Gated `file.view` / `file.delete` / `file.category.manage`; `notification.api`-style tenant-scoping; optional `auditEmitterToken` on the destructive ops. **No per-entity endpoints** — those stay in the vertical.
+- ☑ specs (115 file-storage tests, real-DI boots per package) · docs (this file, `MODULE-STANDARD` §1b, `README`, per-package READMEs) · 544/544
+
 ---
 
 ## Progress log
@@ -125,4 +139,5 @@ added (the module had none) — with `claim_id` and a `created_at` index for the
 - 2026-09-07 — `authorization` split into `.core` / `.core.static-map` / `.core.permission-table` (+ `.postgres-drizzle`) / `.api` packages (MODULE-STANDARD §1b). Observability/admin services now implement family ports; `authorization.api` ships the HTTP surface. 413/413.
 - 2026-09-07 — `notification` split the same way: `.core` / `.core.static` / `.core.database` (+ `.postgres-drizzle`) / `.api`. Delivery-log + config-admin services implement `NotificationObservabilityPort` / `NotificationConfigAdminPort` in `notification.core.database`; `notification.api` ships deliveries/coverage-gaps reads, route/template/credential CRUD, and `POST /test-send`. 433/433.
 - 2026-09-07 — `audit-logging` split into `.core` / `.core.postgres-drizzle` / `.api` (no family — no Model 1/2 config split; both ports + DTOs + cursor helper are stack-agnostic `.core` contracts). `PostgresAuditEventReader` binds under the core `AUDIT_EVENT_READER` token; `audit-logging.api` ships `GET /audit/events` + `/entities/:type/:id/history` + `/trace/:correlationId`, read-only, tenant-scoped for non-platform actors. 445/445.
+- 2026-09-07 — `file-storage` split into `.core` / `.core.supabase` / `.core.s3` / `.core.postgres-drizzle` / `.api` — first module to use rows on two axes (blob backend Model 1/2 + a metadata stack adapter) and to ship an orchestration handler (`AttachmentService`) in `.core`. Added all persistence the module never had, a DB-backed admin-mutable file-category catalog (base + per-tenant tightening-only overrides), a download access log, and the ops/compliance `.api`. 544/544.
 - 2026-09-07 — `background-jobs` split into `.core` / `.core.postgres-drizzle` / `.api` (no family). `PostgresAdvisoryLock` moved out of `.core` (now `advisoryLockToken` is required); new `JobObservabilityPort` in `.core` (`getRunHistory` / `listJobStatus`), `PostgresJobObservabilityService` binds under `JOB_OBSERVABILITY_PORT`. `background-jobs.api` ships `GET /jobs` (dashboard) + `/jobs/:name/runs` + `/jobs/runs/trace/:correlationId` + `POST /jobs/:name/run` (JobTrigger, optional audit emitter). No tenant scoping. 454/454.

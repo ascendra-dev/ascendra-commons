@@ -21,7 +21,8 @@ Seven patterns implemented so far, all tested with real NestJS DI wiring:
 `audit-logging/` (depends on `domain-events.core` also being vendored),
 `file-storage/` (depends on `authorization.core` also being vendored),
 `idempotency-key/` (no dependency on any other pattern) — see each
-pattern's own README for why. Everything else is deliberately not built yet
+pattern's own README for why. All seven are now split into dot-named
+packages (§1b). Everything else is deliberately not built yet
 — each pattern gets promoted from `ascendra-pay-002`'s own project-specific
 standards docs one at a time, only once a real story needs it, never
 speculatively.
@@ -46,12 +47,14 @@ one plausible Model 2 stack, an admin/observability surface — becomes a
 `authorization.core.permission-table.postgres-drizzle`, `authorization.api`),
 each an independent copy unit with its own barrel and README, dependencies
 one-way toward `.core`. See `MODULE-STANDARD.md` §1b. `authorization`,
-`notification`, `audit-logging`, `background-jobs`, `domain-events` and
-`idempotency-key` (2026-09-07) are split this way — `audit-logging`/`background-jobs`
-use `.core` / `.core.postgres-drizzle` / `.api`; `domain-events` uses `.core` /
-`.core.in-process` / `.core.broker`; `idempotency-key` uses `.core` /
-`.core.postgres-drizzle` / `.core.redis`. `file-storage` stays single-folder
-until it hits the same signals.
+`notification`, `audit-logging`, `background-jobs`, `domain-events`,
+`idempotency-key` and `file-storage` (2026-09-07) are split this way —
+`audit-logging`/`background-jobs` use `.core` / `.core.postgres-drizzle` /
+`.api`; `domain-events` uses `.core` / `.core.in-process` / `.core.broker`;
+`idempotency-key` uses `.core` / `.core.postgres-drizzle` / `.core.redis`;
+`file-storage` uses `.core` / `.core.supabase` / `.core.s3` (the two `FileStore`
+backends) / `.core.postgres-drizzle` (metadata + category catalog + access log)
+/ `.api`.
 
 See `MODULE-STANDARD.md` for the full checklist every pattern is built and
 audited against — export boundary, packaging, `applicationId`/`tenantId`
