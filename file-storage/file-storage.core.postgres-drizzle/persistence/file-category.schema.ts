@@ -43,12 +43,12 @@ export const fileCategoryTable = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
-  (t) => ({
-    uqBase: uniqueIndex('commons_file_category_base_uq')
+  (t) => [
+    uniqueIndex('commons_file_category_base_uq')
       .on(t.key)
       .where(sql`${t.tenantId} IS NULL`),
-    uqTenant: uniqueIndex('commons_file_category_tenant_uq')
+    uniqueIndex('commons_file_category_tenant_uq')
       .on(t.key, t.tenantId)
       .where(sql`${t.tenantId} IS NOT NULL`),
-  }),
+  ],
 );

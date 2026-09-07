@@ -47,8 +47,8 @@ export const jobRunTable = pgTable(
     /** Nullable — the request/trace id a manual run belongs to (rollout item 4 / cross-module trace). */
     correlationId: text('correlation_id'),
   },
-  (t) => ({
+  (t) => [
     /** "this application's runs of this job" — the run-history admin screen's main query, and the pruner's scan. */
-    byApplicationJobTime: index('commons_jobs_job_run_application_job_time_idx').on(t.application, t.jobName, t.startedAt),
-  }),
+    index('commons_jobs_job_run_application_job_time_idx').on(t.application, t.jobName, t.startedAt),
+  ],
 );

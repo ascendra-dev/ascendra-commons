@@ -29,9 +29,9 @@ export const notificationChannelRoute = pgTable(
     tenantId: text('tenant_id'),
     channels: text('channels').array().notNull(),
   },
-  (t) => ({
-    uq: unique('commons_notification_channel_route_uq').on(t.application, t.notificationType, t.tenantId).nullsNotDistinct(),
-  }),
+  (t) => [
+    unique('commons_notification_channel_route_uq').on(t.application, t.notificationType, t.tenantId).nullsNotDistinct(),
+  ],
 );
 
 /**
@@ -50,11 +50,11 @@ export const notificationTemplate = pgTable(
     body: text('body').notNull(),
     isHtml: boolean('is_html').notNull().default(false),
   },
-  (t) => ({
-    uq: unique('commons_notification_template_uq')
+  (t) => [
+    unique('commons_notification_template_uq')
       .on(t.application, t.channel, t.notificationType, t.tenantId)
       .nullsNotDistinct(),
-  }),
+  ],
 );
 
 /**
@@ -79,8 +79,8 @@ export const notificationProviderCredential = pgTable(
     tenantId: text('tenant_id').notNull(),
     config: jsonb('config').notNull().$type<Record<string, unknown>>(),
   },
-  (t) => ({
-    pk: primaryKey({ columns: [t.application, t.channel, t.tenantId] }),
-    byTenant: index('commons_notification_provider_credential_tenant').on(t.application, t.tenantId),
-  }),
+  (t) => [
+    primaryKey({ columns: [t.application, t.channel, t.tenantId] }),
+    index('commons_notification_provider_credential_tenant').on(t.application, t.tenantId),
+  ],
 );

@@ -25,9 +25,9 @@ export const fileRecordTable = pgTable(
     uploadedBy: text('uploaded_by').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
-  (t) => ({
-    byTenantCategory: index('commons_file_record_tenant_category_idx').on(t.tenantId, t.category, t.createdAt),
-    byCreatedAt: index('commons_file_record_created_at_idx').on(t.createdAt),
-    byContentHash: index('commons_file_record_content_hash_idx').on(t.contentHash),
-  }),
+  (t) => [
+    index('commons_file_record_tenant_category_idx').on(t.tenantId, t.category, t.createdAt),
+    index('commons_file_record_created_at_idx').on(t.createdAt),
+    index('commons_file_record_content_hash_idx').on(t.contentHash),
+  ],
 );

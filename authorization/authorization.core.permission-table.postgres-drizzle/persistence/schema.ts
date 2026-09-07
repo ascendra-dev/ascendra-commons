@@ -46,7 +46,7 @@ export const authzRolePermission = pgTable(
       .notNull()
       .references(() => authzAction.name, { onDelete: 'restrict' }),
   },
-  (table) => ({ pk: primaryKey({ columns: [table.roleId, table.action] }) }),
+  (table) => [primaryKey({ columns: [table.roleId, table.action] })],
 );
 
 /**
@@ -65,11 +65,11 @@ export const authzUserRole = pgTable(
     grantedAt: timestamp('granted_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     grantedBy: text('granted_by'),
   },
-  (table) => ({
+  (table) => [
     // NULLS NOT DISTINCT so (user, NULL, role) can't be double-inserted (Postgres 15+).
-    uq: unique('commons_authz_user_role_uq').on(table.userId, table.tenantId, table.roleId).nullsNotDistinct(),
-    lookup: index('commons_authz_user_role_lookup').on(table.userId, table.tenantId),
-  }),
+    unique('commons_authz_user_role_uq').on(table.userId, table.tenantId, table.roleId).nullsNotDistinct(),
+    index('commons_authz_user_role_lookup').on(table.userId, table.tenantId),
+  ],
 );
 
 /**
@@ -93,5 +93,5 @@ export const authzDelegation = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     createdBy: text('created_by').notNull(),
   },
-  (table) => ({ byGrantee: index('commons_authz_delegation_grantee').on(table.granteeId, table.tenantId) }),
+  (table) => [index('commons_authz_delegation_grantee').on(table.granteeId, table.tenantId)],
 );

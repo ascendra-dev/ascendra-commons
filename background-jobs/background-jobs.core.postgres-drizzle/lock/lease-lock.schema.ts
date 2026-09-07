@@ -29,7 +29,5 @@ export const leaseLockTable = pgTable(
     acquiredAt: timestamp('acquired_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     lockedUntil: timestamp('locked_until', { withTimezone: true, mode: 'date' }).notNull(),
   },
-  (t) => ({
-    pk: primaryKey({ columns: [t.application, t.lockKey] }),
-  }),
+  (t) => [primaryKey({ columns: [t.application, t.lockKey] })],
 );

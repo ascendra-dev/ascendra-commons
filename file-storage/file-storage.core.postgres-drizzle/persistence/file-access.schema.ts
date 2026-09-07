@@ -23,8 +23,8 @@ export const fileAccessTable = pgTable(
     purpose: text('purpose').notNull(),
     occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
-  (t) => ({
-    byFile: index('commons_file_access_file_idx').on(t.fileRecordId, t.occurredAt),
-    byOccurredAt: index('commons_file_access_occurred_at_idx').on(t.occurredAt),
-  }),
+  (t) => [
+    index('commons_file_access_file_idx').on(t.fileRecordId, t.occurredAt),
+    index('commons_file_access_occurred_at_idx').on(t.occurredAt),
+  ],
 );

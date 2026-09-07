@@ -24,8 +24,8 @@ export const attachmentTable = pgTable(
     category: text('category').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
-  (t) => ({
-    byEntity: index('commons_attachment_entity_idx').on(t.attachedToType, t.attachedToId),
-    byFileRecord: index('commons_attachment_file_record_idx').on(t.fileRecordId),
-  }),
+  (t) => [
+    index('commons_attachment_entity_idx').on(t.attachedToType, t.attachedToId),
+    index('commons_attachment_file_record_idx').on(t.fileRecordId),
+  ],
 );

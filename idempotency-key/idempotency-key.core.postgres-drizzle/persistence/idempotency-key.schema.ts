@@ -29,9 +29,9 @@ export const idempotencyKeyTable = pgTable(
     responseBody: jsonb('response_body'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
-  (t) => ({
-    pk: primaryKey({ columns: [t.key, t.scope] }),
+  (t) => [
+    primaryKey({ columns: [t.key, t.scope] }),
     /** The 24h cleanup `DELETE … WHERE created_at < now() - interval '24 hours'` scans on this. */
-    byCreatedAt: index('commons_idempotency_key_created_at_idx').on(t.createdAt),
-  }),
+    index('commons_idempotency_key_created_at_idx').on(t.createdAt),
+  ],
 );

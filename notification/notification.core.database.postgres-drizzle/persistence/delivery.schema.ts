@@ -42,9 +42,9 @@ export const notificationDelivery = pgTable(
      */
     content: jsonb('content').$type<DeliveryContent>(),
   },
-  (t) => ({
-    byTypeTime: index('commons_notification_delivery_type_time_idx').on(t.application, t.notificationType, t.attemptedAt),
-    byRecipient: index('commons_notification_delivery_recipient_idx').on(t.application, t.recipientRef, t.attemptedAt),
-    byProviderMsg: index('commons_notification_delivery_provider_msg_idx').on(t.providerMessageId),
-  }),
+  (t) => [
+    index('commons_notification_delivery_type_time_idx').on(t.application, t.notificationType, t.attemptedAt),
+    index('commons_notification_delivery_recipient_idx').on(t.application, t.recipientRef, t.attemptedAt),
+    index('commons_notification_delivery_provider_msg_idx').on(t.providerMessageId),
+  ],
 );
