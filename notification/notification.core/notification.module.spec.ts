@@ -1,0 +1,124 @@
+import { describe, expect, it, vi } from 'vitest';
+import { Module } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { NotificationModule } from './notification.module';
+import { Notifier } from './notifier';
+import type { NotificationConfig } from './notification-config.port';
+import type { UserContactResolver } from './user-contact-resolver';
+import type { NotificationDeliveryRecorder } from './notification-delivery-recorder.port';
+import {
+  NOTIFICATION_CHANNEL_SENDERS,
+  NOTIFICATION_DELIVERY_RECORDER,
+  NOTIFIER,
+  USER_CONTACT_RESOLVER,
+} from './tokens';
+
+const CONFIG_TOKEN = Symbol('CONFIG_TOKEN');
+const USER_RESOLVER_TOKEN = Symbol('USER_RESOLVER_TOKEN');
+const RECORDER_TOKEN = Symbol('RECORDER_TOKEN');
+
+const recordAttempts = vi.fn().mockResolvedValue(undefined);
+
+/** Stands in for a consuming project's own providers module — the real production path. */
+@Module({
+  providers: [
+    {
+      provide: CONFIG_TOKEN,
+      useValue: {
+        channelsFor: vi.fn().mockResolvedValue(['email']),
+        templateFor: vi.fn().mockResolvedValue({ subject: 'DB', body: 'DB body' }),
+        providerConfigFor: vi.fn().mockResolvedValue({ apiKey: 'k', from: 'db@example.com' }),
+      } satisfies NotificationConfig,
+    },
+    {
+      provide: USER_RESOLVER_TOKEN,
+      useValue: { findById: vi.fn().mockResolvedValue({ email: 'db-user@example.com' }) } satisfies UserContactResolver,
+    },
+    {
+      provide: RECORDER_TOKEN,
+      useValue: { recordAttempts, updateDeliveryStatus: vi.fn() } satisfies NotificationDeliveryRecorder,
+    },
+  ],
+  exports: [CONFIG_TOKEN, USER_RESOLVER_TOKEN, RECORDER_TOKEN],
+})
+class FakeProvidersModule {}
+
+describe('NotificationModule.forRoot — token wiring', () => {
+  it('throws without configToken', () => {
+    // @ts-expect-error — deliberately omitting the required field
+    expect(() => NotificationModule.forRoot({})).toThrow(/requires configToken/);
+  });
+
+  it('aliases NOTIFICATION_CONFIG to configToken and resolves NOTIFIER to the Notifier', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [NotificationModule.forRoot({ configToken: CONFIG_TOKEN, imports: [FakeProvidersModule] })],
+    }).compile();
+
+    expect(moduleRef.get(NOTIFIER)).toBe(moduleRef.get(Notifier));
+
+    const result = await moduleRef.get<Notifier>(NOTIFIER).notify({
+      recipient: { type: 'raw', email: 'payer@example.com' },
+      notificationType: 'invoice.sent',
+      variables: {},
+      tenantId: 'tenant-1',
+    });
+    expect(result).toEqual({ status: 'sent', channels: { email: { status: 'sent' } } });
+  });
+
+  it('assembles the three senders into the channel map', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [NotificationModule.forRoot({ configToken: CONFIG_TOKEN, imports: [FakeProvidersModule] })],
+    }).compile();
+
+    const senders = moduleRef.get(NOTIFICATION_CHANNEL_SENDERS);
+    expect([...senders.keys()].sort()).toEqual(['email', 'sms', 'whatsapp']);
+  });
+
+  it('defaults USER_CONTACT_RESOLVER to the null resolver; userContactResolverToken overrides it', async () => {
+    const withDefault = await Test.createTestingModule({
+      imports: [NotificationModule.forRoot({ configToken: CONFIG_TOKEN, imports: [FakeProvidersModule] })],
+    }).compile();
+    await expect(withDefault.get<UserContactResolver>(USER_CONTACT_RESOLVER).findById('x')).resolves.toBeNull();
+
+    const overridden = await Test.createTestingModule({
+      imports: [
+        NotificationModule.forRoot({
+          configToken: CONFIG_TOKEN,
+          userContactResolverToken: USER_RESOLVER_TOKEN,
+          imports: [FakeProvidersModule],
+        }),
+      ],
+    }).compile();
+    await expect(overridden.get<UserContactResolver>(USER_CONTACT_RESOLVER).findById('x')).resolves.toEqual({
+      email: 'db-user@example.com',
+    });
+  });
+
+  it('defaults the delivery recorder to a no-op; deliveryRecorderToken wires a real one that Notifier calls', async () => {
+    const withDefault = await Test.createTestingModule({
+      imports: [NotificationModule.forRoot({ configToken: CONFIG_TOKEN, imports: [FakeProvidersModule] })],
+    }).compile();
+    await expect(
+      withDefault.get<NotificationDeliveryRecorder>(NOTIFICATION_DELIVERY_RECORDER).recordAttempts([]),
+    ).resolves.toBeUndefined();
+
+    recordAttempts.mockClear();
+    const wired = await Test.createTestingModule({
+      imports: [
+        NotificationModule.forRoot({
+          configToken: CONFIG_TOKEN,
+          deliveryRecorderToken: RECORDER_TOKEN,
+          imports: [FakeProvidersModule],
+        }),
+      ],
+    }).compile();
+
+    await wired.get<Notifier>(NOTIFIER).notify({
+      recipient: { type: 'raw', email: 'p@e.com' },
+      notificationType: 'invoice.sent',
+      variables: {},
+      tenantId: 'tenant-1',
+    });
+    expect(recordAttempts).toHaveBeenCalledOnce();
+  });
+});

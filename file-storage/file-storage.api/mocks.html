@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>File Storage — Admin Console Mocks</title>
+<style>
+  /* Tokens transcribed from ../ascendra-ui/app/globals.css (:root and .dark). Component
+     shadow/radius/gradient values transcribed from the real component source under
+     ../ascendra-ui/ascendra-ui/components/. Light is the base; dark mirrors globals.css's
+     .dark and is applied by the OS setting only (no toggle — zero JS). */
+  :root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.2928 0.0163 285.35);
+    --muted: oklch(0.9854 0.0013 286.38);
+    --muted-foreground: oklch(0.4913 0.0254 285.43);
+    --secondary-foreground: oklch(0.147 0.004 49.25);
+    --border: oklch(0.9437 0.0027 286.35);
+    --card: oklch(1 0 0);
+    --primary: oklch(0.5573 0.2543 283.67);
+    --radius: 0.625rem;
+    --positive: #15892b; --negative: #e02e2e; --warning: #fd7224; --info: #236dd7; --dimmed: #adadb7;
+    --gray-50: #fafafb; --gray-700: #767684;
+    --shadow-xs: 0px 0px 2px 0px #00000014, 0px 1px 2px 0px #0000000f, 0px 0px 0px 1px #0000000a;
+    --text-caption: 0.6875rem; --text-label: 0.75rem; --text-body-sm: 0.875rem; --text-body: 1rem;
+    --text-heading-sm: 1.125rem; --text-heading: 1.25rem; --text-heading-lg: 1.5rem;
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: oklch(0.2238 0.0077 285.76);
+      --foreground: oklch(0.9734 0.0013 286.37);
+      --muted: oklch(0.1785 0.0041 285.98);
+      --muted-foreground: oklch(0.7507 0.0142 286.05);
+      --secondary-foreground: oklch(0.985 0.001 106.423);
+      --border: oklch(0.2582 0.0093 285.73);
+      --card: oklch(0.216 0.006 285.76);
+      --primary: oklch(0.5573 0.2543 283.67);
+      --positive: #31c854; --negative: #f73d3d; --warning: #fd7224; --info: #307ff6; --dimmed: #5f5f6f;
+      --gray-50: #232328; --gray-700: #adadb7;
+      --shadow-xs: 0px 1.5px 2px 0px #00000052, 0px -1px 0px 0px #ffffff0a, 0px 0px 0px 1px #ffffff1f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans);
+         font-size: var(--text-body-sm); line-height: 1.5; }
+  code, pre, .mono { font-family: var(--font-mono); }
+
+  .shell { display: flex; min-height: 100vh; }
+  .sidebar { width: 248px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.25rem 0.75rem; }
+  .brand { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem; font-weight: 600; }
+  .brand span { width: 18px; height: 18px; border-radius: 5px; background: var(--primary); display: inline-block; }
+  .nav-group { margin-bottom: 1rem; }
+  .nav-group-title { color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase;
+                     letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem; }
+  .nav-item { display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem; border-radius: 0.375rem;
+              color: var(--muted-foreground); font-size: var(--text-body-sm); text-decoration: none; position: relative; }
+  .nav-item.active { background: color-mix(in oklab, var(--foreground) 8%, transparent); color: var(--foreground); }
+  .nav-item.active::before { content: ""; position: absolute; left: 2px; top: 6px; bottom: 6px; width: 1px; background: var(--foreground); }
+  .nav-item .pill { margin-left: auto; font-size: 9px; line-height: 11px; padding: 1px 4px; border-radius: 4px;
+                    background: color-mix(in oklab, var(--warning) 12%, transparent); color: var(--warning);
+                    text-transform: uppercase; letter-spacing: 0.02em; }
+
+  .main { flex: 1; min-width: 0; padding: 1.75rem 2rem 4rem; max-width: 1180px; }
+  .page-title { font-size: var(--text-heading-lg); font-weight: 600; margin: 0; }
+  .page-sub { color: var(--muted-foreground); margin: 0.25rem 0 0; max-width: 74ch; }
+
+  .note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem;
+          background: color-mix(in oklab, var(--info) 6%, transparent);
+          border: 1px solid color-mix(in oklab, var(--info) 22%, transparent); margin: 1.25rem 0; }
+  .note b { color: var(--info); }
+
+  .cov { width: 100%; border-collapse: collapse; margin: 0.75rem 0 0.5rem; }
+  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
+            padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  .cov td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .cov td:first-child { font-weight: 500; white-space: nowrap; }
+
+  .screen { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin: 1.5rem 0; }
+  .screen-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-bottom: 0.25rem; }
+  .screen-name { font-size: var(--text-heading); font-weight: 600; margin: 0; }
+  .screen-purpose { color: var(--muted-foreground); margin: 0.25rem 0 1rem; }
+  .endpoint { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--text-caption);
+              padding: 0.15rem 0.45rem; border-radius: 4px; background: var(--muted); border: 1px solid var(--border); }
+  .endpoint .m { font-weight: 700; color: var(--info); }
+  .status { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em;
+            padding: 0.1rem 0.35rem; border-radius: 4px; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .status.live { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 22%, transparent); }
+  .status.partial { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 24%, transparent); }
+  .status.proposed { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent); }
+  .gating { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0 0 1rem; padding-left: 0.75rem; border-left: 2px solid var(--border); }
+  .gating code { color: var(--foreground); }
+  .proposed-note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; margin: 0 0 1rem;
+                   background: color-mix(in oklab, var(--primary) 5%, transparent);
+                   border: 1px dashed color-mix(in oklab, var(--primary) 35%, transparent); }
+  .proposed-note b { color: var(--primary); }
+  .proposed-note .sig { font-family: var(--font-mono); font-size: var(--text-caption); }
+
+  .filterbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+  .field { height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--background);
+           font-size: var(--text-body-sm); display: inline-flex; align-items: center; gap: 0.35rem; }
+  .field .lbl { color: var(--muted-foreground); }
+  .btn { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
+         font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary); position: relative; overflow: hidden;
+         box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16), 0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255); }
+  .btn::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(255,255,255,0.2), transparent); }
+  .btn-secondary { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
+                   font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card);
+                   box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06), 0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1); }
+  .btn-danger { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
+                font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--negative); position: relative; overflow: hidden;
+                box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16), 0 0 0 1px #f73d3d; }
+
+  .table { width: 100%; border-collapse: separate; border-spacing: 0; }
+  .table th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
+              padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .table td { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .table tbody tr:hover { background: color-mix(in oklab, var(--gray-700) 4%, transparent); }
+  .table .t-time { color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .table .t-id { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted-foreground); }
+  .table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .badge { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em;
+           padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .badge.ok    { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 20%, transparent); }
+  .badge.fail  { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 20%, transparent); }
+  .badge.warn  { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 20%, transparent); }
+  .badge.info  { color: var(--info); background-color: color-mix(in oklab, var(--info) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 16%, transparent); }
+  .badge.neutral { color: var(--muted-foreground); background-color: color-mix(in oklab, var(--gray-700) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gray-700) 16%, transparent); }
+  .badge.brand { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent); }
+
+  .pagebar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.25rem 0; color: var(--muted-foreground); }
+  .pagebar .pager { display: flex; gap: 0.25rem; }
+  .pagebar .pager span { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem;
+                         padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption); }
+
+  .empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1rem; padding: 2.5rem;
+           border: 1px dashed var(--border); border-radius: 0.75rem; color: var(--muted-foreground); }
+  .empty .ic { width: 3rem; height: 3rem; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;
+               background: color-mix(in oklab, var(--gray-700) 4%, transparent); box-shadow: inset 0 0 0 1px var(--border); font-size: 1.1rem; }
+
+  .drawer { position: relative; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
+            padding: 1.5rem; margin: 1.5rem 0 1.5rem 2rem; max-width: 600px; box-shadow: var(--shadow-xs); }
+  .drawer::before { content: attr(data-label); display: block; font-size: var(--text-caption); color: var(--muted-foreground);
+                    text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.875rem; }
+  .drawer > .x { position: absolute; top: 1.25rem; right: 1.25rem; color: var(--muted-foreground); font-size: 0.9rem; }
+
+  .sheet { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); padding: 1.5rem;
+           margin: 1rem 0 0 2rem; max-width: 540px; box-shadow: var(--shadow-xs); }
+  .sheet::before { content: attr(data-label); display: block; font-size: var(--text-caption); color: var(--muted-foreground);
+                   text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.75rem; }
+  .form-row { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.875rem; }
+  .form-row label { font-size: var(--text-label); color: var(--muted-foreground); }
+  .form-row .control { min-height: 2rem; border: 1px solid var(--border); border-radius: 0.375rem; padding: 0.35rem 0.6rem; display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem; }
+
+  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 0.4rem 1rem; margin: 0; }
+  .kv dt { color: var(--muted-foreground); }
+  .kv dd { margin: 0; word-break: break-word; }
+
+  .diff { margin: 1rem 0 0; border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; }
+  .diff > summary { cursor: pointer; padding: 0.5rem 0.75rem; font-size: var(--text-label); color: var(--secondary-foreground);
+                    background: var(--muted); list-style: none; }
+  .diff > summary::-webkit-details-marker { display: none; }
+  .diff pre { margin: 0; padding: 0.75rem; font-size: var(--text-caption); overflow-x: auto; }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+  .kpi { background: var(--muted); border-radius: 0.75rem; padding: 0.875rem 1rem; }
+  .kpi .k-label { color: var(--muted-foreground); font-size: var(--text-label); }
+  .kpi .k-value { font-size: var(--text-heading); font-weight: 600; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
+
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding: 0.5rem 0; }
+  .bars .bar { flex: 1; background: color-mix(in oklab, var(--primary) 55%, transparent); border-radius: 3px 3px 0 0; }
+
+  .timeline { position: relative; margin: 0; padding: 0 0 0 1.25rem; list-style: none; }
+  .timeline::before { content: ""; position: absolute; left: 3px; top: 4px; bottom: 4px; width: 1px; background: var(--border); }
+  .tl-item { position: relative; padding: 0 0 1.1rem; }
+  .tl-item::before { content: ""; position: absolute; left: -1.25rem; top: 5px; width: 7px; height: 7px; border-radius: 999px;
+                     background: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent); }
+  .tl-time { color: var(--muted-foreground); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
+  .tl-title { font-size: var(--text-body-sm); margin-top: 0.1rem; }
+
+  .breadcrumb { color: var(--muted-foreground); margin-bottom: 0.75rem; }
+  .breadcrumb b { color: var(--foreground); font-weight: 500; }
+  .scrollx { overflow-x: auto; }
+  h3.sub { font-size: var(--text-heading-sm); font-weight: 600; margin: 1.5rem 0 0.5rem; }
+  .taglist { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand"><span></span>Files Console</div>
+    <div class="nav-group">
+      <div class="nav-group-title">Inventory</div>
+      <a class="nav-item active" href="#inventory">File Inventory</a>
+      <a class="nav-item" href="#usage">Storage Usage</a>
+      <a class="nav-item" href="#orphans">Orphans</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">Categories</div>
+      <a class="nav-item" href="#categories">Category Catalog</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">Insight &amp; Compliance</div>
+      <a class="nav-item" href="#overview">Overview <span class="pill">new API</span></a>
+      <a class="nav-item" href="#rejections">Rejected Uploads <span class="pill">new API</span></a>
+      <a class="nav-item" href="#retention">Retention &amp; Legal Hold <span class="pill">new API</span></a>
+    </div>
+  </nav>
+
+  <main class="main">
+    <h1 class="page-title">File Storage — Admin Console</h1>
+    <p class="page-sub">Screen mocks for the <code>file-storage</code> module's ops / compliance admin surface,
+    each mapped to its endpoint. Reads gated <code>@RequiresAction('file.view')</code>; deletes
+    <code>'file.delete'</code>; category edits <code>'file.category.manage'</code>. Non-platform actors see and
+    edit only their own tenant. This is <b>not</b> the per-entity upload/view/download surface — that stays
+    in the vertical's controllers. Screens marked <b>Proposed</b> are legitimate but unserved.</p>
+
+    <div class="note"><div><b>By design.</b> Infected files are rejected at <code>attach</code> and never
+    stored, so there's no quarantine. The blob has no RLS behind it — <code>AttachmentService</code> enforces
+    the tenant boundary on every path, and this console inherits that.</div></div>
+
+    <h3 class="sub">Endpoint coverage map</h3>
+    <div class="scrollx">
+    <table class="cov">
+      <thead><tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td>File Inventory</td><td><span class="endpoint"><span class="m">GET</span>/files</span></td><td><span class="status live">Live</span></td><td>Filter tenant / category / uploader / date / size. Keyset-paginated.</td></tr>
+        <tr><td>File Detail</td><td><span class="endpoint"><span class="m">GET</span>/files/:id</span> · <span class="endpoint"><span class="m">DELETE</span>/files/:id</span> · <span class="endpoint"><span class="m">DELETE</span>/files/:id/attachments/:aid</span></td><td><span class="status live">Live</span></td><td>Record + attachments + short URL; hard delete (cascade) or detach.</td></tr>
+        <tr><td>Access Log</td><td><span class="endpoint"><span class="m">GET</span>/files/:id/access-log</span></td><td><span class="status live">Live</span></td><td>Who fetched it, when, via actor or signed link.</td></tr>
+        <tr><td>Storage Usage</td><td><span class="endpoint"><span class="m">GET</span>/files/storage-usage</span></td><td><span class="status live">Live</span></td><td><code>SUM(bytes)</code> by tenant × category.</td></tr>
+        <tr><td>Orphans</td><td><span class="endpoint"><span class="m">GET</span>/files/orphans</span></td><td><span class="status live">Live</span></td><td>File records with zero attachments. No bulk action — delete one by one via <code>DELETE /files/:id</code>.</td></tr>
+        <tr><td>Category Catalog</td><td><span class="endpoint"><span class="m">GET</span>/files/categories</span> · <span class="endpoint"><span class="m">GET</span>/files/categories/:key</span></td><td><span class="status live">Live</span></td><td>Effective catalog + per-category counts.</td></tr>
+        <tr><td>Category Edit</td><td><span class="endpoint"><span class="m">PATCH</span>/files/categories/:key</span> · <span class="endpoint"><span class="m">DELETE</span>/files/categories/:key</span></td><td><span class="status live">Live</span></td><td>Upsert the tenant override (tightening only); deactivate.</td></tr>
+        <tr><td>Overview</td><td><span class="endpoint"><span class="m">GET</span>/files/stats</span></td><td><span class="status proposed">Proposed</span></td><td>Uploads over time, by category, scan-verdict counts. No aggregation endpoint.</td></tr>
+        <tr><td>Rejected Uploads</td><td><span class="endpoint"><span class="m">GET</span>/files/rejections</span></td><td><span class="status proposed">Proposed</span></td><td><code>attach</code> throws on a bad type/size/scan and records nothing — "40 KYC uploads rejected this week" is invisible.</td></tr>
+        <tr><td>Orphan reconciliation</td><td><span class="endpoint"><span class="m">POST</span>/files/orphans/sweep</span></td><td><span class="status proposed">Proposed</span></td><td>Also blob↔metadata drift (a blob with no <code>file_record</code>) — needs <code>FileStore.list</code>, noted as deferred in the module design.</td></tr>
+        <tr><td>Retention &amp; Legal Hold</td><td><span class="endpoint"><span class="m">GET</span>/files/retention</span> · <span class="endpoint"><span class="m">POST</span>/files/:id/hold</span></td><td><span class="status proposed">Proposed</span></td><td><code>retention</code> is declared on a category but nothing reads it; there's no legal hold (a <code>DELETE</code> can't be blocked pending litigation).</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <!-- 1 · FILE INVENTORY -->
+    <section class="screen" id="inventory">
+      <div class="screen-head"><h2 class="screen-name">File Inventory</h2><span class="endpoint"><span class="m">GET</span>/files</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">Every stored file — the compliance-officer "show me all KYC documents uploaded last month" view.</p>
+      <p class="gating">Gate: <code>file.view</code>. Non-platform actor → forced to <code>actor.tenantId</code>; platform admin may filter by any tenant.</p>
+      <div class="filterbar">
+        <span class="field"><span class="lbl">Tenant</span>t_kairos</span>
+        <span class="field"><span class="lbl">Category</span>kyc.identity-document</span>
+        <span class="field"><span class="lbl">Uploaded by</span>any</span>
+        <span class="field"><span class="lbl">After</span>2026-08-01</span>
+        <span class="field"><span class="lbl">Min size</span>—</span>
+        <button class="btn-secondary" type="button">Apply</button>
+      </div>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>Uploaded</th><th>Category</th><th>Type</th><th class="num">Size</th><th>Uploaded by</th><th class="num">Attach.</th><th>Id</th></tr></thead>
+        <tbody>
+          <tr><td class="t-time">2026-09-06 15:47</td><td><span class="badge brand">kyc.identity-document</span></td><td>application/pdf</td><td class="num">1.9 MB</td><td>u_9f3a</td><td class="num">1</td><td class="t-id">f_0J9K2M</td></tr>
+          <tr><td class="t-time">2026-09-05 11:02</td><td><span class="badge brand">kyc.proof-of-address</span></td><td>image/jpeg</td><td class="num">640 KB</td><td>u_9f3a</td><td class="num">1</td><td class="t-id">f_1AA7QQ</td></tr>
+          <tr><td class="t-time">2026-09-03 14:20</td><td><span class="badge neutral">invoice.supporting-doc</span></td><td>application/pdf</td><td class="num">220 KB</td><td>u_2210</td><td class="num">2</td><td class="t-id">f_2ZK18P</td></tr>
+          <tr><td class="t-time">2026-08-28 09:10</td><td><span class="badge neutral">invoice.supporting-doc</span></td><td>application/pdf</td><td class="num">88 KB</td><td>svc_import</td><td class="num">0</td><td class="t-id">f_3PP04A</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="pagebar"><span>4 of ~18,400 · page size 50</span><span class="pager"><span>Newer</span><span>Older</span></span></div>
+    </section>
+
+    <!-- 2 · FILE DETAIL (drawer) -->
+    <div class="drawer" data-label="Drawer — File detail" id="file-detail">
+      <span class="x">✕</span>
+      <div class="screen-head" style="margin-bottom:0.5rem">
+        <h2 class="screen-name" style="font-size:var(--text-heading-sm)">File detail</h2>
+        <span class="endpoint"><span class="m">GET</span>/files/:id</span><span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose" style="margin-bottom:0.875rem">Record + attachments + a short-lived in-app URL. Delete or detach from here.</p>
+      <dl class="kv">
+        <dt>File id</dt><dd class="mono">f_0J9K2M</dd>
+        <dt>Tenant</dt><dd>t_kairos</dd>
+        <dt>Category</dt><dd><span class="badge brand">kyc.identity-document</span></dd>
+        <dt>Content type</dt><dd>application/pdf · 1.9 MB</dd>
+        <dt>Content hash</dt><dd class="mono">sha256:9f2a…c1</dd>
+        <dt>Uploaded by</dt><dd>u_9f3a · 2026-09-06 15:47</dd>
+        <dt>URL</dt><dd><span class="badge info">expires in 5 min</span> https://…/signed</dd>
+      </dl>
+      <h3 class="sub" style="margin-top:1rem">Attachments</h3>
+      <table class="table">
+        <thead><tr><th>Attached to</th><th>Category</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>issuer · iss_kairos</td><td>kyc_document</td><td class="t-time">detach</td></tr>
+        </tbody>
+      </table>
+      <details class="diff" open style="margin-top:1rem">
+        <summary>access log (recent)</summary>
+        <pre>2026-09-07 09:12  actor u_1c07     via actor        purpose in-app
+2026-09-06 16:03  actor u_9f3a     via actor        purpose in-app
+2026-09-06 15:59  —                via signed-link  purpose shareable-link</pre>
+      </details>
+      <div style="margin-top:1rem"><button class="btn-danger" type="button">Delete file (cascade)</button>
+        <span class="tl-time"> &nbsp;— removes the blob + all attachments + access log, one transaction. Audited.</span></div>
+    </div>
+
+    <!-- 3 · STORAGE USAGE -->
+    <section class="screen" id="usage">
+      <div class="screen-head"><h2 class="screen-name">Storage Usage</h2><span class="endpoint"><span class="m">GET</span>/files/storage-usage</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">Bytes and file count grouped by tenant and category — the "what's driving our storage bill / which tenant is huge" view.</p>
+      <p class="gating">Gate: <code>file.view</code>. Non-platform actor → their tenant only.</p>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>Tenant</th><th>Category</th><th class="num">Files</th><th class="num">Total</th></tr></thead>
+        <tbody>
+          <tr><td>t_kairos</td><td><span class="badge brand">kyc.identity-document</span></td><td class="num">2,110</td><td class="num">3.8 GB</td></tr>
+          <tr><td>t_kairos</td><td><span class="badge neutral">invoice.supporting-doc</span></td><td class="num">14,900</td><td class="num">2.1 GB</td></tr>
+          <tr><td>t_meridian</td><td><span class="badge brand">kyc.identity-document</span></td><td class="num">402</td><td class="num">690 MB</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- 4 · ORPHANS -->
+    <section class="screen" id="orphans">
+      <div class="screen-head"><h2 class="screen-name">Orphans</h2><span class="endpoint"><span class="m">GET</span>/files/orphans</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">File records with zero attachments — usually a persistence write that half-failed, or an entity deleted without detaching its files. Storage cost, not a correctness bug.</p>
+      <p class="gating">Gate: <code>file.view</code>. Filter <code>olderThan</code> excludes a just-uploaded record mid-<code>attach</code>.</p>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>Created</th><th>Category</th><th class="num">Size</th><th>fileRef</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="t-time">2026-08-28 09:10</td><td><span class="badge neutral">invoice.supporting-doc</span></td><td class="num">88 KB</td><td class="t-id">kyc/t_kairos/…</td><td class="t-time">delete</td></tr>
+          <tr><td class="t-time">2026-08-14 22:41</td><td><span class="badge neutral">export.temp</span></td><td class="num">4.2 MB</td><td class="t-id">exports/t_kairos/…</td><td class="t-time">delete</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="proposed-note"><div><b>Enhancement — Sweep.</b> Deleting orphans one at a time via <code>DELETE /files/:id</code> doesn't scale. Proposed: <span class="sig">POST /files/orphans/sweep</span> (dry-run first, audited) and a scheduled job. Separately, <b>blob↔metadata drift</b> (a blob with no record) needs <code>FileStore.list</code> — deferred in the module design.</div></div>
+    </section>
+
+    <!-- 5 · CATEGORY CATALOG -->
+    <section class="screen" id="categories">
+      <div class="screen-head"><h2 class="screen-name">Category Catalog</h2>
+        <span class="endpoint"><span class="m">GET</span>/files/categories</span>
+        <span class="endpoint"><span class="m">GET</span>/files/categories/:key</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">The single centralized view of every upload type the app accepts, its rules, and how much has come through it. Base definitions are developer-seeded; a tenant admin tightens them for their own tenant.</p>
+      <p class="gating">Read: <code>file.view</code> — effective catalog for the actor's tenant. Edit: <code>file.category.manage</code>, scoped to the actor's tenant (platform admin may target <code>?tenantId=</code> or the base row).</p>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>Key</th><th>Accepts</th><th class="num">Max size</th><th>On unscannable</th><th>Override</th><th class="num">Files</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge brand">kyc.identity-document</span></td><td>pdf, jpg, png</td><td class="num">8 MB</td><td><span class="badge fail">reject</span></td><td><span class="badge warn">tenant: max 4 MB</span></td><td class="num">2,110</td></tr>
+          <tr><td><span class="badge brand">kyc.proof-of-address</span></td><td>pdf, jpg, png</td><td class="num">8 MB</td><td><span class="badge fail">reject</span></td><td>—</td><td class="num">1,880</td></tr>
+          <tr><td><span class="badge neutral">invoice.supporting-doc</span></td><td>pdf</td><td class="num">20 MB</td><td><span class="badge ok">allow</span></td><td>—</td><td class="num">14,900</td></tr>
+          <tr><td><span class="badge neutral">export.temp</span></td><td>any</td><td class="num">100 MB</td><td><span class="badge ok">allow</span></td><td>—</td><td class="num">204</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <div class="sheet" data-label="Sheet — PATCH tenant override (tightening only)" id="category-edit">
+        <div class="form-row"><label>Category</label><div class="control">kyc.identity-document</div></div>
+        <div class="form-row"><label>Base rule</label><div class="control"><span class="badge neutral">pdf, jpg, png · 8 MB · reject unscannable</span></div></div>
+        <div class="form-row"><label>Max size (≤ base 8 MB)</label><div class="control">4 MB</div></div>
+        <div class="form-row"><label>Allowed content types (⊆ base)</label><div class="control"><span class="badge neutral">application/pdf</span> <span class="badge neutral">image/jpeg</span></div></div>
+        <div class="form-row"><label>On unscannable</label><div class="control">reject <span class="tl-time">(cannot loosen to "allow")</span></div></div>
+        <button class="btn" type="button">Save override</button>
+        <span class="tl-time"> &nbsp;— a value less restrictive than base → 422 <code>CategoryLooseningNotAllowedError</code></span>
+      </div>
+    </section>
+
+    <!-- 6 · OVERVIEW (proposed) -->
+    <section class="screen" id="overview">
+      <div class="screen-head"><h2 class="screen-name">Overview</h2><span class="endpoint"><span class="m">GET</span>/files/stats</span><span class="status proposed">Proposed</span></div>
+      <p class="screen-purpose">Upload activity and scan health at a glance — a spike in rejected uploads or unscannable files is a signal (a broken client, or a scanner outage) that the row-by-row log buries.</p>
+      <div class="proposed-note"><div><b>Missing API.</b> No aggregation endpoint. Proposed: <span class="sig">GET /files/stats?window=30d</span> → <code>{ perDay[], byCategory[], scanVerdicts{clean,infected,unscannable}, rejectionRate }</code>. Scan-verdict counts need a <code>scan_verdict</code> column on <code>commons_file_record</code> (not stored today).</div></div>
+      <div class="kpi-row">
+        <div class="kpi"><div class="k-label">Uploads (24h)</div><div class="k-value">486</div></div>
+        <div class="kpi"><div class="k-label">Rejected (24h)</div><div class="k-value">37</div></div>
+        <div class="kpi"><div class="k-label">Unscannable (24h)</div><div class="k-value">4</div></div>
+        <div class="kpi"><div class="k-label">Infected (blocked)</div><div class="k-value">1</div></div>
+      </div>
+      <h3 class="sub">Uploads by day (30d)</h3>
+      <div class="bars">
+        <div class="bar" style="height:44%"></div><div class="bar" style="height:58%"></div><div class="bar" style="height:50%"></div>
+        <div class="bar" style="height:66%"></div><div class="bar" style="height:60%"></div><div class="bar" style="height:26%"></div>
+        <div class="bar" style="height:22%"></div><div class="bar" style="height:54%"></div><div class="bar" style="height:70%"></div>
+        <div class="bar" style="height:78%"></div><div class="bar" style="height:72%"></div><div class="bar" style="height:56%"></div>
+        <div class="bar" style="height:46%"></div><div class="bar" style="height:84%"></div><div class="bar" style="height:100%"></div>
+      </div>
+    </section>
+
+    <!-- 7 · REJECTED UPLOADS (proposed) -->
+    <section class="screen" id="rejections">
+      <div class="screen-head"><h2 class="screen-name">Rejected Uploads</h2><span class="endpoint"><span class="m">GET</span>/files/rejections</span><span class="status proposed">Proposed</span></div>
+      <p class="screen-purpose">Uploads that <code>attach</code> refused — wrong type, too large, failed scan, unknown category. A cluster ("40 KYC docs rejected for wrong type this week") is a UX or client-config problem the support team should see.</p>
+      <div class="proposed-note"><div><b>Missing API.</b> <code>AttachmentService.attach</code> throws a 422/403 and records nothing. Proposed: an optional <code>FileUploadRejectionRecorder</code> port + <code>Noop</code> default (same shape as <code>FileAccessRecorder</code>), a <code>commons_file_rejection</code> table, and <span class="sig">GET /files/rejections</span>. No blob is ever written for a rejection — metadata only.</div></div>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>Attempted</th><th>Category</th><th>Reason</th><th>By</th><th>Filename</th></tr></thead>
+        <tbody>
+          <tr><td class="t-time">2026-09-07 10:22</td><td><span class="badge brand">kyc.identity-document</span></td><td><span class="badge warn">content type image/heic not accepted</span></td><td>u_7788</td><td class="mono">passport.heic</td></tr>
+          <tr><td class="t-time">2026-09-07 09:41</td><td><span class="badge brand">kyc.proof-of-address</span></td><td><span class="badge warn">12 MB &gt; category max 8 MB</span></td><td>u_5521</td><td class="mono">statement.pdf</td></tr>
+          <tr><td class="t-time">2026-09-06 18:15</td><td><span class="badge neutral">invoice.supporting-doc</span></td><td><span class="badge fail">failed malware scan</span></td><td>svc_import</td><td class="mono">receipt.zip</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- 8 · RETENTION & LEGAL HOLD (proposed) -->
+    <section class="screen" id="retention">
+      <div class="screen-head"><h2 class="screen-name">Retention &amp; Legal Hold</h2>
+        <span class="endpoint"><span class="m">GET</span>/files/retention</span>
+        <span class="endpoint"><span class="m">POST</span>/files/:id/hold</span><span class="status proposed">Proposed</span></div>
+      <p class="screen-purpose">Files past their category's declared <code>keepForDays</code> — candidates for a lifecycle job — and files under legal hold that must not be deleted regardless.</p>
+      <div class="proposed-note"><div><b>Missing API.</b> <code>FileCategory.retention</code> is stored and never read. Proposed: <span class="sig">GET /files/retention</span> → records past their retention window (grouped by category), a lifecycle job that acts on them, and a <b>legal hold</b> flag — <span class="sig">POST /files/:id/hold</span> / <span class="sig">DELETE /files/:id/hold</span> — that makes <code>DELETE /files/:id</code> and any sweep refuse.</div></div>
+      <h3 class="sub">Past retention window</h3>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>Category</th><th>Retention</th><th class="num">Past window</th><th class="num">Bytes</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge neutral">export.temp</span></td><td>keepForDays 7</td><td class="num">180</td><td class="num">740 MB</td></tr>
+          <tr><td><span class="badge neutral">invoice.supporting-doc</span></td><td>keepForDays 2555</td><td class="num">0</td><td class="num">—</td></tr>
+          <tr><td><span class="badge brand">kyc.identity-document</span></td><td>indefinite</td><td class="num">n/a</td><td class="num">—</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <h3 class="sub">Under legal hold</h3>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>File</th><th>Placed</th><th>By</th><th>Matter</th></tr></thead>
+        <tbody>
+          <tr><td class="t-id">f_2ZK18P</td><td class="t-time">2026-08-11</td><td>u_1c07</td><td>Dispute #4471 — deletion blocked</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- EMPTY STATE -->
+    <section class="screen">
+      <div class="screen-head"><h2 class="screen-name">File Inventory — empty state</h2><span class="endpoint"><span class="m">GET</span>/files</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">No file matches the filter — distinct from "this tenant has stored nothing".</p>
+      <div class="empty">
+        <div class="ic">📄</div>
+        <div><div style="color:var(--foreground);font-weight:500">No files match these filters</div>
+        <div>Widen the date range or clear the category filter.</div></div>
+        <button class="btn-secondary" type="button">Clear filters</button>
+      </div>
+    </section>
+  </main>
+</div>
+</body>
+</html>

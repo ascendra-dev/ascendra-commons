@@ -1,0 +1,51 @@
+# `idempotency-key.api` — HTTP read endpoints for a support/ops screen
+
+Opt-in NestJS controller over `IDEMPOTENCY_OBSERVABILITY_PORT`. Stack-agnostic
+— it never imports a stack adapter; it's wired to one at the vertical via
+`imports`. **Read-only** — claims are write-once from this API's point of view
+(only `IdempotencyStore` writes them), so there's no mutation surface.
+
+## Endpoints
+
+| Method | Path | → |
+|---|---|---|
+| GET | `/idempotency-keys` | `listClaims(ClaimQuery)` — query params: `status`, `scope`, `correlationId`, `since`, `until`, `limit`, `cursor`. Returns `ClaimPage` (newest-first + `nextCursor`) unchanged. |
+| GET | `/idempotency-keys/trace/:correlationId` | every claim raised under one correlation id — a cross-module trace, joinable with `audit-logging.api` / `notification.api` / `background-jobs.api` / `domain-events.api`'s own trace endpoints on the same id. |
+| GET | `/idempotency-keys/health` | `claimHealthSummary()` — pending/completed/reclaimed counts, the unambiguous `lateCompleteNoOpTotal`, and how far back the retained window goes. The number to check when `staleAfterSeconds` is suspected of being too low. |
+| GET | `/idempotency-keys/:scope/:key` | one claim — the support-ticket lookup ("why did this submission 409 or replay"). |
+
+All gated on `@RequiresAction('idempotency.view')`.
+
+## No tenant scoping — read this before wiring
+
+Unlike `audit-logging.api`, this module does **not** auto-restrict a caller to
+their own tenant. `scope` is opaque to `idempotency-key` — whatever the
+consuming app's `IdempotencyScopeResolver` returns (usually a tenant/actor id,
+but not guaranteed to line up with `Actor.tenantId`), so there's no safe
+generic way to enforce "your own scope only" the way audit-logging enforces
+`tenantId`. **Grant `idempotency.view` only to an ops/support persona** that's
+meant to see every tenant's claims — the same posture `background-jobs.api`
+takes for jobs (which also have no `tenantId`).
+
+## Wiring
+
+```typescript
+import { IdempotencyApiModule } from '.../idempotency-key.api';
+import { PostgresIdempotencyObservabilityModule } from '.../idempotency-key.core.postgres-drizzle';
+
+@Module({
+  imports: [
+    IdempotencyApiModule.forRoot({
+      imports: [PostgresIdempotencyObservabilityModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, imports: [DatabaseModule] })],
+    }),
+    { provide: APP_GUARD, useExisting: AuthorizationGuard },   // required
+  ],
+})
+export class AppModule {}
+```
+
+## Depends on
+
+`idempotency-key.core` (the port + DTOs), and `authorization.core` (guard,
+`@RequiresAction`). Never a stack adapter. The frontend belongs in
+`ascendra-commons-ui`.

@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Payment Gateway Webhooks — Admin Console Mocks</title>
+<style>
+  :root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.2928 0.0163 285.35);
+    --muted: oklch(0.9854 0.0013 286.38);
+    --muted-foreground: oklch(0.4913 0.0254 285.43);
+    --secondary-foreground: oklch(0.147 0.004 49.25);
+    --border: oklch(0.9437 0.0027 286.35);
+    --card: oklch(1 0 0);
+    --primary: oklch(0.5573 0.2543 283.67);
+    --radius: 0.625rem;
+    --positive: #15892b; --negative: #e02e2e; --warning: #fd7224; --info: #236dd7;
+    --gray-700: #767684;
+    --text-caption: 0.6875rem; --text-label: 0.75rem; --text-body-sm: 0.875rem; --text-body: 1rem;
+    --text-heading-sm: 1.125rem; --text-heading: 1.25rem; --text-heading-lg: 1.5rem;
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: oklch(0.2238 0.0077 285.76); --foreground: oklch(0.9734 0.0013 286.37);
+      --muted: oklch(0.1785 0.0041 285.98); --muted-foreground: oklch(0.7507 0.0142 286.05);
+      --secondary-foreground: oklch(0.985 0.001 106.423); --border: oklch(0.2582 0.0093 285.73);
+      --card: oklch(0.216 0.006 285.76); --primary: oklch(0.5573 0.2543 283.67);
+      --positive: #31c854; --negative: #f73d3d; --warning: #fd7224; --info: #307ff6; --gray-700: #adadb7;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); font-size: var(--text-body-sm); line-height: 1.5; }
+  code, pre, .mono { font-family: var(--font-mono); }
+  .shell { display: flex; min-height: 100vh; }
+  .sidebar { width: 248px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.25rem 0.75rem; background: var(--background); }
+  .brand { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem; font-weight: 600; font-size: var(--text-body-sm); }
+  .brand span { width: 18px; height: 18px; border-radius: 5px; background: var(--primary); display: inline-block; }
+  .nav-group { margin-bottom: 1rem; }
+  .nav-group-title { color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase; letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem; }
+  .nav-item { display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem; border-radius: 0.375rem; color: var(--muted-foreground); font-size: var(--text-body-sm); text-decoration: none; position: relative; }
+  .nav-item.active { background: color-mix(in oklab, var(--foreground) 8%, transparent); color: var(--foreground); }
+  .nav-item.active::before { content: ""; position: absolute; left: 2px; top: 6px; bottom: 6px; width: 1px; background: var(--foreground); }
+  .main { flex: 1; min-width: 0; padding: 1.75rem 2rem 4rem; max-width: 1180px; }
+  .page-head { margin-bottom: 0.375rem; }
+  .page-title { font-size: var(--text-heading-lg); font-weight: 600; margin: 0; }
+  .page-sub { color: var(--muted-foreground); margin: 0.25rem 0 0; max-width: 70ch; }
+  .note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; background: color-mix(in oklab, var(--info) 6%, transparent); border: 1px solid color-mix(in oklab, var(--info) 22%, transparent); color: var(--foreground); font-size: var(--text-body-sm); margin: 1.25rem 0; }
+  .note b { color: var(--info); }
+  .note.warn { background: color-mix(in oklab, var(--warning) 7%, transparent); border-color: color-mix(in oklab, var(--warning) 26%, transparent); }
+  .note.warn b { color: var(--warning); }
+  .cov { width: 100%; border-collapse: collapse; margin: 0.75rem 0 0.5rem; font-size: var(--text-body-sm); }
+  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  .cov td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .cov td:first-child { font-weight: 500; white-space: nowrap; }
+  .screen { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin: 1.5rem 0; background: var(--background); }
+  .screen-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-bottom: 0.25rem; }
+  .screen-name { font-size: var(--text-heading); font-weight: 600; margin: 0; }
+  .screen-purpose { color: var(--muted-foreground); margin: 0.25rem 0 1rem; }
+  .endpoint { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--text-caption); padding: 0.15rem 0.45rem; border-radius: 4px; background: var(--muted); border: 1px solid var(--border); color: var(--foreground); }
+  .endpoint .m { font-weight: 700; color: var(--info); }
+  .status { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .status.live { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 22%, transparent); }
+  .gating { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0 0 1rem; padding-left: 0.75rem; border-left: 2px solid var(--border); }
+  .gating code { color: var(--foreground); }
+  .filterbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+  .field { height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--background); color: var(--foreground); font-size: var(--text-body-sm); display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; }
+  .field .lbl { color: var(--muted-foreground); }
+  .field .val { color: var(--foreground); }
+  .btn { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer; font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary); position: relative; overflow: hidden; box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16), 0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255); }
+  .btn::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(255,255,255,0.2), transparent); }
+  .btn-secondary { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer; font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card); box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06), 0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1); }
+  .table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--text-body-sm); }
+  .table th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .table td { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .table tbody tr:hover { background: color-mix(in oklab, var(--gray-700) 4%, transparent); }
+  .table .t-time { color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .table .t-id { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted-foreground); }
+  .table .t-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .badge { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .badge.action { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent); }
+  .badge.good { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 16%, transparent); }
+  .badge.warn { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 16%, transparent); }
+  .badge.bad { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 16%, transparent); }
+  .pagebar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.25rem 0; color: var(--muted-foreground); font-size: var(--text-body-sm); }
+  .pagebar .pager { display: flex; gap: 0.25rem; }
+  .pagebar .pager span { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem; padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption); }
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+  .kpi { background: var(--muted); border-radius: 0.75rem; padding: 0.875rem 1rem; }
+  .kpi.alert { background: color-mix(in oklab, var(--negative) 6%, var(--muted)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 20%, transparent); }
+  .kpi .k-label { color: var(--muted-foreground); font-size: var(--text-label); }
+  .kpi .k-value { font-size: var(--text-heading); font-weight: 600; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
+  .kpi.alert .k-value { color: var(--negative); }
+  .timeline { position: relative; margin: 0; padding: 0 0 0 1.25rem; list-style: none; }
+  .timeline::before { content: ""; position: absolute; left: 3px; top: 4px; bottom: 4px; width: 1px; background: var(--border); }
+  .tl-item { position: relative; padding: 0 0 1.1rem; }
+  .tl-item::before { content: ""; position: absolute; left: -1.25rem; top: 5px; width: 7px; height: 7px; border-radius: 999px; background: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent); }
+  .tl-time { color: var(--muted-foreground); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
+  .tl-title { font-size: var(--text-body-sm); margin-top: 0.1rem; }
+  .breadcrumb { color: var(--muted-foreground); font-size: var(--text-body-sm); margin-bottom: 0.75rem; }
+  .breadcrumb b { color: var(--foreground); font-weight: 500; }
+  .scrollx { overflow-x: auto; }
+  h3.sub { font-size: var(--text-heading-sm); font-weight: 600; margin: 1.5rem 0 0.5rem; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand"><span></span>Gateway Webhooks Console</div>
+    <div class="nav-group">
+      <div class="nav-group-title">Investigate</div>
+      <a class="nav-item active" href="#events">Webhook Events</a>
+      <a class="nav-item" href="#trace">Request Trace</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">Insight</div>
+      <a class="nav-item" href="#catalog">Outcome Catalog</a>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div class="page-head">
+      <h1 class="page-title">Payment Gateway Webhooks — Admin Console</h1>
+      <p class="page-sub">
+        Screen mocks for the <code>payment-gateway-adapter</code> module's admin surface — the most
+        security-critical path in the system. Every read is gated
+        <code>@RequiresAction('payment-gateway.view')</code>.
+      </p>
+    </div>
+
+    <div class="note warn">
+      <div><b>Why this console exists.</b> Deduping a redelivery, rejecting an invalid signature, and
+      ignoring an out-of-order event are all things this path does <i>correctly</i> — but doing so
+      silently, with zero trace, on the path where "money arrived" claims get confirmed, is itself a
+      gap. Every outcome is now recorded, not just the ones that changed something.</div>
+    </div>
+
+    <h3 class="sub">Endpoint coverage map</h3>
+    <div class="scrollx">
+    <table class="cov">
+      <thead><tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td>Webhook Events</td><td><span class="endpoint"><span class="m">GET</span>/payment-gateway/webhook-events</span></td><td><span class="status live">Live</span></td><td>All filters exposed. Keyset pagination.</td></tr>
+        <tr><td>Request Trace</td><td><span class="endpoint"><span class="m">GET</span>/payment-gateway/webhook-events/trace/:correlationId</span></td><td><span class="status live">Live</span></td><td>Cross-module — joins the same id in <code>audit-logging.api</code> / <code>notification.api</code>.</td></tr>
+        <tr><td>Outcome Catalog</td><td><span class="endpoint"><span class="m">GET</span>/payment-gateway/webhook-events/catalog</span></td><td><span class="status live">Live</span></td><td>Counts by outcome — a spike in signature_invalid or ignored_backwards is worth investigating.</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <!-- 1 · WEBHOOK EVENTS -->
+    <section class="screen" id="events">
+      <div class="screen-head">
+        <h2 class="screen-name">Webhook Events</h2>
+        <span class="endpoint"><span class="m">GET</span>/payment-gateway/webhook-events</span>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">Every webhook attempt, newest first — every outcome, not just the ones that changed something.</p>
+      <p class="gating">Gate: <code>payment-gateway.view</code>. No tenant scoping.</p>
+
+      <div class="filterbar">
+        <span class="field"><span class="lbl">Gateway</span><span class="val">any</span></span>
+        <span class="field"><span class="lbl">Outcome</span><span class="val">any</span></span>
+        <button class="btn-secondary" type="button">Reset</button>
+        <button class="btn" type="button">Apply</button>
+      </div>
+
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>Occurred at</th><th>Gateway</th><th>Reference</th><th>Status</th><th>Outcome</th></tr></thead>
+        <tbody>
+          <tr><td class="t-time">2026-09-12 09:41:02</td><td><span class="badge action">stripe</span></td><td class="t-id">ch_3PqR…9a</td><td>succeeded</td><td><span class="badge good">applied</span></td></tr>
+          <tr><td class="t-time">2026-09-12 09:41:04</td><td><span class="badge action">stripe</span></td><td class="t-id">ch_3PqR…9a</td><td>succeeded</td><td><span class="badge">duplicate</span></td></tr>
+          <tr><td class="t-time">2026-09-12 09:12:18</td><td><span class="badge action">stripe</span></td><td class="t-id">ch_3PoZ…4c</td><td>pending</td><td><span class="badge warn">ignored_backwards</span></td></tr>
+          <tr><td class="t-time">2026-09-12 08:03:51</td><td><span class="badge action">stripe</span></td><td class="t-id">—</td><td>—</td><td><span class="badge bad">signature_invalid</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <div class="pagebar">
+        <span>Showing 4 of ~4,210 · page size 50</span>
+        <span class="pager"><span>Newer</span><span>Older</span></span>
+      </div>
+
+      <div class="note">
+        <div><b>Reading ignored_backwards.</b> This row means a <code>pending</code> event for
+        <code>ch_3PoZ…4c</code> arrived after a <code>succeeded</code> one had already been processed —
+        expected under at-least-once delivery with no order guarantee, and correctly ignored. Worth
+        watching only if the same reference shows it repeatedly.</div>
+      </div>
+    </section>
+
+    <!-- 2 · TRACE -->
+    <section class="screen" id="trace">
+      <div class="screen-head">
+        <h2 class="screen-name">Request Trace</h2>
+        <span class="endpoint"><span class="m">GET</span>/payment-gateway/webhook-events/trace/:correlationId</span>
+        <span class="status live">Live</span>
+      </div>
+      <p class="breadcrumb">correlation <b>5b9e1c04-…-a1</b></p>
+      <p class="screen-purpose">Every webhook event sharing one correlation id, alongside what the same id resolves to in the other admin consoles.</p>
+
+      <ul class="timeline">
+        <li class="tl-item"><div class="tl-time">09:41:02.201</div><div class="tl-title">payment-gateway-adapter · webhook <span class="badge good">applied</span></div></li>
+        <li class="tl-item"><div class="tl-time">09:41:02.480</div><div class="tl-title">domain-events · <span class="badge action">payment.confirmed</span></div><div class="tl-meta">see domain-events.api's own trace endpoint</div></li>
+        <li class="tl-item"><div class="tl-time">09:41:02.610</div><div class="tl-title">audit-logging · <span class="badge action">payment.status_changed</span></div><div class="tl-meta">see audit-logging.api's own trace endpoint</div></li>
+      </ul>
+    </section>
+
+    <!-- 3 · OUTCOME CATALOG -->
+    <section class="screen" id="catalog">
+      <div class="screen-head">
+        <h2 class="screen-name">Outcome Catalog</h2>
+        <span class="endpoint"><span class="m">GET</span>/payment-gateway/webhook-events/catalog</span>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">The landing dashboard — is this webhook path healthy.</p>
+      <p class="gating">Gate: <code>payment-gateway.view</code>.</p>
+
+      <div class="kpi-row">
+        <div class="kpi"><div class="k-label">Applied (24h)</div><div class="k-value">906</div></div>
+        <div class="kpi"><div class="k-label">Duplicate (24h)</div><div class="k-value">214</div></div>
+        <div class="kpi"><div class="k-label">Ignored backwards (24h)</div><div class="k-value">3</div></div>
+        <div class="kpi alert"><div class="k-label">Signature invalid (24h)</div><div class="k-value">1</div></div>
+      </div>
+
+      <div class="note warn">
+        <div><b>Reading this screen.</b> A non-zero "signature invalid" count deserves a look — it can
+        mean an attacker probing the endpoint, or (more often) the gateway rotated a signing secret the
+        app wasn't updated for. Either way it's silent no more.</div>
+      </div>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>

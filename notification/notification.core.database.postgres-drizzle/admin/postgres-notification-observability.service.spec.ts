@@ -1,0 +1,106 @@
+import { describe, expect, it, vi } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
+import { PostgresNotificationObservabilityService } from './postgres-notification-observability.service';
+import type { SqlExecutor } from '../persistence/sql-executor';
+
+const dialect = new PgDialect();
+
+function fakeDb(route: (text: string) => unknown[] = () => []) {
+  const execute = vi.fn(async (q: SQL) => ({ rows: route(dialect.sqlToQuery(q).sql) }));
+  return { execute } as unknown as SqlExecutor & { execute: ReturnType<typeof vi.fn> };
+}
+const svc = (db: SqlExecutor) => new PostgresNotificationObservabilityService(db, 'ascendra-pay');
+
+let seq = 0;
+function deliveryRow(over: Partial<Record<string, unknown>> = {}) {
+  seq += 1;
+  return {
+    id: seq,
+    notification_type: 'invoice.sent',
+    channel: 'email',
+    tenant_id: 't1',
+    recipient_ref: 'user:u1',
+    status: 'sent',
+    reason: null,
+    provider_message_id: null,
+    attempted_at: new Date('2026-06-01T08:00:00Z'),
+    updated_at: new Date('2026-06-01T08:00:00Z'),
+    correlation_id: null,
+    ...over,
+  };
+}
+
+describe('getDeliveryHistory', () => {
+  it('scopes to the application, maps rows, and paginates', async () => {
+    const many = Array.from({ length: 51 }, (_, i) => deliveryRow({ id: 100 + i }));
+    const db = fakeDb((text) => (/from commons_notification_delivery/i.test(text) ? many : []));
+    const page = await svc(db).getDeliveryHistory({ limit: 50 });
+
+    expect(page.deliveries).toHaveLength(50);
+    expect(page.nextCursor).toBeTruthy();
+    expect(page.deliveries[0]).toMatchObject({ notificationType: 'invoice.sent', channel: 'email', status: 'sent' });
+    expect(dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).params).toContain('ascendra-pay');
+  });
+
+  it('renders the optional filters as bound params', async () => {
+    const db = fakeDb();
+    await svc(db).getDeliveryHistory({
+      notificationType: 'invoice.sent', channel: 'sms', tenantId: 't9',
+      recipientRef: 'user:u5', status: 'bounced', since: new Date('2026-01-01T00:00:00Z'),
+    });
+    const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(text).toMatch(/notification_type =/i);
+    expect(text).toMatch(/recipient_ref =/i);
+    expect(text).toMatch(/attempted_at >=/i);
+    expect(params).toEqual(expect.arrayContaining(['invoice.sent', 'sms', 't9', 'user:u5', 'bounced']));
+  });
+});
+
+describe('getDeliveryContent', () => {
+  it('returns the stored content for one row, application-scoped', async () => {
+    const content = { subject: 'Hi', body: 'You owe 40', isHtml: false, variables: { amount: 40 } };
+    const db = fakeDb((text) =>
+      /select id, notification_type, channel, recipient_ref, attempted_at, content/i.test(text)
+        ? [{ id: 7, notification_type: 'invoice.sent', channel: 'email', recipient_ref: 'user:u1', attempted_at: new Date('2026-06-01T08:00:00Z'), content }]
+        : [],
+    );
+    const rec = await svc(db).getDeliveryContent('7');
+    expect(rec).toMatchObject({ id: '7', channel: 'email', content });
+    expect(dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).params).toEqual(expect.arrayContaining(['ascendra-pay', '7']));
+  });
+
+  it('returns null when the row has no stored content', async () => {
+    const db = fakeDb(() => [{ id: 7, notification_type: 'x', channel: 'email', recipient_ref: 'r', attempted_at: new Date(), content: null }]);
+    expect(await svc(db).getDeliveryContent('7')).toBeNull();
+  });
+});
+
+describe('configCoverageGaps', () => {
+  it('flags a routed channel with no template and a tenant route with no provider credential', async () => {
+    const db = fakeDb((text) => {
+      if (/from commons_notification_channel_route/i.test(text)) {
+        return [
+          { notification_type: 'invoice.sent', tenant_id: null, channels: ['email', 'sms'] },
+          { notification_type: 'payment.confirmed', tenant_id: 't1', channels: ['email'] },
+        ];
+      }
+      if (/from commons_notification_template/i.test(text)) {
+        // email templates exist for both; no sms template anywhere
+        return [
+          { channel: 'email', notification_type: 'invoice.sent', tenant_id: null },
+          { channel: 'email', notification_type: 'payment.confirmed', tenant_id: null },
+        ];
+      }
+      if (/from commons_notification_provider_credential/i.test(text)) return []; // no credentials at all
+      return [];
+    });
+
+    const gaps = await svc(db).configCoverageGaps();
+
+    expect(gaps).toContainEqual({ notificationType: 'invoice.sent', tenantId: null, channel: 'sms', kind: 'missing_template' });
+    expect(gaps).toContainEqual({ notificationType: 'payment.confirmed', tenantId: 't1', channel: 'email', kind: 'missing_provider_credential' });
+    // invoice.sent/email has a (null-tenant) template → not a gap; null-tenant route needs no credential
+    expect(gaps).not.toContainEqual(expect.objectContaining({ notificationType: 'invoice.sent', channel: 'email' }));
+  });
+});

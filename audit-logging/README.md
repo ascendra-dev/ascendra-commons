@@ -1,209 +1,92 @@
 # Audit Logging Pattern
 
-## Overview
+An immutable record of "who did what, to what, when" — distinct from ops logs
+(debugging) and notifications (informing users). An **activity feed** is a *view
+derived from* the audit log, never a second system.
 
-An immutable record of "who did what, to what, when" — distinct from
-application/ops logs (debugging) and from notifications (informing users).
-Two related but distinct concepts stay explicitly separate: the **audit log**
-(compliance-grade, immutable, append-only) and an **activity feed** (a
-human-readable UI timeline), which is a *view derived from* the audit log,
-never a second system.
+Unlike `authorization` / `notification`, there is **no Model 1 / Model 2 config
+split** — one model: feature code raises `AuditRecordRaised`, the shipped
+`AuditListener` persists it through an `AuditEventRepository` port. So the split
+here is only along the delivery seams.
 
-This pattern depends on `domain-events/` also being vendored — `emitCritical()`
-and `@OnCriticalEvent()` are what make "a dropped audit record is unacceptable"
-a real, enforced guarantee rather than a documentation claim. Copy both
-folders together.
+## The packages
 
-## The pieces
+| Package | Role | Depends on |
+|---|---|---|
+| **`audit-logging.core`** | `AuditRecordRaised` + `AUDIT_EVENT_NAME`, the shipped `AuditListener`, `persistAuditRecord`, the `AuditEventRepository` (write) and `AuditEventReader` (read) ports + DTOs, the correlation-id mechanism + middleware, the keyset-cursor helper, `AuditLoggingModule.forRoot()`. | `domain-events.core` |
+| **`audit-logging.core.postgres-drizzle`** | Reference `PostgresAuditEventRepository` + `PostgresAuditEventReader`, the `pgTable` + migration, and their modules (`PostgresAuditPersistenceModule`, `PostgresAuditObservabilityModule`). A project on another stack implements the two core ports instead. | `audit-logging.core` |
+| **`audit-logging.api`** | Opt-in HTTP read endpoints for a compliance / ops screen (`GET /audit/events`, `/audit/entities/:type/:id/history`, `/audit/trace/:correlationId`), over the `AUDIT_EVENT_READER` port. Read-only. | `audit-logging.core`, `authorization.core` |
 
-### `AuditableDomainEvent` — how an arbitrary event describes itself as an audit record
+No "family" package — both ports and every DTO are genuinely stack-agnostic
+contracts (a non-DB reader over an external SIEM is in scope), so they live in
+`.core`; the adapter sits directly under it.
 
-```typescript
-export interface AuditableDomainEvent extends DomainEvent {
-  toAuditRecord(): {
-    entityType: string;
-    entityId: string;
-    tenantId: string | null;
-    actor: string;
-    action: string;
-    before: Record<string, unknown> | null;
-    after: Record<string, unknown> | null;
-    reason?: string | null;
-  };
-}
-```
+## The pieces (in `audit-logging.core`)
 
-Extends `DomainEvent` (not a separate `occurredAt` field here) specifically
-so the audit record's timestamp is the moment the business fact happened, not
-the moment the audit write happened to run — `DomainEvent.occurredAt`'s own
-doc comment already names this as the reason that field exists on every
-domain event, not just auditable ones.
-
-Feature code never constructs an `AuditEvent` directly — it raises a domain
-event whose payload already carries the facts of what changed, and the event
-maps itself to an audit record here, so nothing downstream grows a
-per-entity-type switch statement as new auditable events are added.
-
-`tenantId: string | null` — not every audited event has a single tenant (a
-platform-level change, e.g. an admin redefining a role's permissions in a
-platform-owned catalog, has none) — mirrors an `Actor`'s own `tenantId`
-nullability in the authorization pattern, for the same reason.
-
-### `persistAuditRecord()` — the one piece of real logic this pattern ships
-
-```typescript
-export async function persistAuditRecord(auditRepo: AuditEventRepository, event: AuditableDomainEvent): Promise<void> {
-  const record = event.toAuditRecord();
-  await auditRepo.insert({
-    ...record,
-    reason: record.reason ?? null,
-    correlationId: getCurrentCorrelationId(),
-    occurredAt: event.occurredAt,
-  });
-}
-```
-
-Deliberately a plain function, not a shipped listener class. Which specific
-event names get audited is project-specific (invoice/payment domain in one
-project, something else entirely elsewhere) — this library cannot ship a
-pre-wired `@OnCriticalEvent()`-decorated class without baking someone else's
-event names into it. See "Consuming this module" below for the small class
-the consumer writes themselves.
-
-### Correlation id — `AsyncLocalStorage`, not a request-scoped provider
-
-```typescript
-export function runWithCorrelationId<T>(correlationId: string, fn: () => T): T;
-export function getCurrentCorrelationId(): string; // never undefined — generates a fresh id if no context was ever established
-```
-
-A request-scoped NestJS provider only exists inside an actual HTTP request's
-DI context — a background job (`background-jobs` pattern) has no request at
-all, the same fact that already ruled out a request-scoped `TenantContext`
-there. `AsyncLocalStorage` follows the async call chain itself regardless of
-where that chain started, so the same mechanism works for both triggers.
-
-`CorrelationIdMiddleware` wires this once per HTTP request, reusing an
-inbound `x-correlation-id` header if present (letting a correlation id span
-multiple services) or generating a fresh one. For a background job, the job's
-own wiring class should call `runWithCorrelationId()` once per **run** — not
-leave it to `getCurrentCorrelationId()`'s per-call fallback, which would give
-every item in a batch its own unrelated id instead of one id tying the whole
-run's audit records together:
-
-```typescript
-@Cron('0 8 * * *')
-async scheduledRun() {
-  await runWithCorrelationId(randomUUID(), () => this.runner.run(this.job));
-}
-```
-
-### `AuditEventRepository` — the persistence port
-
-```typescript
-export interface AuditEventRepository {
-  insert(record: AuditEventInput): Promise<void>; // AuditEventInput = Omit<AuditEvent, 'id'> — the repository assigns id
-}
-```
-
-No `update`/`delete` — audit records are write-once by construction of the
-interface, not just by convention.
+- **`AuditRecordRaised`** — raised **explicitly** by feature code, alongside (or
+  instead of) whatever business-named event other listeners care about, always
+  under the one fixed `AUDIT_EVENT_NAME`. Whether something is audited is one
+  fact, visible at the call site.
+- **`AuditListener`** — shipped, not consumer-authored (possible only because
+  `AUDIT_EVENT_NAME` is fixed). `@OnCriticalEvent`, never plain `@OnEvent` — a
+  dropped audit write must propagate, not be swallowed. A thin dispatcher by
+  construction.
+- **`persistAuditRecord()`** — the one piece of real logic. No mapping step
+  (`AuditEventInput` is a `Pick<>` of `AuditRecordRaised`); adds `correlationId`
+  from ambient context.
+- **`AuditEventRepository`** (`insert()` only) — write-once by construction.
+  **`AuditEventReader`** (`find(AuditQuery)`) — a **separate** port, so a custom
+  write repo isn't forced to implement reads.
+- **Correlation id** — `AsyncLocalStorage`, works for an HTTP request
+  (`CorrelationIdMiddleware`) and a background job run alike.
 
 ## Consuming this module
 
-Copy `audit-logging/` **and** `domain-events/` into the consumer's
-`src/ascendra-commons/` (see `module-packaging-pattern.md`), wire the module:
+Copy `audit-logging/audit-logging.core/` **and** `domain-events/domain-events.core`
++ `domain-events/domain-events.core.in-process` (`audit-logging.core` depends on
+`domain-events.core`; the vertical also needs a transport). Then one stack
+adapter, and optionally `audit-logging.api`.
 
 ```typescript
-@Module({
-  imports: [
-    AuditLoggingModule.forRoot({
-      auditEventRepositoryToken: AUDIT_EVENT_REPOSITORY_IMPL, // whatever token the app's own repository is provided under
-      imports: [AuditModule],                                  // whatever module exports that token
-    }),
-  ],
-})
-export class AppModule {}
+DomainEventsModule.forRoot({     // required — the listener is reached via emitCritical()
+  emitterToken: IN_PROCESS_DOMAIN_EVENT_EMITTER,
+  imports: [InProcessDomainEventEmitterModule.forRoot()],
+}),
+AuditLoggingModule.forRoot({
+  auditEventRepositoryToken: POSTGRES_AUDIT_EVENT_REPOSITORY,
+  imports: [PostgresAuditPersistenceModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', imports: [DatabaseModule] })],
+}),
 ```
 
-Then write the one small class this pattern doesn't ship for you — real event
-names are the only project-specific part:
+Auditing an entity is done entirely from the producer side — raise an
+`AuditRecordRaised` under `AUDIT_EVENT_NAME` wherever a state change should be
+audited, inside the same transaction as the change:
 
 ```typescript
-@Injectable()
-export class AuditListener {
-  constructor(@Inject(AUDIT_EVENT_REPOSITORY) private readonly auditRepo: AuditEventRepository) {}
-
-  @OnCriticalEvent('invoice.status_changed')
-  @OnCriticalEvent('payment.confirmed')
-  @OnCriticalEvent('workflow.step_approved')
-  @OnCriticalEvent('invoice.reminder_due')
-  async handle(event: AuditableDomainEvent) {
-    await persistAuditRecord(this.auditRepo, event);
-  }
-}
+await this.events.emitCritical(AUDIT_EVENT_NAME,
+  new AuditRecordRaised('invoice', invoiceId, tenantId, actorId, 'status_changed',
+    { status: previousStatus }, { status: 'paid' }, new Date()));
 ```
 
-`@OnCriticalEvent()`, never plain `@OnEvent()` — the default `suppressErrors: true`
-would silently swallow a failed `insert()` instead of propagating it, which
-is the one guarantee this whole pattern exists to provide.
+`emitCritical()`, not `emit()` — a thrown audit failure propagates back to the
+publisher, which by not catching it lets the transaction roll the state change
+back too.
 
-### Worked example: mapping a real event
+## `applicationId` / `tenantId`
 
-```typescript
-export class InvoiceStatusChanged implements AuditableDomainEvent {
-  constructor(
-    public readonly invoiceId: string,
-    public readonly tenantId: string,
-    public readonly previousStatus: string,
-    public readonly newStatus: string,
-    public readonly changedBy: string,
-    public readonly occurredAt: Date,
-  ) {}
+`audit-logging` is **the module to watch** for `applicationId` — cross-product
+compliance reporting ("every admin action across every Ascendra product, this
+quarter") is a plausible near-term ask. The Postgres adapter already carries a
+passive `application` column (stamped on insert, filtered on by the reader) so a
+consolidation needs no backfill. `action` is **verb-only**, not `resource.verb`
+— `entityType` already carries the resource (deliberate; not a dimension-9
+deviation).
 
-  toAuditRecord() {
-    return {
-      entityType: 'invoice',
-      entityId: this.invoiceId,
-      tenantId: this.tenantId,
-      actor: this.changedBy,
-      action: 'status_changed',
-      before: { status: this.previousStatus },
-      after: { status: this.newStatus },
-    };
-  }
-}
+## What's not built
 
-// Publisher side — inside the same db.transaction() as the state change:
-await this.events.emitCritical('invoice.status_changed',
-  new InvoiceStatusChanged(invoiceId, tenantId, previousStatus, 'paid', actorId, new Date()));
-```
-
-`emitCritical()`, not `emit()` — genuinely awaited, so a thrown audit failure
-propagates out of the transaction callback before it commits, rolling back
-the state change too. The audit `INSERT` itself still runs on
-`AuditEventRepository`'s own connection, not the caller's transaction handle
-— `EventEmitter2` has no way to carry one through without leaking a
-Drizzle-specific handle into every other subscriber of the same event
-(a notification listener has no business receiving one). Accepted as an MVP
-tradeoff: the realistic failure mode is narrow and non-catastrophic — an
-audit trail is compliance record-keeping, not the payment ledger itself. If
-this ever causes a real incident, the fix is an `AsyncLocalStorage`-based
-ambient-transaction mechanism, the same idea this pattern already uses for
-correlation ids — not built speculatively here.
-
-## Model 1 — Event-Driven Capture, Indefinite Retention (current)
-
-What's shipped: `AuditEvent`, `AuditableDomainEvent`, `AuditEventRepository`,
-`persistAuditRecord()`, the correlation-id mechanism, and
-`AuditLoggingModule.forRoot()`. No listener class (project-specific, see
-above), no retention/purge policy (audit records are kept indefinitely,
-an explicit decision given the financial nature of the data, not a silent
-default), no admin UI for browsing records.
-
-## Model 2 — Broader Coverage (future target)
-
-Same `AuditEvent` shape and `persistAuditRecord()` mechanism — only the set
-of entities/actions the consumer's own listener subscribes to grows, as
-genuine compliance or operational need appears. No new mechanism required;
-this is why the data model was kept generic from the start.
+- No retention/purge — audit records are kept indefinitely (explicit decision).
+- No admin **UI** — `audit-logging.api` ships the read endpoints; the frontend
+  is `ascendra-commons-ui`.
+- Broker-transport correlation-id carry-through — see the deferred note that
+  was in the old README's "Model 2" section; revisit when `domain-events` gets
+  a broker transport.
