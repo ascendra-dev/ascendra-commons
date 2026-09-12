@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Authorization — Admin Console Mocks</title>
+<style>
+  /* Tokens transcribed from ../ascendra-ui/app/globals.css (:root and .dark). Component
+     shadow/radius/gradient values transcribed from the real component source under
+     ../ascendra-ui/ascendra-ui/components/. Light is the base; dark mirrors globals.css's
+     .dark and is applied by the OS setting only (no toggle — zero JS). */
+  :root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.2928 0.0163 285.35);
+    --muted: oklch(0.9854 0.0013 286.38);
+    --muted-foreground: oklch(0.4913 0.0254 285.43);
+    --secondary-foreground: oklch(0.147 0.004 49.25);
+    --border: oklch(0.9437 0.0027 286.35);
+    --card: oklch(1 0 0);
+    --primary: oklch(0.5573 0.2543 283.67);
+    --radius: 0.625rem;
+    --positive: #15892b; --negative: #e02e2e; --warning: #fd7224; --info: #236dd7; --dimmed: #adadb7;
+    --gray-50: #fafafb; --gray-700: #767684;
+    --shadow-xs: 0px 0px 2px 0px #00000014, 0px 1px 2px 0px #0000000f, 0px 0px 0px 1px #0000000a;
+    --text-caption: 0.6875rem; --text-label: 0.75rem; --text-body-sm: 0.875rem; --text-body: 1rem;
+    --text-heading-sm: 1.125rem; --text-heading: 1.25rem; --text-heading-lg: 1.5rem;
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: oklch(0.2238 0.0077 285.76);
+      --foreground: oklch(0.9734 0.0013 286.37);
+      --muted: oklch(0.1785 0.0041 285.98);
+      --muted-foreground: oklch(0.7507 0.0142 286.05);
+      --secondary-foreground: oklch(0.985 0.001 106.423);
+      --border: oklch(0.2582 0.0093 285.73);
+      --card: oklch(0.216 0.006 285.76);
+      --primary: oklch(0.5573 0.2543 283.67);
+      --positive: #31c854; --negative: #f73d3d; --warning: #fd7224; --info: #307ff6; --dimmed: #5f5f6f;
+      --gray-50: #232328; --gray-700: #adadb7;
+      --shadow-xs: 0px 1.5px 2px 0px #00000052, 0px -1px 0px 0px #ffffff0a, 0px 0px 0px 1px #ffffff1f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans);
+         font-size: var(--text-body-sm); line-height: 1.5; }
+  code, pre, .mono { font-family: var(--font-mono); }
+
+  .shell { display: flex; min-height: 100vh; }
+  .sidebar { width: 248px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.25rem 0.75rem; }
+  .brand { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem; font-weight: 600; }
+  .brand span { width: 18px; height: 18px; border-radius: 5px; background: var(--primary); display: inline-block; }
+  .nav-group { margin-bottom: 1rem; }
+  .nav-group-title { color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase;
+                     letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem; }
+  .nav-item { display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem; border-radius: 0.375rem;
+              color: var(--muted-foreground); font-size: var(--text-body-sm); text-decoration: none; position: relative; }
+  .nav-item.active { background: color-mix(in oklab, var(--foreground) 8%, transparent); color: var(--foreground); }
+  .nav-item.active::before { content: ""; position: absolute; left: 2px; top: 6px; bottom: 6px; width: 1px; background: var(--foreground); }
+  .nav-item .pill { margin-left: auto; font-size: 9px; line-height: 11px; padding: 1px 4px; border-radius: 4px;
+                    background: color-mix(in oklab, var(--warning) 12%, transparent); color: var(--warning);
+                    text-transform: uppercase; letter-spacing: 0.02em; }
+
+  .main { flex: 1; min-width: 0; padding: 1.75rem 2rem 4rem; max-width: 1180px; }
+  .page-title { font-size: var(--text-heading-lg); font-weight: 600; margin: 0; }
+  .page-sub { color: var(--muted-foreground); margin: 0.25rem 0 0; max-width: 74ch; }
+
+  .note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem;
+          background: color-mix(in oklab, var(--info) 6%, transparent);
+          border: 1px solid color-mix(in oklab, var(--info) 22%, transparent); margin: 1.25rem 0; }
+  .note b { color: var(--info); }
+
+  .cov { width: 100%; border-collapse: collapse; margin: 0.75rem 0 0.5rem; }
+  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
+            padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  .cov td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .cov td:first-child { font-weight: 500; white-space: nowrap; }
+
+  .screen { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin: 1.5rem 0; }
+  .screen-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-bottom: 0.25rem; }
+  .screen-name { font-size: var(--text-heading); font-weight: 600; margin: 0; }
+  .screen-purpose { color: var(--muted-foreground); margin: 0.25rem 0 1rem; }
+  .endpoint { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--text-caption);
+              padding: 0.15rem 0.45rem; border-radius: 4px; background: var(--muted); border: 1px solid var(--border); }
+  .endpoint .m { font-weight: 700; color: var(--info); }
+  .status { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em;
+            padding: 0.1rem 0.35rem; border-radius: 4px; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .status.live { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 22%, transparent); }
+  .status.partial { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 24%, transparent); }
+  .status.proposed { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent); }
+  .gating { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0 0 1rem; padding-left: 0.75rem; border-left: 2px solid var(--border); }
+  .gating code { color: var(--foreground); }
+  .proposed-note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; margin: 0 0 1rem;
+                   background: color-mix(in oklab, var(--primary) 5%, transparent);
+                   border: 1px dashed color-mix(in oklab, var(--primary) 35%, transparent); }
+  .proposed-note b { color: var(--primary); }
+  .proposed-note .sig { font-family: var(--font-mono); font-size: var(--text-caption); }
+
+  .filterbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+  .field { height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--background);
+           font-size: var(--text-body-sm); display: inline-flex; align-items: center; gap: 0.35rem; }
+  .field .lbl { color: var(--muted-foreground); }
+  .btn { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
+         font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary); position: relative; overflow: hidden;
+         box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16), 0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255); }
+  .btn::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(255,255,255,0.2), transparent); }
+  .btn-secondary { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
+                   font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card);
+                   box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06), 0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1); }
+
+  .table { width: 100%; border-collapse: separate; border-spacing: 0; }
+  .table th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
+              padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .table td { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .table tbody tr:hover { background: color-mix(in oklab, var(--gray-700) 4%, transparent); }
+  .table .t-time { color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .table .t-id { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted-foreground); }
+
+  .badge { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em;
+           padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .badge.ok    { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 20%, transparent); }
+  .badge.fail  { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 20%, transparent); }
+  .badge.warn  { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 20%, transparent); }
+  .badge.info  { color: var(--info); background-color: color-mix(in oklab, var(--info) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 16%, transparent); }
+  .badge.neutral { color: var(--muted-foreground); background-color: color-mix(in oklab, var(--gray-700) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gray-700) 16%, transparent); }
+  .badge.brand { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent); }
+
+  .pagebar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.25rem 0; color: var(--muted-foreground); }
+  .pagebar .pager { display: flex; gap: 0.25rem; }
+  .pagebar .pager span { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem;
+                         padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption); }
+
+  .empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1rem; padding: 2.5rem;
+           border: 1px dashed var(--border); border-radius: 0.75rem; color: var(--muted-foreground); }
+  .empty .ic { width: 3rem; height: 3rem; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;
+               background: color-mix(in oklab, var(--gray-700) 4%, transparent); box-shadow: inset 0 0 0 1px var(--border); font-size: 1.1rem; }
+
+  .sheet { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); padding: 1.5rem;
+           margin: 1rem 0 0 2rem; max-width: 520px; box-shadow: var(--shadow-xs); }
+  .sheet::before { content: attr(data-label); display: block; font-size: var(--text-caption); color: var(--muted-foreground);
+                   text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.75rem; }
+  .form-row { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.875rem; }
+  .form-row label { font-size: var(--text-label); color: var(--muted-foreground); }
+  .form-row .control { height: 2rem; border: 1px solid var(--border); border-radius: 0.375rem; padding: 0 0.6rem; display: flex; align-items: center; }
+
+  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 0.4rem 1rem; margin: 0; }
+  .kv dt { color: var(--muted-foreground); }
+  .kv dd { margin: 0; word-break: break-word; }
+
+  .verdict { display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem 1rem; border-radius: 0.5rem; margin: 0 0 1rem;
+             font-size: var(--text-body); font-weight: 600; }
+  .verdict.allow { color: var(--positive); background: color-mix(in oklab, var(--positive) 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 24%, transparent); }
+  .verdict.deny  { color: var(--negative); background: color-mix(in oklab, var(--negative) 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 24%, transparent); }
+  .verdict small { font-weight: 400; color: var(--muted-foreground); }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+  .kpi { background: var(--muted); border-radius: 0.75rem; padding: 0.875rem 1rem; }
+  .kpi .k-label { color: var(--muted-foreground); font-size: var(--text-label); }
+  .kpi .k-value { font-size: var(--text-heading); font-weight: 600; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
+
+  .breadcrumb { color: var(--muted-foreground); margin-bottom: 0.75rem; }
+  .breadcrumb b { color: var(--foreground); font-weight: 500; }
+  .scrollx { overflow-x: auto; }
+  h3.sub { font-size: var(--text-heading-sm); font-weight: 600; margin: 1.5rem 0 0.5rem; }
+  .taglist { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand"><span></span>Access Console</div>
+    <div class="nav-group">
+      <div class="nav-group-title">People &amp; Roles</div>
+      <a class="nav-item active" href="#explain">Access Explainer</a>
+      <a class="nav-item" href="#assignments">Assignments</a>
+      <a class="nav-item" href="#roles">Roles Catalog</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">Delegation</div>
+      <a class="nav-item" href="#delegations">Delegation Ledger</a>
+      <a class="nav-item" href="#expiring">Expiring Soon <span class="pill">new API</span></a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">Catalog &amp; Insight</div>
+      <a class="nav-item" href="#catalog">Action Catalog Health</a>
+      <a class="nav-item" href="#who-can">Who Can Do X <span class="pill">new API</span></a>
+      <a class="nav-item" href="#overview">Overview <span class="pill">new API</span></a>
+    </div>
+  </nav>
+
+  <main class="main">
+    <h1 class="page-title">Authorization — Admin Console</h1>
+    <p class="page-sub">Screen mocks for the <code>authorization</code> module's admin surface, each mapped to its
+    endpoint. Reads gated <code>@RequiresAction('authz.view')</code>; role assignment
+    <code>'authz.assign_roles'</code>; delegation <code>'authz.manage_delegations'</code>; catalog editing
+    <code>'authz.manage_catalog'</code>. A non-platform actor may only assign roles in their own tenant and
+    cannot assign a <code>grantsAll</code> role. Screens marked <b>Proposed</b> are legitimate but unserved.</p>
+
+    <div class="note"><div><b>By design.</b> Editing which actions a <em>role</em> grants is deliberately not an
+    endpoint — that's migration / seed territory, <code>REVOKE</code>d from the app's DB role. This console
+    assigns existing roles, manages delegations, and describes actions; it never rewrites the permission
+    matrix.</div></div>
+
+    <h3 class="sub">Endpoint coverage map</h3>
+    <div class="scrollx">
+    <table class="cov">
+      <thead><tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td>Access Explainer</td><td><span class="endpoint"><span class="m">GET</span>/authz/explain</span></td><td><span class="status live">Live</span></td><td>User + tenant (+ optional action) → roles, delegations, effective set, allow/deny + reason.</td></tr>
+        <tr><td>Assignments</td><td><span class="endpoint"><span class="m">GET</span>/authz/assignments</span> · <span class="endpoint"><span class="m">POST/DELETE</span>/authz/assignments</span></td><td><span class="status live">Live</span></td><td>List + assign/revoke, one at a time. Tenant/role-ceiling scoped.</td></tr>
+        <tr><td>Roles Catalog</td><td><span class="endpoint"><span class="m">GET</span>/authz/roles</span></td><td><span class="status live">Live</span></td><td>Every role + its granted actions. Read-only — permission editing is out of scope by design.</td></tr>
+        <tr><td>Role Detail</td><td><span class="endpoint"><span class="m">GET</span>/authz/roles/:id</span></td><td><span class="status partial">Partial</span></td><td>Role is in the list payload; no single fetch and no "how many users hold this" count.</td></tr>
+        <tr><td>Delegation Ledger</td><td><span class="endpoint"><span class="m">GET</span>/authz/delegations</span> · <span class="endpoint"><span class="m">POST/DELETE</span>/authz/delegations</span> · <span class="endpoint"><span class="m">GET</span>/authz/delegations/mine</span></td><td><span class="status live">Live</span></td><td>Ledger + create/revoke; granter is always the request actor.</td></tr>
+        <tr><td>Expiring Soon</td><td><span class="endpoint"><span class="m">GET</span>/authz/delegations/expiring</span></td><td><span class="status proposed">Proposed</span></td><td>Achievable only by paging the ledger and filtering client-side. Nothing surfaces "12 lapse this week".</td></tr>
+        <tr><td>Action Catalog Health</td><td><span class="endpoint"><span class="m">GET</span>/authz/action-catalog/health</span> · <span class="endpoint"><span class="m">PATCH</span>/authz/actions/:name</span></td><td><span class="status live">Live</span></td><td>Code↔DB drift + granted-but-undescribed; edit a description inline.</td></tr>
+        <tr><td>Who Can Do X</td><td><span class="endpoint"><span class="m">GET</span>/authz/who-can</span></td><td><span class="status proposed">Proposed</span></td><td>Reverse of explain — every user/role that grants an action. Critical for incident response ("who could have approved that payout").</td></tr>
+        <tr><td>Overview</td><td><span class="endpoint"><span class="m">GET</span>/authz/stats</span></td><td><span class="status proposed">Proposed</span></td><td>Roles in use, users with no role, platform-admin count, delegations lapsing, most-delegated actions.</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <!-- 1 · ACCESS EXPLAINER -->
+    <section class="screen" id="explain">
+      <div class="screen-head"><h2 class="screen-name">Access Explainer</h2><span class="endpoint"><span class="m">GET</span>/authz/explain</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">"Can this user do this, and why?" — the single highest-value screen. Resolves roles + active delegations into an effective action set and, when an action is named, a verdict with a reason.</p>
+      <p class="gating">Gate: <code>authz.view</code>.</p>
+      <div class="filterbar">
+        <span class="field"><span class="lbl">User</span>u_44b2</span>
+        <span class="field"><span class="lbl">Tenant</span>t_kairos</span>
+        <span class="field"><span class="lbl">Action</span>payout.approve</span>
+        <button class="btn" type="button">Explain</button>
+      </div>
+
+      <div class="verdict deny">✕ &nbsp;Denied &nbsp;<small>— <code>payout.approve</code> is not in the effective action set for u_44b2 in t_kairos</small></div>
+
+      <h3 class="sub">Roles held</h3>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>Role</th><th>Scope</th><th>Grants</th></tr></thead>
+        <tbody>
+          <tr><td>reviewer</td><td>t_kairos</td><td class="taglist"><span class="badge neutral">kyc.review</span> <span class="badge neutral">kyc.request_changes</span> <span class="badge neutral">attachment.view</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3 class="sub">Active delegations</h3>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>From</th><th>Actions</th><th>Expires</th></tr></thead>
+        <tbody>
+          <tr><td>u_9f3a</td><td class="taglist"><span class="badge brand">invoice.void</span></td><td class="t-time">2026-09-12</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3 class="sub">Effective actions</h3>
+      <div class="taglist">
+        <span class="badge neutral">kyc.review</span><span class="badge neutral">kyc.request_changes</span>
+        <span class="badge neutral">attachment.view</span><span class="badge brand">invoice.void</span>
+      </div>
+    </section>
+
+    <!-- 2 · ASSIGNMENTS -->
+    <section class="screen" id="assignments">
+      <div class="screen-head"><h2 class="screen-name">Assignments</h2>
+        <span class="endpoint"><span class="m">GET</span>/authz/assignments</span>
+        <span class="endpoint"><span class="m">POST / DELETE</span>/authz/assignments</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">Who holds which role, in which tenant. Assign or revoke here.</p>
+      <p class="gating">List: <code>authz.view</code>. Write: <code>authz.assign_roles</code> — a non-platform actor may only assign roles in their own tenant, and may not assign a <code>grantsAll</code> role or a <code>null</code>-tenant (platform) assignment.</p>
+      <div class="filterbar">
+        <span class="field"><span class="lbl">User</span>—</span>
+        <span class="field"><span class="lbl">Role</span>reviewer</span>
+        <span class="field"><span class="lbl">Tenant</span>t_kairos</span>
+        <button class="btn-secondary" type="button">Apply</button>
+      </div>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>User</th><th>Role</th><th>Tenant</th><th>Granted</th><th>By</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>u_44b2</td><td>reviewer</td><td>t_kairos</td><td class="t-time">2026-09-06 18:03</td><td>u_1c07</td><td class="t-time">revoke</td></tr>
+          <tr><td>u_9f3a</td><td>issuer_owner</td><td>t_kairos</td><td class="t-time">2026-06-01 09:12</td><td>system</td><td class="t-time">revoke</td></tr>
+          <tr><td>u_1c07</td><td>ascendra_admin</td><td class="t-time">null <span class="badge info">all tenants</span></td><td class="t-time">2026-04-14 10:00</td><td>system</td><td class="t-time">revoke</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="sheet" data-label="Sheet — Assign role (shown open)">
+        <div class="form-row"><label>User id</label><div class="control">u_7788</div></div>
+        <div class="form-row"><label>Role</label><div class="control">reviewer</div></div>
+        <div class="form-row"><label>Tenant</label><div class="control">t_kairos</div></div>
+        <button class="btn" type="button">Assign</button>
+      </div>
+      <div class="proposed-note"><div><b>Enhancement — Bulk assign.</b> <span class="sig">POST /authz/assignments/bulk</span> for onboarding a cohort (40 reviewers at once) instead of 40 round-trips.</div></div>
+    </section>
+
+    <!-- 3 · ROLES CATALOG -->
+    <section class="screen" id="roles">
+      <div class="screen-head"><h2 class="screen-name">Roles Catalog</h2><span class="endpoint"><span class="m">GET</span>/authz/roles</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">Every role and the actions it grants. Reference for the assignment and explainer screens.</p>
+      <p class="gating">Gate: <code>authz.view</code>. <b>Read-only</b> — a role's permission set is defined in migrations/seed, not editable here.</p>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>Role</th><th>Description</th><th>Grants</th></tr></thead>
+        <tbody>
+          <tr><td>ascendra_admin</td><td>Platform operator</td><td><span class="badge brand">grantsAll</span></td></tr>
+          <tr><td>issuer_owner</td><td>Owns an issuer org</td><td class="taglist"><span class="badge neutral">invoice.create</span> <span class="badge neutral">invoice.void</span> <span class="badge neutral">attachment.upload</span> <span class="badge neutral">+6</span></td></tr>
+          <tr><td>reviewer</td><td>Compliance reviewer</td><td class="taglist"><span class="badge neutral">kyc.review</span> <span class="badge neutral">kyc.request_changes</span> <span class="badge neutral">attachment.view</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- 4 · DELEGATION LEDGER -->
+    <section class="screen" id="delegations">
+      <div class="screen-head"><h2 class="screen-name">Delegation Ledger</h2>
+        <span class="endpoint"><span class="m">GET</span>/authz/delegations</span>
+        <span class="endpoint"><span class="m">POST / DELETE</span>/authz/delegations</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">A user granting a subset of their own actions to another, within one tenant, until an expiry. Snapshot model — the granted actions are fixed at grant time.</p>
+      <p class="gating">Gate: <code>authz.manage_delegations</code>. The granter is always the request actor — you can't create a delegation on someone else's behalf. <code>GET /delegations/mine</code> is the self-service view.</p>
+      <div class="filterbar">
+        <span class="field"><span class="lbl">Grantee</span>—</span>
+        <span class="field"><span class="lbl">Status</span>active</span>
+        <span class="field"><span class="lbl">Tenant</span>t_kairos</span>
+        <button class="btn-secondary" type="button">Apply</button>
+      </div>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>Granter → Grantee</th><th>Actions</th><th>Expires</th><th>Status</th><th>Reason</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>u_9f3a → u_44b2</td><td class="taglist"><span class="badge brand">invoice.void</span></td><td class="t-time">2026-09-12</td><td><span class="badge ok">active</span></td><td>Cover during leave</td><td class="t-time">revoke</td></tr>
+          <tr><td>u_9f3a → u_5521</td><td class="taglist"><span class="badge brand">invoice.void</span> <span class="badge brand">invoice.create</span></td><td class="t-time">2026-09-08</td><td><span class="badge warn">expiring</span></td><td>—</td><td class="t-time">revoke</td></tr>
+          <tr><td>u_1c07 → u_9f3a</td><td class="taglist"><span class="badge brand">payout.approve</span></td><td class="t-time">2026-08-30</td><td><span class="badge neutral">expired</span></td><td>Quarter-end</td><td>—</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="sheet" data-label="Sheet — Create delegation (shown open)">
+        <div class="form-row"><label>Grantee user id</label><div class="control">u_44b2</div></div>
+        <div class="form-row"><label>Actions (must be a subset of your own)</label><div class="control">invoice.void</div></div>
+        <div class="form-row"><label>Expires at (required, ≤ maxDelegationDays)</label><div class="control">2026-09-20</div></div>
+        <div class="form-row"><label>Reason</label><div class="control">Cover during leave</div></div>
+        <button class="btn" type="button">Create delegation</button>
+      </div>
+    </section>
+
+    <!-- 5 · EXPIRING SOON (proposed) -->
+    <section class="screen" id="expiring">
+      <div class="screen-head"><h2 class="screen-name">Expiring Soon</h2><span class="endpoint"><span class="m">GET</span>/authz/delegations/expiring</span><span class="status proposed">Proposed</span></div>
+      <p class="screen-purpose">Delegations lapsing in the next N days — so access doesn't silently vanish mid-task, and a manager can extend or let them go deliberately.</p>
+      <div class="proposed-note"><div><b>Missing API.</b> The ledger has a <code>status</code> filter but no "expiring within" window — surfacing this means paging every active delegation and comparing dates client-side. Proposed: <span class="sig">GET /authz/delegations/expiring?within=7d</span>.</div></div>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>Granter → Grantee</th><th>Actions</th><th>Expires</th><th>In</th></tr></thead>
+        <tbody>
+          <tr><td>u_9f3a → u_5521</td><td class="taglist"><span class="badge brand">invoice.void</span> <span class="badge brand">invoice.create</span></td><td class="t-time">2026-09-08</td><td><span class="badge warn">1 day</span></td></tr>
+          <tr><td>u_2210 → u_7788</td><td class="taglist"><span class="badge brand">kyc.review</span></td><td class="t-time">2026-09-13</td><td><span class="badge warn">6 days</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- 6 · ACTION CATALOG HEALTH -->
+    <section class="screen" id="catalog">
+      <div class="screen-head"><h2 class="screen-name">Action Catalog Health</h2>
+        <span class="endpoint"><span class="m">GET</span>/authz/action-catalog/health</span>
+        <span class="endpoint"><span class="m">PATCH</span>/authz/actions/:name</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">Drift between the app's <code>Actions</code> constant and the <code>commons_authz_action</code> table, plus actions that are granted by a role but still have no human description.</p>
+      <p class="gating">Health read: <code>authz.view</code>. Description edit: <code>authz.manage_catalog</code>.</p>
+      <div class="kpi-row">
+        <div class="kpi"><div class="k-label">Described</div><div class="k-value">142 / 168</div></div>
+        <div class="kpi"><div class="k-label">In code, not in DB</div><div class="k-value">3</div></div>
+        <div class="kpi"><div class="k-label">In DB, not in code</div><div class="k-value">1</div></div>
+        <div class="kpi"><div class="k-label">Granted but undescribed</div><div class="k-value">7</div></div>
+      </div>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>Action</th><th>Issue</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">payout.reverse</td><td><span class="badge warn">in code, not in DB</span></td><td>run <code>syncActions()</code></td></tr>
+          <tr><td class="mono">invoice.rescind</td><td><span class="badge fail">in DB, not in code</span></td><td>renamed / removed — verify then delete the row</td></tr>
+          <tr><td class="mono">dispute.escalate</td><td><span class="badge neutral">granted, undescribed</span></td><td><span class="badge brand">PATCH description →</span> <span class="field" style="height:1.7rem">Escalate a dispute to Ascendra ops</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- 7 · WHO CAN DO X (proposed) -->
+    <section class="screen" id="who-can">
+      <div class="screen-head"><h2 class="screen-name">Who Can Do X</h2><span class="endpoint"><span class="m">GET</span>/authz/who-can</span><span class="status proposed">Proposed</span></div>
+      <p class="screen-purpose">The reverse of the explainer — given an action, every role that grants it and every user who holds such a role or an active delegation. The first question in an incident: "who could have done this?"</p>
+      <p class="gating">Gate: <code>authz.view</code>, platform-admin in practice (needs a cross-tenant view).</p>
+      <div class="proposed-note"><div><b>Missing API.</b> <code>explainAccess</code> is per-user; there is no per-action lookup. Proposed: <span class="sig">GET /authz/who-can?action=payout.approve&amp;tenantId=t_kairos</span> → <code>{ roles[], users[], delegations[] }</code>, built from <code>role_permission</code> + <code>grantsAll</code> roles + active delegations.</div></div>
+      <div class="filterbar">
+        <span class="field"><span class="lbl">Action</span>payout.approve</span>
+        <span class="field"><span class="lbl">Tenant</span>t_kairos</span>
+        <button class="btn" type="button">Search</button>
+      </div>
+      <h3 class="sub">Via role</h3>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>Role</th><th>Holders in t_kairos</th></tr></thead>
+        <tbody>
+          <tr><td>ascendra_admin <span class="badge brand">grantsAll</span></td><td>u_1c07</td></tr>
+          <tr><td>finance_approver</td><td>u_9f3a, u_2210</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <h3 class="sub">Via active delegation</h3>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>User</th><th>From</th><th>Expires</th></tr></thead>
+        <tbody>
+          <tr><td>u_44b2</td><td>u_9f3a</td><td class="t-time">2026-09-19</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- 8 · OVERVIEW (proposed) -->
+    <section class="screen" id="overview">
+      <div class="screen-head"><h2 class="screen-name">Overview</h2><span class="endpoint"><span class="m">GET</span>/authz/stats</span><span class="status proposed">Proposed</span></div>
+      <p class="screen-purpose">Posture at a glance — how many people hold elevated roles, how many have none, what's about to lapse. A monthly access-review starting point.</p>
+      <div class="proposed-note"><div><b>Missing API.</b> No aggregation endpoint. Proposed: <span class="sig">GET /authz/stats?tenantId=…</span> → <code>{ rolesInUse[], usersWithNoRole, platformAdminCount, delegationsExpiring7d, mostDelegatedActions[] }</code>.</div></div>
+      <div class="kpi-row">
+        <div class="kpi"><div class="k-label">Users with a role</div><div class="k-value">312</div></div>
+        <div class="kpi"><div class="k-label">Users with none</div><div class="k-value">7</div></div>
+        <div class="kpi"><div class="k-label">Platform admins</div><div class="k-value">4</div></div>
+        <div class="kpi"><div class="k-label">Delegations lapsing (7d)</div><div class="k-value">12</div></div>
+      </div>
+      <div class="note"><div><b>Cross-reference.</b> Assignment and delegation <em>changes</em> over time aren't here — those live in <code>audit-logging</code> when the vertical raises <code>AuditRecordRaised</code> on assign/revoke (see the <code>authz.assign_roles</code> flow). A "recent access changes" panel would embed an <code>audit-logging.api</code> query.</div></div>
+    </section>
+
+    <!-- EMPTY STATE -->
+    <section class="screen">
+      <div class="screen-head"><h2 class="screen-name">Assignments — empty state</h2><span class="endpoint"><span class="m">GET</span>/authz/assignments</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">No assignment matches the filter — distinct from "this deployment has no roles" (which means seeds haven't run).</p>
+      <div class="empty">
+        <div class="ic">🔑</div>
+        <div><div style="color:var(--foreground);font-weight:500">No assignments match</div>
+        <div>Widen the tenant or clear the role filter. To grant access, use "Assign role".</div></div>
+        <button class="btn" type="button">Assign role</button>
+      </div>
+    </section>
+  </main>
+</div>
+</body>
+</html>

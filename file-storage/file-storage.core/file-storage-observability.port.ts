@@ -1,0 +1,42 @@
+import type {
+  CategoryUsageRow,
+  FileAccessLogPage,
+  FileDetail,
+  FileInventoryPage,
+  FileInventoryQuery,
+  OrphanedFilePage,
+  OrphanedFileQuery,
+  StorageUsageQuery,
+  StorageUsageRow,
+} from './file-storage-admin.types';
+
+/**
+ * Read-only reporting for an ops / compliance file-inventory screen. Bound
+ * under `FILE_STORAGE_OBSERVABILITY_PORT` by a stack adapter; consumed by
+ * `file-storage.api`. Never mutates.
+ *
+ * Does not generate download URLs — `file-storage.api` layers those on via
+ * `AttachmentService` so the access log and expiry rules still apply.
+ */
+export interface FileStorageObservabilityPort {
+  /** File records, newest first, keyset-paginated. */
+  listFiles(query?: FileInventoryQuery): Promise<FileInventoryPage>;
+
+  /** One file's record + its attachments, or `null`. */
+  getFile(id: string): Promise<FileDetail | null>;
+
+  /** `SUM(size_bytes)` / `COUNT(*)` grouped by `(tenant_id, category)`. */
+  storageUsage(query?: StorageUsageQuery): Promise<StorageUsageRow[]>;
+
+  /** File records with zero attachments — cleanup candidates. */
+  listOrphanedFileRecords(query?: OrphanedFileQuery): Promise<OrphanedFilePage>;
+
+  /** The download access log for one file, newest first, keyset-paginated. */
+  getAccessLog(fileRecordId: string, opts?: { limit?: number; cursor?: string }): Promise<FileAccessLogPage>;
+
+  /** Per-category counts for the catalog screen (`tenantId` omitted → all tenants, platform-admin only). */
+  categoryUsage(tenantId?: string): Promise<CategoryUsageRow[]>;
+}
+
+/** Bound by the stack adapter (`file-storage.core.postgres-drizzle`). */
+export const FILE_STORAGE_OBSERVABILITY_PORT = Symbol('FILE_STORAGE_OBSERVABILITY_PORT');

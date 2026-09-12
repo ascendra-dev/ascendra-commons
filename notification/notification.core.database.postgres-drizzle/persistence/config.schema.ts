@@ -1,0 +1,86 @@
+import { boolean, index, jsonb, pgTable, primaryKey, text, unique } from 'drizzle-orm/pg-core';
+
+/**
+ * The reference `commons_notification_*` schema — one concrete Postgres/Drizzle shape
+ * of the `NotificationConfig` interface (Model 2). Source of truth for the
+ * columns; `notification-config.migration.sql` in this folder is the hand-kept
+ * DDL form — keep the two in sync.
+ *
+ * Three tables, one per `NotificationConfig` method. Re-export from your own
+ * schema barrel for `drizzle-kit`, or paste the migration. Requires
+ * PostgreSQL 15+ (NULLS NOT DISTINCT).
+ *
+ * Every row carries `application` (which Ascendra app it belongs to), and every
+ * read filters by it — so these tables stay correct whether each app keeps its
+ * own database (the common case, one constant value) or they are ever
+ * consolidated into one shared config database (rows disambiguated). Stamped
+ * from `PostgresNotificationConfigModule.forRoot({ application })`.
+ */
+
+/**
+ * Which channel(s) a notificationType uses. `tenant_id` NULL = the deployment
+ * default; a tenant-specific row (if present) wins over it.
+ */
+export const notificationChannelRoute = pgTable(
+  'commons_notification_channel_route',
+  {
+    application: text('application').notNull(),
+    notificationType: text('notification_type').notNull(),
+    tenantId: text('tenant_id'),
+    channels: text('channels').array().notNull(),
+  },
+  (t) => [
+    unique('commons_notification_channel_route_uq').on(t.application, t.notificationType, t.tenantId).nullsNotDistinct(),
+  ],
+);
+
+/**
+ * Template text for one channel + notificationType. `tenant_id` NULL = the
+ * deployment default; a tenant-specific row wins. `subject`/`is_html` are
+ * email-only — SMS rows leave `subject` null.
+ */
+export const notificationTemplate = pgTable(
+  'commons_notification_template',
+  {
+    application: text('application').notNull(),
+    channel: text('channel').notNull(),
+    notificationType: text('notification_type').notNull(),
+    tenantId: text('tenant_id'),
+    subject: text('subject'),
+    body: text('body').notNull(),
+    isHtml: boolean('is_html').notNull().default(false),
+  },
+  (t) => [
+    unique('commons_notification_template_uq')
+      .on(t.application, t.channel, t.notificationType, t.tenantId)
+      .nullsNotDistinct(),
+  ],
+);
+
+/**
+ * Per-tenant delivery-provider settings for one channel. `tenant_id` is NOT
+ * NULL — never falls through to a default (a missing row is a
+ * `no_provider_config` failure, not "use another tenant's account").
+ *
+ * `config` is one opaque `jsonb` blob — the adapter returns it verbatim as
+ * `ProviderConfig`, because provider credential shapes vary and can't be
+ * anticipated (a single API key; access key + secret + region; an OAuth token;
+ * SID + auth token + number). The consumer's real `send()` interprets it.
+ *
+ * It typically holds live secrets — encrypt at rest (Supabase Vault, `pgcrypto`,
+ * a decrypting view), or store secret-manager references in the JSON and
+ * resolve them in a `PostgresNotificationConfig` subclass.
+ */
+export const notificationProviderCredential = pgTable(
+  'commons_notification_provider_credential',
+  {
+    application: text('application').notNull(),
+    channel: text('channel').notNull(),
+    tenantId: text('tenant_id').notNull(),
+    config: jsonb('config').notNull().$type<Record<string, unknown>>(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.application, t.channel, t.tenantId] }),
+    index('commons_notification_provider_credential_tenant').on(t.application, t.tenantId),
+  ],
+);
