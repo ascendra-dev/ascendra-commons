@@ -7,6 +7,7 @@
 | 1.0 | 2026-09-04 | First audit pass, all seven modules, against `MODULE-STANDARD.md` v1.0. |
 | 1.1 | 2026-09-12 | `domain-events` observability built (item 5, previously deferred) — see the dated section at the end of this file. |
 | 1.2 | 2026-09-12 | `idempotency-key` observability built (closing two blind spots in the existing table, not a from-zero build) — see the dated section at the end of this file. |
+| 1.3 | 2026-09-12 | Eight new modules promoted from `ascendra-pay-002`'s standards docs (`optimistic-locking`, `rate-limiting`, `soft-delete`, `localization-currency`, `multi-tenancy`, `payment-gateway-adapter`, `payment-link-security`; `module-packaging-pattern` deliberately not promoted) — see the dated section at the end of this file. |
 
 Tracks the state of each module against `MODULE-STANDARD.md`'s eleven
 dimensions over time. A fresh audit appends a new dated section below rather
@@ -1745,3 +1746,130 @@ that `idempotency-key.api` exists. Every other dimension unchanged.
 `.api` service ×4 + module ×5, minus net adjustments to existing specs
 updated for the new `reclaimedStale`/`RETURNING` shapes). Typecheck clean
 throughout.
+
+---
+
+## 2026-09-12 — eight modules promoted from `ascendra-pay-002`'s standards docs
+
+Evaluated (per the user's request) against three questions: does it need a
+seam/interface, does it need observability, is it in good shape. Then
+promoted into `ascendra-commons` — every one gets a home here regardless of
+the answer, per the user's direction ("maintain each standard in commons
+whether observability is required or not, [whether] it has a seam or not or
+just a document"), but the *shape* each takes follows the answer, not a
+one-size-fits-all template.
+
+### Categorization
+
+Following `MODULE-STANDARD.md` §1b's own trigger for a package split ("a real
+Model 1 *and* Model 2, more than one plausible Model 2 stack, **an
+admin/observability surface**") rather than splitting every promoted module
+uniformly:
+
+- **Flat, single-folder, real code (not just docs)** — `optimistic-locking`,
+  `soft-delete`, `localization-currency`: one correct implementation, no
+  admin surface. `module-packaging-pattern` — not promoted at all; its
+  content already lives in this repo's own root `README.md` /
+  `MODULE-STANDARD.md`, so vendoring "how to vendor" back into itself would
+  be circular.
+- **Flat, with a genuine gap closed by an enforcement check, not a table** —
+  `multi-tenancy`: see its own dated finding below.
+- **Split, with a genuine observability surface** — `rate-limiting`,
+  `payment-link-security`, `payment-gateway-adapter` (generic webhook
+  mechanics only — see its own finding below).
+
+### The recurring gap-shape that justified three of the four splits
+
+Evaluating `rate-limiting-pattern.md`, `payment-link-security-pattern.md`,
+`payment-gateway-adapter-pattern.md`, and `multi-tenancy-pattern.md`
+independently surfaced the *same* gap shape in each: something is correctly
+rejected or ignored, and then vanishes — a `429`, a guessed/revoked payment
+link, an out-of-order webhook event, a query that silently ran with no
+tenant context. Each is the security- or correctness-relevant near-miss the
+module's own threat model names as a real risk, previously with zero trace.
+Treated as one recurring finding, not four independent ones — closing it
+three different ways (a delivery-log-style table for the first three; a
+fail-loud runtime assertion for the fourth, since there's no *row* to
+observe when the failure mode is silence itself) rather than forcing one
+template onto all four.
+
+### `optimistic-locking` — a real hardening finding along the way
+
+The reference `updateWithOptimisticLock()` helper needed to escape a
+caller-supplied column/table name as a SQL identifier. `sql.identifier()`
+(the obvious tool) turned out not to be safe for this: `drizzle-orm`'s own
+`PgDialect.escapeName()` is `` `"${name}"` `` — it quotes but does not double
+an embedded `"`, so an adversarial identifier could still break out. Fixed
+with the module's own plain-identifier validation before any identifier ever
+reaches `sql.identifier()`, not by trusting that call. Caught by the module's
+own test suite during development (the test asserted the injection attempt
+failed; it initially didn't), not assumed away.
+
+### `localization-currency` — a real correctness finding along the way
+
+`minorUnitDigits()`'s first implementation derived a currency's minor-unit
+digit count from `Intl.NumberFormat(...).resolvedOptions().maximumFractionDigits`.
+That's a CLDR *display/rounding* convention, not ISO 4217's formal minor-unit
+exponent, and they diverge for several currencies whose smallest coin has
+fallen out of practical use — **PKR is exactly this case**: ISO 4217 gives it
+2 (paisa), matching this module's own worked example ("150000 = PKR
+1,500.00"), but `Intl` reports 0 in this environment's ICU data (COP and HUF
+diverge the same way). Using `Intl` would have silently miscalculated every
+PKR amount — Ascendra Pay's own launch-market currency — by a factor of 100.
+Caught by the module's own test suite (`minorUnitsToDecimal({ amountMinorUnits: 150000, currency: 'PKR' })`
+returned `150000`, not `1500`, on the first pass), fixed by hardcoding the
+small, stable ISO 4217 exception lists instead of deriving from `Intl`.
+
+### `payment-gateway-adapter` — a real hardening finding along the way
+
+The pattern's own original webhook-handling sketch showed
+`webhookEventLog.has(ref, status)` then, if false, `.record(ref, status)` —
+a plain check-then-act pair. Two concurrent deliveries of the same event
+could both pass `has()` before either called `record()`, the same class of
+race `idempotency-key`'s own hardening pass (2026-09-07) fixed for its
+store. `WebhookEventLog.claim()` replaces it with one atomic
+`INSERT … ON CONFLICT DO NOTHING RETURNING`, mirroring `idempotency-key`'s
+own shape exactly.
+
+### `multi-tenancy` — real findings along the way
+
+1. **`SET LOCAL name = $1` is not valid Postgres.** The pattern's own
+   worked example used `sql`SET LOCAL app.current_tenant_id = ${scope.tenantId}``,
+   which — if actually executed through a parameterized `sql` tag binding the
+   interpolation as a protocol parameter — is rejected by Postgres: utility
+   statements like `SET` don't accept bound parameters over the extended
+   query protocol. `set_config(name, value, true)` is the documented
+   workaround (a real function call, so its value argument binds normally)
+   and was used instead — the third argument gives it `SET LOCAL`'s exact
+   transaction-scoped, auto-discarded semantics.
+2. **The observability question resolved to an enforcement check, not a
+   table.** The blind spot found evaluating this pattern — a query that
+   bypassed `TenantContext.run()`, or a pooler that silently discarded the
+   session variable — has no *row* to write when it happens; the failure
+   mode is exactly the absence of one. `withTenantContext()` now reads the
+   session variable back immediately after setting it and throws
+   `TenantContextNotEstablishedError` on a mismatch — real, tested,
+   defense-in-depth against the pooler-misconfiguration case specifically.
+   It does not catch a query that skips `TenantContext.run()` entirely; the
+   module's README documents that boundary explicitly and names the
+   complementary DI-wiring discipline (never bind the raw db token to a
+   feature module) rather than overclaiming what a runtime check alone can do.
+
+### Dimension notes
+
+None of the eight needed a *new* interface where one didn't already exist —
+`payment-gateway-adapter`'s `PaymentGatewayAdapter` and
+`payment-link-security`'s `PaymentLinkTokenService` already had a
+well-designed one; the RLS-based modules (`soft-delete`, `multi-tenancy`) and
+`optimistic-locking` correctly have none, and their own docs already argue
+why. `payment-gateway-adapter` also required a scoping decision not needed by
+any prior module: it touches genuinely project-specific domain types
+(Invoice, Payment). Only the generic interface and webhook
+dedup/observability mechanics were promoted; the concrete adapters that
+touch those types stay project-owned — see that module's own README.
+
+**Tests:** 610 → 743 (133 new across all eight modules). Typecheck clean
+throughout. `@nestjs/throttler` added as a real dependency (used by
+`rate-limiting.core.throttler`, verified against the actual library via a
+real DI-boot spec that triggers a genuine `ThrottlerException`, not a
+hand-rolled fake of its behavior).

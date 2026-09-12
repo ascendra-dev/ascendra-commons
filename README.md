@@ -16,16 +16,37 @@ of a pattern that a consumer actually needs to sync to, not before.
 
 ## Status
 
-Seven patterns implemented so far, all tested with real NestJS DI wiring:
+Fifteen patterns implemented, all tested with real NestJS DI wiring:
 `domain-events/`, `notification/`, `authorization/`, `background-jobs/`,
 `audit-logging/` (depends on `domain-events.core` also being vendored),
 `file-storage/` (depends on `authorization.core` also being vendored),
 `idempotency-key/` (no dependency on any other pattern) — see each
-pattern's own README for why. All seven are now split into dot-named
-packages (§1b). Everything else is deliberately not built yet
-— each pattern gets promoted from `ascendra-pay-002`'s own project-specific
-standards docs one at a time, only once a real story needs it, never
-speculatively.
+pattern's own README for why. Those seven are split into dot-named
+packages (§1b).
+
+Eight more (2026-09-12), promoted from `ascendra-pay-002`'s own
+project-specific standards docs — see each pattern's own README for why it
+took the shape it did:
+
+- **Flat, single-folder, no split** (one implementation, no admin surface):
+  `optimistic-locking/` (a shared atomic-update helper), `soft-delete/` (an
+  RLS policy generator, composable with `multi-tenancy`), `localization-currency/`
+  (`Money` + validation + correct-for-any-currency minor-unit conversion),
+  `multi-tenancy/` (RLS + `TenantContext`, plus a **fail-loud confirmation
+  check** in place of a browsable admin log — see its own README for why an
+  observability *table* would be the wrong shape for this module's actual gap).
+- **Split, with a genuine observability surface**: `rate-limiting/`
+  (`.core` / `.core.throttler` / `.core.postgres-drizzle` / `.api` — the
+  `@nestjs/throttler` integration is the one concrete "family" package, not a
+  Model 1/2 choice), `payment-link-security/` (`.core` /
+  `.core.postgres-drizzle` / `.api` — hashed tokens, never raw, at rest or in
+  the resolution log), `payment-gateway-adapter/` (`.core` /
+  `.core.postgres-drizzle` / `.api` — **only the generic webhook mechanics**;
+  the concrete adapters touching Invoice/Payment stay project-owned, see its
+  README's scoping note).
+
+Everything else is deliberately not built yet — each pattern gets promoted
+one at a time, only once a real story needs it, never speculatively.
 
 ## Layout
 
@@ -56,7 +77,20 @@ one-way toward `.core`. See `MODULE-STANDARD.md` §1b. `authorization`,
 `.api` (claim observability, 2026-09-12);
 `file-storage` uses `.core` / `.core.supabase` / `.core.s3` (the two `FileStore`
 backends) / `.core.postgres-drizzle` (metadata + category catalog + access log)
-/ `.api`.
+/ `.api`. `rate-limiting`, `payment-link-security`, and `payment-gateway-adapter`
+(2026-09-12) are split the same way for the same trigger — a genuine
+observability surface, added when three independently-reviewed patterns
+turned out to share one recurring gap-shape (a correct-but-silent no-op on a
+security-relevant path — a rejected request, a guessed token, an ignored
+webhook redelivery); see `MODULE-STANDARD-AUDIT.md`'s 2026-09-12 entry for
+the full reasoning. `optimistic-locking`, `soft-delete`, `localization-currency`,
+and `multi-tenancy` are **not** split — each has one correct implementation
+and no admin surface (or, for `multi-tenancy`, a real gap closed by a
+fail-loud runtime check instead — see its own README).
+
+`module-packaging-pattern.md` (the `ascendra-pay-002` standards doc describing
+*this* copy-based distribution model) is not itself promoted as a module here
+— its content already lives in this file and in `MODULE-STANDARD.md`.
 
 See `MODULE-STANDARD.md` for the full checklist every pattern is built and
 audited against — export boundary, packaging, `applicationId`/`tenantId`
