@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Domain Events — Admin Console Mocks</title>
+<style>
+  /* ──────────────────────────────────────────────────────────────────────────
+     Tokens transcribed from ../ascendra-ui/app/globals.css (:root and .dark),
+     same block used by the other five ascendra-commons .api mocks.html files —
+     kept byte-identical so every module's mock reads as one console. Light mode
+     is the base; the dark block mirrors globals.css's .dark overrides and is
+     applied by the OS setting only (no toggle — these mocks carry zero JS).
+     ────────────────────────────────────────────────────────────────────────── */
+  :root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.2928 0.0163 285.35);
+    --muted: oklch(0.9854 0.0013 286.38);
+    --muted-foreground: oklch(0.4913 0.0254 285.43);
+    --secondary-foreground: oklch(0.147 0.004 49.25);
+    --border: oklch(0.9437 0.0027 286.35);
+    --card: oklch(1 0 0);
+    --primary: oklch(0.5573 0.2543 283.67);   /* #6c47ff */
+    --radius: 0.625rem;
+
+    --positive: #15892b;
+    --negative: #e02e2e;
+    --warning: #fd7224;
+    --info: #236dd7;
+    --dimmed: #adadb7;
+    --gray-50: #fafafb;
+    --gray-700: #767684;
+
+    --shadow-xs: 0px 0px 2px 0px #00000014, 0px 1px 2px 0px #0000000f, 0px 0px 0px 1px #0000000a;
+
+    --text-caption: 0.6875rem;
+    --text-label: 0.75rem;
+    --text-body-sm: 0.875rem;
+    --text-body: 1rem;
+    --text-heading-sm: 1.125rem;
+    --text-heading: 1.25rem;
+    --text-heading-lg: 1.5rem;
+
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: oklch(0.2238 0.0077 285.76);
+      --foreground: oklch(0.9734 0.0013 286.37);
+      --muted: oklch(0.1785 0.0041 285.98);
+      --muted-foreground: oklch(0.7507 0.0142 286.05);
+      --secondary-foreground: oklch(0.985 0.001 106.423);
+      --border: oklch(0.2582 0.0093 285.73);
+      --card: oklch(0.216 0.006 285.76);
+      --primary: oklch(0.5573 0.2543 283.67);
+      --positive: #31c854;
+      --negative: #f73d3d;
+      --warning: #fd7224;
+      --info: #307ff6;
+      --dimmed: #5f5f6f;
+      --gray-50: #232328;
+      --gray-700: #adadb7;
+      --shadow-xs: 0px 1.5px 2px 0px #00000052, 0px -1px 0px 0px #ffffff0a, 0px 0px 0px 1px #ffffff1f;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-sm);
+    line-height: 1.5;
+  }
+  code, pre, .mono { font-family: var(--font-mono); }
+
+  /* shell ──────────────────────────────────────────────────────────────── */
+  .shell { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 248px; flex-shrink: 0; border-right: 1px solid var(--border);
+    padding: 1.25rem 0.75rem; background: var(--background);
+  }
+  .brand {
+    display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem;
+    font-weight: 600; font-size: var(--text-body-sm);
+  }
+  .brand span { width: 18px; height: 18px; border-radius: 5px; background: var(--primary); display: inline-block; }
+  .nav-group { margin-bottom: 1rem; }
+  .nav-group-title {
+    color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase;
+    letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem;
+    border-radius: 0.375rem; color: var(--muted-foreground); font-size: var(--text-body-sm);
+    text-decoration: none; position: relative;
+  }
+  .nav-item.active { background: color-mix(in oklab, var(--foreground) 8%, transparent); color: var(--foreground); }
+  .nav-item.active::before {
+    content: ""; position: absolute; left: 2px; top: 6px; bottom: 6px; width: 1px; background: var(--foreground);
+  }
+  .nav-item .pill {
+    margin-left: auto; font-size: 9px; line-height: 11px; padding: 1px 4px; border-radius: 4px;
+    background: color-mix(in oklab, var(--warning) 12%, transparent); color: var(--warning);
+    text-transform: uppercase; letter-spacing: 0.02em;
+  }
+
+  /* main ───────────────────────────────────────────────────────────────── */
+  .main { flex: 1; min-width: 0; padding: 1.75rem 2rem 4rem; max-width: 1180px; }
+  .page-head { margin-bottom: 0.375rem; }
+  .page-title { font-size: var(--text-heading-lg); font-weight: 600; margin: 0; }
+  .page-sub { color: var(--muted-foreground); margin: 0.25rem 0 0; max-width: 70ch; }
+
+  .note {
+    display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem;
+    background: color-mix(in oklab, var(--info) 6%, transparent);
+    border: 1px solid color-mix(in oklab, var(--info) 22%, transparent);
+    color: var(--foreground); font-size: var(--text-body-sm); margin: 1.25rem 0;
+  }
+  .note b { color: var(--info); }
+
+  /* coverage map ───────────────────────────────────────────────────────── */
+  .cov { width: 100%; border-collapse: collapse; margin: 0.75rem 0 0.5rem; font-size: var(--text-body-sm); }
+  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
+            padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  .cov td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .cov td:first-child { font-weight: 500; white-space: nowrap; }
+
+  /* screen container ───────────────────────────────────────────────────── */
+  .screen {
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem;
+    margin: 1.5rem 0; background: var(--background);
+  }
+  .screen-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-bottom: 0.25rem; }
+  .screen-name { font-size: var(--text-heading); font-weight: 600; margin: 0; }
+  .screen-purpose { color: var(--muted-foreground); margin: 0.25rem 0 1rem; }
+  .endpoint {
+    display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono);
+    font-size: var(--text-caption); padding: 0.15rem 0.45rem; border-radius: 4px;
+    background: var(--muted); border: 1px solid var(--border); color: var(--foreground);
+  }
+  .endpoint .m { font-weight: 700; color: var(--info); }
+  .status {
+    display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500;
+    letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px;
+    background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent);
+  }
+  .status.live { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent);
+                 box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 22%, transparent); }
+  .status.partial { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 6%, transparent);
+                    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 24%, transparent); }
+  .status.proposed { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 5%, transparent);
+                     box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent); }
+  .gating {
+    font-size: var(--text-caption); color: var(--muted-foreground); margin: 0 0 1rem;
+    padding-left: 0.75rem; border-left: 2px solid var(--border);
+  }
+  .gating code { color: var(--foreground); }
+
+  .proposed-note {
+    display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; margin: 0 0 1rem;
+    background: color-mix(in oklab, var(--primary) 5%, transparent);
+    border: 1px dashed color-mix(in oklab, var(--primary) 35%, transparent);
+    font-size: var(--text-body-sm);
+  }
+  .proposed-note b { color: var(--primary); }
+  .proposed-note .sig { font-family: var(--font-mono); font-size: var(--text-caption); }
+
+  /* filter bar ─────────────────────────────────────────────────────────── */
+  .filterbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+  .field {
+    height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem;
+    background: var(--background); color: var(--foreground); font-size: var(--text-body-sm);
+    display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0;
+  }
+  .field .lbl { color: var(--muted-foreground); }
+  .field .val { color: var(--foreground); }
+
+  .btn {
+    height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
+    font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary);
+    position: relative; overflow: hidden;
+    box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16),
+                0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255);
+  }
+  .btn::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(255,255,255,0.2), transparent); }
+  .btn-secondary {
+    height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
+    font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card);
+    box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06),
+                0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1);
+  }
+
+  /* data table ─────────────────────────────────────────────────────────── */
+  .table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--text-body-sm); }
+  .table th {
+    text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
+    padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  .table td { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .table tbody tr:hover { background: color-mix(in oklab, var(--gray-700) 4%, transparent); }
+  .table .t-time { color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .table .t-id { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted-foreground); }
+  .table .t-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .badge {
+    display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500;
+    letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap;
+    background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent);
+  }
+  .badge.action  { color: var(--primary);  background-color: color-mix(in oklab, var(--primary) 4%, transparent);  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent); }
+  .badge.entity  { color: var(--muted-foreground); background-color: color-mix(in oklab, var(--gray-700) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gray-700) 16%, transparent); }
+  .badge.warn    { color: var(--warning);  background-color: color-mix(in oklab, var(--warning) 4%, transparent);  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 16%, transparent); }
+  .badge.info    { color: var(--info);     background-color: color-mix(in oklab, var(--info) 4%, transparent);     box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 16%, transparent); }
+  .badge.good    { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 16%, transparent); }
+  .badge.bad     { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 16%, transparent); }
+
+  .dot { width: 6px; height: 6px; border-radius: 999px; display: inline-block; flex-shrink: 0; }
+  .dot.violet { background: #9280ff; box-shadow: 0 0 0 3px color-mix(in oklab, #9280ff 25%, transparent); }
+  .dot.sky    { background: #6694f8; box-shadow: 0 0 0 3px color-mix(in oklab, #6694f8 25%, transparent); }
+  .dot.emerald{ background: #31c854; box-shadow: 0 0 0 3px color-mix(in oklab, #31c854 25%, transparent); }
+  .dot.rose   { background: #f86969; box-shadow: 0 0 0 3px color-mix(in oklab, #f86969 25%, transparent); }
+  .dot.amber  { background: #f59e0b; box-shadow: 0 0 0 3px color-mix(in oklab, #f59e0b 25%, transparent); }
+
+  .pagebar {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: 0.75rem 0.25rem 0; color: var(--muted-foreground); font-size: var(--text-body-sm);
+  }
+  .pagebar .pager { display: flex; gap: 0.25rem; }
+  .pagebar .pager span {
+    display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem;
+    padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption);
+  }
+
+  /* empty state ────────────────────────────────────────────────────────── */
+  .empty {
+    display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1rem;
+    padding: 2.5rem; border: 1px dashed var(--border); border-radius: 0.75rem; color: var(--muted-foreground);
+  }
+  .empty .ic {
+    width: 3rem; height: 3rem; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;
+    background: color-mix(in oklab, var(--gray-700) 4%, transparent);
+    box-shadow: inset 0 0 0 1px var(--border); font-size: 1.1rem;
+  }
+
+  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 0.4rem 1rem; margin: 0; font-size: var(--text-body-sm); }
+  .kv dt { color: var(--muted-foreground); }
+  .kv dd { margin: 0; word-break: break-word; }
+
+  /* dashboard ──────────────────────────────────────────────────────────── */
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+  .kpi { background: var(--muted); border-radius: 0.75rem; padding: 0.875rem 1rem; }
+  .kpi .k-label { color: var(--muted-foreground); font-size: var(--text-label); }
+  .kpi .k-value { font-size: var(--text-heading); font-weight: 600; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
+  .kpi .k-delta { font-size: var(--text-caption); color: var(--positive); }
+  .kpi .k-delta.bad { color: var(--negative); }
+
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding: 0.5rem 0; }
+  .bars .bar { flex: 1; background: color-mix(in oklab, var(--primary) 55%, transparent); border-radius: 3px 3px 0 0; }
+
+  /* timeline ───────────────────────────────────────────────────────────── */
+  .timeline { position: relative; margin: 0; padding: 0 0 0 1.25rem; list-style: none; }
+  .timeline::before { content: ""; position: absolute; left: 3px; top: 4px; bottom: 4px; width: 1px; background: var(--border); }
+  .tl-item { position: relative; padding: 0 0 1.1rem; }
+  .tl-item::before { content: ""; position: absolute; left: -1.25rem; top: 5px; width: 7px; height: 7px; border-radius: 999px; background: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent); }
+  .tl-time { color: var(--muted-foreground); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
+  .tl-title { font-size: var(--text-body-sm); margin-top: 0.1rem; }
+  .tl-meta { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.15rem; }
+
+  .breadcrumb { color: var(--muted-foreground); font-size: var(--text-body-sm); margin-bottom: 0.75rem; }
+  .breadcrumb b { color: var(--foreground); font-weight: 500; }
+
+  .scrollx { overflow-x: auto; }
+  h3.sub { font-size: var(--text-heading-sm); font-weight: 600; margin: 1.5rem 0 0.5rem; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand"><span></span>Domain Events Console</div>
+
+    <div class="nav-group">
+      <div class="nav-group-title">Investigate</div>
+      <a class="nav-item active" href="#delivery-log">Delivery Log</a>
+      <a class="nav-item" href="#trace">Request / Job Trace</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-title">Insight</div>
+      <a class="nav-item" href="#event-catalog">Event Catalog</a>
+      <a class="nav-item" href="#listener-catalog">Listener Catalogue</a>
+      <a class="nav-item" href="#wiring-health">Wiring Health</a>
+      <a class="nav-item" href="#overview">Overview <span class="pill">new API</span></a>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div class="page-head">
+      <h1 class="page-title">Domain Events — Admin Console</h1>
+      <p class="page-sub">
+        Screen mocks for the <code>domain-events</code> module's admin surface, each mapped to the
+        endpoint that backs it. Every read is gated <code>@RequiresAction('domain-events.view')</code>;
+        there is no tenant scoping — <code>domain-events</code> has no <code>tenantId</code>.
+      </p>
+    </div>
+
+    <div class="note">
+      <div><b>Scope — delivery only, never a listener outcome.</b> Every screen here answers "did the
+      event fire, and was anyone listening" — never "what happened after." Whether a listener's own
+      handling then succeeded (the audit record actually wrote, the notification actually sent) is
+      that listener's own module's concern, surfaced in <code>audit-logging</code>'s and
+      <code>notification</code>'s own admin screens, not here.</div>
+    </div>
+
+    <!-- ═══════════════ ENDPOINT COVERAGE MAP ═══════════════ -->
+    <h3 class="sub">Endpoint coverage map</h3>
+    <div class="scrollx">
+    <table class="cov">
+      <thead>
+        <tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Delivery Log</td>
+          <td><span class="endpoint"><span class="m">GET</span>/domain-events/deliveries</span></td>
+          <td><span class="status live">Live</span></td>
+          <td>All <code>DeliveryQuery</code> filters exposed as query params. Keyset pagination.</td>
+        </tr>
+        <tr>
+          <td>Request / Job Trace</td>
+          <td><span class="endpoint"><span class="m">GET</span>/domain-events/deliveries/trace/:correlationId</span></td>
+          <td><span class="status live">Live</span></td>
+          <td>Cross-module — joins the same id in <code>audit-logging.api</code> / <code>notification.api</code> / <code>background-jobs.api</code>.</td>
+        </tr>
+        <tr>
+          <td>Event Catalog</td>
+          <td><span class="endpoint"><span class="m">GET</span>/domain-events/deliveries/catalog</span></td>
+          <td><span class="status live">Live</span></td>
+          <td>Per-event totals aggregated from the delivery log.</td>
+        </tr>
+        <tr>
+          <td>Listener Catalogue</td>
+          <td><span class="endpoint"><span class="m">GET</span>/domain-events/listener-catalog</span></td>
+          <td><span class="status live">Live</span></td>
+          <td>Live read of <code>@OnEvent()</code>/<code>@OnCriticalEvent()</code> decorator metadata — no database.</td>
+        </tr>
+        <tr>
+          <td>Wiring Health</td>
+          <td><span class="mono" style="color:var(--muted-foreground)">client-side join of the two above</span></td>
+          <td><span class="status live">Live</span></td>
+          <td>No new API — cross-references Event Catalog against Listener Catalogue in the browser.</td>
+        </tr>
+        <tr>
+          <td>Overview</td>
+          <td><span class="endpoint"><span class="m">GET</span>/domain-events/stats</span></td>
+          <td><span class="status proposed">Proposed</span></td>
+          <td>Aggregates: deliveries by day, top events, no-listener rate. No time-bucketed aggregation endpoint exists.</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <!-- ═══════════════ 1 · DELIVERY LOG ═══════════════ -->
+    <section class="screen" id="delivery-log">
+      <div class="screen-head">
+        <h2 class="screen-name">Delivery Log</h2>
+        <span class="endpoint"><span class="m">GET</span>/domain-events/deliveries</span>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">The primary filterable feed — every <code>emit()</code>/<code>emitCritical()</code> call, newest first, keyset-paginated. One row per emission, not per listener.</p>
+      <p class="gating">Gate: <code>domain-events.view</code>. No tenant scoping.</p>
+
+      <div class="filterbar">
+        <span class="field"><span class="lbl">Event</span><span class="val">any</span></span>
+        <span class="field"><span class="lbl">Method</span><span class="val">any</span></span>
+        <span class="field"><span class="lbl">Status</span><span class="val">any</span></span>
+        <span class="field"><span class="lbl">Correlation id</span><span class="val">—</span></span>
+        <button class="btn-secondary" type="button">Reset</button>
+        <button class="btn" type="button">Apply</button>
+      </div>
+
+      <div class="scrollx">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Delivered at</th>
+            <th>Event</th>
+            <th>Method</th>
+            <th>Transport</th>
+            <th>Listeners</th>
+            <th>Status</th>
+            <th>Correlation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="t-time">2026-09-12 09:41:02.481</td>
+            <td><span class="badge action">invoice.sent</span></td>
+            <td>emit</td>
+            <td>in-process</td>
+            <td class="t-num">2</td>
+            <td><span class="badge good">delivered</span></td>
+            <td class="t-id">c: 5b9e…a1</td>
+          </tr>
+          <tr>
+            <td class="t-time">2026-09-12 09:40:58.110</td>
+            <td><span class="badge action">audit.record_raised</span></td>
+            <td>emitCritical</td>
+            <td>in-process</td>
+            <td class="t-num">1</td>
+            <td><span class="badge good">delivered</span></td>
+            <td class="t-id">c: 5b9e…a1</td>
+          </tr>
+          <tr>
+            <td class="t-time">2026-09-12 09:22:14.902</td>
+            <td><span class="badge action">payout.reversed</span></td>
+            <td>emit</td>
+            <td>in-process</td>
+            <td class="t-num">0</td>
+            <td><span class="badge warn">no_listeners</span></td>
+            <td class="t-id">—</td>
+          </tr>
+          <tr>
+            <td class="t-time">2026-09-12 08:55:03.220</td>
+            <td><span class="badge action">invoice.voided</span></td>
+            <td>emitCritical</td>
+            <td>in-process</td>
+            <td class="t-num">1</td>
+            <td><span class="badge bad">dispatch_failed</span></td>
+            <td class="t-id">c: 71a2…9c</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+
+      <div class="pagebar">
+        <span>Showing 4 of ~9,840 · page size 50</span>
+        <span class="pager"><span>Newer</span><span>Older</span></span>
+      </div>
+
+      <div class="note">
+        <div><b>Reading "dispatch_failed."</b> This means the transport itself broke before reaching
+        any listener — genuinely rare. A listener rejecting (e.g. an <code>@OnCriticalEvent()</code>
+        audit listener throwing) is <em>not</em> shown as a failure here — that row still reads
+        <span class="badge good">delivered</span>, because the hand-off did happen. The listener's own
+        outcome is tracked in that listener's own module.</div>
+      </div>
+    </section>
+
+    <!-- ═══════════════ 2 · REQUEST / JOB TRACE ═══════════════ -->
+    <section class="screen" id="trace">
+      <div class="screen-head">
+        <h2 class="screen-name">Request / Job Trace</h2>
+        <span class="endpoint"><span class="m">GET</span>/domain-events/deliveries/trace/:correlationId</span>
+        <span class="status live">Live</span>
+      </div>
+      <p class="breadcrumb">correlation <b>5b9e1c04-…-a1</b></p>
+      <p class="screen-purpose">Every event delivery raised under one correlation id — one HTTP request or one background job run. Cross-references the same id in <code>audit-logging.api</code>'s and <code>notification.api</code>'s own trace endpoints.</p>
+      <p class="gating">Gate: <code>domain-events.view</code>.</p>
+
+      <ul class="timeline">
+        <li class="tl-item">
+          <div class="tl-time">09:41:02.201</div>
+          <div class="tl-title"><span class="dot sky"></span> &nbsp;<span class="badge action">payment.settled</span> &nbsp;emitCritical &nbsp;·&nbsp; 1 listener</div>
+          <div class="tl-meta">delivered</div>
+        </li>
+        <li class="tl-item">
+          <div class="tl-time">09:41:02.481</div>
+          <div class="tl-title"><span class="dot violet"></span> &nbsp;<span class="badge action">invoice.status_changed</span> &nbsp;emit &nbsp;·&nbsp; 2 listeners</div>
+          <div class="tl-meta">delivered</div>
+        </li>
+        <li class="tl-item">
+          <div class="tl-time">09:41:02.630</div>
+          <div class="tl-title"><span class="dot emerald"></span> &nbsp;<span class="badge action">notification.queued</span> &nbsp;emit &nbsp;·&nbsp; 1 listener</div>
+          <div class="tl-meta">delivered</div>
+        </li>
+      </ul>
+
+      <div class="note">
+        <div><b>Cross-reference.</b> The same correlation id resolves in <code>audit-logging.api</code>
+        (audit trail), <code>notification.api</code> (delivery log), and <code>background-jobs.api</code>
+        (job runs). A future unified "trace" screen could stitch all four — noted here, owned by
+        whichever console hosts it.</div>
+      </div>
+    </section>
+
+    <!-- ═══════════════ 3 · EVENT CATALOG ═══════════════ -->
+    <section class="screen" id="event-catalog">
+      <div class="screen-head">
+        <h2 class="screen-name">Event Catalog</h2>
+        <span class="endpoint"><span class="m">GET</span>/domain-events/deliveries/catalog</span>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">"What events actually fire" — one row per event name that has ever been delivered, aggregated from the delivery log. The direct answer to "what's generated."</p>
+      <p class="gating">Gate: <code>domain-events.view</code>.</p>
+
+      <div class="scrollx">
+      <table class="table">
+        <thead>
+          <tr><th>Event</th><th>Total deliveries</th><th>No-listener</th><th>Dispatch failed</th><th>Last delivered</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge action">invoice.sent</span></td>
+            <td class="t-num">4,102</td>
+            <td class="t-num">0</td>
+            <td class="t-num">0</td>
+            <td class="t-time">2026-09-12 09:41:02</td>
+          </tr>
+          <tr>
+            <td><span class="badge action">audit.record_raised</span></td>
+            <td class="t-num">9,840</td>
+            <td class="t-num">0</td>
+            <td class="t-num">1</td>
+            <td class="t-time">2026-09-12 09:40:58</td>
+          </tr>
+          <tr>
+            <td><span class="badge action">payout.reversed</span></td>
+            <td class="t-num">18</td>
+            <td class="t-num"><span class="badge warn">18</span></td>
+            <td class="t-num">0</td>
+            <td class="t-time">2026-09-12 09:22:14</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- ═══════════════ 4 · LISTENER CATALOGUE ═══════════════ -->
+    <section class="screen" id="listener-catalog">
+      <div class="screen-head">
+        <h2 class="screen-name">Listener Catalogue</h2>
+        <span class="endpoint"><span class="m">GET</span>/domain-events/listener-catalog</span>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">"What the code says should be listening" — every <code>@OnEvent()</code>/<code>@OnCriticalEvent()</code> binding discovered live in the running app, independent of whether the event has ever actually fired. No database behind this read.</p>
+      <p class="gating">Gate: <code>domain-events.view</code>. In-process transport only — a broker's listeners live in other services and aren't discoverable this way.</p>
+
+      <div class="scrollx">
+      <table class="table">
+        <thead>
+          <tr><th>Event</th><th>Listener class</th><th>Method</th><th>Critical</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge action">invoice.sent</span></td>
+            <td class="mono">InvoiceNotificationListener</td>
+            <td class="mono">onInvoiceSent</td>
+            <td><span class="badge">no</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge action">invoice.sent</span></td>
+            <td class="mono">InvoiceAuditListener</td>
+            <td class="mono">onInvoiceSent</td>
+            <td><span class="badge warn">yes</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge action">audit.record_raised</span></td>
+            <td class="mono">AuditListener</td>
+            <td class="mono">onAuditRecordRaised</td>
+            <td><span class="badge warn">yes</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge action">invoice.voided</span></td>
+            <td class="mono">InvoiceAuditListener</td>
+            <td class="mono">onInvoiceReversed</td>
+            <td><span class="badge">no</span></td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- ═══════════════ 5 · WIRING HEALTH (client-side join) ═══════════════ -->
+    <section class="screen" id="wiring-health">
+      <div class="screen-head">
+        <h2 class="screen-name">Wiring Health</h2>
+        <span class="mono" style="color:var(--muted-foreground);font-size:var(--text-caption)">client-side join of Event Catalog + Listener Catalogue</span>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">Cross-references what the code says should listen against what has actually fired, catching two different bugs neither endpoint surfaces alone.</p>
+      <p class="gating">Gate: <code>domain-events.view</code> (both underlying reads). No new API — a browser-side join of two already-Live endpoints.</p>
+
+      <div class="scrollx">
+      <table class="table">
+        <thead>
+          <tr><th>Event</th><th>Registered listeners</th><th>Ever delivered</th><th>Assessment</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge action">invoice.sent</span></td>
+            <td class="t-num">2</td>
+            <td class="t-num">4,102</td>
+            <td><span class="badge good">healthy</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge action">payout.reversed</span></td>
+            <td class="t-num">0</td>
+            <td class="t-num">18</td>
+            <td><span class="badge warn">no listener registered</span> — matches the delivery log's own <code>no_listeners</code> rows</td>
+          </tr>
+          <tr>
+            <td><span class="badge action">invoice.refunded</span></td>
+            <td class="t-num">1</td>
+            <td class="t-num">0</td>
+            <td><span class="badge warn">never fired</span> — a listener exists for an event nobody raises (dead code, or a producer-side typo)</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- ═══════════════ 6 · OVERVIEW (proposed) ═══════════════ -->
+    <section class="screen" id="overview">
+      <div class="screen-head">
+        <h2 class="screen-name">Overview</h2>
+        <span class="endpoint"><span class="m">GET</span>/domain-events/stats</span>
+        <span class="status proposed">Proposed</span>
+      </div>
+      <p class="screen-purpose">The landing dashboard — delivery volume and shape at a glance, so an operator notices "an event stopped firing" or "no-listener rate spiked" without running a query.</p>
+      <p class="gating">Gate: <code>domain-events.view</code>.</p>
+
+      <div class="proposed-note">
+        <div><b>Missing API.</b> No aggregation endpoint exists — <code>deliveryCatalog()</code> returns
+        per-event totals, not a time series. Proposed: <span class="sig">GET /domain-events/stats?window=7d</span>
+        → <code>{ perDay[], topEvents[], noListenerRate, dispatchFailedRate }</code>, computed with
+        <code>GROUP BY date_trunc('day', delivered_at)</code> over <code>commons_domain_events_delivery</code>.</div>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi"><div class="k-label">Deliveries today</div><div class="k-value">2,240</div><div class="k-delta">+4% vs. yest.</div></div>
+        <div class="kpi"><div class="k-label">Deliveries (7d)</div><div class="k-value">15,608</div></div>
+        <div class="kpi"><div class="k-label">No-listener rate (7d)</div><div class="k-value">0.4%</div></div>
+        <div class="kpi"><div class="k-label">Dispatch failures (7d)</div><div class="k-value">1</div><div class="k-delta bad">watch</div></div>
+      </div>
+
+      <h3 class="sub">Deliveries by day (14d)</h3>
+      <div class="bars">
+        <div class="bar" style="height:40%"></div><div class="bar" style="height:55%"></div>
+        <div class="bar" style="height:48%"></div><div class="bar" style="height:70%"></div>
+        <div class="bar" style="height:62%"></div><div class="bar" style="height:38%"></div>
+        <div class="bar" style="height:20%"></div><div class="bar" style="height:52%"></div>
+        <div class="bar" style="height:66%"></div><div class="bar" style="height:80%"></div>
+        <div class="bar" style="height:74%"></div><div class="bar" style="height:58%"></div>
+        <div class="bar" style="height:44%"></div><div class="bar" style="height:90%"></div>
+      </div>
+
+      <h3 class="sub">Top events (7d)</h3>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th>Event</th><th>Deliveries</th><th>No-listener</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge action">audit.record_raised</span></td><td class="t-num">9,840</td><td class="t-num">0</td></tr>
+          <tr><td><span class="badge action">invoice.sent</span></td><td class="t-num">4,102</td><td class="t-num">0</td></tr>
+          <tr><td><span class="badge action">notification.queued</span></td><td class="t-num">1,648</td><td class="t-num">0</td></tr>
+          <tr><td><span class="badge action">payout.reversed</span></td><td class="t-num">18</td><td class="t-num">18</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- ═══════════════ EMPTY STATE (variant) ═══════════════ -->
+    <section class="screen">
+      <div class="screen-head">
+        <h2 class="screen-name">Delivery Log — empty state</h2>
+        <span class="endpoint"><span class="m">GET</span>/domain-events/deliveries</span>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">Shown when a filter combination matches nothing — distinct from "no events have ever fired".</p>
+      <div class="empty">
+        <div class="ic">🔍</div>
+        <div>
+          <div style="color:var(--foreground);font-weight:500">No deliveries match these filters</div>
+          <div>Try widening the date range or clearing the event filter.</div>
+        </div>
+        <button class="btn-secondary" type="button">Clear filters</button>
+      </div>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>

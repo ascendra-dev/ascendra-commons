@@ -21,14 +21,38 @@ DomainEventsModule.forRoot({
 `{ global: false }` (it closes the raw-`EventEmitter2` bypass of the
 reliability tiering).
 
-## Failure observability
+## Delivery observability (built, 2026-09-12)
 
-`InProcessDomainEventEmitter` logs every swallowed/propagated failure through
-NestJS's `Logger` (context `InProcessDomainEventEmitter`). Point your existing
-observability tool (Sentry) at those logs via a small custom `LoggerService`
-rather than building a recorder — see the notes that were in the old
-`domain-events` README. A structured `EventDeliveryRecorder` port is a deferred
-Model 1 extension, prose-only.
+`InProcessDomainEventEmitter` also records one `EventDeliveryAttempt` per
+`emit()`/`emitCritical()` call, through the optional `EVENT_DELIVERY_RECORDER`
+token (`EventDeliveryRecorder` interface, `domain-events.core`). **Delivery
+only** — was a listener subscribed, did the hand-off happen — never a
+listener's own outcome (whether the audit write or notification send actually
+succeeded is that listener's own module's concern, not recorded here). Opt-in:
+
+```typescript
+InProcessDomainEventEmitterModule.forRoot({
+  recorderToken: POSTGRES_EVENT_DELIVERY_RECORDER, // optional — omit for a no-op
+  imports: [PostgresEventDeliveryRecorderModule.forRoot({ ... })],
+})
+```
+
+Omit `recorderToken` and every call is a no-op (`NoopEventDeliveryRecorder`) —
+the emitter behaves exactly as before. See `domain-events.core.postgres-drizzle`
+for the reference Postgres implementation, and `domain-events.api` for the
+read surface.
+
+This module also provides `DomainEventListenerCatalog` (bound under
+`EVENT_LISTENER_CATALOG_PORT`) — the static "what listens to what" wiring map,
+discovered from `@OnEvent()`/`@OnCriticalEvent()` decorator metadata, always
+bound (no config needed). See its own doc comment for why only Model 1 can
+provide this.
+
+Failures NestJS itself swallows or that this emitter swallows/propagates are
+still also logged through NestJS's `Logger` (context
+`InProcessDomainEventEmitter`) as before — point your existing observability
+tool (Sentry) at those logs via a small custom `LoggerService` if you want
+that too; the delivery log above is a separate, structured, queryable record.
 
 ## When to move to Model 2
 
@@ -40,4 +64,5 @@ changing meaning across a process boundary). See `domain-events.core.broker`.
 
 ## Depends on
 
-`domain-events.core`, `@nestjs/common`, `@nestjs/event-emitter`.
+`domain-events.core`, `@nestjs/common`, `@nestjs/core` (`DiscoveryService` /
+`MetadataScanner` / `Reflector`, for the listener catalogue), `@nestjs/event-emitter`.

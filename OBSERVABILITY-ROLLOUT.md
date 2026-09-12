@@ -82,19 +82,54 @@ job — deliberately not this.)
 - ☑ `PostgresNotificationObservabilityService.getDeliveryContent(id)` (off the list query — large/PII); `DeliveryRecord.hasContent` boolean on the list
 - ☑ specs, README notes · 368/368
 
-## 5 · domain-events — observability deferred; **package split done 2026-09-07**
+## 5 · domain-events — package split done 2026-09-07; **delivery-log observability done 2026-09-12**
 
-Observability: Model 1 in-process events don't persist; real observability needs a
-transactional outbox (Model 2). Deferred.
-
-Package split (separate from observability): `domain-events` split into `.core` /
-`.core.in-process` / `.core.broker` on the strength of the `transport:` Model 1/2
-seam alone (MODULE-STANDARD §1b — a real shipped selector+interface+token is a
-sufficient split signal). `forRoot()` is token-only (`emitterToken`); the
+Package split (2026-09-07, separate from observability): `domain-events` split into
+`.core` / `.core.in-process` / `.core.broker` on the strength of the `transport:`
+Model 1/2 seam alone (MODULE-STANDARD §1b — a real shipped selector+interface+token
+is a sufficient split signal). `forRoot()` is token-only (`emitterToken`); the
 `transport` string is gone; `application` + `DOMAIN_EVENTS_APPLICATION_ID` moved
-to `.core.broker` (a broker-only concern). No `.api`. `audit-logging`'s
-`../../domain-events` imports now target `domain-events.core` (+ `.core.in-process`
-for the transport in its specs). 454/454.
+to `.core.broker` (a broker-only concern). `audit-logging`'s `../../domain-events`
+imports now target `domain-events.core` (+ `.core.in-process` for the transport
+in its specs). 454/454.
+
+**Observability (2026-09-12) — rescoped from the original "needs a transactional
+outbox" deferral to a narrower, buildable claim: delivery only, never a listener
+outcome.** Whether a listener's own handling then succeeded (the audit write, the
+notification send) is that listener's own module's concern, not this one's — the
+earlier deferral was really about *that* (a full outbox for guaranteed,
+replayable delivery), which stays correctly out of scope. What shipped instead,
+mirroring `notification`'s best-effort delivery-log pattern:
+
+- `EventDeliveryRecorder` port (`.core`) — `InProcessDomainEventEmitter` records
+  one `EventDeliveryAttempt` per `emit()`/`emitCritical()` call: `listenerCount`
+  (read before dispatch) and `status` (`delivered` / `no_listeners` /
+  `dispatch_failed` — the last only when the transport itself breaks before
+  reaching any listener, never when a listener rejects). Optional
+  (`recorderToken`), `NoopEventDeliveryRecorder` default, belt-and-braces guarded
+  exactly like `Notifier`'s own recorder call.
+- `EventListenerCatalogPort` (`.core`) — the complementary static read: every
+  `@OnEvent()`/`@OnCriticalEvent()` binding discovered live from decorator
+  metadata (`DiscoveryService` + `Reflector`, reading `OnEvent`'s public runtime
+  `.KEY` rather than any internal export), independent of whether the event has
+  ever fired. Only `domain-events.core.in-process` can implement it — a broker's
+  listeners live in other services' codebases.
+- **New package `domain-events.core.postgres-drizzle`** — `commons_domain_events_delivery`
+  table + migration; `PostgresEventDeliveryRecorder` (write); `PostgresEventDeliveryObservabilityService`
+  (`listDeliveries` keyset-paginated, `deliveryCatalog()` per-event aggregate).
+- **New package `domain-events.api`** — `GET /domain-events/deliveries` (+
+  `/trace/:correlationId`, `/catalog`), `GET /domain-events/listener-catalog`.
+  Read-only, no tenant scoping (mirrors `background-jobs.api`).
+- **Correlation-id cross-cut extended to domain-events** — `emit()`/`emitCritical()`
+  gained an optional third `correlationId` argument (not stored on the event
+  payload — plumbing to the delivery log only), closing the one module rollout
+  item 4 had left out. `domain-events.api`'s trace endpoint joins the same id
+  across `audit-logging` / `notification` / `background-jobs`.
+- mocks.html for `domain-events.api`; 583/583, typecheck clean.
+
+Explicitly still not built: per-listener attribution (`EventEmitter2` swallows
+identity before delivery — see `domain-events.core.in-process`'s own doc comment
+for why), and any broker-side (Model 2) observability.
 
 ## 7 · idempotency-key — package split + Model 1 locking hardening ☑ (2026-09-07)
 
@@ -141,3 +176,4 @@ S3/"provider portability" Model 2 seam made real) / `.core.postgres-drizzle` / `
 - 2026-09-07 — `audit-logging` split into `.core` / `.core.postgres-drizzle` / `.api` (no family — no Model 1/2 config split; both ports + DTOs + cursor helper are stack-agnostic `.core` contracts). `PostgresAuditEventReader` binds under the core `AUDIT_EVENT_READER` token; `audit-logging.api` ships `GET /audit/events` + `/entities/:type/:id/history` + `/trace/:correlationId`, read-only, tenant-scoped for non-platform actors. 445/445.
 - 2026-09-07 — `file-storage` split into `.core` / `.core.supabase` / `.core.s3` / `.core.postgres-drizzle` / `.api` — first module to use rows on two axes (blob backend Model 1/2 + a metadata stack adapter) and to ship an orchestration handler (`AttachmentService`) in `.core`. Added all persistence the module never had, a DB-backed admin-mutable file-category catalog (base + per-tenant tightening-only overrides), a download access log, and the ops/compliance `.api`. 544/544.
 - 2026-09-07 — `background-jobs` split into `.core` / `.core.postgres-drizzle` / `.api` (no family). `PostgresAdvisoryLock` moved out of `.core` (now `advisoryLockToken` is required); new `JobObservabilityPort` in `.core` (`getRunHistory` / `listJobStatus`), `PostgresJobObservabilityService` binds under `JOB_OBSERVABILITY_PORT`. `background-jobs.api` ships `GET /jobs` (dashboard) + `/jobs/:name/runs` + `/jobs/runs/trace/:correlationId` + `POST /jobs/:name/run` (JobTrigger, optional audit emitter). No tenant scoping. 454/454.
+- 2026-09-12 — item 5 (`domain-events`) done, rescoped from "deferred — needs an outbox" to **delivery-only** observability (never a listener outcome — see item 5 above for why that's the honest scope). New `EventDeliveryRecorder` + `EventListenerCatalogPort` in `.core`; new `domain-events.core.postgres-drizzle` (`commons_domain_events_delivery`) and `domain-events.api` packages; `emit()`/`emitCritical()` gained the `correlationId` cross-cut item 4 had left out. mocks.html added. 583/583.

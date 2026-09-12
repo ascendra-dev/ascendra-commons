@@ -60,15 +60,26 @@ import { DomainEvent } from './domain-event.interface';
  *   constructor(
  *     @Inject(DOMAIN_EVENT_EMITTER) private readonly domainEvents: DomainEventEmitter,
  *   ) {}
+ *
+ * CORRELATION ID: an optional third argument on both methods — the ambient
+ * request/trace id, when the caller has one, the same shape `JobTrigger.trigger()`
+ * and `NotificationRequest.correlationId` already take. Threaded into the
+ * delivery log (see `event-delivery-recorder.port.ts`) so a delivery can be
+ * joined to the same id in `commons_jobs_job_run` / `commons_audit_event` /
+ * `commons_notification_delivery` for a cross-module trace. Not stored on the
+ * event payload itself — the same reasoning `tenantId` isn't (see this
+ * package's README): it's plumbing to the delivery log, not a fact of what
+ * happened, and it must cross a process boundary independently of whatever the
+ * event class itself carries.
  */
 export interface DomainEventEmitter {
   /** Fire-and-forget. Never awaited, never surfaces a listener failure to the caller. */
-  emit(eventName: string, event: DomainEvent): void;
+  emit(eventName: string, event: DomainEvent, correlationId?: string): void;
 
   /**
    * Awaited. Rejects if the receiver fails or any @OnCriticalEvent() listener
    * throws/rejects — the producer catches it and decides whether to roll back.
    * Does not identify or aggregate failures.
    */
-  emitCritical(eventName: string, event: DomainEvent): Promise<void>;
+  emitCritical(eventName: string, event: DomainEvent, correlationId?: string): Promise<void>;
 }

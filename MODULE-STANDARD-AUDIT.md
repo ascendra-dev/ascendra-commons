@@ -5,6 +5,7 @@
 | Version | Date | Reason |
 |---------|------|--------|
 | 1.0 | 2026-09-04 | First audit pass, all seven modules, against `MODULE-STANDARD.md` v1.0. |
+| 1.1 | 2026-09-12 | `domain-events` observability built (item 5, previously deferred) — see the dated section at the end of this file. |
 
 Tracks the state of each module against `MODULE-STANDARD.md`'s eleven
 dimensions over time. A fresh audit appends a new dated section below rather
@@ -1562,3 +1563,100 @@ retention posture most consumers won't want.
   `toMatchObject`).
 
 **Tests:** 368/368 pass, typecheck clean.
+
+---
+
+## 2026-09-12 — `domain-events` observability (closing rollout item 5)
+
+The 2026-09-06 deferral (item 5 above) said real observability "arrives with a
+transactional outbox (a Model 2 concern)." Revisited on the user's request:
+that framing conflated two different things. A full outbox is only needed for
+*guaranteed, replayable delivery* — a real change to Model 1's fire-and-forget
+semantics, correctly still out of scope. **Delivery observability** — did the
+transport hand the event off to a subscriber, at all — needs neither: it's the
+same after-the-fact, best-effort tap `notification`'s delivery log already is
+on top of `Notifier`. That's what got built, and it's scoped narrower than a
+first read of "domain-events observability" suggests: **delivery only, never a
+listener outcome.** Whether a listener's own handling then succeeded (the
+audit write, the notification send) is that listener's own module's business,
+already covered by that module's own observability — recording it again here
+would duplicate, not add, a signal.
+
+### What shipped
+
+- **`EventDeliveryRecorder` (`.core`)** — `InProcessDomainEventEmitter` records
+  one `EventDeliveryAttempt` per `emit()`/`emitCritical()` call: `listenerCount`
+  (`EventEmitter2.listenerCount()`, read before dispatch) and `status` —
+  `delivered` / `no_listeners` / `dispatch_failed` (the transport itself
+  breaking before reaching any listener — genuinely rare, and distinct from a
+  listener rejecting, which is **not** recorded as a delivery failure: the
+  hand-off already happened). Optional via `recorderToken`,
+  `NoopEventDeliveryRecorder` default, guarded exactly like `Notifier`'s own
+  best-effort recorder call (a logging failure never changes what the caller
+  sees).
+- **`EventListenerCatalogPort` (`.core`)**, implemented only by
+  `domain-events.core.in-process` (`DomainEventListenerCatalog`) — the
+  complementary static read: every `@OnEvent()`/`@OnCriticalEvent()` binding
+  discovered from the running app's own decorator metadata via
+  `DiscoveryService` + `MetadataScanner` + `Reflector`, independent of whether
+  the event has ever fired. Deliberately **not** built off
+  `EventEmitter2.listeners()` — by the time NestJS registers a listener there
+  it has already wrapped it in an anonymous closure
+  (`EventSubscribersLoader.subscribeToEventIfListener()`), with no class name
+  or method name left to report; this service reads the same metadata one step
+  earlier instead, off each provider's own prototype. Reads the metadata key
+  via `OnEvent`'s public runtime `.KEY` (calling `OnEvent(probe)` once to get
+  the actual per-call decorator function that carries it — `OnEvent` the
+  export itself does not), not the internal `EventsMetadataAccessor` /
+  `EVENT_LISTENER_METADATA` that `@nestjs/event-emitter` doesn't export from
+  its public entry point — the same "public static, not a private file path"
+  approach `on-critical-event.decorator.ts` already used for `OnEventOptions`.
+  No Model 2 implementation, and none is planned: a broker's listeners live in
+  other services' codebases and aren't discoverable this way.
+- **New package `domain-events.core.postgres-drizzle`** — `commons_domain_events_delivery`
+  table + migration (no family: both ports are stack-agnostic, same posture
+  `audit-logging.core.postgres-drizzle` takes); `PostgresEventDeliveryRecorder`
+  (write, one `INSERT`); `PostgresEventDeliveryObservabilityService`
+  (`listDeliveries` keyset-paginated on `(delivered_at, id)`, `deliveryCatalog()`
+  a per-event-name `GROUP BY` aggregate — the direct answer to "what events are
+  generated").
+- **New package `domain-events.api`** — `GET /domain-events/deliveries` (+
+  `/trace/:correlationId`, `/catalog`), `GET /domain-events/listener-catalog`.
+  Read-only (deliveries are write-once, the listener catalogue is a live read —
+  no mutation surface, no admin emitter), gated `domain-events.view`, no tenant
+  scoping (`domain-events` has no `tenantId` — same posture `background-jobs.api`
+  takes).
+- **Correlation-id cross-cut extended to `domain-events`**, closing the one gap
+  rollout item 4 (2026-09-06) left — `DomainEventEmitter.emit()`/`emitCritical()`
+  gained an optional third `correlationId` argument (the same shape
+  `JobTrigger.trigger()` takes), threaded into the delivery log only — not
+  stored on the event payload itself, for the same reason `tenantId` isn't (see
+  `domain-events.core`'s README). `domain-events.api`'s trace endpoint now joins
+  the same id across `audit-logging` / `notification` / `background-jobs`.
+- mocks.html added for `domain-events.api` (all five `.api` modules now have one).
+
+### Explicitly not built (real scope decisions, not oversights)
+
+- **Per-listener attribution** — reporting *which* listener failed, not just
+  that one did. Two independent walls: `@nestjs/event-emitter` wraps every
+  listener in an anonymous closure before `EventEmitter2` ever sees it (no
+  identity survives even with `Promise.allSettled` instead of `emitAsync`'s
+  own `Promise.all`), and a plain `@OnEvent()` listener's failure is swallowed
+  by NestJS's own loader two layers before either the identity or the failure
+  would reach any recorder here. A real fix would be a listener
+  self-reporting convention (each `@OnCriticalEvent()` listener calling the
+  recorder itself, by name) — a distinct, bigger feature, not built.
+- **Broker (Model 2) observability** — `domain-events.core.broker` is still an
+  unbuilt stub; nothing to observe yet. The recorder port is transport-agnostic,
+  so wiring a real broker emitter into it later needs no new design.
+
+### Dimension re-scoring
+
+`domain-events`: dimension 8 (UI/admin contract) — **N/A → Pass** (was N/A,
+"nothing to observe"; now `domain-events.api` ships the read surface). Every
+other dimension unchanged from the 2026-09-04 pass.
+
+**Tests:** 544 → 583 (39 new — recorder ×6, observability service ×5, two
+module DI-boot specs ×3, listener-catalog service ×4, in-process emitter
+delivery-recording ×10 + 2 in its module spec, `.api` service ×4 + module ×5).
+Typecheck clean throughout.

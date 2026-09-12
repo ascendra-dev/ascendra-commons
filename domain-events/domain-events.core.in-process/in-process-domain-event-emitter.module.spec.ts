@@ -2,10 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { Injectable } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
-import { DomainEventsModule, OnCriticalEvent, DOMAIN_EVENT_EMITTER } from '../domain-events.core';
-import type { DomainEvent, DomainEventEmitter } from '../domain-events.core';
+import {
+  DomainEventsModule,
+  OnCriticalEvent,
+  DOMAIN_EVENT_EMITTER,
+  EVENT_LISTENER_CATALOG_PORT,
+} from '../domain-events.core';
+import type { DomainEvent, DomainEventEmitter, EventDeliveryAttempt, EventDeliveryRecorder } from '../domain-events.core';
 import { InProcessDomainEventEmitterModule } from './in-process-domain-event-emitter.module';
 import { InProcessDomainEventEmitter } from './in-process-domain-event-emitter.service';
+import { DomainEventListenerCatalog } from './domain-event-listener-catalog.service';
 import { IN_PROCESS_DOMAIN_EVENT_EMITTER } from './tokens';
 
 class TestEvent implements DomainEvent {
@@ -103,5 +109,61 @@ describe('InProcessDomainEventEmitterModule wired into DomainEventsModule — re
   it('{ global: false }: EventEmitter2 is not injectable by a module that never imported this one', async () => {
     const moduleRef = await Test.createTestingModule({ providers: [] }).compile();
     expect(() => moduleRef.get(EventEmitter2, { strict: true })).toThrow();
+  });
+
+  it('EVENT_LISTENER_CATALOG_PORT resolves and discovers the real @OnEvent()/@OnCriticalEvent() bindings above', async () => {
+    const moduleRef = await build();
+    const entries = await moduleRef.get(EVENT_LISTENER_CATALOG_PORT).list();
+
+    expect(entries).toContainEqual({
+      eventName: 'test.happened',
+      listenerClass: 'TestListener',
+      listenerMethod: 'onTestHappened',
+      critical: false,
+    });
+    expect(entries).toContainEqual({
+      eventName: 'test.critical',
+      listenerClass: 'TestListener',
+      listenerMethod: 'onTestCritical',
+      critical: true,
+    });
+  });
+
+  it('EVENT_LISTENER_CATALOG_PORT is DomainEventListenerCatalog', async () => {
+    expect((await build()).get(EVENT_LISTENER_CATALOG_PORT)).toBeInstanceOf(DomainEventListenerCatalog);
+  });
+
+  it('forRoot({ recorderToken }) wires a real recorder — the emitter logs deliveries through it', async () => {
+    class FakeRecorder implements EventDeliveryRecorder {
+      readonly attempts: EventDeliveryAttempt[] = [];
+      async recordDelivery(attempt: EventDeliveryAttempt): Promise<void> {
+        this.attempts.push(attempt);
+      }
+    }
+    const FAKE_RECORDER_TOKEN = Symbol('FAKE_RECORDER_TOKEN');
+
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        DomainEventsModule.forRoot({
+          emitterToken: IN_PROCESS_DOMAIN_EVENT_EMITTER,
+          imports: [
+            InProcessDomainEventEmitterModule.forRoot({
+              recorderToken: FAKE_RECORDER_TOKEN,
+              imports: [{ module: class FakeRecorderModule {}, providers: [{ provide: FAKE_RECORDER_TOKEN, useClass: FakeRecorder }], exports: [FAKE_RECORDER_TOKEN] }],
+            }),
+          ],
+        }),
+      ],
+      providers: [TestListener],
+    }).compile();
+    await moduleRef.init();
+
+    moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER).emit('test.happened', new TestEvent('hello'), 'corr-1');
+    await wait(0);
+
+    const recorder = moduleRef.get<FakeRecorder>(FAKE_RECORDER_TOKEN);
+    expect(recorder.attempts).toEqual([
+      expect.objectContaining({ eventName: 'test.happened', status: 'delivered', correlationId: 'corr-1' }),
+    ]);
   });
 });

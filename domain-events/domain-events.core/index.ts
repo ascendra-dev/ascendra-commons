@@ -8,4 +8,20 @@ export {
   DomainEventNotSerializableError,
 } from './assert-domain-event-serializable';
 export type { JsonPrimitive, JsonValue } from './assert-domain-event-serializable';
-export { DOMAIN_EVENT_EMITTER } from './tokens';
+export type { EventDeliveryAttempt, EventDeliveryRecorder } from './event-delivery-recorder.port';
+export { NoopEventDeliveryRecorder } from './noop-event-delivery-recorder';
+export type {
+  EventDeliveryRecord,
+  DeliveryQuery,
+  DeliveryPage,
+  EventDeliveryCatalogEntry,
+  EventDeliveryObservabilityPort,
+} from './event-delivery-observability.port';
+export type { EventListenerCatalogEntry, EventListenerCatalogPort } from './event-listener-catalog.port';
+export { encodeKeysetCursor, decodeKeysetCursor } from './keyset-cursor';
+export {
+  DOMAIN_EVENT_EMITTER,
+  EVENT_DELIVERY_RECORDER,
+  EVENT_DELIVERY_OBSERVABILITY_PORT,
+  EVENT_LISTENER_CATALOG_PORT,
+} from './tokens';
