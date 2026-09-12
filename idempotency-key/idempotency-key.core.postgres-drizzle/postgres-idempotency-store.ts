@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import type { CachedResponse, ClaimResult, IdempotencyStore, IdempotencyStoreOptions } from '../idempotency-key.core';
 import type { SqlExecutor } from './persistence/sql-executor';
@@ -18,34 +18,51 @@ type ExistingResult = Exclude<ClaimResult, { status: 'claimed' }>;
  * return one row (`rows.length === 1` = "I own it"); a recent-pending or
  * completed conflict returns zero, and the fallback read classifies it.
  *
+ * `(xmax = 0) as inserted` (a standard Postgres idiom) is how that one atomic
+ * statement also tells a brand-new row apart from a reclaimed one: `xmax` is
+ * the deleting-transaction id Postgres stamps on every row version, `0` on a
+ * row nobody has ever updated. A plain `INSERT` produces `xmax = 0`; the `DO
+ * UPDATE` branch produces a new row version with `xmax != 0`. No second query,
+ * no race — `reclaimedStale` falls straight out of the same statement that
+ * won the claim. `reclaim_count` is incremented in that same `DO UPDATE SET`,
+ * so counting a reclaim can never itself race the claim it's counting.
+ *
  * Every claim carries a fresh `claim_id`. `complete()` is guarded
  * `WHERE claim_id = $claimId`, so a claim reclaimed as stale (its `claim_id`
  * overwritten by the new owner) can no longer write its response — its
- * `complete()` is a silent 0-row no-op instead of corrupting the current
- * owner's cached response. This does not stop the duplicate side-effect (once
- * a still-in-flight claim is reclaimed by time, both run) — it keeps the cache
- * consistent with what the current owner's client saw.
+ * `complete()` is a 0-row no-op instead of corrupting the current owner's
+ * cached response. This does not stop the duplicate side-effect (once a
+ * still-in-flight claim is reclaimed by time, both run) — it keeps the cache
+ * consistent with what the current owner's client saw. That no-op is now
+ * itself recorded (`late_complete_no_op_count`, logged) rather than silently
+ * discarded — it's the one unambiguous signal that a duplicate actually ran.
  */
 @Injectable()
 export class PostgresIdempotencyStore implements IdempotencyStore {
+  private readonly logger = new Logger(PostgresIdempotencyStore.name);
+
   constructor(
     @Inject(IDEMPOTENCY_SQL_EXECUTOR) private readonly db: SqlExecutor,
     @Inject(IDEMPOTENCY_STORE_OPTIONS) private readonly options: IdempotencyStoreOptions,
   ) {}
 
-  async claim(key: string, scope: string): Promise<ClaimResult> {
+  async claim(key: string, scope: string, correlationId?: string): Promise<ClaimResult> {
     const claimId = randomUUID();
 
     const won = await this.db.execute(sql`
-      insert into commons_idempotency_key (key, scope, status, claim_id)
-      values (${key}, ${scope}, 'pending', ${claimId})
+      insert into commons_idempotency_key (key, scope, status, claim_id, correlation_id)
+      values (${key}, ${scope}, 'pending', ${claimId}, ${correlationId ?? null})
       on conflict (key, scope) do update
-        set status = 'pending', created_at = now(), claim_id = ${claimId}
+        set status = 'pending', created_at = now(), claim_id = ${claimId},
+            correlation_id = ${correlationId ?? null},
+            reclaim_count = commons_idempotency_key.reclaim_count + 1
         where commons_idempotency_key.status = 'pending'
           and commons_idempotency_key.created_at < now() - make_interval(secs => ${this.options.staleAfterSeconds})
-      returning claim_id
+      returning claim_id, (xmax = 0) as inserted
     `);
-    if (won.rows.length === 1) return { status: 'claimed', claimId };
+    if (won.rows.length === 1) {
+      return { status: 'claimed', claimId, reclaimedStale: won.rows[0].inserted !== true };
+    }
 
     let row = await this.readRow(key, scope);
     if (!row) {
@@ -53,25 +70,51 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
       // between that attempt and this read. Re-claim race-safely — never just report 'claimed'
       // without writing the row (complete() would have nothing to update, no concurrent
       // duplicate would be caught), and never a plain INSERT that PK-violates on a concurrent
-      // re-claim.
+      // re-claim. Not a "reclaim" in the stale-owner sense (the row was gone, not abandoned) —
+      // reclaimedStale is false here.
       const reclaimed = await this.db.execute(sql`
-        insert into commons_idempotency_key (key, scope, status, claim_id)
-        values (${key}, ${scope}, 'pending', ${claimId})
+        insert into commons_idempotency_key (key, scope, status, claim_id, correlation_id)
+        values (${key}, ${scope}, 'pending', ${claimId}, ${correlationId ?? null})
         on conflict (key, scope) do nothing
         returning claim_id
       `);
-      if (reclaimed.rows.length === 1) return { status: 'claimed', claimId };
+      if (reclaimed.rows.length === 1) return { status: 'claimed', claimId, reclaimedStale: false };
       row = await this.readRow(key, scope); // someone else won the re-claim — read their row
     }
     return this.classify(row);
   }
 
   async complete(key: string, scope: string, claimId: string, response: CachedResponse): Promise<void> {
-    await this.db.execute(sql`
+    const updated = await this.db.execute(sql`
       update commons_idempotency_key
       set status = 'completed', status_code = ${response.statusCode}, response_body = ${response.body}
       where key = ${key} and scope = ${scope} and claim_id = ${claimId}
+      returning key
     `);
+    if (updated.rows.length > 0) return;
+
+    // This claim was reclaimed as stale before this attempt finished — its result is being
+    // dropped by design (see IdempotencyStore's own doc comment), but that is exactly the
+    // duplicate-processing scenario staleAfterSeconds's doc comment warns about actually
+    // happening. Recorded best-effort so it isn't invisible; never lets a logging/counting
+    // failure surface past complete()'s own "never overwrite the current owner" contract.
+    this.logger.warn(
+      `complete() no-op for key="${key}" scope="${scope}" — the claim was reclaimed as stale ` +
+        `before this attempt finished. This attempt's result was discarded; if the original ` +
+        `owner was still genuinely running, a duplicate execution just happened.`,
+    );
+    try {
+      await this.db.execute(sql`
+        update commons_idempotency_key
+        set late_complete_no_op_count = late_complete_no_op_count + 1
+        where key = ${key} and scope = ${scope}
+      `);
+    } catch (err) {
+      this.logger.error(
+        `Failed to record a late-complete no-op for key="${key}" scope="${scope}"`,
+        err instanceof Error ? err.stack : String(err),
+      );
+    }
   }
 
   private async readRow(key: string, scope: string): Promise<Record<string, unknown> | undefined> {

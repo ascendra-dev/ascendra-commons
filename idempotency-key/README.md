@@ -13,11 +13,12 @@ container of dot-named packages, the same shape as `domain-events`:
 
 | Package | Role | Depends on |
 |---|---|---|
-| **`idempotency-key.core`** | `IdempotencyStore` port, `IdempotencyScopeResolver` port + `ActorScopeResolver`, `IdempotencyInterceptor`, the `ClaimResult`/`CachedResponse`/`IdempotencyStoreOptions` types, `IdempotencyModule.forRoot({ storeToken, scopeResolverToken?, imports })`. **No store.** | `@nestjs/common`, `@nestjs/core`, `rxjs` |
-| **`idempotency-key.core.postgres-drizzle`** (Model 1) | `PostgresIdempotencyStore` — one atomic `INSERT … ON CONFLICT …` claim; schema + migration; `forRoot({ sqlExecutorToken, staleAfterSeconds })`. | `idempotency-key.core`, `drizzle-orm` |
+| **`idempotency-key.core`** | `IdempotencyStore` port, `IdempotencyObservabilityPort`, `IdempotencyScopeResolver` port + `ActorScopeResolver`, `IdempotencyInterceptor`, the `ClaimResult`/`CachedResponse`/`IdempotencyStoreOptions` types, `IdempotencyModule.forRoot({ storeToken, scopeResolverToken?, imports })`. **No store.** | `@nestjs/common`, `@nestjs/core`, `rxjs` |
+| **`idempotency-key.core.postgres-drizzle`** (Model 1) | `PostgresIdempotencyStore` — one atomic `INSERT … ON CONFLICT …` claim; `PostgresIdempotencyObservabilityService` — read-only claim lookup + health summary; schema + migration; `forRoot({ sqlExecutorToken, staleAfterSeconds })`. | `idempotency-key.core`, `drizzle-orm` |
 | **`idempotency-key.core.redis`** (Model 2) | `RedisIdempotencyStore` — a stub that throws `RedisIdempotencyStoreNotImplementedError`. The seam is real; the store isn't built. | `idempotency-key.core` |
+| **`idempotency-key.api`** (2026-09-12) | Read-only HTTP endpoints over `IdempotencyObservabilityPort` — claim lookup, filtered list, correlation trace, health summary. No admin surface (claims are written only by `IdempotencyStore`). | `idempotency-key.core`, `authorization.core` |
 
-Dependency direction is one-way toward `.core`. No `.api` — nothing to administer.
+Dependency direction is one-way toward `.core`.
 
 ## Wiring
 
@@ -78,3 +79,13 @@ performance concern. Same interceptor and port. See
 `idempotency-key.core.redis`'s README for the design (`SET NX PX` claim,
 `staleAfterSeconds` → key TTL, a short second TTL on the completed response, a
 Lua `claimId` compare-and-set).
+
+## Observability (2026-09-12)
+
+Scoped narrower than a browsable claim log — **delivery only, never a listener
+outcome**, the same posture `domain-events` observability takes: was a claim
+fresh or a reclaim, and did a `complete()` call get silently dropped. Both were
+previously invisible even querying the raw table — see `idempotency-key.core`'s
+README, "Observability," for why that mattered more than the usual "nice to
+have a dashboard" case. `idempotency-key.api` ships the read surface;
+`idempotency-key.core.postgres-drizzle` ships the reference implementation.

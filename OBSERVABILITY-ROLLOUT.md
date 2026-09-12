@@ -146,6 +146,47 @@ not `rowCount`. **Migration:** `idempotency-key.schema.ts` + `.migration.sql`
 added (the module had none) — with `claim_id` and a `created_at` index for the
 24h cleanup. 461/461.
 
+## 8a · idempotency-key — observability, closing two blind spots ☑ (2026-09-12)
+
+Not a browsable-log build like the others — `commons_idempotency_key` already
+existed. The case was that two facts about a claim were **structurally
+invisible**, not merely unobserved: whether a `'claimed'` result was fresh or a
+reclaim of a possibly-still-running claim (the exact scenario
+`staleAfterSeconds`'s own doc comment warns can silently reintroduce a
+duplicate), and whether a `complete()` call was **dropped** because its claim
+had already been reclaimed (the moment that duplicate actually happens — and
+previously a silent 0-row `UPDATE` with no `RETURNING`, so not even detectable
+by the code itself, let alone observed).
+
+- `ClaimResult.claimed.reclaimedStale: boolean` — derived in the same atomic
+  `INSERT … ON CONFLICT … RETURNING` via the `(xmax = 0) as inserted` idiom, no
+  second query. `IdempotencyInterceptor` logs a warning when true.
+- `complete()`'s `UPDATE` gained `RETURNING key`; a 0-row result is now logged
+  and counted (`late_complete_no_op_count`, incremented via a guarded
+  best-effort follow-up statement) — the **unambiguous** duplicate-processing
+  signal.
+- New `reclaim_count` / `late_complete_no_op_count` / `correlation_id` columns
+  on the existing table (no new table — the row already sits on a 24h
+  retention window, the right lookback for "is this happening lately").
+- `IdempotencyObservabilityPort` (`.core`) — `getClaim`, `listClaims`
+  (keyset-paginated), `claimHealthSummary()` (pending/completed/reclaimed
+  counts, the `lateCompleteNoOpTotal`, and how far back the retained window
+  goes). `PostgresIdempotencyObservabilityService` implements it — no
+  `application` scoping (the module has none).
+- **New package `idempotency-key.api`** — `GET /idempotency-keys` (+
+  `/:scope/:key`, `/trace/:correlationId`, `/health`). Read-only, gated
+  `idempotency.view`, no tenant scoping (`scope` is opaque to this module —
+  see the `.api` README for why that rules out audit-logging-style
+  auto-scoping).
+- **Correlation-id cross-cut extended to idempotency-key** — `claim()` gained
+  an optional third `correlationId` argument, read by `IdempotencyInterceptor`
+  off `x-correlation-id` **by convention** (the same header `audit-logging`'s
+  `CorrelationIdMiddleware` reads), not a dependency — this module stays
+  self-contained.
+- mocks.html for `idempotency-key.api`.
+
+**Tests:** 583 → 610 (27 new). Typecheck clean.
+
 ## 8 · file-storage — observability + administration + package split ☑ (2026-09-07)
 
 **New tables** `commons_file_record`, `commons_attachment`, `commons_file_category`,
@@ -177,3 +218,4 @@ S3/"provider portability" Model 2 seam made real) / `.core.postgres-drizzle` / `
 - 2026-09-07 — `file-storage` split into `.core` / `.core.supabase` / `.core.s3` / `.core.postgres-drizzle` / `.api` — first module to use rows on two axes (blob backend Model 1/2 + a metadata stack adapter) and to ship an orchestration handler (`AttachmentService`) in `.core`. Added all persistence the module never had, a DB-backed admin-mutable file-category catalog (base + per-tenant tightening-only overrides), a download access log, and the ops/compliance `.api`. 544/544.
 - 2026-09-07 — `background-jobs` split into `.core` / `.core.postgres-drizzle` / `.api` (no family). `PostgresAdvisoryLock` moved out of `.core` (now `advisoryLockToken` is required); new `JobObservabilityPort` in `.core` (`getRunHistory` / `listJobStatus`), `PostgresJobObservabilityService` binds under `JOB_OBSERVABILITY_PORT`. `background-jobs.api` ships `GET /jobs` (dashboard) + `/jobs/:name/runs` + `/jobs/runs/trace/:correlationId` + `POST /jobs/:name/run` (JobTrigger, optional audit emitter). No tenant scoping. 454/454.
 - 2026-09-12 — item 5 (`domain-events`) done, rescoped from "deferred — needs an outbox" to **delivery-only** observability (never a listener outcome — see item 5 above for why that's the honest scope). New `EventDeliveryRecorder` + `EventListenerCatalogPort` in `.core`; new `domain-events.core.postgres-drizzle` (`commons_domain_events_delivery`) and `domain-events.api` packages; `emit()`/`emitCritical()` gained the `correlationId` cross-cut item 4 had left out. mocks.html added. 583/583.
+- 2026-09-12 — item 8a (`idempotency-key`) done — not a from-zero build (the table already existed); closed two previously-undetectable blind spots (`reclaimedStale`, the `complete()` 0-row no-op) instead. New `IdempotencyObservabilityPort` in `.core`, `reclaim_count`/`late_complete_no_op_count`/`correlation_id` columns on the existing table, new `idempotency-key.api` package, `claim()` gained the `correlationId` cross-cut (read from `x-correlation-id` by convention, not a dependency). mocks.html added. 610/610.

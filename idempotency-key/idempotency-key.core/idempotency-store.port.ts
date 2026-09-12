@@ -14,9 +14,18 @@ import type { ClaimResult } from './claim-result';
  *
  * `complete()` takes the `claimId` from the `'claimed'` result — an evicted
  * (reclaimed-as-stale) claimer's `complete()` then no-ops instead of
- * overwriting the current owner's cached response.
+ * overwriting the current owner's cached response. That no-op is itself worth
+ * knowing about — see `idempotency-key.core.postgres-drizzle`'s
+ * `PostgresIdempotencyStore` for how the reference adapter surfaces it.
+ *
+ * `correlationId` is optional on both methods — the ambient request/trace id,
+ * when the caller has one (the same shape `JobTrigger.trigger()` and
+ * `DomainEventEmitter.emit()` take), threaded through so a stack adapter can
+ * join a claim to the same id in `commons_audit_event` /
+ * `commons_notification_delivery` / `commons_domain_events_delivery` for a
+ * cross-module trace. Plumbing only — never part of `scope` or the cache key.
  */
 export interface IdempotencyStore {
-  claim(key: string, scope: string): Promise<ClaimResult>;
+  claim(key: string, scope: string, correlationId?: string): Promise<ClaimResult>;
   complete(key: string, scope: string, claimId: string, response: CachedResponse): Promise<void>;
 }

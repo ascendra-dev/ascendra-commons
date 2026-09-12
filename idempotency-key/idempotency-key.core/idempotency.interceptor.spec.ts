@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CallHandler, ConflictException, ExecutionContext, HttpException } from '@nestjs/common';
+import { CallHandler, ConflictException, ExecutionContext, HttpException, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable, firstValueFrom, of, throwError } from 'rxjs';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
@@ -22,7 +22,7 @@ function fakeReflector(explicitCode?: number): Reflector {
 }
 
 const scopeResolver: IdempotencyScopeResolver = { resolveScope: vi.fn().mockResolvedValue('scope-1') };
-const CLAIMED = { status: 'claimed' as const, claimId: 'claim-abc' };
+const CLAIMED = { status: 'claimed' as const, claimId: 'claim-abc', reclaimedStale: false };
 
 describe('IdempotencyInterceptor', () => {
   it('passes through untouched when no Idempotency-Key header is present', async () => {
@@ -126,5 +126,53 @@ describe('IdempotencyInterceptor', () => {
     await expect(firstValueFrom(result)).rejects.toBe(error);
 
     expect(store.complete).not.toHaveBeenCalled();
+  });
+
+  it('reads x-correlation-id and threads it into store.claim()', async () => {
+    const store: IdempotencyStore = { claim: vi.fn().mockResolvedValue(CLAIMED), complete: vi.fn().mockResolvedValue(undefined) };
+    const interceptor = new IdempotencyInterceptor(store, scopeResolver, fakeReflector(200));
+
+    await firstValueFrom(
+      await interceptor.intercept(
+        fakeContext({ 'idempotency-key': 'k1', 'x-correlation-id': 'corr-1' }),
+        fakeHandler(of({ ok: true })),
+      ),
+    );
+
+    expect(store.claim).toHaveBeenCalledWith('k1', 'scope-1', 'corr-1');
+  });
+
+  it('claims with undefined correlationId when the header is absent', async () => {
+    const store: IdempotencyStore = { claim: vi.fn().mockResolvedValue(CLAIMED), complete: vi.fn().mockResolvedValue(undefined) };
+    const interceptor = new IdempotencyInterceptor(store, scopeResolver, fakeReflector(200));
+
+    await firstValueFrom(await interceptor.intercept(fakeContext({ 'idempotency-key': 'k1' }), fakeHandler(of({ ok: true }))));
+
+    expect(store.claim).toHaveBeenCalledWith('k1', 'scope-1', undefined);
+  });
+
+  it('logs a warning, but proceeds exactly as a fresh claim, when reclaimedStale is true', async () => {
+    const store: IdempotencyStore = {
+      claim: vi.fn().mockResolvedValue({ status: 'claimed', claimId: 'claim-abc', reclaimedStale: true }),
+      complete: vi.fn().mockResolvedValue(undefined),
+    };
+    const interceptor = new IdempotencyInterceptor(store, scopeResolver, fakeReflector(200));
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    const result = await interceptor.intercept(fakeContext({ 'idempotency-key': 'k1' }), fakeHandler(of({ ok: true })));
+
+    expect(await firstValueFrom(result)).toEqual({ ok: true });
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain('k1');
+  });
+
+  it('does not log when reclaimedStale is false', async () => {
+    const store: IdempotencyStore = { claim: vi.fn().mockResolvedValue(CLAIMED), complete: vi.fn().mockResolvedValue(undefined) };
+    const interceptor = new IdempotencyInterceptor(store, scopeResolver, fakeReflector(200));
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    await firstValueFrom(await interceptor.intercept(fakeContext({ 'idempotency-key': 'k1' }), fakeHandler(of({ ok: true }))));
+
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });

@@ -52,7 +52,8 @@ one-way toward `.core`. See `MODULE-STANDARD.md` §1b. `authorization`,
 `audit-logging`/`background-jobs` use `.core` / `.core.postgres-drizzle` /
 `.api`; `domain-events` uses `.core` / `.core.in-process` / `.core.broker` /
 `.core.postgres-drizzle` (delivery-log observability, 2026-09-12) / `.api`;
-`idempotency-key` uses `.core` / `.core.postgres-drizzle` / `.core.redis`;
+`idempotency-key` uses `.core` / `.core.postgres-drizzle` / `.core.redis` /
+`.api` (claim observability, 2026-09-12);
 `file-storage` uses `.core` / `.core.supabase` / `.core.s3` (the two `FileStore`
 backends) / `.core.postgres-drizzle` (metadata + category catalog + access log)
 / `.api`.

@@ -1,0 +1,147 @@
+import { describe, expect, it, vi } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
+import { PostgresIdempotencyObservabilityService } from './postgres-idempotency-observability.service';
+import type { SqlExecutor } from '../persistence/sql-executor';
+
+const dialect = new PgDialect();
+
+function fakeDb(rows: Array<Record<string, unknown>> = []) {
+  return { execute: vi.fn().mockResolvedValue({ rows }) } satisfies SqlExecutor as SqlExecutor & {
+    execute: ReturnType<typeof vi.fn>;
+  };
+}
+
+function rendered(db: ReturnType<typeof fakeDb>, call = 0) {
+  return dialect.sqlToQuery(db.execute.mock.calls[call][0] as SQL);
+}
+
+let seq = 0;
+function row(over: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
+  seq += 1;
+  return {
+    key: `key-${seq}`,
+    scope: 'tenant-1',
+    status: 'completed',
+    status_code: 201,
+    response_body: { id: 'inv-1' },
+    created_at: new Date('2026-06-01T10:00:00Z'),
+    reclaim_count: 0,
+    late_complete_no_op_count: 0,
+    correlation_id: 'trace-1',
+    ...over,
+  };
+}
+
+function service(db: SqlExecutor) {
+  return new PostgresIdempotencyObservabilityService(db);
+}
+
+describe('PostgresIdempotencyObservabilityService.getClaim', () => {
+  it('maps a completed row, including the cached response', async () => {
+    const db = fakeDb([row()]);
+    const claim = await service(db).getClaim('key-1', 'tenant-1');
+
+    expect(claim).toMatchObject({
+      key: 'key-1',
+      scope: 'tenant-1',
+      status: 'completed',
+      response: { statusCode: 201, body: { id: 'inv-1' } },
+      correlationId: 'trace-1',
+    });
+  });
+
+  it('returns null when nothing matches', async () => {
+    const db = fakeDb([]);
+    await expect(service(db).getClaim('missing', 'tenant-1')).resolves.toBeNull();
+  });
+
+  it('a pending row has a null response', async () => {
+    const db = fakeDb([row({ status: 'pending', status_code: null, response_body: null })]);
+    await expect(service(db).getClaim('key-1', 'tenant-1')).resolves.toMatchObject({
+      status: 'pending',
+      response: null,
+    });
+  });
+});
+
+describe('PostgresIdempotencyObservabilityService.listClaims', () => {
+  it('maps rows and has no unfiltered application-style WHERE (this module has no application)', async () => {
+    const db = fakeDb([row({ key: 'a' }), row({ key: 'b' })]);
+    const result = await service(db).listClaims();
+
+    expect(result.claims).toHaveLength(2);
+    expect(result.nextCursor).toBeUndefined();
+  });
+
+  it('ANDs the optional filters as bound params', async () => {
+    const db = fakeDb([]);
+    await service(db).listClaims({
+      status: 'pending',
+      scope: 'tenant-9',
+      correlationId: 'trace-xyz',
+      since: new Date('2026-01-01T00:00:00Z'),
+      until: new Date('2026-07-01T00:00:00Z'),
+    });
+
+    const { sql: text, params } = rendered(db);
+    expect(text).toMatch(/status =/i);
+    expect(text).toMatch(/scope =/i);
+    expect(text).toMatch(/correlation_id =/i);
+    expect(text).toMatch(/created_at >=/i);
+    expect(text).toMatch(/created_at </i);
+    expect(params).toEqual(expect.arrayContaining(['pending', 'tenant-9', 'trace-xyz']));
+  });
+
+  it('returns a nextCursor when more rows exist and keys the next page off it', async () => {
+    const many = Array.from({ length: 51 }, (_, i) => row({ key: `key-${100 + i}` }));
+    const db = fakeDb(many);
+    const page = await service(db).listClaims({ limit: 50 });
+
+    expect(page.claims).toHaveLength(50);
+    expect(page.nextCursor).toBeTruthy();
+
+    const db2 = fakeDb([]);
+    await service(db2).listClaims({ cursor: page.nextCursor, limit: 50 });
+    expect(rendered(db2).sql).toMatch(/created_at < .* or .*created_at = .* and \(key, scope\) < /is);
+  });
+
+  it('caps limit at 200 and ignores a malformed cursor', async () => {
+    const db = fakeDb([]);
+    await service(db).listClaims({ limit: 100_000 });
+    expect(rendered(db).params).toContain(201);
+
+    const db2 = fakeDb([]);
+    await expect(service(db2).listClaims({ cursor: 'garbage' })).resolves.toEqual({ claims: [] });
+  });
+});
+
+describe('PostgresIdempotencyObservabilityService.claimHealthSummary', () => {
+  it('maps the aggregate row', async () => {
+    const db = fakeDb([
+      {
+        pending_count: '4',
+        completed_count: '96',
+        reclaimed_count: '2',
+        late_complete_no_op_total: '1',
+        total_count: '100',
+        oldest_retained_at: new Date('2026-06-01T00:00:00Z'),
+      },
+    ]);
+
+    await expect(service(db).claimHealthSummary()).resolves.toEqual({
+      pendingCount: 4,
+      completedCount: 96,
+      reclaimedCount: 2,
+      lateCompleteNoOpTotal: 1,
+      totalCount: 100,
+      oldestRetainedAt: new Date('2026-06-01T00:00:00Z'),
+    });
+  });
+
+  it('handles an empty table', async () => {
+    const db = fakeDb([{ pending_count: '0', completed_count: '0', reclaimed_count: '0', late_complete_no_op_total: '0', total_count: '0', oldest_retained_at: null }]);
+
+    await expect(service(db).claimHealthSummary()).resolves.toMatchObject({ totalCount: 0, oldestRetainedAt: null });
+  });
+});

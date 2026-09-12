@@ -7,4 +7,12 @@ export { ActorScopeResolver } from './actor-scope-resolver';
 export { IdempotencyInterceptor } from './idempotency.interceptor';
 export { IdempotencyModule } from './idempotency.module';
 export type { IdempotencyModuleConfig } from './idempotency.module';
-export { IDEMPOTENCY_STORE, IDEMPOTENCY_SCOPE_RESOLVER } from './tokens';
+export type {
+  IdempotencyClaimRecord,
+  ClaimQuery,
+  ClaimPage,
+  ClaimHealthSummary,
+  IdempotencyObservabilityPort,
+} from './idempotency-observability.port';
+export { encodeKeysetCursor, decodeKeysetCursor } from './keyset-cursor';
+export { IDEMPOTENCY_STORE, IDEMPOTENCY_SCOPE_RESOLVER, IDEMPOTENCY_OBSERVABILITY_PORT } from './tokens';

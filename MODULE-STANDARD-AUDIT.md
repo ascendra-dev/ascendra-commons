@@ -6,6 +6,7 @@
 |---------|------|--------|
 | 1.0 | 2026-09-04 | First audit pass, all seven modules, against `MODULE-STANDARD.md` v1.0. |
 | 1.1 | 2026-09-12 | `domain-events` observability built (item 5, previously deferred) — see the dated section at the end of this file. |
+| 1.2 | 2026-09-12 | `idempotency-key` observability built (closing two blind spots in the existing table, not a from-zero build) — see the dated section at the end of this file. |
 
 Tracks the state of each module against `MODULE-STANDARD.md`'s eleven
 dimensions over time. A fresh audit appends a new dated section below rather
@@ -1660,3 +1661,87 @@ other dimension unchanged from the 2026-09-04 pass.
 module DI-boot specs ×3, listener-catalog service ×4, in-process emitter
 delivery-recording ×10 + 2 in its module spec, `.api` service ×4 + module ×5).
 Typecheck clean throughout.
+
+---
+
+## 2026-09-12 — `idempotency-key` observability
+
+Asked directly: does `idempotency-key` qualify for the same observability
+treatment `domain-events` just got? **Yes — a stronger case, not a weaker
+one.** For `domain-events`, observability was "wouldn't it be nice to see what
+fired." For `idempotency-key`, the module's own README already names the
+failure mode a read surface would catch (`IdempotencyStoreOptions.staleAfterSeconds`'s
+doc comment: set it too low and "the exact duplicate this whole pattern exists
+to prevent" is silently reintroduced), and that failure mode was, before this
+pass, **structurally undetectable** — not merely unobserved. Reading
+`PostgresIdempotencyStore` closely surfaced two concrete blind spots:
+
+1. `claim()`'s `'claimed'` result never distinguished a fresh key from a
+   reclaim of a possibly-still-running claim — the exact case the doc comment
+   above warns about, with no signal anywhere that it had happened.
+2. `complete()`'s `UPDATE` had no `RETURNING` clause, so a 0-row result (the
+   claim was reclaimed out from under it — the moment a duplicate execution
+   actually happens) was indistinguishable from a 1-row success, even to the
+   code itself, let alone to an observer.
+
+Unlike `domain-events`, this was not a from-zero persistence build —
+`commons_idempotency_key` already existed. The work was narrower: close the
+two blind spots, then build the usual read port + `.api` over what already
+existed (plus three small new columns).
+
+### What shipped
+
+- **`ClaimResult.claimed.reclaimedStale: boolean`** — derived in the same
+  atomic `INSERT … ON CONFLICT … RETURNING` statement via `(xmax = 0) as
+  inserted` (a standard Postgres idiom: `xmax = 0` means the row was never
+  updated, i.e. a plain insert; the `DO UPDATE` reclaim branch produces
+  `xmax != 0`). No second query, no new race. `reclaim_count` is incremented
+  in that same `DO UPDATE SET`. `IdempotencyInterceptor` logs a warning when
+  `reclaimedStale` is true; it still proceeds exactly as a fresh claim would —
+  this is observability, not a behavior change.
+- **`complete()`'s `UPDATE` gained `RETURNING key`** — a 0-row result is now
+  detected, logged (`Logger.warn`), and counted
+  (`late_complete_no_op_count`, incremented via a separate best-effort
+  statement, guarded so a counting failure can never surface past
+  `complete()`'s existing "never overwrite the current owner" contract). This
+  is the **unambiguous** signal — unlike `reclaimedStale` (a possible
+  duplicate), a late no-op means a duplicate execution definitely happened.
+- **Three new columns** on the existing table (`reclaim_count`,
+  `late_complete_no_op_count`, `correlation_id`) — no new table. The row
+  already sits on a 24h retention window (the existing cleanup job), which is
+  the right lookback for "is this happening lately" — the actual question an
+  operator asks, not "show me all time."
+- **`IdempotencyObservabilityPort` (`.core`)** — `getClaim`, `listClaims`
+  (keyset-paginated), `claimHealthSummary()`. No `application` scoping — the
+  module's existing stance ("a claim never leaves the store") isn't changed by
+  adding a read path over it.
+- **New package `idempotency-key.api`** — `GET /idempotency-keys` (+
+  `/:scope/:key`, `/trace/:correlationId`, `/health`), gated
+  `idempotency.view`. **No tenant scoping**, and deliberately not
+  audit-logging-style auto-scoping either: `scope` is opaque to this module
+  (whatever the app's own `IdempotencyScopeResolver` returns, not guaranteed
+  to equal `Actor.tenantId`), so there is no safe generic way to enforce "your
+  own scope only." Documented in the `.api` README as a decision, not an
+  oversight — grant the action to an ops/support persona.
+- **Correlation-id cross-cut extended** — `claim()` gained an optional third
+  `correlationId` argument, read by `IdempotencyInterceptor` off the
+  `x-correlation-id` header **by convention, not by dependency** (the same
+  header `audit-logging`'s `CorrelationIdMiddleware` reads) — `idempotency-key`
+  stays self-contained (no import from `audit-logging`) while still agreeing
+  with it when both are wired in one app.
+- mocks.html for `idempotency-key.api` (all six `.api` modules now have one).
+
+### Dimension re-scoring
+
+`idempotency-key`: dimension 8 (UI/admin contract) — the 2026-09-04 pass
+scored this **Pass**, but on inspection that was "correctly N/A-shaped, nothing
+built" under the standard's pre-rollout understanding of the dimension, not
+the same bar every other module has since been held to (a real read surface
+that was actually built). Re-scored **Pass** on the current, stricter bar now
+that `idempotency-key.api` exists. Every other dimension unchanged.
+
+**Tests:** 583 → 610 (27 new — store claim/complete ×5, observability service
+×9, two module DI-boot specs ×2, interceptor correlation/reclaim logging ×4,
+`.api` service ×4 + module ×5, minus net adjustments to existing specs
+updated for the new `reclaimedStale`/`RETURNING` shapes). Typecheck clean
+throughout.

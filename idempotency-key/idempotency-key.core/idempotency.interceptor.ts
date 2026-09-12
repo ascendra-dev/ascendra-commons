@@ -1,4 +1,4 @@
-import { CallHandler, ConflictException, ExecutionContext, HttpException, Inject, Injectable, NestInterceptor } from '@nestjs/common';
+import { CallHandler, ConflictException, ExecutionContext, HttpException, Inject, Injectable, Logger, NestInterceptor } from '@nestjs/common';
 import { HTTP_CODE_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
 import { Observable, catchError, from, map, of, switchMap, throwError } from 'rxjs';
@@ -21,6 +21,8 @@ interface MinimalRequest {
  */
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
+  private readonly logger = new Logger(IdempotencyInterceptor.name);
+
   constructor(
     @Inject(IDEMPOTENCY_STORE) private readonly store: IdempotencyStore,
     @Inject(IDEMPOTENCY_SCOPE_RESOLVER) private readonly scopeResolver: IdempotencyScopeResolver,
@@ -32,8 +34,14 @@ export class IdempotencyInterceptor implements NestInterceptor {
     const key = request.headers['idempotency-key'];
     if (!key || typeof key !== 'string') return next.handle(); // endpoint doesn't require it, or client omitted it
 
+    // Same header (`x-correlation-id`) audit-logging's own CorrelationIdMiddleware reads —
+    // reused by convention, not by dependency: this module stays self-contained (no import
+    // from audit-logging), but the two naturally agree when both are wired in the same app.
+    const correlationHeader = request.headers['x-correlation-id'];
+    const correlationId = typeof correlationHeader === 'string' ? correlationHeader : undefined;
+
     const scope = await this.scopeResolver.resolveScope(request);
-    const claim = await this.store.claim(key, scope);
+    const claim = await this.store.claim(key, scope, correlationId);
 
     if (claim.status === 'completed') {
       // Replay verbatim, including the original status — a cached error must come back as
@@ -44,6 +52,20 @@ export class IdempotencyInterceptor implements NestInterceptor {
         : of(body);
     }
     if (claim.status === 'in_progress') throw new ConflictException();
+
+    if (claim.reclaimedStale) {
+      // Not thrown, not blocked — the request proceeds exactly as a fresh claim would.
+      // Logged because a reclaim is the scenario staleAfterSeconds's doc comment warns
+      // about: if the original owner was in fact still running, this is now a genuine
+      // duplicate execution. See idempotency-key.core.postgres-drizzle's observability
+      // service for the counted, queryable version of this same signal.
+      this.logger.warn(
+        `Idempotency-Key "${key}" (scope "${scope}") was reclaimed as stale — a previous ` +
+          `claim on this key was presumed abandoned. If that claim was still genuinely in ` +
+          `flight, this is a duplicate execution; consider whether staleAfterSeconds is set ` +
+          `too low for this endpoint.`,
+      );
+    }
 
     const { claimId } = claim;
 
