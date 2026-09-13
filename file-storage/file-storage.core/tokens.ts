@@ -22,6 +22,9 @@ export const FILE_SCANNER = Symbol('FILE_SCANNER');
 /** Best-effort download access log. Defaults to `NoopFileAccessRecorder`. */
 export const FILE_ACCESS_RECORDER = Symbol('FILE_ACCESS_RECORDER');
 
+/** Best-effort rejected-upload log (bad category, validation failure, failed/rejected scan). Defaults to `NoopFileUploadRejectionRecorder`. */
+export const FILE_UPLOAD_REJECTION_RECORDER = Symbol('FILE_UPLOAD_REJECTION_RECORDER');
+
 /** Validates an opaque share token → `fileRecordId`. Defaults to `MissingSignedLinkResolver` (throws until the consumer binds one). */
 export const SIGNED_LINK_RESOLVER = Symbol('SIGNED_LINK_RESOLVER');
 

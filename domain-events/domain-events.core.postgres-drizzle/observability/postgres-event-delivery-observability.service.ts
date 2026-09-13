@@ -5,6 +5,7 @@ import {
   encodeKeysetCursor,
   type DeliveryPage,
   type DeliveryQuery,
+  type DeliveryStats,
   type EventDeliveryCatalogEntry,
   type EventDeliveryObservabilityPort,
   type EventDeliveryRecord,
@@ -34,6 +35,8 @@ export class PostgresEventDeliveryObservabilityService implements EventDeliveryO
 
   async listDeliveries(query: DeliveryQuery = {}): Promise<DeliveryPage> {
     const limit = Math.min(Math.max(1, query.limit ?? DEFAULT_LIMIT), MAX_LIMIT);
+    const order = query.order ?? 'desc';
+    const orderSql = order === 'asc' ? sql`asc` : sql`desc`;
 
     const conds: SQL[] = [sql`application = ${this.application}`];
     if (query.eventName !== undefined) conds.push(sql`event_name = ${query.eventName}`);
@@ -46,7 +49,9 @@ export class PostgresEventDeliveryObservabilityService implements EventDeliveryO
     const cursor = query.cursor ? decodeKeysetCursor(query.cursor) : null;
     if (cursor) {
       conds.push(
-        sql`(delivered_at < ${cursor.timestamp} or (delivered_at = ${cursor.timestamp} and id < ${cursor.id}))`,
+        order === 'asc'
+          ? sql`(delivered_at > ${cursor.timestamp} or (delivered_at = ${cursor.timestamp} and id > ${cursor.id}))`
+          : sql`(delivered_at < ${cursor.timestamp} or (delivered_at = ${cursor.timestamp} and id < ${cursor.id}))`,
       );
     }
 
@@ -55,7 +60,7 @@ export class PostgresEventDeliveryObservabilityService implements EventDeliveryO
         select id, event_name, method, transport, occurred_at, delivered_at, listener_count, status, reason, correlation_id
         from commons_domain_events_delivery
         where ${sql.join(conds, sql` and `)}
-        order by delivered_at desc, id desc
+        order by delivered_at ${orderSql}, id ${orderSql}
         limit ${limit + 1}
       `)
     ).rows.map(mapRow);
@@ -89,6 +94,50 @@ export class PostgresEventDeliveryObservabilityService implements EventDeliveryO
       dispatchFailedCount: Number(row.dispatch_failed_count),
       lastDeliveredAt: row.last_delivered_at instanceof Date ? row.last_delivered_at : new Date(String(row.last_delivered_at)),
     }));
+  }
+
+  async deliveryStats(since: Date): Promise<DeliveryStats> {
+    const { rows: dayRows } = await this.db.execute(sql`
+      select
+        to_char(date_trunc('day', delivered_at), 'YYYY-MM-DD') as day,
+        count(*) as total,
+        count(*) filter (where status = 'no_listeners') as no_listener_count,
+        count(*) filter (where status = 'dispatch_failed') as dispatch_failed_count
+      from commons_domain_events_delivery
+      where application = ${this.application} and delivered_at >= ${since}
+      group by date_trunc('day', delivered_at)
+      order by date_trunc('day', delivered_at) asc
+    `);
+
+    const { rows: topRows } = await this.db.execute(sql`
+      select event_name, count(*) as total_deliveries
+      from commons_domain_events_delivery
+      where application = ${this.application} and delivered_at >= ${since}
+      group by event_name
+      order by total_deliveries desc
+      limit 10
+    `);
+
+    const perDay = dayRows.map((row) => ({
+      date: String(row.day),
+      total: Number(row.total),
+      noListenerCount: Number(row.no_listener_count),
+      dispatchFailedCount: Number(row.dispatch_failed_count),
+    }));
+
+    const totalDeliveries = perDay.reduce((sum, day) => sum + day.total, 0);
+    const totalNoListener = perDay.reduce((sum, day) => sum + day.noListenerCount, 0);
+    const totalDispatchFailed = perDay.reduce((sum, day) => sum + day.dispatchFailedCount, 0);
+
+    return {
+      perDay,
+      topEvents: topRows.map((row) => ({
+        eventName: String(row.event_name),
+        totalDeliveries: Number(row.total_deliveries),
+      })),
+      noListenerRate: totalDeliveries === 0 ? 0 : totalNoListener / totalDeliveries,
+      dispatchFailedRate: totalDeliveries === 0 ? 0 : totalDispatchFailed / totalDeliveries,
+    };
   }
 }
 

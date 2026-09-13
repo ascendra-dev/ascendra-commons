@@ -7,11 +7,14 @@ import { DomainEventsController } from './domain-events.controller';
 
 const listDeliveries = vi.fn().mockResolvedValue({ deliveries: [] });
 const deliveryCatalog = vi.fn().mockResolvedValue([]);
+const deliveryStats = vi
+  .fn()
+  .mockResolvedValue({ perDay: [], topEvents: [], noListenerRate: 0, dispatchFailedRate: 0 });
 const listBindings = vi.fn().mockResolvedValue([]);
 
 @Module({
   providers: [
-    { provide: EVENT_DELIVERY_OBSERVABILITY_PORT, useValue: { listDeliveries, deliveryCatalog } },
+    { provide: EVENT_DELIVERY_OBSERVABILITY_PORT, useValue: { listDeliveries, deliveryCatalog, deliveryStats } },
     { provide: EVENT_LISTENER_CATALOG_PORT, useValue: { list: listBindings } },
   ],
   exports: [EVENT_DELIVERY_OBSERVABILITY_PORT, EVENT_LISTENER_CATALOG_PORT],
@@ -36,16 +39,25 @@ describe('DomainEventsApiModule.forRoot — real DI wiring', () => {
     expect(listDeliveries).toHaveBeenCalledWith(expect.objectContaining({ eventName: 'invoice.sent' }));
   });
 
-  it('routes GET /domain-events/deliveries/trace/:correlationId', async () => {
+  it('routes GET /domain-events/deliveries/trace/:correlationId, forcing ascending order', async () => {
     const moduleRef = await build();
     await moduleRef.get(DomainEventsController).trace('trace-9');
-    expect(listDeliveries).toHaveBeenLastCalledWith(expect.objectContaining({ correlationId: 'trace-9' }));
+    expect(listDeliveries).toHaveBeenLastCalledWith(
+      expect.objectContaining({ correlationId: 'trace-9', order: 'asc' }),
+    );
   });
 
   it('routes GET /domain-events/deliveries/catalog', async () => {
     const moduleRef = await build();
     await moduleRef.get(DomainEventsController).deliveryCatalog();
     expect(deliveryCatalog).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes GET /domain-events/stats through to deliveryStats, parsing the window', async () => {
+    const moduleRef = await build();
+    await moduleRef.get(DomainEventsController).stats('30d');
+    expect(deliveryStats).toHaveBeenCalledTimes(1);
+    expect(deliveryStats.mock.calls[0][0]).toBeInstanceOf(Date);
   });
 
   it('routes GET /domain-events/listener-catalog', async () => {

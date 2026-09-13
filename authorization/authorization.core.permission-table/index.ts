@@ -7,6 +7,7 @@ export type { AuthzObservabilityPort } from './ports/authz-observability.port';
 // Answer-shapes — what the ports return, what authorization.api serves
 export type {
   RoleView,
+  RoleDetail,
   UserRoleAssignment,
   AssignmentQuery,
   DelegationView,
@@ -16,6 +17,9 @@ export type {
   ActionCatalogHealth,
   AssignRoleInput,
   RevokeRoleInput,
+  WhoCanRoleGrant,
+  WhoCanDelegationGrant,
+  WhoCanResult,
 } from './types/authz-admin.types';
 export type {
   DelegationOptions,

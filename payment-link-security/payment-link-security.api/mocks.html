@@ -148,7 +148,7 @@
       <thead><tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr></thead>
       <tbody>
         <tr><td>Resolutions</td><td><span class="endpoint"><span class="m">GET</span>/payment-links/resolutions</span></td><td><span class="status live">Live</span></td><td>All filters exposed. Keyset pagination.</td></tr>
-        <tr><td>Request Trace</td><td><span class="endpoint"><span class="m">GET</span>/payment-links/resolutions/trace/:correlationId</span></td><td><span class="status live">Live</span></td><td>Cross-module — joins the same id in <code>audit-logging.api</code> / <code>notification.api</code> / <code>domain-events.api</code>.</td></tr>
+        <tr><td>Request Trace</td><td><span class="endpoint"><span class="m">GET</span>/payment-links/resolutions/trace/:correlationId</span></td><td><span class="status live">Live</span></td><td>Cross-module — shares a correlation id with <code>audit-logging.api</code> / <code>notification.api</code> / <code>domain-events.api</code> (each queried independently; correlation is a client-side aggregation).</td></tr>
         <tr><td>Outcome Catalog</td><td><span class="endpoint"><span class="m">GET</span>/payment-links/resolutions/catalog</span></td><td><span class="status live">Live</span></td><td>Counts by outcome, optionally windowed — the "is someone probing us" number.</td></tr>
       </tbody>
     </table>

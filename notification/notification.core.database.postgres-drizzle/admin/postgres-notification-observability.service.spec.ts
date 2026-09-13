@@ -57,6 +57,23 @@ describe('getDeliveryHistory', () => {
   });
 });
 
+describe('getDelivery', () => {
+  it('returns one row scoped to the application and id', async () => {
+    const db = fakeDb((text) =>
+      /from commons_notification_delivery/i.test(text) ? [deliveryRow({ id: 42, tenant_id: 't1' })] : [],
+    );
+    const record = await svc(db).getDelivery('42');
+    expect(record).toMatchObject({ id: '42', tenantId: 't1', notificationType: 'invoice.sent' });
+    const { params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(params).toEqual(expect.arrayContaining(['ascendra-pay', '42']));
+  });
+
+  it('returns null when no row matches', async () => {
+    const db = fakeDb(() => []);
+    expect(await svc(db).getDelivery('999')).toBeNull();
+  });
+});
+
 describe('getDeliveryContent', () => {
   it('returns the stored content for one row, application-scoped', async () => {
     const content = { subject: 'Hi', body: 'You owe 40', isHtml: false, variables: { amount: 40 } };
@@ -102,5 +119,38 @@ describe('configCoverageGaps', () => {
     expect(gaps).toContainEqual({ notificationType: 'payment.confirmed', tenantId: 't1', channel: 'email', kind: 'missing_provider_credential' });
     // invoice.sent/email has a (null-tenant) template → not a gap; null-tenant route needs no credential
     expect(gaps).not.toContainEqual(expect.objectContaining({ notificationType: 'invoice.sent', channel: 'email' }));
+  });
+});
+
+describe('getDeliveryStats', () => {
+  it('groups by channel/status, type/status and day, scoped to the application and window', async () => {
+    const db = fakeDb((text) => {
+      if (/group by channel, status/i.test(text)) return [{ channel: 'email', status: 'sent', count: 5 }];
+      if (/group by notification_type, status/i.test(text)) return [{ notification_type: 'invoice.sent', status: 'sent', count: 5 }];
+      if (/group by day/i.test(text)) return [{ day: new Date('2026-06-01T00:00:00Z'), count: 5 }];
+      return [];
+    });
+    const since = new Date('2026-05-25T00:00:00Z');
+    const until = new Date('2026-06-01T00:00:00Z');
+    const stats = await svc(db).getDeliveryStats({ since, until, tenantId: 't1' });
+
+    expect(stats.since).toEqual(since);
+    expect(stats.until).toEqual(until);
+    expect(stats.byChannel).toEqual([{ channel: 'email', status: 'sent', count: 5 }]);
+    expect(stats.byType).toEqual([{ notificationType: 'invoice.sent', status: 'sent', count: 5 }]);
+    expect(stats.byDay).toEqual([{ day: '2026-06-01', count: 5 }]);
+
+    for (const call of db.execute.mock.calls) {
+      const { params } = dialect.sqlToQuery(call[0] as SQL);
+      expect(params).toEqual(expect.arrayContaining(['ascendra-pay', since, until, 't1']));
+    }
+  });
+
+  it('defaults to a 7-day window ending now when none is given', async () => {
+    const db = fakeDb(() => []);
+    const before = Date.now();
+    const stats = await svc(db).getDeliveryStats();
+    expect(stats.until.getTime()).toBeGreaterThanOrEqual(before);
+    expect(stats.until.getTime() - stats.since.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
   });
 });

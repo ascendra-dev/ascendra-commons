@@ -142,7 +142,7 @@
       <thead><tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr></thead>
       <tbody>
         <tr><td>Webhook Events</td><td><span class="endpoint"><span class="m">GET</span>/payment-gateway/webhook-events</span></td><td><span class="status live">Live</span></td><td>All filters exposed. Keyset pagination.</td></tr>
-        <tr><td>Request Trace</td><td><span class="endpoint"><span class="m">GET</span>/payment-gateway/webhook-events/trace/:correlationId</span></td><td><span class="status live">Live</span></td><td>Cross-module — joins the same id in <code>audit-logging.api</code> / <code>notification.api</code>.</td></tr>
+        <tr><td>Request Trace</td><td><span class="endpoint"><span class="m">GET</span>/payment-gateway/webhook-events/trace/:correlationId</span></td><td><span class="status live">Live</span></td><td>Cross-module — shares a correlation id with <code>audit-logging.api</code> / <code>notification.api</code>.</td></tr>
         <tr><td>Outcome Catalog</td><td><span class="endpoint"><span class="m">GET</span>/payment-gateway/webhook-events/catalog</span></td><td><span class="status live">Live</span></td><td>Counts by outcome — a spike in signature_invalid or ignored_backwards is worth investigating.</td></tr>
       </tbody>
     </table>

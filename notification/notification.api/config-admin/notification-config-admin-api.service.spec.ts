@@ -72,3 +72,19 @@ describe('NotificationConfigAdminApiService — tenant ceiling', () => {
     expect(port.listProviderCredentials).toHaveBeenCalled();
   });
 });
+
+describe('NotificationConfigAdminApiService — previewTemplate', () => {
+  it('renders the candidate template against the given variables without touching the port', async () => {
+    const { svc, port } = deps();
+    const result = svc.previewTemplate({ subject: 'Invoice {{n}}', body: 'Amount: {{amount}}', isHtml: true, variables: { n: 'INV-1', amount: 40 } });
+    expect(result).toEqual({ subject: 'Invoice INV-1', body: 'Amount: 40', isHtml: true });
+    expect(port.setTemplate).not.toHaveBeenCalled();
+  });
+
+  it('defaults variables to empty and leaves unresolved placeholders visible', () => {
+    const { svc } = deps();
+    const result = svc.previewTemplate({ body: 'Hi {{name}}' });
+    expect(result.body).toBe('Hi {{name}}');
+    expect(result.subject).toBeUndefined();
+  });
+});

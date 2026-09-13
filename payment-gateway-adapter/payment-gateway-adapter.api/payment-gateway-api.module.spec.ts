@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Module } from '@nestjs/common';
+import { BadRequestException, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { WEBHOOK_OBSERVABILITY_PORT } from '../payment-gateway-adapter.core';
 import { PaymentGatewayApiModule } from './payment-gateway-api.module';
@@ -42,5 +42,23 @@ describe('PaymentGatewayApiModule.forRoot — real DI wiring', () => {
     const moduleRef = await build();
     await moduleRef.get(PaymentGatewayController).catalog();
     expect(outcomeCounts).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a non-numeric limit on webhook-events instead of forwarding NaN', async () => {
+    const moduleRef = await build();
+    const controller = moduleRef.get(PaymentGatewayController);
+    listEvents.mockClear();
+    expect(() => controller.events(undefined, undefined, undefined, undefined, undefined, 'not-a-number')).toThrow(
+      BadRequestException,
+    );
+    expect(listEvents).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-numeric limit on the trace endpoint instead of forwarding NaN', async () => {
+    const moduleRef = await build();
+    const controller = moduleRef.get(PaymentGatewayController);
+    listEvents.mockClear();
+    expect(() => controller.trace('trace-9', 'not-a-number')).toThrow(BadRequestException);
+    expect(listEvents).not.toHaveBeenCalled();
   });
 });

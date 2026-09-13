@@ -1,4 +1,5 @@
 import type { AuditRecordRaised } from './audit-record-raised';
+import type { FieldDiffEntry } from './field-diff';
 
 /**
  * What a repository's insert() accepts. AuditRecordRaised is the single
@@ -25,4 +26,13 @@ export type AuditEventInput = Pick<
  */
 export interface AuditEvent extends AuditEventInput {
   readonly id: string;
+}
+
+/**
+ * What `GET /audit/events/:id` (Record Detail) returns — the record plus its
+ * server-computed field-level diff, so the client never diffs raw `before`/
+ * `after` JSON itself. See `diffFields` in `field-diff.ts`.
+ */
+export interface AuditEventDetail extends AuditEvent {
+  diff: FieldDiffEntry[];
 }

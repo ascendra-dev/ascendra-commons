@@ -16,7 +16,7 @@ delivery seams.
 |---|---|---|
 | **`background-jobs.core`** | `ScheduledJob` / `AdvisoryLock` / `JobRunRecorder` / `JobObservabilityPort` ports, `IdempotentJobRunner`, `ScheduledJobRegistry` + `JobTrigger`, `NoopJobRunRecorder`, the stack-agnostic helpers (`parseCadence`, `encodeKeysetCursor`) + observability DTOs, `BackgroundJobsModule.forRoot()`. **No lock implementation.** | `@nestjs/common` |
 | **`background-jobs.core.postgres-drizzle`** | `lock/` (`PostgresAdvisoryLock` **and** `PostgresLeaseLock` — pick one), `run-recorder/` (`PostgresJobRunRecorder`), `observability/` (implements `JobObservabilityPort`), `pruner/` (`JobRunPrunerJob`). Schemas + migrations. | `background-jobs.core` |
-| **`background-jobs.api`** | Opt-in HTTP: jobs dashboard, run history, cross-module trace, and a `POST /jobs/:name/run` trigger. | `background-jobs.core`, `authorization.core` |
+| **`background-jobs.api`** | Opt-in HTTP: jobs dashboard, run history + single-run detail, cross-module trace, failed-item "chronic offender" view, a read-only alerts listing, and a `POST /jobs/:name/run` trigger (correlation id forwarded from `X-Correlation-Id`, or generated). | `background-jobs.core`, `authorization.core` |
 
 No "family" package — both ports and all DTOs are stack-agnostic `.core`
 contracts (`PostgresAdvisoryLock` moved *out* of `.core` in the split — it's
@@ -63,8 +63,11 @@ Each job supplies its own `@Cron` / `OnApplicationBootstrap` wiring class around
   posture to `audit-logging`). No-op by default.
 - **`JobTrigger`** — resolve a job by name → run it out of schedule. The hook
   behind a "run now" / "retry" button (`background-jobs.api` serves it).
-- **`JobObservabilityPort`** — `getRunHistory` (drill-down) + `listJobStatus`
-  (dashboard, with derived `overdue` detection from a cadence hint).
+- **`JobObservabilityPort`** — `getRunHistory` (drill-down, `error` truncated) +
+  `listJobStatus` (dashboard, with derived `overdue` detection from a cadence
+  hint) + `getRun` (single-run permalink, full untruncated `error`) +
+  `getFailedItems` (best-effort "chronic offender" items across a job's recent
+  runs).
 
 ## `applicationId` / `tenantId`
 

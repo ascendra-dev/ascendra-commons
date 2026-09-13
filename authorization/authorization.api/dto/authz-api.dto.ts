@@ -45,6 +45,8 @@ export interface DelegationListQuery {
   granteeId?: string;
   tenantId?: string;
   status?: DelegationStatus;
+  /** Only unrevoked delegations expiring within this many days from now (`GET /authz/delegations/expiring`). */
+  expiringWithinDays?: number;
   limit?: number;
   cursor?: string;
 }
@@ -53,4 +55,9 @@ export interface ExplainAccessQuery {
   userId: string;
   tenantId: string | null;
   action?: string;
+}
+
+export interface WhoCanQuery {
+  action: string;
+  tenantId?: string;
 }

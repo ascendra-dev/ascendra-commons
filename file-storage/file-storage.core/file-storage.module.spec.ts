@@ -13,6 +13,7 @@ import {
   FILE_SCANNER,
   FILE_STORAGE_AUDIT_EMITTER,
   FILE_STORE,
+  FILE_UPLOAD_REJECTION_RECORDER,
   FILE_VALIDATOR,
   SIGNED_LINK_RESOLVER,
 } from './tokens';
@@ -58,6 +59,7 @@ describe('FileStorageModule.forRoot — token wiring', () => {
     const ref = await Test.createTestingModule({ imports: [FileStorageModule.forRoot(base)] }).compile();
     expect(ref.get(FILE_SCANNER)).toBeDefined();
     expect(ref.get(FILE_ACCESS_RECORDER)).toBeDefined();
+    expect(ref.get(FILE_UPLOAD_REJECTION_RECORDER)).toBeDefined();
     expect(ref.get(FILE_STORAGE_AUDIT_EMITTER)).toBeDefined();
     expect(ref.get(FILE_VALIDATOR)).toBeDefined();
     await expect((ref.get(SIGNED_LINK_RESOLVER) as { resolve: (t: string) => Promise<unknown> }).resolve('x')).rejects.toBeInstanceOf(
@@ -77,5 +79,25 @@ describe('FileStorageModule.forRoot — token wiring', () => {
 
     await (ref.get(FILE_SCANNER) as { scan: () => Promise<unknown> }).scan();
     expect(scan).toHaveBeenCalled();
+  });
+
+  it('binds a supplied fileUploadRejectionRecorderToken over the Noop default', async () => {
+    const FAKE_RECORDER = Symbol('FAKE_RECORDER');
+    const record = vi.fn().mockResolvedValue(undefined);
+    @Module({ providers: [{ provide: FAKE_RECORDER, useValue: { record } }], exports: [FAKE_RECORDER] })
+    class RecorderModule {}
+
+    const ref = await Test.createTestingModule({
+      imports: [
+        FileStorageModule.forRoot({
+          ...base,
+          fileUploadRejectionRecorderToken: FAKE_RECORDER,
+          imports: [FakeInfraModule, RecorderModule],
+        }),
+      ],
+    }).compile();
+
+    await (ref.get(FILE_UPLOAD_REJECTION_RECORDER) as { record: () => Promise<unknown> }).record();
+    expect(record).toHaveBeenCalled();
   });
 });

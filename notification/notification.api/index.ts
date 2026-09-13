@@ -8,6 +8,8 @@ export { NOTIFICATION_AUDIT_EMITTER, NOTIFICATION_API_OPTIONS } from './tokens';
 
 export type {
   DeliveryHistoryQueryDto,
+  DeliveryStatsQueryDto,
+  PreviewTemplateBody,
   SetChannelRouteBody,
   DeleteChannelRouteBody,
   SetTemplateBody,

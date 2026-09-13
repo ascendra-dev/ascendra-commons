@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Post, Put } from '@nestjs/common';
 import { CurrentActor, RequiresAction, type Actor } from '../../../authorization/authorization.core';
 import { NOTIFICATION_ACTIONS } from '../notification-api.options';
 import { NotificationConfigAdminApiService } from './notification-config-admin-api.service';
@@ -6,6 +6,7 @@ import type {
   DeleteChannelRouteBody,
   DeleteProviderCredentialBody,
   DeleteTemplateBody,
+  PreviewTemplateBody,
   SetChannelRouteBody,
   SetProviderCredentialBody,
   SetTemplateBody,
@@ -65,6 +66,12 @@ export class NotificationConfigAdminController {
   @RequiresAction(NOTIFICATION_ACTIONS.MANAGE_CONFIG)
   deleteTemplate(@CurrentActor() actor: Actor, @Body() body: DeleteTemplateBody) {
     return this.service.deleteTemplate(actor, body);
+  }
+
+  @Post('templates/preview')
+  @RequiresAction(NOTIFICATION_ACTIONS.VIEW)
+  previewTemplate(@Body() body: PreviewTemplateBody) {
+    return this.service.previewTemplate(body);
   }
 
   // credentials (values never returned)

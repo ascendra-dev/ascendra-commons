@@ -43,4 +43,17 @@ describe('PaymentLinkApiModule.forRoot — real DI wiring', () => {
     await moduleRef.get(PaymentLinkController).catalog();
     expect(outcomeCounts).toHaveBeenCalledTimes(1);
   });
+
+  it('rejects a non-numeric limit on GET /payment-links/resolutions with a 400', async () => {
+    const moduleRef = await build();
+    expect(() => moduleRef.get(PaymentLinkController).resolutions(undefined, undefined, undefined, undefined, 'abc')).toThrow(
+      /limit must be a finite number/,
+    );
+    expect(listAttempts).not.toHaveBeenCalledWith(expect.objectContaining({ limit: NaN }));
+  });
+
+  it('rejects a non-numeric limit on GET /payment-links/resolutions/trace/:correlationId with a 400', async () => {
+    const moduleRef = await build();
+    expect(() => moduleRef.get(PaymentLinkController).trace('trace-9', 'abc')).toThrow(/limit must be a finite number/);
+  });
 });

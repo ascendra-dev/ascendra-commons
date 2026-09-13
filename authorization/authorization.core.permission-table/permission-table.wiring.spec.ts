@@ -33,6 +33,7 @@ const loadActiveDelegatedActions = vi.fn(async () => [] as string[]);
       useValue: {
         insert: vi.fn(),
         revoke: vi.fn(),
+        getById: vi.fn(async () => null),
         listForActor: vi.fn(async () => []),
       } satisfies DelegationRepository,
     },

@@ -9,6 +9,8 @@ import {
   type DeliveryHistoryPage,
   type DeliveryHistoryQuery,
   type DeliveryRecord,
+  type DeliveryStats,
+  type DeliveryStatsQuery,
   type NotificationObservabilityPort,
 } from '../../notification.core.database';
 import type { SqlExecutor } from '../persistence/sql-executor';
@@ -68,6 +70,18 @@ export class PostgresNotificationObservabilityService implements NotificationObs
       return { deliveries, nextCursor: encodeKeysetCursor(last.attemptedAt, last.id) };
     }
     return { deliveries: rows };
+  }
+
+  async getDelivery(id: string): Promise<DeliveryRecord | null> {
+    const { rows } = await this.db.execute<DeliveryRow>(sql`
+      select id, notification_type, channel, tenant_id, recipient_ref, status, reason,
+             provider_message_id, attempted_at, updated_at, correlation_id,
+             (content is not null) as has_content
+      from commons_notification_delivery
+      where application = ${this.application} and id = ${id}::bigint
+    `);
+    const row = rows[0];
+    return row ? mapRow(row) : null;
   }
 
   async getDeliveryContent(id: string): Promise<DeliveryContentRecord | null> {
@@ -137,6 +151,57 @@ export class PostgresNotificationObservabilityService implements NotificationObs
       }
     }
     return gaps;
+  }
+
+  async getDeliveryStats(query: DeliveryStatsQuery = {}): Promise<DeliveryStats> {
+    const until = query.until ?? new Date();
+    const since = query.since ?? new Date(until.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const conds: SQL[] = [
+      sql`application = ${this.application}`,
+      sql`attempted_at >= ${since}`,
+      sql`attempted_at < ${until}`,
+    ];
+    if (query.tenantId !== undefined) conds.push(sql`tenant_id = ${query.tenantId}`);
+    const where = sql.join(conds, sql` and `);
+
+    const [byChannel, byType, byDay] = await Promise.all([
+      this.db.execute<{ channel: string; status: string; count: number }>(sql`
+        select channel, status, count(*)::int as count
+        from commons_notification_delivery
+        where ${where}
+        group by channel, status
+      `),
+      this.db.execute<{ notification_type: string; status: string; count: number }>(sql`
+        select notification_type, status, count(*)::int as count
+        from commons_notification_delivery
+        where ${where}
+        group by notification_type, status
+      `),
+      this.db.execute<{ day: string | Date; count: number }>(sql`
+        select date_trunc('day', attempted_at) as day, count(*)::int as count
+        from commons_notification_delivery
+        where ${where}
+        group by day
+        order by day
+      `),
+    ]);
+
+    return {
+      since,
+      until,
+      byChannel: byChannel.rows.map((r) => ({
+        channel: r.channel as NotificationChannel,
+        status: r.status as DeliveryRecord['status'],
+        count: Number(r.count),
+      })),
+      byType: byType.rows.map((r) => ({
+        notificationType: r.notification_type,
+        status: r.status as DeliveryRecord['status'],
+        count: Number(r.count),
+      })),
+      byDay: byDay.rows.map((r) => ({ day: asDate(r.day).toISOString().slice(0, 10), count: Number(r.count) })),
+    };
   }
 }
 

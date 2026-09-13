@@ -5,6 +5,7 @@ import {
   encodeKeysetCursor,
   humanizeDuration,
   parseCadence,
+  type FailedItemSummary,
   type JobObservabilityPort,
   type JobRunOutcome,
   type JobRunRecord,
@@ -24,6 +25,17 @@ const STATUS_RUNS_PER_JOB = 50;
 const OVERDUE_FACTOR = 1.5;
 /** Minimum scheduled+non-failed runs needed before a cadence can be inferred from history. */
 const MIN_RUNS_TO_INFER = 3;
+/**
+ * List rows (`getRunHistory` / `listJobStatus`) truncate `error` to this many
+ * characters — the full stack trace on every list row was an unintended
+ * info-leak risk, not just a payload-size concern. The untruncated stack is
+ * available via `getRun`.
+ */
+const ERROR_TRUNCATE_LENGTH = 500;
+/** How many of a job's most recent runs `getFailedItems` scans for recurring refs. */
+const FAILED_ITEMS_RUN_WINDOW = 50;
+/** Default "recurs in at least this many of the scanned runs" bar for `getFailedItems`. */
+const DEFAULT_MIN_FAILED_RUNS = 2;
 
 const RUN_COLUMNS = sql`
   id, job_name, trigger, started_at, finished_at, outcome,
@@ -133,6 +145,40 @@ export class PostgresJobObservabilityService implements JobObservabilityPort {
     return { name, lastRun, lastSuccessAt, consecutiveFailures, cadence, overdue, overdueBy };
   }
 
+  async getRun(id: string): Promise<JobRunRecord | null> {
+    const { rows } = await this.db.execute(sql`
+      select ${RUN_COLUMNS} from commons_jobs_job_run
+      where application = ${this.application} and id = ${id}::bigint
+    `);
+    const row = rows[0];
+    return row ? mapRunDetail(row) : null;
+  }
+
+  async getFailedItems(jobName: string, minRuns = DEFAULT_MIN_FAILED_RUNS): Promise<FailedItemSummary[]> {
+    const rows = (
+      await this.db.execute(sql`
+        with recent_runs as (
+          select started_at, failed_item_refs
+          from commons_jobs_job_run
+          where application = ${this.application} and job_name = ${jobName}
+          order by started_at desc
+          limit ${FAILED_ITEMS_RUN_WINDOW}
+        )
+        select ref as item_ref, count(*)::int as failure_count, max(started_at) as last_failed_at
+        from recent_runs, unnest(failed_item_refs) as ref
+        group by ref
+        having count(*) >= ${minRuns}
+        order by failure_count desc, last_failed_at desc
+      `)
+    ).rows;
+
+    return rows.map((row) => ({
+      itemRef: String(row.item_ref),
+      failureCount: Number(row.failure_count),
+      lastFailedAt: asDate(row.last_failed_at),
+    }));
+  }
+
   private cadenceFor(name: string, runs: JobRunRecord[]): JobStatus['cadence'] {
     const declared = this.cadences.get(name);
     if (declared) return { source: 'declared', seconds: declared.seconds, label: declared.label };
@@ -151,7 +197,7 @@ export class PostgresJobObservabilityService implements JobObservabilityPort {
   }
 }
 
-function mapRow(row: Record<string, unknown>): JobRunRecord {
+function mapRowBase(row: Record<string, unknown>): Omit<JobRunRecord, 'error'> {
   return {
     id: String(row.id),
     jobName: String(row.job_name),
@@ -163,9 +209,23 @@ function mapRow(row: Record<string, unknown>): JobRunRecord {
     itemsProcessed: Number(row.items_processed),
     itemsFailed: Number(row.items_failed),
     failedItemRefs: Array.isArray(row.failed_item_refs) ? row.failed_item_refs.map(String) : [],
-    error: row.error == null ? null : String(row.error),
     correlationId: row.correlation_id == null ? null : String(row.correlation_id),
   };
+}
+
+/** List-row projection (`getRunHistory` / `listJobStatus`) — `error` truncated. Full stack: `getRun`. */
+function mapRow(row: Record<string, unknown>): JobRunRecord {
+  return { ...mapRowBase(row), error: truncateError(row.error == null ? null : String(row.error)) };
+}
+
+/** Single-run projection (`getRun`) — full, untruncated `error` stack. */
+function mapRunDetail(row: Record<string, unknown>): JobRunRecord {
+  return { ...mapRowBase(row), error: row.error == null ? null : String(row.error) };
+}
+
+function truncateError(error: string | null): string | null {
+  if (error == null || error.length <= ERROR_TRUNCATE_LENGTH) return error;
+  return `${error.slice(0, ERROR_TRUNCATE_LENGTH)}… (truncated — see GET /jobs/runs/:id for the full stack)`;
 }
 
 function asDate(value: unknown): Date {

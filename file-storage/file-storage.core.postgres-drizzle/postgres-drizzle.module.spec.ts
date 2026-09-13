@@ -10,6 +10,7 @@ import {
   POSTGRES_ATTACHMENT_STORE,
   POSTGRES_FILE_ACCESS_RECORDER,
   POSTGRES_FILE_CATEGORY_REGISTRY,
+  POSTGRES_FILE_UPLOAD_REJECTION_RECORDER,
 } from './tokens';
 import { FILE_CATEGORY_ADMIN_PORT, FILE_STORAGE_OBSERVABILITY_PORT } from '../file-storage.core';
 
@@ -55,12 +56,13 @@ describe('file-storage.core.postgres-drizzle modules', () => {
     expect(seeded).toBe(true);
   });
 
-  it('PostgresFileStorageAdminModule binds the recorder + observability port', async () => {
+  it('PostgresFileStorageAdminModule binds the recorders + observability port', async () => {
     const { DbModule } = dbModule();
     const ref = await Test.createTestingModule({
       imports: [PostgresFileStorageAdminModule.forRoot({ sqlExecutorToken: DB, imports: [DbModule] })],
     }).compile();
     expect(ref.get(POSTGRES_FILE_ACCESS_RECORDER)).toBeDefined();
+    expect(ref.get(POSTGRES_FILE_UPLOAD_REJECTION_RECORDER)).toBeDefined();
     expect(ref.get(FILE_STORAGE_OBSERVABILITY_PORT)).toBeDefined();
   });
 });

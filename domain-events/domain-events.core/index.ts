@@ -15,6 +15,9 @@ export type {
   DeliveryQuery,
   DeliveryPage,
   EventDeliveryCatalogEntry,
+  DeliveryStatsDay,
+  DeliveryStatsTopEvent,
+  DeliveryStats,
   EventDeliveryObservabilityPort,
 } from './event-delivery-observability.port';
 export type { EventListenerCatalogEntry, EventListenerCatalogPort } from './event-listener-catalog.port';

@@ -209,11 +209,11 @@
         <tr><td>Access Explainer</td><td><span class="endpoint"><span class="m">GET</span>/authz/explain</span></td><td><span class="status live">Live</span></td><td>User + tenant (+ optional action) → roles, delegations, effective set, allow/deny + reason.</td></tr>
         <tr><td>Assignments</td><td><span class="endpoint"><span class="m">GET</span>/authz/assignments</span> · <span class="endpoint"><span class="m">POST/DELETE</span>/authz/assignments</span></td><td><span class="status live">Live</span></td><td>List + assign/revoke, one at a time. Tenant/role-ceiling scoped.</td></tr>
         <tr><td>Roles Catalog</td><td><span class="endpoint"><span class="m">GET</span>/authz/roles</span></td><td><span class="status live">Live</span></td><td>Every role + its granted actions. Read-only — permission editing is out of scope by design.</td></tr>
-        <tr><td>Role Detail</td><td><span class="endpoint"><span class="m">GET</span>/authz/roles/:id</span></td><td><span class="status partial">Partial</span></td><td>Role is in the list payload; no single fetch and no "how many users hold this" count.</td></tr>
-        <tr><td>Delegation Ledger</td><td><span class="endpoint"><span class="m">GET</span>/authz/delegations</span> · <span class="endpoint"><span class="m">POST/DELETE</span>/authz/delegations</span> · <span class="endpoint"><span class="m">GET</span>/authz/delegations/mine</span></td><td><span class="status live">Live</span></td><td>Ledger + create/revoke; granter is always the request actor.</td></tr>
-        <tr><td>Expiring Soon</td><td><span class="endpoint"><span class="m">GET</span>/authz/delegations/expiring</span></td><td><span class="status proposed">Proposed</span></td><td>Achievable only by paging the ledger and filtering client-side. Nothing surfaces "12 lapse this week".</td></tr>
+        <tr><td>Role Detail</td><td><span class="endpoint"><span class="m">GET</span>/authz/roles/:id</span></td><td><span class="status live">Live</span></td><td>Single-role fetch plus a holder count (distinct users assigned the role). 404 if the role id is unknown.</td></tr>
+        <tr><td>Delegation Ledger</td><td><span class="endpoint"><span class="m">GET</span>/authz/delegations</span> · <span class="endpoint"><span class="m">POST/DELETE</span>/authz/delegations</span> · <span class="endpoint"><span class="m">GET</span>/authz/delegations/mine</span></td><td><span class="status live">Live</span></td><td>Ledger + create/revoke; granter is always the request actor. Revoke enforces a tenant ceiling — a non-platform actor can't revoke another tenant's delegation.</td></tr>
+        <tr><td>Expiring Soon</td><td><span class="endpoint"><span class="m">GET</span>/authz/delegations/expiring</span></td><td><span class="status live">Live</span></td><td>Delegations lapsing within a window (<code>?within=7d</code>, optional <code>tenantId</code>) — a real server-side filter, not client-side paging.</td></tr>
         <tr><td>Action Catalog Health</td><td><span class="endpoint"><span class="m">GET</span>/authz/action-catalog/health</span> · <span class="endpoint"><span class="m">PATCH</span>/authz/actions/:name</span></td><td><span class="status live">Live</span></td><td>Code↔DB drift + granted-but-undescribed; edit a description inline.</td></tr>
-        <tr><td>Who Can Do X</td><td><span class="endpoint"><span class="m">GET</span>/authz/who-can</span></td><td><span class="status proposed">Proposed</span></td><td>Reverse of explain — every user/role that grants an action. Critical for incident response ("who could have approved that payout").</td></tr>
+        <tr><td>Who Can Do X</td><td><span class="endpoint"><span class="m">GET</span>/authz/who-can</span></td><td><span class="status live">Live</span></td><td>Reverse of explain — every role (+ holders in a tenant) and active delegation that grants an action. Built for incident response ("who could have approved that payout").</td></tr>
         <tr><td>Overview</td><td><span class="endpoint"><span class="m">GET</span>/authz/stats</span></td><td><span class="status proposed">Proposed</span></td><td>Roles in use, users with no role, platform-admin count, delegations lapsing, most-delegated actions.</td></tr>
       </tbody>
     </table>
@@ -309,6 +309,20 @@
       </div>
     </section>
 
+    <!-- 3b · ROLE DETAIL -->
+    <section class="screen" id="role-detail">
+      <div class="screen-head"><h2 class="screen-name">Role Detail</h2><span class="endpoint"><span class="m">GET</span>/authz/roles/:id</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">Drill into one role from the catalog — its full grant list and how many users actually hold it. 404s if the role id doesn't exist.</p>
+      <p class="gating">Gate: <code>authz.view</code>. Read-only, same as the catalog.</p>
+      <div class="breadcrumb"><a href="#roles">Roles Catalog</a> / <b>finance_approver</b></div>
+      <dl class="kv">
+        <dt>Role id</dt><dd class="mono">finance_approver</dd>
+        <dt>Description</dt><dd>Approves outbound payouts</dd>
+        <dt>Grants</dt><dd class="taglist"><span class="badge neutral">payout.approve</span> <span class="badge neutral">payout.view</span></dd>
+        <dt>Holders</dt><dd><span class="badge info">2 users</span></dd>
+      </dl>
+    </section>
+
     <!-- 4 · DELEGATION LEDGER -->
     <section class="screen" id="delegations">
       <div class="screen-head"><h2 class="screen-name">Delegation Ledger</h2>
@@ -341,11 +355,11 @@
       </div>
     </section>
 
-    <!-- 5 · EXPIRING SOON (proposed) -->
+    <!-- 5 · EXPIRING SOON -->
     <section class="screen" id="expiring">
-      <div class="screen-head"><h2 class="screen-name">Expiring Soon</h2><span class="endpoint"><span class="m">GET</span>/authz/delegations/expiring</span><span class="status proposed">Proposed</span></div>
+      <div class="screen-head"><h2 class="screen-name">Expiring Soon</h2><span class="endpoint"><span class="m">GET</span>/authz/delegations/expiring</span><span class="status live">Live</span></div>
       <p class="screen-purpose">Delegations lapsing in the next N days — so access doesn't silently vanish mid-task, and a manager can extend or let them go deliberately.</p>
-      <div class="proposed-note"><div><b>Missing API.</b> The ledger has a <code>status</code> filter but no "expiring within" window — surfacing this means paging every active delegation and comparing dates client-side. Proposed: <span class="sig">GET /authz/delegations/expiring?within=7d</span>.</div></div>
+      <p class="gating">Gate: <code>authz.view</code>. Query: <code>?within=7d</code> (or a bare day count, defaults to 7), optional <code>tenantId</code>. Server-side filter — <code>revoked_at is null and expires_at</code> between now and the window.</p>
       <div class="scrollx">
       <table class="table">
         <thead><tr><th>Granter → Grantee</th><th>Actions</th><th>Expires</th><th>In</th></tr></thead>
@@ -382,12 +396,11 @@
       </div>
     </section>
 
-    <!-- 7 · WHO CAN DO X (proposed) -->
+    <!-- 7 · WHO CAN DO X -->
     <section class="screen" id="who-can">
-      <div class="screen-head"><h2 class="screen-name">Who Can Do X</h2><span class="endpoint"><span class="m">GET</span>/authz/who-can</span><span class="status proposed">Proposed</span></div>
+      <div class="screen-head"><h2 class="screen-name">Who Can Do X</h2><span class="endpoint"><span class="m">GET</span>/authz/who-can</span><span class="status live">Live</span></div>
       <p class="screen-purpose">The reverse of the explainer — given an action, every role that grants it and every user who holds such a role or an active delegation. The first question in an incident: "who could have done this?"</p>
-      <p class="gating">Gate: <code>authz.view</code>, platform-admin in practice (needs a cross-tenant view).</p>
-      <div class="proposed-note"><div><b>Missing API.</b> <code>explainAccess</code> is per-user; there is no per-action lookup. Proposed: <span class="sig">GET /authz/who-can?action=payout.approve&amp;tenantId=t_kairos</span> → <code>{ roles[], users[], delegations[] }</code>, built from <code>role_permission</code> + <code>grantsAll</code> roles + active delegations.</div></div>
+      <p class="gating">Gate: <code>authz.view</code> (the same read gate as the rest of this controller — no new gating infrastructure was added); a cross-tenant call just omits <code>tenantId</code>. Query: <code>?action=payout.approve&amp;tenantId=t_kairos</code> → <code>{ action, tenantId, roles: [{ roleId, grantsAll, holderUserIds[] }], delegations: [{ id, granterId, granteeId, expiresAt }] }</code>, built from <code>role_permission</code> + <code>grantsAll</code> roles + active delegations (Postgres <code>actions @&gt; ARRAY[...]</code> containment).</p>
       <div class="filterbar">
         <span class="field"><span class="lbl">Action</span>payout.approve</span>
         <span class="field"><span class="lbl">Tenant</span>t_kairos</span>

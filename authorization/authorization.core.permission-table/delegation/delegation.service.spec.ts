@@ -28,8 +28,9 @@ function fakeRepo() {
     status: deriveDelegationStatus(input.expiresAt, null),
   }));
   const revoke = vi.fn(async () => {});
+  const getById = vi.fn(async (): Promise<DelegationRecord | null> => null);
   const listForActor = vi.fn(async (): Promise<DelegationRecord[]> => []);
-  return { insert, revoke, listForActor } satisfies DelegationRepository;
+  return { insert, revoke, getById, listForActor } satisfies DelegationRepository;
 }
 
 function fakeResolver(rolePerms: ResolvedPermissions): PermissionResolver {
@@ -118,6 +119,33 @@ describe('DelegationService.revokeDelegation', () => {
     const repo = fakeRepo();
     await new DelegationService(repo, OPTIONS, granterHolds()).revokeDelegation('d1', 'admin');
     expect(repo.revoke).toHaveBeenCalledWith('d1', 'admin');
+  });
+});
+
+describe('DelegationService.getById', () => {
+  it('delegates to the repository', async () => {
+    const repo = fakeRepo();
+    const record: DelegationRecord = {
+      id: 'd1',
+      granterId: 'g',
+      granteeId: 'e',
+      tenantId: 't1',
+      actions: ['a'],
+      expiresAt: inDays(1),
+      revokedAt: null,
+      reason: null,
+      createdAt: new Date(),
+      status: 'active',
+    };
+    repo.getById.mockResolvedValueOnce(record);
+
+    await expect(new DelegationService(repo, OPTIONS, granterHolds()).getById('d1')).resolves.toEqual(record);
+    expect(repo.getById).toHaveBeenCalledWith('d1');
+  });
+
+  it('returns null when the repository finds nothing', async () => {
+    const repo = fakeRepo();
+    await expect(new DelegationService(repo, OPTIONS, granterHolds()).getById('ghost')).resolves.toBeNull();
   });
 });
 

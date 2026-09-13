@@ -1,9 +1,24 @@
-import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Actor } from '../../authorization/authorization.core';
-import { AUDIT_EVENT_READER, type AuditEventReader, type AuditQuery, type AuditQueryResult } from '../audit-logging.core';
+import {
+  AUDIT_EVENT_READER,
+  diffFields,
+  type ActorActivitySummary,
+  type AuditCoverageEntry,
+  type AuditEventDetail,
+  type AuditEventReader,
+  type AuditQuery,
+  type AuditQueryResult,
+  type AuditStats,
+} from '../audit-logging.core';
 import { AUDIT_API_OPTIONS } from './tokens';
 import type { AuditApiOptions } from './audit-api.options';
-import type { AuditEventsQueryDto } from './dto/audit-api.dto';
+import type {
+  AuditActorActivityQueryDto,
+  AuditCoverageRequestDto,
+  AuditEventsQueryDto,
+  AuditStatsQueryDto,
+} from './dto/audit-api.dto';
 
 /**
  * Reads audit records for a compliance/ops screen, over `AuditEventReader`. The
@@ -29,6 +44,65 @@ export class AuditEventsApiService {
 
   trace(actor: Actor, correlationId: string, dto: AuditEventsQueryDto): Promise<AuditQueryResult> {
     return this.query(actor, { ...this.baseQuery(dto), correlationId });
+  }
+
+  /**
+   * One record, plus its field-level diff — the Record Detail screen. Same
+   * tenant-scoping rule as `find()`: a non-platform actor can only fetch a
+   * record in their own tenant. A cross-tenant id (or an id that doesn't
+   * exist at all) 404s either way, so existence is never leaked.
+   */
+  async findOne(actor: Actor, id: string): Promise<AuditEventDetail> {
+    const tenantId = await this.resolveTenantScope(actor);
+    const event = await this.reader.findOne(id, tenantId);
+    if (!event) throw new NotFoundException(`audit record '${id}' not found`);
+    return { ...event, diff: diffFields(event.before, event.after) };
+  }
+
+  /** The Actor Activity screen. Same tenant-scoping rule as `find()`. */
+  async actorActivity(actor: Actor, actorFilter: string, dto: AuditActorActivityQueryDto): Promise<ActorActivitySummary> {
+    const tenantId = await this.resolveTenantScope(actor);
+    return this.reader.summarizeActor(actorFilter, {
+      ...(tenantId !== undefined ? { tenantId } : {}),
+      occurredAfter: dto.occurredAfter ? new Date(dto.occurredAfter) : undefined,
+      occurredBefore: dto.occurredBefore ? new Date(dto.occurredBefore) : undefined,
+    });
+  }
+
+  /**
+   * The Overview screen. A non-platform actor's figures are forced to their
+   * own tenant; a platform admin sees every tenant by default and may filter
+   * to one via `tenantId` (or `'null'` for platform-level rows only) — same
+   * convention as `find()`'s `tenantId` param.
+   */
+  async stats(actor: Actor, dto: AuditStatsQueryDto): Promise<AuditStats> {
+    if (await this.options.isPlatformAdmin(actor)) {
+      const tenantId = dto.tenantId !== undefined ? (dto.tenantId === 'null' ? null : dto.tenantId) : undefined;
+      return this.reader.stats(dto.window ?? '30d', tenantId);
+    }
+    if (actor.tenantId === null) {
+      throw new ForbiddenException('a tenant-scoped actor cannot read the audit log without a tenant');
+    }
+    return this.reader.stats(dto.window ?? '30d', actor.tenantId);
+  }
+
+  /** The Coverage & Gaps screen — a per-request comparison, no catalog table. */
+  async coverage(actor: Actor, dto: AuditCoverageRequestDto): Promise<AuditCoverageEntry[]> {
+    const tenantId = await this.resolveTenantScope(actor);
+    return this.reader.countByDeclared({
+      entityTypes: dto.entityTypes ?? [],
+      actions: dto.actions ?? [],
+      ...(tenantId !== undefined ? { tenantId } : {}),
+    });
+  }
+
+  /** `undefined` → platform admin, unrestricted. Throws for a tenant-scoped actor with no tenant. */
+  private async resolveTenantScope(actor: Actor): Promise<string | undefined> {
+    if (await this.options.isPlatformAdmin(actor)) return undefined;
+    if (actor.tenantId === null) {
+      throw new ForbiddenException('a tenant-scoped actor cannot read the audit log without a tenant');
+    }
+    return actor.tenantId;
   }
 
   private async query(actor: Actor, query: AuditQuery): Promise<AuditQueryResult> {

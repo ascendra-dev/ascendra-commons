@@ -11,6 +11,8 @@ import type { FileStorageApiOptions } from '../file-storage-api.options';
 import type {
   AccessLogQueryDto,
   FileInventoryQueryDto,
+  FileRejectionQueryDto,
+  FileStatsQueryDto,
   OrphanQueryDto,
   StorageUsageQueryDto,
 } from '../dto/file-storage-api.dto';
@@ -67,6 +69,27 @@ export class FileInventoryApiService {
     return this.port.listOrphanedFileRecords({
       tenantId: await this.scopeTenant(actor, query.tenantId),
       olderThan: query.olderThan ? new Date(query.olderThan) : undefined,
+      limit: query.limit,
+      cursor: query.cursor,
+    });
+  }
+
+  /**
+   * Uploads-over-time + by-category breakdown for the Overview screen. No
+   * scan-verdict breakdown — deferred, see `FileStatsSummary`.
+   */
+  async stats(actor: Actor, query: FileStatsQueryDto) {
+    return this.port.statsSummary({
+      tenantId: await this.scopeTenant(actor, query.tenantId),
+      windowDays: query.windowDays,
+    });
+  }
+
+  async listRejections(actor: Actor, query: FileRejectionQueryDto) {
+    return this.port.listRejections({
+      tenantId: await this.scopeTenant(actor, query.tenantId),
+      category: query.category,
+      reason: query.reason,
       limit: query.limit,
       cursor: query.cursor,
     });

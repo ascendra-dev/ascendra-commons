@@ -14,6 +14,8 @@ function make(over: { getFile?: unknown } = {}) {
     listOrphanedFileRecords: vi.fn().mockResolvedValue({ rows: [], nextCursor: null }),
     getAccessLog: vi.fn().mockResolvedValue({ rows: [], nextCursor: null }),
     categoryUsage: vi.fn().mockResolvedValue([]),
+    statsSummary: vi.fn().mockResolvedValue({ uploadsByDay: [], byCategory: [] }),
+    listRejections: vi.fn().mockResolvedValue({ rows: [], nextCursor: null }),
   };
   const attachments = {
     getDownloadUrl: vi.fn().mockResolvedValue('https://url'),
@@ -65,5 +67,37 @@ describe('FileInventoryApiService tenant scoping', () => {
     await svc.deleteFile(tenantAdmin, 'f1');
     expect(attachments.deleteFile).toHaveBeenCalledWith({ fileRecordId: 'f1', actor: tenantAdmin });
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'file.deleted', entityId: 'f1' }));
+  });
+
+  it('stats forces a non-platform actor to their own tenant and forwards windowDays', async () => {
+    const { svc, port } = make();
+    await svc.stats(tenantAdmin, { tenantId: 't2', windowDays: 7 });
+    expect(port.statsSummary).toHaveBeenCalledWith({ tenantId: 't1', windowDays: 7 });
+  });
+
+  it('stats lets a platform admin filter by any tenant', async () => {
+    const { svc, port } = make();
+    await svc.stats(platformAdmin, { tenantId: 't9' });
+    expect(port.statsSummary).toHaveBeenCalledWith({ tenantId: 't9', windowDays: undefined });
+  });
+
+  it('listRejections forces a non-platform actor to their own tenant and forwards filters', async () => {
+    const { svc, port } = make();
+    await svc.listRejections(tenantAdmin, { tenantId: 't2', category: 'kyc.identity-document', reason: 'validation-failed', limit: 20 });
+    expect(port.listRejections).toHaveBeenCalledWith({
+      tenantId: 't1',
+      category: 'kyc.identity-document',
+      reason: 'validation-failed',
+      limit: 20,
+      cursor: undefined,
+    });
+  });
+
+  it('listRejections lets a platform admin filter by any tenant', async () => {
+    const { svc, port } = make();
+    await svc.listRejections(platformAdmin, { tenantId: 't9' });
+    expect(port.listRejections).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: 't9' }),
+    );
   });
 });

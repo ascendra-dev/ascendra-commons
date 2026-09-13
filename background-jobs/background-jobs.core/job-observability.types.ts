@@ -48,6 +48,19 @@ export interface JobCadenceView {
   label: string;
 }
 
+/**
+ * One `describeItem()` ref that recurs across multiple failed runs of a job —
+ * the "chronic offender" view for `getFailedItems`. See that port method's doc
+ * comment for why matching is best-effort.
+ */
+export interface FailedItemSummary {
+  itemRef: string;
+  /** How many of the scanned runs this ref appeared as a failed item in. */
+  failureCount: number;
+  /** `startedAt` of the most recent scanned run this ref failed in. */
+  lastFailedAt: Date;
+}
+
 /** One row of the jobs dashboard. */
 export interface JobStatus {
   name: string;

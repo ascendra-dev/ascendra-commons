@@ -48,6 +48,7 @@ function makeService(over: {
   scanVerdict?: ScanVerdict;
   signedLink?: { fileRecordId: string } | null;
   accessRecord?: () => Promise<void>;
+  rejectionRecord?: () => Promise<void>;
 } = {}) {
   const fileStore: FileStore = {
     upload: vi.fn().mockResolvedValue({ fileRef: 'kyc/t1/f1.pdf' }),
@@ -72,6 +73,7 @@ function makeService(over: {
   };
   const scanner: FileScanner = { scan: vi.fn().mockResolvedValue(over.scanVerdict ?? 'clean') };
   const accessRecorder = { record: vi.fn(over.accessRecord ?? (() => Promise.resolve())) };
+  const rejectionRecorder = { record: vi.fn(over.rejectionRecord ?? (() => Promise.resolve())) };
   const audit = { emit: vi.fn().mockResolvedValue(undefined) };
   const signedLinks = {
     resolve: vi.fn().mockResolvedValue('signedLink' in over ? over.signedLink : { fileRecordId: 'f1' }),
@@ -84,11 +86,12 @@ function makeService(over: {
     new RuleBasedFileValidator({ absoluteMaxSizeBytes: 1_000_000 }),
     scanner,
     accessRecorder,
+    rejectionRecorder,
     signedLinks,
     audit,
     resolveFileStorageOptions({}),
   );
-  return { service, fileStore, store, registry, scanner, accessRecorder, audit, signedLinks };
+  return { service, fileStore, store, registry, scanner, accessRecorder, rejectionRecorder, audit, signedLinks };
 }
 
 const goodUpload = {
@@ -164,6 +167,58 @@ describe('AttachmentService.attach', () => {
     });
     await expect(service.attach(goodUpload)).rejects.toThrow('db down');
     expect(fileStore.delete).toHaveBeenCalledWith('kyc/t1/f1.pdf');
+  });
+
+  it('never records a rejection on the happy path', async () => {
+    const { service, rejectionRecorder } = makeService();
+    await service.attach(goodUpload);
+    expect(rejectionRecorder.record).not.toHaveBeenCalled();
+  });
+});
+
+describe('AttachmentService.attach — rejection recording', () => {
+  it('records a category-unavailable rejection and still throws Forbidden', async () => {
+    const { service, rejectionRecorder } = makeService({ registry: { resolve: vi.fn().mockResolvedValue(null) } });
+    await expect(service.attach(goodUpload)).rejects.toBeInstanceOf(ForbiddenException);
+    await vi.waitFor(() =>
+      expect(rejectionRecorder.record).toHaveBeenCalledWith(
+        expect.objectContaining({ tenantId: 't1', actorId: 'u1', reason: 'category-unavailable' }),
+      ),
+    );
+  });
+
+  it('records a validation-failed rejection and still throws 422', async () => {
+    const { service, rejectionRecorder } = makeService();
+    await expect(
+      service.attach({ ...goodUpload, file: { ...goodUpload.file, contentType: 'image/png', filename: 'id.png' } }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await vi.waitFor(() =>
+      expect(rejectionRecorder.record).toHaveBeenCalledWith(expect.objectContaining({ reason: 'validation-failed' })),
+    );
+  });
+
+  it('records a scan-rejected rejection for an infected file', async () => {
+    const { service, rejectionRecorder } = makeService({ scanVerdict: 'infected' });
+    await expect(service.attach(goodUpload)).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await vi.waitFor(() =>
+      expect(rejectionRecorder.record).toHaveBeenCalledWith(expect.objectContaining({ reason: 'scan-rejected' })),
+    );
+  });
+
+  it('records a scan-rejected rejection for an unscannable file the category rejects', async () => {
+    const { service, rejectionRecorder } = makeService({ scanVerdict: 'unscannable' });
+    await expect(service.attach(goodUpload)).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await vi.waitFor(() =>
+      expect(rejectionRecorder.record).toHaveBeenCalledWith(expect.objectContaining({ reason: 'scan-rejected' })),
+    );
+  });
+
+  it('a throwing recorder never surfaces — the original rejection is still thrown', async () => {
+    const { service } = makeService({
+      registry: { resolve: vi.fn().mockResolvedValue(null) },
+      rejectionRecord: () => Promise.reject(new Error('recorder down')),
+    });
+    await expect(service.attach(goodUpload)).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
 

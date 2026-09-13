@@ -15,6 +15,9 @@ export const POSTGRES_FILE_CATEGORY_REGISTRY = Symbol('POSTGRES_FILE_CATEGORY_RE
 /** `PostgresFileAccessRecorder`. Point `FileStorageModule.forRoot({ fileAccessRecorderToken })` at this. */
 export const POSTGRES_FILE_ACCESS_RECORDER = Symbol('POSTGRES_FILE_ACCESS_RECORDER');
 
+/** `PostgresFileUploadRejectionRecorder`. Point `FileStorageModule.forRoot({ fileUploadRejectionRecorderToken })` at this. */
+export const POSTGRES_FILE_UPLOAD_REJECTION_RECORDER = Symbol('POSTGRES_FILE_UPLOAD_REJECTION_RECORDER');
+
 /** Resolved options for the category module — seed list + cache TTL. */
 export const FILE_CATEGORY_MODULE_OPTIONS = Symbol('FILE_CATEGORY_MODULE_OPTIONS');
 

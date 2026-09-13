@@ -12,4 +12,5 @@ export interface DeliveryQueryDto {
   until?: string;
   limit?: number;
   cursor?: string;
+  order?: 'asc' | 'desc';
 }

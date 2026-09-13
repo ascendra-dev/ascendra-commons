@@ -15,7 +15,7 @@ here is only along the delivery seams.
 |---|---|---|
 | **`audit-logging.core`** | `AuditRecordRaised` + `AUDIT_EVENT_NAME`, the shipped `AuditListener`, `persistAuditRecord`, the `AuditEventRepository` (write) and `AuditEventReader` (read) ports + DTOs, the correlation-id mechanism + middleware, the keyset-cursor helper, `AuditLoggingModule.forRoot()`. | `domain-events.core` |
 | **`audit-logging.core.postgres-drizzle`** | Reference `PostgresAuditEventRepository` + `PostgresAuditEventReader`, the `pgTable` + migration, and their modules (`PostgresAuditPersistenceModule`, `PostgresAuditObservabilityModule`). A project on another stack implements the two core ports instead. | `audit-logging.core` |
-| **`audit-logging.api`** | Opt-in HTTP read endpoints for a compliance / ops screen (`GET /audit/events`, `/audit/entities/:type/:id/history`, `/audit/trace/:correlationId`), over the `AUDIT_EVENT_READER` port. Read-only. | `audit-logging.core`, `authorization.core` |
+| **`audit-logging.api`** | Opt-in HTTP read endpoints for a compliance / ops screen (`GET /audit/events`, `/audit/events.csv`, `/audit/events/:id`, `/audit/entities/:type/:id/history`, `/audit/trace/:correlationId`, `/audit/actors/:actor/activity`, `/audit/stats`, `POST /audit/coverage`), over the `AUDIT_EVENT_READER` port. Read-only. | `audit-logging.core`, `authorization.core` |
 
 No "family" package — both ports and every DTO are genuinely stack-agnostic
 contracts (a non-DB reader over an external SIEM is in scope), so they live in

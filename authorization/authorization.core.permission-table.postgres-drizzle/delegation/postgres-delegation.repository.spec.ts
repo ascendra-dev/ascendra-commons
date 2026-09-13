@@ -53,6 +53,17 @@ describe('PostgresDelegationRepository', () => {
     expect(text).toMatch(/revoked_at IS NULL/i);
   });
 
+  it('getById returns the mapped record when found, null otherwise', async () => {
+    const found = fakeDb((text) => (/FROM commons_authz_delegation/i.test(text) ? [INSERT_ROW] : []));
+    const rec = await new PostgresDelegationRepository(found).getById('d1');
+    expect(rec).toMatchObject({ id: 'd1', tenantId: 't1' });
+    const text = dialect.sqlToQuery(found.execute.mock.calls[0][0] as SQL).sql;
+    expect(text).toMatch(/WHERE id = /i);
+
+    const missing = fakeDb(() => []);
+    await expect(new PostgresDelegationRepository(missing).getById('ghost')).resolves.toBeNull();
+  });
+
   it('listForActor returns rows mapped to records', async () => {
     const rows = [
       { id: 'a', granter_id: 'u1', grantee_id: 'u2', tenant_id: 't1', actions: ['x'], expires_at: inDays(3), revoked_at: null, reason: null, created_at: new Date() },

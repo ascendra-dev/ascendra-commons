@@ -203,7 +203,7 @@
     <div class="nav-group">
       <div class="nav-group-title">Insight &amp; Compliance</div>
       <a class="nav-item" href="#overview">Overview <span class="pill">new API</span></a>
-      <a class="nav-item" href="#rejections">Rejected Uploads <span class="pill">new API</span></a>
+      <a class="nav-item" href="#rejections">Rejected Uploads</a>
       <a class="nav-item" href="#retention">Retention &amp; Legal Hold <span class="pill">new API</span></a>
     </div>
   </nav>
@@ -232,8 +232,8 @@
         <tr><td>Orphans</td><td><span class="endpoint"><span class="m">GET</span>/files/orphans</span></td><td><span class="status live">Live</span></td><td>File records with zero attachments. No bulk action — delete one by one via <code>DELETE /files/:id</code>.</td></tr>
         <tr><td>Category Catalog</td><td><span class="endpoint"><span class="m">GET</span>/files/categories</span> · <span class="endpoint"><span class="m">GET</span>/files/categories/:key</span></td><td><span class="status live">Live</span></td><td>Effective catalog + per-category counts.</td></tr>
         <tr><td>Category Edit</td><td><span class="endpoint"><span class="m">PATCH</span>/files/categories/:key</span> · <span class="endpoint"><span class="m">DELETE</span>/files/categories/:key</span></td><td><span class="status live">Live</span></td><td>Upsert the tenant override (tightening only); deactivate.</td></tr>
-        <tr><td>Overview</td><td><span class="endpoint"><span class="m">GET</span>/files/stats</span></td><td><span class="status proposed">Proposed</span></td><td>Uploads over time, by category, scan-verdict counts. No aggregation endpoint.</td></tr>
-        <tr><td>Rejected Uploads</td><td><span class="endpoint"><span class="m">GET</span>/files/rejections</span></td><td><span class="status proposed">Proposed</span></td><td><code>attach</code> throws on a bad type/size/scan and records nothing — "40 KYC uploads rejected this week" is invisible.</td></tr>
+        <tr><td>Overview</td><td><span class="endpoint"><span class="m">GET</span>/files/stats</span></td><td><span class="status partial">Partial</span></td><td>Uploads-over-time and by-category breakdown are live. Scan-verdict counts are still unavailable — no <code>scan_verdict</code> column on <code>commons_file_record</code>; that's a schema migration, deferred.</td></tr>
+        <tr><td>Rejected Uploads</td><td><span class="endpoint"><span class="m">GET</span>/files/rejections</span></td><td><span class="status live">Live</span></td><td>Filter tenant / category / reason. Keyset-paginated. <code>AttachmentService.attach</code> now records each rejection via <code>FileUploadRejectionRecorder</code>.</td></tr>
         <tr><td>Orphan reconciliation</td><td><span class="endpoint"><span class="m">POST</span>/files/orphans/sweep</span></td><td><span class="status proposed">Proposed</span></td><td>Also blob↔metadata drift (a blob with no <code>file_record</code>) — needs <code>FileStore.list</code>, noted as deferred in the module design.</td></tr>
         <tr><td>Retention &amp; Legal Hold</td><td><span class="endpoint"><span class="m">GET</span>/files/retention</span> · <span class="endpoint"><span class="m">POST</span>/files/:id/hold</span></td><td><span class="status proposed">Proposed</span></td><td><code>retention</code> is declared on a category but nothing reads it; there's no legal hold (a <code>DELETE</code> can't be blocked pending litigation).</td></tr>
       </tbody>
@@ -298,7 +298,7 @@
 2026-09-06 15:59  —                via signed-link  purpose shareable-link</pre>
       </details>
       <div style="margin-top:1rem"><button class="btn-danger" type="button">Delete file (cascade)</button>
-        <span class="tl-time"> &nbsp;— removes the blob + all attachments + access log, one transaction. Audited.</span></div>
+        <span class="tl-time"> &nbsp;— removes the blob + all attachments + access log, one transaction. Audited (if configured) — <code>FileStorageApiModule.forRoot</code> defaults to a no-op audit emitter.</span></div>
     </div>
 
     <!-- 3 · STORAGE USAGE -->
@@ -365,16 +365,16 @@
       </div>
     </section>
 
-    <!-- 6 · OVERVIEW (proposed) -->
+    <!-- 6 · OVERVIEW (partial) -->
     <section class="screen" id="overview">
-      <div class="screen-head"><h2 class="screen-name">Overview</h2><span class="endpoint"><span class="m">GET</span>/files/stats</span><span class="status proposed">Proposed</span></div>
-      <p class="screen-purpose">Upload activity and scan health at a glance — a spike in rejected uploads or unscannable files is a signal (a broken client, or a scanner outage) that the row-by-row log buries.</p>
-      <div class="proposed-note"><div><b>Missing API.</b> No aggregation endpoint. Proposed: <span class="sig">GET /files/stats?window=30d</span> → <code>{ perDay[], byCategory[], scanVerdicts{clean,infected,unscannable}, rejectionRate }</code>. Scan-verdict counts need a <code>scan_verdict</code> column on <code>commons_file_record</code> (not stored today).</div></div>
+      <div class="screen-head"><h2 class="screen-name">Overview</h2><span class="endpoint"><span class="m">GET</span>/files/stats</span><span class="status partial">Partial</span></div>
+      <p class="screen-purpose">Upload activity at a glance — a spike in rejected uploads is a signal (a broken client, or a scanner outage) that the row-by-row log buries.</p>
+      <div class="proposed-note"><div><b>Partially live.</b> <span class="sig">GET /files/stats</span> now returns <code>{ uploadsByDay[], byCategory[] }</code>, tenant-scoped and windowed (<code>windowDays</code>, default 30) — the two KPI tiles and chart below backed by real data. <b>Still not available:</b> scan-verdict counts (Unscannable / Infected tiles below are illustrative only) — <code>commons_file_record</code> has no <code>scan_verdict</code> column, and adding one is a schema migration, deferred.</div></div>
       <div class="kpi-row">
         <div class="kpi"><div class="k-label">Uploads (24h)</div><div class="k-value">486</div></div>
         <div class="kpi"><div class="k-label">Rejected (24h)</div><div class="k-value">37</div></div>
-        <div class="kpi"><div class="k-label">Unscannable (24h)</div><div class="k-value">4</div></div>
-        <div class="kpi"><div class="k-label">Infected (blocked)</div><div class="k-value">1</div></div>
+        <div class="kpi"><div class="k-label">Unscannable (24h) <span class="tl-time">— illustrative, not wired</span></div><div class="k-value">4</div></div>
+        <div class="kpi"><div class="k-label">Infected (blocked) <span class="tl-time">— illustrative, not wired</span></div><div class="k-value">1</div></div>
       </div>
       <h3 class="sub">Uploads by day (30d)</h3>
       <div class="bars">
@@ -386,11 +386,11 @@
       </div>
     </section>
 
-    <!-- 7 · REJECTED UPLOADS (proposed) -->
+    <!-- 7 · REJECTED UPLOADS -->
     <section class="screen" id="rejections">
-      <div class="screen-head"><h2 class="screen-name">Rejected Uploads</h2><span class="endpoint"><span class="m">GET</span>/files/rejections</span><span class="status proposed">Proposed</span></div>
+      <div class="screen-head"><h2 class="screen-name">Rejected Uploads</h2><span class="endpoint"><span class="m">GET</span>/files/rejections</span><span class="status live">Live</span></div>
       <p class="screen-purpose">Uploads that <code>attach</code> refused — wrong type, too large, failed scan, unknown category. A cluster ("40 KYC docs rejected for wrong type this week") is a UX or client-config problem the support team should see.</p>
-      <div class="proposed-note"><div><b>Missing API.</b> <code>AttachmentService.attach</code> throws a 422/403 and records nothing. Proposed: an optional <code>FileUploadRejectionRecorder</code> port + <code>Noop</code> default (same shape as <code>FileAccessRecorder</code>), a <code>commons_file_rejection</code> table, and <span class="sig">GET /files/rejections</span>. No blob is ever written for a rejection — metadata only.</div></div>
+      <p class="gating">Gate: <code>file.view</code>. Non-platform actor → their tenant only. Filters: <code>category</code>, <code>reason</code>. Keyset-paginated.</p>
       <div class="scrollx">
       <table class="table">
         <thead><tr><th>Attempted</th><th>Category</th><th>Reason</th><th>By</th><th>Filename</th></tr></thead>

@@ -29,10 +29,17 @@ export interface DeliveryQuery {
   limit?: number;
   /** Opaque — pass the previous page's `nextCursor`. */
   cursor?: string;
+  /**
+   * Sort direction on `(deliveredAt, id)`. Default `'desc'` (newest first) —
+   * the base delivery-list screen. The trace endpoint (`getTrace()`) requests
+   * `'asc'` so a request/job timeline reads top-to-bottom chronologically
+   * without an undocumented client-side reversal.
+   */
+  order?: 'asc' | 'desc';
 }
 
 export interface DeliveryPage {
-  /** Newest first. */
+  /** Ordered per `DeliveryQuery.order` — newest first by default. */
   deliveries: EventDeliveryRecord[];
   /** Present only when more rows match — pass back as `DeliveryQuery.cursor`. */
   nextCursor?: string;
@@ -49,6 +56,33 @@ export interface EventDeliveryCatalogEntry {
   lastDeliveredAt: Date;
 }
 
+/** One day's worth of deliveries, for the Overview dashboard's bar chart. */
+export interface DeliveryStatsDay {
+  /** `YYYY-MM-DD`, the UTC calendar day `date_trunc('day', deliveredAt)` falls on. */
+  date: string;
+  total: number;
+  noListenerCount: number;
+  dispatchFailedCount: number;
+}
+
+/** One row of the Overview dashboard's "top events in this window" table. */
+export interface DeliveryStatsTopEvent {
+  eventName: string;
+  totalDeliveries: number;
+}
+
+/** The Overview dashboard's aggregate over a trailing time window. */
+export interface DeliveryStats {
+  /** Ascending by date, oldest first — chart-ready. */
+  perDay: DeliveryStatsDay[];
+  /** Busiest events in the window, highest `totalDeliveries` first. */
+  topEvents: DeliveryStatsTopEvent[];
+  /** Fraction (0–1) of the window's deliveries with `status === 'no_listeners'`. `0` when the window has no deliveries. */
+  noListenerRate: number;
+  /** Fraction (0–1) of the window's deliveries with `status === 'dispatch_failed'`. `0` when the window has no deliveries. */
+  dispatchFailedRate: number;
+}
+
 /**
  * Read-only reporting over the delivery log for an admin screen. Bound under
  * `EVENT_DELIVERY_OBSERVABILITY_PORT` by a stack adapter; consumed by
@@ -56,8 +90,10 @@ export interface EventDeliveryCatalogEntry {
  * `audit-logging`'s records.
  */
 export interface EventDeliveryObservabilityPort {
-  /** Delivery attempts, newest first, keyset-paginated. */
+  /** Delivery attempts, keyset-paginated, ordered per `DeliveryQuery.order` (default newest first). */
   listDeliveries(query?: DeliveryQuery): Promise<DeliveryPage>;
   /** One row per event name that has ever fired — "what events exist and how have they behaved." */
   deliveryCatalog(): Promise<EventDeliveryCatalogEntry[]>;
+  /** The Overview dashboard's aggregate — deliveries since the given lower bound on `deliveredAt`. */
+  deliveryStats(since: Date): Promise<DeliveryStats>;
 }

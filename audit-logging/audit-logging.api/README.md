@@ -10,10 +10,17 @@ no audit-emitter.
 | Method | Path | → |
 |---|---|---|
 | GET | `/audit/events` | `find(AuditQuery)` — query params: `entityType`, `entityId`, `tenantId`, `actor`, `action`, `correlationId`, `occurredAfter`, `occurredBefore`, `limit`, `cursor`. Returns `AuditQueryResult` (records newest-first + `nextCursor`) unchanged. |
+| GET | `/audit/events.csv` | Same `AuditQuery` filters as `/audit/events`, rendered as CSV (`text/csv`) instead of JSON — one bounded page, for a small ad-hoc export. No async/large-range export job (that writes to `file-storage`) is built here. |
+| GET | `/audit/events/:id` | `findOne(id)` — one record plus its server-computed field-level `diff` (`AuditEventDetail`, via `diffFields`). 404s (never leaks existence) for a missing or cross-tenant id. |
 | GET | `/audit/entities/:type/:id/history` | one entity's full audit history, paginated. |
 | GET | `/audit/trace/:correlationId` | every record from one request / job run — a cross-module trace. |
+| GET | `/audit/actors/:actor/activity` | `summarizeActor(actor, query)` — counts by action, first/last seen, distinct tenants touched. Query params: `occurredAfter`, `occurredBefore`. |
+| GET | `/audit/stats` | `stats(window, tenantFilter)` — the Overview dashboard: `perDay`/`topActions`/`topActors`/`perTenant`. Query params: `window` (e.g. `'30d'`, default 30 days), `tenantId` (platform admin only). |
+| POST | `/audit/coverage` | `countByDeclared({ entityTypes, actions })` — body is the caller's own declared catalog; response is a per-declared-entry `{ kind, value, count, assessment }[]`, no catalog table involved. |
 
 All gated on `@RequiresAction('audit.view')`.
+
+`GET /audit/retention` (oldest record, row count, table size) is deliberately **not** built — see the module's `mocks.html` Retention & Volume screen, left `proposed`.
 
 ## Actor scoping
 
@@ -22,7 +29,10 @@ per-tenant activity feed. A **platform admin** (default: `actor.tenantId === nul
 override via `forRoot({ isPlatformAdmin })`) reads every tenant's records, and
 may filter by any `tenantId` or `tenantId=null` (platform-level rows). A
 vertical that wants audit reads to be platform-admin-only just doesn't grant
-`audit.view` to tenant personas.
+`audit.view` to tenant personas. Every endpoint added above follows the same
+rule — including `/audit/events/:id`, where a cross-tenant id 404s exactly
+like a missing one, so a non-platform actor can never distinguish "doesn't
+exist" from "not yours".
 
 ## Wiring
 

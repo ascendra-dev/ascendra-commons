@@ -59,6 +59,20 @@ export interface DeleteProviderCredentialBody {
   tenantId: string;
 }
 
+export interface DeliveryStatsQueryDto {
+  /** Non-platform actors are restricted to their own tenant regardless of this value. */
+  tenantId?: string;
+  /** e.g. `'24h'`, `'7d'`, `'30d'`. Default `'7d'`. */
+  window?: string;
+}
+
+export interface PreviewTemplateBody {
+  subject?: string;
+  body: string;
+  isHtml?: boolean;
+  variables?: Record<string, string | number>;
+}
+
 export interface TestSendBody {
   recipient: { type: 'user'; id: string } | { type: 'raw'; email?: string; phone?: string };
   notificationType: string;

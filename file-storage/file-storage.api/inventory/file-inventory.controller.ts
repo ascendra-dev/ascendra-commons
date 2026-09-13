@@ -63,6 +63,34 @@ export class FileInventoryController {
     });
   }
 
+  @Get('stats')
+  @RequiresAction(FILE_STORAGE_ACTIONS.VIEW)
+  stats(@CurrentActor() actor: Actor, @Query('tenantId') tenantId?: string, @Query('windowDays') windowDays?: string) {
+    return this.service.stats(actor, {
+      tenantId,
+      windowDays: windowDays !== undefined ? Number(windowDays) : undefined,
+    });
+  }
+
+  @Get('rejections')
+  @RequiresAction(FILE_STORAGE_ACTIONS.VIEW)
+  rejections(
+    @CurrentActor() actor: Actor,
+    @Query('tenantId') tenantId?: string,
+    @Query('category') category?: string,
+    @Query('reason') reason?: 'category-unavailable' | 'validation-failed' | 'scan-rejected',
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.service.listRejections(actor, {
+      tenantId,
+      category,
+      reason,
+      limit: limit !== undefined ? Number(limit) : undefined,
+      cursor,
+    });
+  }
+
   @Get(':id')
   @RequiresAction(FILE_STORAGE_ACTIONS.VIEW)
   getOne(@CurrentActor() actor: Actor, @Param('id') id: string) {

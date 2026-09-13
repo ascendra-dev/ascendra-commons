@@ -1,5 +1,5 @@
 /* persistence (re-export tables for drizzle-kit; copy the .migration.sql files) */
-export { fileRecordTable, attachmentTable, fileCategoryTable, fileAccessTable } from './persistence';
+export { fileRecordTable, attachmentTable, fileCategoryTable, fileAccessTable, fileRejectionTable } from './persistence';
 export type { SqlExecutor } from './persistence/sql-executor';
 
 /* attachment store (Model 1 metadata) */
@@ -20,6 +20,9 @@ export { PostgresFileStorageObservabilityService } from './access-log/postgres-f
 export { PostgresFileStorageAdminModule } from './access-log/postgres-file-storage-admin.module';
 export type { PostgresFileStorageAdminModuleConfig } from './access-log/postgres-file-storage-admin.module';
 
+/* rejected uploads */
+export { PostgresFileUploadRejectionRecorder } from './rejections/postgres-file-upload-rejection-recorder';
+
 /* tokens */
 export {
   FILE_STORAGE_SQL_EXECUTOR,
@@ -27,5 +30,6 @@ export {
   POSTGRES_FILE_CATEGORY_REGISTRY,
   POSTGRES_FILE_CATEGORY_ADMIN,
   POSTGRES_FILE_ACCESS_RECORDER,
+  POSTGRES_FILE_UPLOAD_REJECTION_RECORDER,
   POSTGRES_FILE_STORAGE_OBSERVABILITY,
 } from './tokens';

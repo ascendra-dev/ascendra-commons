@@ -10,7 +10,9 @@ import type {
   DelegationView,
   RoleView,
   UserRoleAssignment,
+  WhoCanResult,
 } from '../../authorization.core.permission-table';
+import { textArray } from '../persistence/sql-helpers';
 import type { SqlExecutor } from '../persistence/sql-executor';
 import { AUTHZ_SQL_EXECUTOR } from '../tokens';
 
@@ -49,6 +51,40 @@ export class PostgresAuthzObservabilityService implements AuthzObservabilityPort
       grantsAll: r.grants_all,
       actions: r.grants_all ? [] : [...(r.actions ?? [])].sort(),
     }));
+  }
+
+  async getRole(id: string): Promise<RoleView | null> {
+    const { rows } = await this.db.execute<{
+      id: string;
+      description: string | null;
+      grants_all: boolean;
+      actions: string[];
+    }>(sql`
+      select r.id, r.description, r.grants_all,
+             coalesce(array_agg(rp.action) filter (where rp.action is not null), '{}') as actions
+      from commons_authz_role r
+      left join commons_authz_role_permission rp on rp.role_id = r.id
+      where r.id = ${id}
+      group by r.id, r.description, r.grants_all
+    `);
+    if (rows.length === 0) return null;
+    const r = rows[0];
+    return {
+      id: r.id,
+      description: r.description,
+      grantsAll: r.grants_all,
+      actions: r.grants_all ? [] : [...(r.actions ?? [])].sort(),
+    };
+  }
+
+  async countHolders(roleId: string): Promise<number> {
+    const { rows } = await this.db.execute<{ count: string | number }>(sql`
+      select count(distinct user_id) as count
+      from commons_authz_user_role
+      where role_id = ${roleId}
+    `);
+    const raw = rows[0]?.count ?? 0;
+    return typeof raw === 'string' ? parseInt(raw, 10) : raw;
   }
 
   async listUserRoleAssignments(query: AssignmentQuery = {}): Promise<UserRoleAssignment[]> {
@@ -90,21 +126,23 @@ export class PostgresAuthzObservabilityService implements AuthzObservabilityPort
 
     const { rows: roleRows } = await this.db.execute<{
       role_id: string;
+      tenant_id: string | null;
       grants_all: boolean;
       actions: string[];
     }>(sql`
-      select ur.role_id, r.grants_all,
+      select ur.role_id, ur.tenant_id, r.grants_all,
              coalesce(array_agg(rp.action) filter (where rp.action is not null), '{}') as actions
       from commons_authz_user_role ur
       join commons_authz_role r on r.id = ur.role_id
       left join commons_authz_role_permission rp on rp.role_id = r.id
       where ${roleWhere}
-      group by ur.role_id, r.grants_all
+      group by ur.role_id, ur.tenant_id, r.grants_all
       order by ur.role_id
     `);
 
     const roles = roleRows.map((r) => ({
       roleId: r.role_id,
+      tenantId: r.tenant_id,
       grantsAll: r.grants_all,
       grantedActions: r.grants_all ? [] : [...(r.actions ?? [])].sort(),
     }));
@@ -169,6 +207,11 @@ export class PostgresAuthzObservabilityService implements AuthzObservabilityPort
     if (query.status === 'active') conds.push(sql`revoked_at is null and expires_at > now()`);
     else if (query.status === 'revoked') conds.push(sql`revoked_at is not null`);
     else if (query.status === 'expired') conds.push(sql`revoked_at is null and expires_at <= now()`);
+    if (query.expiringWithinDays !== undefined) {
+      conds.push(
+        sql`revoked_at is null and expires_at > now() and expires_at <= now() + (${query.expiringWithinDays} * interval '1 day')`,
+      );
+    }
 
     const cursor = query.cursor ? decodeCursor(query.cursor) : null;
     if (cursor) {
@@ -213,6 +256,65 @@ export class PostgresAuthzObservabilityService implements AuthzObservabilityPort
       grantedButUndescribed: [...granted].filter((a) => undescribed.has(a)).sort(),
       describedCount: actionRows.length - undescribed.size,
       totalCount: actionRows.length,
+    };
+  }
+
+  async whoCan(action: string, tenantId?: string): Promise<WhoCanResult> {
+    const { rows: roleRows } = await this.db.execute<{ id: string; grants_all: boolean }>(sql`
+      select distinct r.id, r.grants_all
+      from commons_authz_role r
+      left join commons_authz_role_permission rp on rp.role_id = r.id
+      where r.grants_all = true or rp.action = ${action}
+      order by r.id
+    `);
+
+    const holdersByRole = new Map<string, string[]>();
+    const roleIds = roleRows.map((r) => r.id);
+    if (roleIds.length > 0) {
+      const tenantCond = tenantId === undefined ? sql`` : sql`and (tenant_id = ${tenantId} or tenant_id is null)`;
+      const { rows: holderRows } = await this.db.execute<{ role_id: string; user_id: string }>(sql`
+        select role_id, user_id
+        from commons_authz_user_role
+        where role_id = any(${textArray(roleIds)}) ${tenantCond}
+      `);
+      for (const h of holderRows) {
+        const list = holdersByRole.get(h.role_id) ?? [];
+        list.push(h.user_id);
+        holdersByRole.set(h.role_id, list);
+      }
+    }
+
+    const roles = roleRows.map((r) => ({
+      roleId: r.id,
+      grantsAll: r.grants_all,
+      holderUserIds: [...new Set(holdersByRole.get(r.id) ?? [])].sort(),
+    }));
+
+    const tenantDelCond = tenantId === undefined ? sql`` : sql`and tenant_id = ${tenantId}`;
+    const { rows: delRows } = await this.db.execute<{
+      id: string;
+      granter_id: string;
+      grantee_id: string;
+      expires_at: string | Date;
+    }>(sql`
+      select id, granter_id, grantee_id, expires_at
+      from commons_authz_delegation
+      where revoked_at is null and expires_at > now()
+        and actions @> ${textArray([action])}
+        ${tenantDelCond}
+      order by expires_at asc
+    `);
+
+    return {
+      action,
+      tenantId: tenantId ?? null,
+      roles,
+      delegations: delRows.map((d) => ({
+        id: d.id,
+        granterId: d.granter_id,
+        granteeId: d.grantee_id,
+        expiresAt: asDate(d.expires_at),
+      })),
     };
   }
 }

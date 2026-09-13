@@ -5,7 +5,8 @@ import {
   type DelegationRecord,
   type DelegationService,
 } from '../../authorization.core.permission-table';
-import { AUTHZ_AUDIT_EMITTER } from '../tokens';
+import { AUTHZ_API_OPTIONS, AUTHZ_AUDIT_EMITTER } from '../tokens';
+import type { AuthzApiOptions } from '../authz-api.options';
 import type { AuthzAuditEmitter } from '../authz-audit.port';
 import type { CreateDelegationBody } from '../dto/authz-api.dto';
 
@@ -19,6 +20,7 @@ import type { CreateDelegationBody } from '../dto/authz-api.dto';
 export class AuthzDelegationApiService {
   constructor(
     @Inject(AUTHZ_DELEGATION_SERVICE) private readonly delegation: DelegationService,
+    @Inject(AUTHZ_API_OPTIONS) private readonly options: AuthzApiOptions,
     @Inject(AUTHZ_AUDIT_EMITTER) private readonly audit: AuthzAuditEmitter,
   ) {}
 
@@ -54,7 +56,18 @@ export class AuthzDelegationApiService {
     return record;
   }
 
+  /**
+   * Tenant ceiling: a non-platform actor may only revoke a delegation that
+   * belongs to their own tenant — mirroring `AuthzAdminApiService`'s
+   * `resolveTargetTenant`. A delegation id that doesn't exist (or is already
+   * revoked) is left to the repository's own idempotent no-op.
+   */
   async revoke(actor: Actor, id: string): Promise<void> {
+    const delegation = await this.delegation.getById(id);
+    if (delegation && delegation.tenantId !== actor.tenantId && !(await this.options.isPlatformAdmin(actor))) {
+      throw new ForbiddenException('cannot revoke a delegation outside your own tenant');
+    }
+
     await this.delegation.revokeDelegation(id, actor.id);
     await this.audit.record({
       action: 'authz.delegation_revoked',

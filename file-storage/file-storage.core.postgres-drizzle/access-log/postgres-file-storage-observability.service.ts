@@ -7,6 +7,10 @@ import {
   type FileDetail,
   type FileInventoryPage,
   type FileInventoryQuery,
+  type FileRejectionPage,
+  type FileRejectionQuery,
+  type FileStatsQuery,
+  type FileStatsSummary,
   type FileStorageObservabilityPort,
   type OrphanedFilePage,
   type OrphanedFileQuery,
@@ -167,6 +171,83 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
       totalBytes: Number(r.total_bytes),
       lastUploadedAt: r.last_uploaded_at ? new Date(r.last_uploaded_at as string) : null,
     }));
+  }
+
+  /**
+   * Uploads-over-time + by-category counts for the ops Overview screen, both
+   * windowed by `query.windowDays` (default 30). Deliberately no scan-verdict
+   * breakdown — `commons_file_record` has no `scan_verdict` column; adding one
+   * is a schema migration, out of scope here.
+   */
+  async statsSummary(query: FileStatsQuery = {}): Promise<FileStatsSummary> {
+    const windowDays = query.windowDays && query.windowDays > 0 ? query.windowDays : 30;
+    const cutoff = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+    const where: SQL[] = [sql`created_at >= ${cutoff}`];
+    if (query.tenantId) where.push(sql`tenant_id = ${query.tenantId}`);
+
+    const [{ rows: dayRows }, { rows: categoryRows }] = await Promise.all([
+      this.db.execute(sql`
+        select to_char(date_trunc('day', created_at), 'YYYY-MM-DD') as day, count(*) as count
+        from commons_file_record
+        where ${and(where)}
+        group by day
+        order by day asc
+      `),
+      this.db.execute(sql`
+        select category, count(*) as file_count, coalesce(sum(size_bytes), 0) as total_bytes
+        from commons_file_record
+        where ${and(where)}
+        group by category
+        order by category
+      `),
+    ]);
+
+    return {
+      uploadsByDay: dayRows.map((r) => ({ date: r.day as string, count: Number(r.count) })),
+      byCategory: categoryRows.map((r) => ({
+        category: r.category as string,
+        fileCount: Number(r.file_count),
+        totalBytes: Number(r.total_bytes),
+      })),
+    };
+  }
+
+  async listRejections(query: FileRejectionQuery = {}): Promise<FileRejectionPage> {
+    const limit = clampLimit(query.limit);
+    const where: SQL[] = [];
+    if (query.tenantId) where.push(sql`tenant_id = ${query.tenantId}`);
+    if (query.category) where.push(sql`category = ${query.category}`);
+    if (query.reason) where.push(sql`reason = ${query.reason}`);
+    const cur = query.cursor ? decodeKeysetCursor(query.cursor) : null;
+    if (cur) where.push(sql`(occurred_at, id) < (${cur.timestamp}, ${cur.id})`);
+
+    const { rows } = await this.db.execute(sql`
+      select id, tenant_id, actor_id, category, filename, content_type, size_bytes, reason, message, occurred_at
+      from commons_file_rejection
+      where ${and(where)}
+      order by occurred_at desc, id desc
+      limit ${limit + 1}
+    `);
+
+    const page = rows.slice(0, limit);
+    return {
+      rows: page.map((r) => ({
+        id: r.id as string,
+        tenantId: r.tenant_id as string,
+        actorId: r.actor_id as string,
+        category: r.category as string,
+        filename: r.filename as string,
+        contentType: r.content_type as string,
+        sizeBytes: Number(r.size_bytes),
+        reason: r.reason as 'category-unavailable' | 'validation-failed' | 'scan-rejected',
+        message: r.message as string,
+        occurredAt: new Date(r.occurred_at as string),
+      })),
+      nextCursor:
+        rows.length > limit
+          ? encodeKeysetCursor(new Date(page[page.length - 1].occurred_at as string), page[page.length - 1].id as string)
+          : null,
+    };
   }
 }
 

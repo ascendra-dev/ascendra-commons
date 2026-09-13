@@ -86,6 +86,77 @@ describe('PostgresJobObservabilityService.getRunHistory', () => {
     const db = fakeDb([]);
     await expect(svc(db).getRunHistory({ cursor: 'not-a-real-cursor' })).resolves.toEqual({ runs: [] });
   });
+
+  it('truncates a long error to keep the full stack off list rows', async () => {
+    const longStack = 'boom\n'.repeat(200); // well over 500 chars
+    const db = fakeDb([row({ error: longStack })]);
+    const page = await svc(db).getRunHistory();
+
+    expect(page.runs[0].error!.length).toBeLessThan(longStack.length);
+    expect(page.runs[0].error).toContain('truncated');
+    expect(page.runs[0].error).toContain('GET /jobs/runs/:id');
+  });
+
+  it('leaves a short error untouched', async () => {
+    const db = fakeDb([row({ error: 'short boom' })]);
+    const page = await svc(db).getRunHistory();
+    expect(page.runs[0].error).toBe('short boom');
+  });
+});
+
+describe('PostgresJobObservabilityService.getRun', () => {
+  it('scopes to application and casts id to bigint', async () => {
+    const db = fakeDb([row({ id: '42' })]);
+    const run = await svc(db).getRun('42');
+
+    expect(run).toMatchObject({ id: '42' });
+    const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(text).toMatch(/id = .*::bigint/i);
+    expect(params).toEqual(expect.arrayContaining(['ascendra-pay', '42']));
+  });
+
+  it('returns null when no row matches', async () => {
+    const db = fakeDb([]);
+    await expect(svc(db).getRun('999')).resolves.toBeNull();
+  });
+
+  it('returns the full, untruncated error stack — unlike list rows', async () => {
+    const longStack = 'boom\n'.repeat(200);
+    const db = fakeDb([row({ error: longStack })]);
+    const run = await svc(db).getRun('1');
+
+    expect(run!.error).toBe(longStack);
+  });
+});
+
+describe('PostgresJobObservabilityService.getFailedItems', () => {
+  it('scopes the recent-runs window to application + job, and applies the minRuns threshold as a HAVING bound', async () => {
+    const db = fakeDb([]);
+    await svc(db).getFailedItems('payout-sweep', 3);
+
+    const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(text).toMatch(/unnest\(failed_item_refs\)/i);
+    expect(text).toMatch(/having count\(\*\) >=/i);
+    expect(params).toEqual(expect.arrayContaining(['ascendra-pay', 'payout-sweep', 3]));
+  });
+
+  it('maps failure_count / last_failed_at rows', async () => {
+    const db = fakeDb([
+      { item_ref: 'payout p_9c04', failure_count: 6, last_failed_at: new Date('2026-06-09T00:00:00Z') },
+    ]);
+    const items = await svc(db).getFailedItems('payout-sweep');
+
+    expect(items).toEqual([
+      { itemRef: 'payout p_9c04', failureCount: 6, lastFailedAt: new Date('2026-06-09T00:00:00Z') },
+    ]);
+  });
+
+  it('defaults minRuns when omitted', async () => {
+    const db = fakeDb([]);
+    await svc(db).getFailedItems('payout-sweep');
+    const { params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(params).toContain(2); // DEFAULT_MIN_FAILED_RUNS
+  });
 });
 
 describe('PostgresJobObservabilityService.listJobStatus', () => {

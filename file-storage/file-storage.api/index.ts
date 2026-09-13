@@ -13,5 +13,7 @@ export type {
   StorageUsageQueryDto,
   OrphanQueryDto,
   AccessLogQueryDto,
+  FileStatsQueryDto,
+  FileRejectionQueryDto,
   UpsertCategoryOverrideBody,
 } from './dto/file-storage-api.dto';

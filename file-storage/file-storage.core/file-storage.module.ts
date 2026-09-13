@@ -11,6 +11,7 @@ import {
   type DownloadUrlExpiry,
 } from './file-storage.options';
 import { RuleBasedFileValidator, type FileValidationDefaults } from './file-validator.port';
+import { NoopFileUploadRejectionRecorder } from './file-upload-rejection-recorder.port';
 import { MissingSignedLinkResolver } from './signed-link-resolver.port';
 import {
   ATTACHMENT_STORE,
@@ -21,6 +22,7 @@ import {
   FILE_STORAGE_AUDIT_EMITTER,
   FILE_STORAGE_OPTIONS,
   FILE_STORE,
+  FILE_UPLOAD_REJECTION_RECORDER,
   FILE_VALIDATOR,
   SIGNED_LINK_RESOLVER,
 } from './tokens';
@@ -44,6 +46,8 @@ export interface FileStorageModuleConfig {
   fileScannerToken?: OverrideToken;
   /** `FileAccessRecorder`. Omit → `NoopFileAccessRecorder`. */
   fileAccessRecorderToken?: OverrideToken;
+  /** `FileUploadRejectionRecorder`. Omit → `NoopFileUploadRejectionRecorder`. */
+  fileUploadRejectionRecorderToken?: OverrideToken;
   /** `SignedLinkResolver`. Omit → `MissingSignedLinkResolver` (token downloads throw). */
   signedLinkResolverToken?: OverrideToken;
   /** `FileStorageAuditEmitter` for attach/link/detach/delete. Omit → `NoopFileStorageAuditEmitter`. */
@@ -111,6 +115,7 @@ export class FileStorageModule {
 
         optional(FILE_SCANNER, config.fileScannerToken, NoopFileScanner),
         optional(FILE_ACCESS_RECORDER, config.fileAccessRecorderToken, NoopFileAccessRecorder),
+        optional(FILE_UPLOAD_REJECTION_RECORDER, config.fileUploadRejectionRecorderToken, NoopFileUploadRejectionRecorder),
         optional(SIGNED_LINK_RESOLVER, config.signedLinkResolverToken, MissingSignedLinkResolver),
         optional(FILE_STORAGE_AUDIT_EMITTER, config.auditEmitterToken, NoopFileStorageAuditEmitter),
 

@@ -193,7 +193,7 @@
     </div>
     <div class="nav-group">
       <div class="nav-group-title">Diagnose</div>
-      <a class="nav-item" href="#failed-items">Failed Items <span class="pill">new API</span></a>
+      <a class="nav-item" href="#failed-items">Failed Items</a>
       <a class="nav-item" href="#locks">Lock Inspector <span class="pill">new API</span></a>
       <a class="nav-item" href="#alerts">Alerts &amp; Overdue <span class="pill">new API</span></a>
     </div>
@@ -221,11 +221,11 @@
       <tbody>
         <tr><td>Dashboard</td><td><span class="endpoint"><span class="m">GET</span>/jobs</span></td><td><span class="status live">Live</span></td><td><code>listJobStatus()</code> — last run, last success, consecutive failures, cadence, overdue.</td></tr>
         <tr><td>Job Detail &amp; Runs</td><td><span class="endpoint"><span class="m">GET</span>/jobs/:name/runs</span> · <span class="endpoint"><span class="m">POST</span>/jobs/:name/run</span></td><td><span class="status live">Live</span></td><td>Run history (filter outcome / date) + "Run now" (<code>job.run</code>).</td></tr>
-        <tr><td>Run Detail</td><td><span class="endpoint"><span class="m">GET</span>/jobs/runs/:id</span></td><td><span class="status partial">Partial</span></td><td>The run is already in the list payload; there's no single-run fetch for a permalink and the <code>error</code> stack is truncated in lists.</td></tr>
+        <tr><td>Run Detail</td><td><span class="endpoint"><span class="m">GET</span>/jobs/runs/:id</span></td><td><span class="status live">Live</span></td><td>Single-run permalink, 404 if not found. Carries the full, untruncated <code>error</code> stack — list rows (dashboard + run history) truncate it to ~500 chars.</td></tr>
         <tr><td>Cross-module Trace</td><td><span class="endpoint"><span class="m">GET</span>/jobs/runs/trace/:correlationId</span></td><td><span class="status live">Live</span></td><td>Same id resolves in <code>audit-logging</code> and <code>notification</code>.</td></tr>
-        <tr><td>Failed Items</td><td><span class="endpoint"><span class="m">GET</span>/jobs/:name/failed-items</span></td><td><span class="status proposed">Proposed</span></td><td><code>failedItemRefs</code> is per-run only. "invoice a1b2 has failed the last 6 runs" should be a query (the port doc says so).</td></tr>
+        <tr><td>Failed Items</td><td><span class="endpoint"><span class="m">GET</span>/jobs/:name/failed-items</span></td><td><span class="status live">Live</span></td><td><code>?minRuns=</code> — items recurring across at least that many of the job's last 50 runs. Best-effort: matching relies on <code>describeItem()</code> being a stable ref, which isn't guaranteed.</td></tr>
         <tr><td>Lock Inspector</td><td><span class="endpoint"><span class="m">GET</span>/jobs/locks</span></td><td><span class="status proposed">Proposed</span></td><td>Which advisory locks are held, since when. A stuck lock from a crashed instance is a real incident with no visibility.</td></tr>
-        <tr><td>Alerts &amp; Overdue</td><td><span class="endpoint"><span class="m">GET</span>/jobs/alerts</span></td><td><span class="status proposed">Proposed</span></td><td><code>overdue</code> is computed but nothing pushes it. No "acknowledge", no webhook.</td></tr>
+        <tr><td>Alerts &amp; Overdue</td><td><span class="endpoint"><span class="m">GET</span>/jobs/alerts</span></td><td><span class="status partial">Partial</span></td><td>The listing works — <code>overdue</code> / <code>consecutiveFailures</code> filtered from <code>listJobStatus</code> — but there's no "acknowledge" state and no outbound webhook, so nothing pages anyone without the screen open.</td></tr>
         <tr><td>Pause / Disable</td><td><span class="endpoint"><span class="m">POST</span>/jobs/:name/pause</span></td><td><span class="status proposed">Proposed</span></td><td>A job failing every run and paging people — today the only lever is a deploy. Caveat: scheduling is the vertical's, so this may stay a vertical concern.</td></tr>
       </tbody>
     </table>
@@ -257,7 +257,7 @@
         <span class="endpoint"><span class="m">POST</span>/jobs/:name/run</span><span class="status live">Live</span></div>
       <p class="breadcrumb"><b>payout-sweep</b> / runs</p>
       <p class="screen-purpose">One job's run history with a drill-down, and the out-of-schedule trigger.</p>
-      <p class="gating">Reads: <code>job.view</code>. Trigger: <code>job.run</code>. The manual run's <code>correlationId</code> is forwarded so it shows in the cross-module trace; an optional audit-emitter records who triggered it.</p>
+      <p class="gating">Reads: <code>job.view</code>. Trigger: <code>job.run</code>. The manual run's <code>correlationId</code> is forwarded so it shows in the cross-module trace — read from an inbound <code>X-Correlation-Id</code> header, or generated fresh if the caller didn't send one; an optional audit-emitter records who triggered it.</p>
       <div class="filterbar">
         <span class="field"><span class="lbl">Outcome</span>any</span>
         <span class="field"><span class="lbl">Since</span>2026-09-01</span>
@@ -283,9 +283,9 @@
       <span class="x">✕</span>
       <div class="screen-head" style="margin-bottom:0.5rem">
         <h2 class="screen-name" style="font-size:var(--text-heading-sm)">Run detail</h2>
-        <span class="endpoint"><span class="m">GET</span>/jobs/runs/:id</span><span class="status partial">Partial</span>
+        <span class="endpoint"><span class="m">GET</span>/jobs/runs/:id</span><span class="status live">Live</span>
       </div>
-      <div class="proposed-note"><div><b>Missing API.</b> The list row carries the whole <code>JobRunRecord</code>, so the drawer renders from it today. What's missing: <span class="sig">GET /jobs/runs/:id</span> for a permalink, and the full <code>error</code> stack (lists truncate it).</div></div>
+      <p class="gating">Gate: <code>job.view</code>. 404 if the id doesn't exist for this application. Returns the full, untruncated <code>error</code> stack — the dashboard and run-history <em>list</em> rows truncate it to ~500 chars so a large stack trace doesn't ship on every row.</p>
       <dl class="kv">
         <dt>Run id</dt><dd class="mono">jr_44210</dd>
         <dt>Job</dt><dd>payout-sweep</dd>
@@ -315,17 +315,18 @@ payout p_9c19 — provider timeout</pre>
       <div class="note"><div><b>Cross-reference.</b> This id also resolves in <code>audit-logging.api</code> (<code>/audit/trace/8a2f…31</code>) and <code>notification.api</code> (delivery log filtered by correlation).</div></div>
     </section>
 
-    <!-- 5 · FAILED ITEMS (proposed) -->
+    <!-- 5 · FAILED ITEMS -->
     <section class="screen" id="failed-items">
-      <div class="screen-head"><h2 class="screen-name">Failed Items</h2><span class="endpoint"><span class="m">GET</span>/jobs/:name/failed-items</span><span class="status proposed">Proposed</span></div>
+      <div class="screen-head"><h2 class="screen-name">Failed Items</h2><span class="endpoint"><span class="m">GET</span>/jobs/:name/failed-items</span><span class="status live">Live</span></div>
       <p class="screen-purpose">Which items a job keeps failing on, across runs — the "chronic offender" view for triage.</p>
-      <div class="proposed-note"><div><b>Missing API.</b> <code>failedItemRefs</code> is stored per run, so "which items failed the last N runs" means paging every run and diffing client-side. Proposed: <span class="sig">GET /jobs/:name/failed-items?minRuns=3</span> → items with their failure streak. Not a dead-letter queue — per-item retry is Model 2.</div></div>
+      <p class="gating">Gate: <code>job.view</code>. <code>?minRuns=</code> (default 2) — an item must appear as a failed ref in at least that many of the job's last 50 runs to show up here, via <code>unnest(failed_item_refs)</code> + <code>GROUP BY</code>. Not a dead-letter queue — per-item retry is Model 2.</p>
+      <div class="note"><div><b>Best-effort matching.</b> An item ref is whatever the job's own <code>describeItem()</code> returns — a logging aid, not a stable identifier by contract. A job whose ref embeds something that varies run to run (an index, a timestamp) will never show a recurrence here even if the same underlying item keeps failing.</div></div>
       <div class="scrollx">
       <table class="table">
-        <thead><tr><th>Item</th><th>Consecutive failed runs</th><th>First failed</th><th>Last error</th></tr></thead>
+        <thead><tr><th>Item</th><th>Times failed (last 50 runs)</th><th>Last failed</th></tr></thead>
         <tbody>
-          <tr><td class="mono">payout p_9c04</td><td><span class="badge fail">6</span></td><td class="t-time">2026-09-02 06:10</td><td>insufficient float in settlement account</td></tr>
-          <tr><td class="mono">payout p_88a1</td><td><span class="badge warn">2</span></td><td class="t-time">2026-09-06 06:11</td><td>provider timeout</td></tr>
+          <tr><td class="mono">payout p_9c04</td><td><span class="badge fail">6</span></td><td class="t-time">2026-09-07 06:12</td></tr>
+          <tr><td class="mono">payout p_88a1</td><td><span class="badge warn">2</span></td><td class="t-time">2026-09-06 06:11</td></tr>
         </tbody>
       </table>
       </div>
@@ -348,13 +349,14 @@ payout p_9c19 — provider timeout</pre>
       </div>
     </section>
 
-    <!-- 7 · ALERTS & OVERDUE (proposed) -->
+    <!-- 7 · ALERTS & OVERDUE (partial) -->
     <section class="screen" id="alerts">
-      <div class="screen-head"><h2 class="screen-name">Alerts &amp; Overdue</h2><span class="endpoint"><span class="m">GET</span>/jobs/alerts</span><span class="status proposed">Proposed</span></div>
+      <div class="screen-head"><h2 class="screen-name">Alerts &amp; Overdue</h2><span class="endpoint"><span class="m">GET</span>/jobs/alerts</span><span class="status partial">Partial</span></div>
       <p class="screen-purpose">The subset of the dashboard that needs attention — overdue jobs, failure streaks — as a feed an operator can work through and acknowledge.</p>
-      <div class="proposed-note"><div><b>Missing API.</b> <code>overdue</code> / <code>consecutiveFailures</code> are computed in <code>listJobStatus</code> but nothing pushes them and there's no acknowledge state. Proposed: <span class="sig">GET /jobs/alerts</span> + <span class="sig">POST /jobs/alerts/:id/ack</span>, and an outbound webhook config so a failure pages someone without a human watching the screen.</div></div>
+      <p class="gating">Gate: <code>job.view</code>. A pure filter over the existing <code>listJobStatus()</code> — no new persistence.</p>
+      <div class="proposed-note"><div><b>Partial.</b> The listing works: jobs that are <code>overdue</code> and/or have <code>consecutiveFailures</code> ≥ 2 are surfaced here. What's still missing — deliberately deferred, not attempted this pass: an "acknowledge" state (the badges below are illustrative only, nothing is actually recorded), and an outbound webhook so a failure pages someone without a human watching the screen.</div></div>
       <ul class="timeline">
-        <li class="tl-item"><div class="tl-time">now</div><div class="tl-title"><span class="dot rose"></span> <b>kyc-expiry-scan</b> — 3 consecutive failures, overdue by 2 days</div><div class="tl-meta">last error: connection pool exhausted · <span class="badge neutral">unacknowledged</span></div></li>
+        <li class="tl-item"><div class="tl-time">now</div><div class="tl-title"><span class="dot rose"></span> <b>kyc-expiry-scan</b> — 3 consecutive failures, overdue by 2 days</div><div class="tl-meta">last error: connection pool exhausted · <span class="badge neutral">unacknowledged (not a real state yet)</span></div></li>
         <li class="tl-item"><div class="tl-time">now</div><div class="tl-title"><span class="dot amber"></span> <b>ledger-recon</b> — declared cadence 6h, never run</div><div class="tl-meta">likely a missing <code>@Cron</code> registration in the vertical</div></li>
       </ul>
     </section>

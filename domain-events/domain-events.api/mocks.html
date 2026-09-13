@@ -291,7 +291,7 @@
       <a class="nav-item" href="#event-catalog">Event Catalog</a>
       <a class="nav-item" href="#listener-catalog">Listener Catalogue</a>
       <a class="nav-item" href="#wiring-health">Wiring Health</a>
-      <a class="nav-item" href="#overview">Overview <span class="pill">new API</span></a>
+      <a class="nav-item" href="#overview">Overview</a>
     </div>
   </nav>
 
@@ -331,7 +331,7 @@
           <td>Request / Job Trace</td>
           <td><span class="endpoint"><span class="m">GET</span>/domain-events/deliveries/trace/:correlationId</span></td>
           <td><span class="status live">Live</span></td>
-          <td>Cross-module — joins the same id in <code>audit-logging.api</code> / <code>notification.api</code> / <code>background-jobs.api</code>.</td>
+          <td>Cross-module — joins the same id in <code>audit-logging.api</code> / <code>notification.api</code> / <code>background-jobs.api</code>. Requests <code>order: 'asc'</code> so the timeline below reads chronologically without a client-side reversal.</td>
         </tr>
         <tr>
           <td>Event Catalog</td>
@@ -354,8 +354,8 @@
         <tr>
           <td>Overview</td>
           <td><span class="endpoint"><span class="m">GET</span>/domain-events/stats</span></td>
-          <td><span class="status proposed">Proposed</span></td>
-          <td>Aggregates: deliveries by day, top events, no-listener rate. No time-bucketed aggregation endpoint exists.</td>
+          <td><span class="status live">Live</span></td>
+          <td>Aggregates: deliveries by day, top events, no-listener rate, dispatch-failed rate — over <code>?window=</code> (e.g. <code>7d</code>, <code>24h</code>; defaults to <code>7d</code>).</td>
         </tr>
       </tbody>
     </table>
@@ -611,21 +611,21 @@
       </div>
     </section>
 
-    <!-- ═══════════════ 6 · OVERVIEW (proposed) ═══════════════ -->
+    <!-- ═══════════════ 6 · OVERVIEW ═══════════════ -->
     <section class="screen" id="overview">
       <div class="screen-head">
         <h2 class="screen-name">Overview</h2>
         <span class="endpoint"><span class="m">GET</span>/domain-events/stats</span>
-        <span class="status proposed">Proposed</span>
+        <span class="status live">Live</span>
       </div>
       <p class="screen-purpose">The landing dashboard — delivery volume and shape at a glance, so an operator notices "an event stopped firing" or "no-listener rate spiked" without running a query.</p>
       <p class="gating">Gate: <code>domain-events.view</code>.</p>
 
-      <div class="proposed-note">
-        <div><b>Missing API.</b> No aggregation endpoint exists — <code>deliveryCatalog()</code> returns
-        per-event totals, not a time series. Proposed: <span class="sig">GET /domain-events/stats?window=7d</span>
-        → <code>{ perDay[], topEvents[], noListenerRate, dispatchFailedRate }</code>, computed with
-        <code>GROUP BY date_trunc('day', delivered_at)</code> over <code>commons_domain_events_delivery</code>.</div>
+      <div class="note">
+        <div><b><span class="sig">GET /domain-events/stats?window=7d</span></b> →
+        <code>{ perDay[], topEvents[], noListenerRate, dispatchFailedRate }</code>, computed with
+        <code>GROUP BY date_trunc('day', delivered_at)</code> over <code>commons_domain_events_delivery</code>.
+        <code>window</code> accepts <code>Nd</code> / <code>Nh</code> (e.g. <code>30d</code>, <code>24h</code>) and defaults to <code>7d</code> when omitted or malformed.</div>
       </div>
 
       <div class="kpi-row">

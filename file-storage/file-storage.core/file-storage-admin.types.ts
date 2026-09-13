@@ -100,6 +100,68 @@ export interface CategoryUsageRow {
   lastUploadedAt: Date | null;
 }
 
+/* ─── stats (Overview screen) ─────────────────────────────────────────── */
+
+export interface FileStatsQuery {
+  /** Forced to the actor's own tenant for a non-platform actor by `file-storage.api`. */
+  tenantId?: string;
+  /** How many trailing days the summary covers. Default 30. */
+  windowDays?: number;
+}
+
+export interface UploadsByDayRow {
+  /** `YYYY-MM-DD`, UTC day bucket. */
+  date: string;
+  count: number;
+}
+
+export interface CategoryStatsRow {
+  category: string;
+  fileCount: number;
+  totalBytes: number;
+}
+
+/**
+ * Uploads-over-time + by-category breakdown, both scoped to `windowDays`.
+ * Deliberately has **no** scan-verdict breakdown — `commons_file_record`
+ * carries no `scan_verdict` column, and adding one is a schema migration
+ * out of scope for this port. A scan-verdict KPI stays a mock-only tile
+ * until that column exists.
+ */
+export interface FileStatsSummary {
+  uploadsByDay: UploadsByDayRow[];
+  byCategory: CategoryStatsRow[];
+}
+
+/* ─── rejected uploads ─────────────────────────────────────────────────── */
+
+export interface FileRejectionQuery {
+  /** Forced to the actor's own tenant for a non-platform actor by `file-storage.api`. */
+  tenantId?: string;
+  category?: string;
+  reason?: 'category-unavailable' | 'validation-failed' | 'scan-rejected';
+  limit?: number;
+  cursor?: string;
+}
+
+export interface FileRejectionRow {
+  id: string;
+  tenantId: string;
+  actorId: string;
+  category: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  reason: 'category-unavailable' | 'validation-failed' | 'scan-rejected';
+  message: string;
+  occurredAt: Date;
+}
+
+export interface FileRejectionPage {
+  rows: FileRejectionRow[];
+  nextCursor: string | null;
+}
+
 /* ─── category admin ──────────────────────────────────────────────────── */
 
 /** The tunable subset a tenant admin may override. Every field optional; a set field must be *no less restrictive* than the base. */

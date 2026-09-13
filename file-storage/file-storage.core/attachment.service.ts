@@ -18,6 +18,7 @@ import type { FileStorageAuditEmitter } from './file-storage-audit.port';
 import type { FileStorageOptions } from './file-storage.options';
 import type { FileStore } from './file-store.port';
 import { FileValidationError, type FileValidator } from './file-validator.port';
+import type { FileUploadRejectionEvent, FileUploadRejectionRecorder } from './file-upload-rejection-recorder.port';
 import type { SignedLinkResolver } from './signed-link-resolver.port';
 import {
   ATTACHMENT_STORE,
@@ -27,6 +28,7 @@ import {
   FILE_STORAGE_AUDIT_EMITTER,
   FILE_STORAGE_OPTIONS,
   FILE_STORE,
+  FILE_UPLOAD_REJECTION_RECORDER,
   FILE_VALIDATOR,
   SIGNED_LINK_RESOLVER,
 } from './tokens';
@@ -62,6 +64,7 @@ export class AttachmentService {
     @Inject(FILE_VALIDATOR) private readonly validator: FileValidator,
     @Inject(FILE_SCANNER) private readonly scanner: FileScanner,
     @Inject(FILE_ACCESS_RECORDER) private readonly accessRecorder: FileAccessRecorder,
+    @Inject(FILE_UPLOAD_REJECTION_RECORDER) private readonly rejectionRecorder: FileUploadRejectionRecorder,
     @Inject(SIGNED_LINK_RESOLVER) private readonly signedLinks: SignedLinkResolver,
     @Inject(FILE_STORAGE_AUDIT_EMITTER) private readonly audit: FileStorageAuditEmitter,
     @Inject(FILE_STORAGE_OPTIONS) private readonly options: FileStorageOptions,
@@ -76,7 +79,18 @@ export class AttachmentService {
 
     const category = await this.categories.resolve(tenantId, input.category);
     if (!category || !category.active) {
-      throw new ForbiddenException(`file category '${input.category}' is not available`);
+      const message = `file category '${input.category}' is not available`;
+      void this.recordRejection({
+        tenantId,
+        actorId: input.actor.id,
+        category: input.category,
+        filename: input.file.filename,
+        contentType: input.file.contentType,
+        sizeBytes: input.file.sizeBytes,
+        reason: 'category-unavailable',
+        message,
+      });
+      throw new ForbiddenException(message);
     }
 
     const target = {
@@ -88,7 +102,19 @@ export class AttachmentService {
       this.validator.validate(target);
       assertFileMatchesCategory(target, category);
     } catch (e) {
-      if (e instanceof FileValidationError) throw new UnprocessableEntityException(e.message);
+      if (e instanceof FileValidationError) {
+        void this.recordRejection({
+          tenantId,
+          actorId: input.actor.id,
+          category: category.key,
+          filename: input.file.filename,
+          contentType: input.file.contentType,
+          sizeBytes: input.file.sizeBytes,
+          reason: 'validation-failed',
+          message: e.message,
+        });
+        throw new UnprocessableEntityException(e.message);
+      }
       throw e;
     }
 
@@ -97,10 +123,32 @@ export class AttachmentService {
       filename: input.file.filename,
     });
     if (verdict === 'infected') {
-      throw new UnprocessableEntityException('file failed the malware scan');
+      const message = 'file failed the malware scan';
+      void this.recordRejection({
+        tenantId,
+        actorId: input.actor.id,
+        category: category.key,
+        filename: input.file.filename,
+        contentType: input.file.contentType,
+        sizeBytes: input.file.sizeBytes,
+        reason: 'scan-rejected',
+        message,
+      });
+      throw new UnprocessableEntityException(message);
     }
     if (verdict === 'unscannable' && category.onUnscannable === 'reject') {
-      throw new UnprocessableEntityException('file could not be scanned and this category rejects unscannable files');
+      const message = 'file could not be scanned and this category rejects unscannable files';
+      void this.recordRejection({
+        tenantId,
+        actorId: input.actor.id,
+        category: category.key,
+        filename: input.file.filename,
+        contentType: input.file.contentType,
+        sizeBytes: input.file.sizeBytes,
+        reason: 'scan-rejected',
+        message,
+      });
+      throw new UnprocessableEntityException(message);
     }
 
     const { fileRef } = await this.fileStore.upload(input.file.data, {
@@ -274,6 +322,14 @@ export class AttachmentService {
   private async recordAccess(event: Omit<Parameters<FileAccessRecorder['record']>[0], 'occurredAt'>): Promise<void> {
     try {
       await this.accessRecorder.record({ ...event, occurredAt: new Date() });
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  private async recordRejection(event: Omit<FileUploadRejectionEvent, 'occurredAt'>): Promise<void> {
+    try {
+      await this.rejectionRecorder.record({ ...event, occurredAt: new Date() });
     } catch {
       /* best-effort */
     }

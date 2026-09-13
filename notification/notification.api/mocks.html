@@ -198,7 +198,7 @@
     </div>
     <div class="nav-group">
       <div class="nav-group-title">Insight</div>
-      <a class="nav-item" href="#overview">Overview <span class="pill">new API</span></a>
+      <a class="nav-item" href="#overview">Overview</a>
       <a class="nav-item" href="#suppressions">Bounces &amp; Suppressions <span class="pill">new API</span></a>
     </div>
   </nav>
@@ -221,15 +221,15 @@
       <thead><tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr></thead>
       <tbody>
         <tr><td>Delivery Log</td><td><span class="endpoint"><span class="m">GET</span>/notifications/deliveries</span></td><td><span class="status live">Live</span></td><td>Filter by type / channel / tenant / recipient / status / correlation / date. Keyset-paginated.</td></tr>
-        <tr><td>Delivery Detail</td><td><span class="endpoint"><span class="m">GET</span>/notifications/deliveries/:id/content</span></td><td><span class="status partial">Partial</span></td><td>Rendered content endpoint exists; there is no single-row metadata fetch (<code>GET /deliveries/:id</code>) for a permalink — the drawer reads from the list.</td></tr>
+        <tr><td>Delivery Detail</td><td><span class="endpoint"><span class="m">GET</span>/notifications/deliveries/:id</span> <span class="endpoint"><span class="m">GET</span>/notifications/deliveries/:id/content</span></td><td><span class="status live">Live</span></td><td>Metadata fetch plus the rendered-content fetch, both tenant-ceiling scoped — a non-platform actor gets a 404 (not a 403) for another tenant's row, so existence isn't leaked.</td></tr>
         <tr><td>Config Health</td><td><span class="endpoint"><span class="m">GET</span>/notifications/config/coverage-gaps</span></td><td><span class="status live">Live</span></td><td>Routed (type, tenant, channel) with no usable template, or a tenant route with no credential.</td></tr>
         <tr><td>Routing</td><td><span class="endpoint"><span class="m">GET/PUT/DELETE</span>/notifications/config/routes</span></td><td><span class="status live">Live</span></td><td>CRUD. Tenant-ceiling scoped.</td></tr>
         <tr><td>Templates</td><td><span class="endpoint"><span class="m">GET/PUT/DELETE</span>/notifications/config/templates</span></td><td><span class="status live">Live</span></td><td>CRUD. No render/preview endpoint.</td></tr>
-        <tr><td>Template Preview</td><td><span class="endpoint"><span class="m">POST</span>/notifications/config/templates/preview</span></td><td><span class="status proposed">Proposed</span></td><td>Render a template against sample variables before saving — today the only check is a real test send.</td></tr>
+        <tr><td>Template Preview</td><td><span class="endpoint"><span class="m">POST</span>/notifications/config/templates/preview</span></td><td><span class="status live">Live</span></td><td>Renders a candidate subject/body against sample variables — a pure call into <code>renderTemplate()</code>, no read or write to stored config.</td></tr>
         <tr><td>Provider Credentials</td><td><span class="endpoint"><span class="m">GET/PUT/DELETE</span>/notifications/config/credentials</span></td><td><span class="status live">Live</span></td><td>CRUD, values redacted on read.</td></tr>
         <tr><td>Credential Verify</td><td><span class="endpoint"><span class="m">POST</span>/notifications/config/credentials/verify</span></td><td><span class="status proposed">Proposed</span></td><td>"Does this key actually authenticate?" — no health check; a bad key only surfaces on a real send failure.</td></tr>
         <tr><td>Test Send</td><td><span class="endpoint"><span class="m">POST</span>/notifications/test-send</span></td><td><span class="status live">Live</span></td><td>Fires a real notification via <code>Notifier</code>, tenant = the actor's.</td></tr>
-        <tr><td>Overview</td><td><span class="endpoint"><span class="m">GET</span>/notifications/stats</span></td><td><span class="status proposed">Proposed</span></td><td>Sent / failed / delivered / bounced rates by channel &amp; type over time. No aggregation endpoint.</td></tr>
+        <tr><td>Overview</td><td><span class="endpoint"><span class="m">GET</span>/notifications/stats</span></td><td><span class="status live">Live</span></td><td>Send volume grouped by channel/status, type/status and day over a <code>?window=</code> (default 7d). Tenant-ceiling scoped.</td></tr>
         <tr><td>Bounces &amp; Suppressions</td><td><span class="endpoint"><span class="m">GET</span>/notifications/suppressions</span></td><td><span class="status proposed">Proposed</span></td><td>Recipients that keep bouncing — today every send just fails again. Needs a suppression list + <code>Notifier</code> honoring it.</td></tr>
         <tr><td>Retry a delivery</td><td><span class="endpoint"><span class="m">POST</span>/notifications/deliveries/:id/retry</span></td><td><span class="status proposed">Proposed</span></td><td>Re-attempt one failed delivery (vs. crafting a fresh test send).</td></tr>
       </tbody>
@@ -268,9 +268,9 @@
       <span class="x">✕</span>
       <div class="screen-head" style="margin-bottom:0.5rem">
         <h2 class="screen-name" style="font-size:var(--text-heading-sm)">Delivery detail</h2>
-        <span class="endpoint"><span class="m">GET</span>/notifications/deliveries/:id/content</span><span class="status partial">Partial</span>
+        <span class="endpoint"><span class="m">GET</span>/notifications/deliveries/:id</span><span class="status live">Live</span>
       </div>
-      <div class="proposed-note"><div><b>Partial.</b> Metadata comes from the list row (no <code>GET /deliveries/:id</code>). Rendered content loads on demand and is present only when <code>storeContent</code> was on for that recorder.</div></div>
+      <p class="gating">Gate: <code>notification.view</code>. Tenant-ceiling scoped — a non-platform actor gets a 404 (not a 403) for another tenant's row, so existence isn't leaked. Rendered content loads separately via <code>GET /notifications/deliveries/:id/content</code> and is present only when <code>storeContent</code> was on for that recorder.</p>
       <dl class="kv">
         <dt>Delivery id</dt><dd class="mono">nd_71A2Qk</dd>
         <dt>Type / channel</dt><dd>invoice.sent · <span class="badge brand">email</span></dd>
@@ -343,7 +343,7 @@ Pay by 2026-09-17. — Kairos Billing</pre>
         </tbody>
       </table>
       </div>
-      <div class="proposed-note"><div><b>Enhancement — Preview.</b> <span class="sig">POST /notifications/config/templates/preview</span> with a candidate body + sample <code>variables</code> → the rendered subject/body. Today an author must save then test-send to see the output.</div></div>
+      <div class="note"><div><b>Preview.</b> <code>POST /notifications/config/templates/preview</code> renders a candidate subject/body against sample <code>variables</code> before saving — a pure, stateless call, no read or write to stored config.</div></div>
     </section>
 
     <!-- 6 · CREDENTIALS -->
@@ -368,7 +368,7 @@ Pay by 2026-09-17. — Kairos Billing</pre>
     <section class="screen" id="test-send">
       <div class="screen-head"><h2 class="screen-name">Test Send</h2><span class="endpoint"><span class="m">POST</span>/notifications/test-send</span><span class="status live">Live</span></div>
       <p class="screen-purpose">Fire a real notification through the full pipeline — routing, template, credential, provider — to confirm a config end to end.</p>
-      <p class="gating">Gate: <code>notification.test_send</code>. Tenant is always the request actor's — you cannot test another tenant's config.</p>
+      <p class="gating">Gate: <code>notification.test_send</code>. Tenant defaults to the request actor's; a platform admin may pass a <code>tenantId</code> to test another tenant's config. A non-platform actor is still restricted to their own tenant.</p>
       <div class="sheet" data-label="Form — Test send">
         <div class="form-row"><label>Notification type</label><div class="control">invoice.sent</div></div>
         <div class="form-row"><label>Recipient ref</label><div class="control">user:me</div></div>
@@ -386,9 +386,9 @@ channels:
 
     <!-- 8 · OVERVIEW (proposed) -->
     <section class="screen" id="overview">
-      <div class="screen-head"><h2 class="screen-name">Overview</h2><span class="endpoint"><span class="m">GET</span>/notifications/stats</span><span class="status proposed">Proposed</span></div>
+      <div class="screen-head"><h2 class="screen-name">Overview</h2><span class="endpoint"><span class="m">GET</span>/notifications/stats</span><span class="status live">Live</span></div>
       <p class="screen-purpose">Deliverability at a glance — send volume and the failed/bounced rate by channel, so a bounce spike or a provider outage is noticed without reading the log row by row.</p>
-      <div class="proposed-note"><div><b>Missing API.</b> No aggregation endpoint — the observability port returns rows only. Proposed: <span class="sig">GET /notifications/stats?window=7d</span> → <code>{ perDay[], byChannel[], byStatus[], topFailingTypes[] }</code> from <code>GROUP BY</code> over <code>commons_notification_delivery</code>.</div></div>
+      <p class="gating">Gate: <code>notification.view</code>. Tenant-ceiling scoped. <code>?window=24h|7d|30d</code> (default 7d) → <code>{ since, until, byChannel[], byType[], byDay[] }</code> from <code>GROUP BY</code> over <code>commons_notification_delivery</code>.</p>
       <div class="kpi-row">
         <div class="kpi"><div class="k-label">Sent (24h)</div><div class="k-value">1,904</div></div>
         <div class="kpi"><div class="k-label">Delivered rate</div><div class="k-value">96.2%</div></div>

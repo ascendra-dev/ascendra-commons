@@ -116,3 +116,183 @@ describe('PostgresAuditEventReader.find', () => {
     await expect(reader(db2).find({ cursor: 'garbage' })).resolves.toEqual({ records: [] });
   });
 });
+
+describe('PostgresAuditEventReader.findOne', () => {
+  it('scopes to id + application and maps the row', async () => {
+    const db = fakeDb([row({ id: 'ae-1' })]);
+    const result = await reader(db).findOne('ae-1');
+
+    expect(result).toMatchObject({ id: 'ae-1', entityType: 'invoice' });
+    const { sql: text, params } = rendered(db);
+    expect(text).toMatch(/id =/i);
+    expect(text).toMatch(/application =/i);
+    expect(text).not.toMatch(/tenant_id (=|is null)/i); // no tenant filter in WHERE (column still in SELECT list)
+    expect(params).toEqual(expect.arrayContaining(['ae-1', 'ascendra-pay']));
+  });
+
+  it('returns null when nothing matches (including a cross-tenant id)', async () => {
+    const db = fakeDb([]);
+    await expect(reader(db).findOne('missing')).resolves.toBeNull();
+  });
+
+  it('filters by tenantId when supplied, and by IS NULL for an explicit null', async () => {
+    const scoped = fakeDb([]);
+    await reader(scoped).findOne('ae-1', 't-3');
+    expect(rendered(scoped).sql).toMatch(/tenant_id =/i);
+    expect(rendered(scoped).params).toContain('t-3');
+
+    const platformOnly = fakeDb([]);
+    await reader(platformOnly).findOne('ae-1', null);
+    expect(rendered(platformOnly).sql).toMatch(/tenant_id is null/i);
+  });
+});
+
+describe('PostgresAuditEventReader.summarizeActor', () => {
+  it('aggregates first/last seen, tenants touched, and per-action counts', async () => {
+    const db = fakeDb();
+    db.execute
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            first_seen: new Date('2026-06-14T00:00:00Z'),
+            last_seen: new Date('2026-09-06T18:03:20Z'),
+            total: 30,
+            tenants: ['t-kairos', null],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          { action: 'role.assigned', count: 21, last_occurred_at: new Date('2026-09-06T18:03:20Z') },
+          { action: 'role.revoked', count: 9, last_occurred_at: new Date('2026-09-04T10:11:00Z') },
+        ],
+      });
+
+    const summary = await reader(db).summarizeActor('u_1c07', {});
+
+    expect(summary).toEqual({
+      actor: 'u_1c07',
+      firstSeen: new Date('2026-06-14T00:00:00Z'),
+      lastSeen: new Date('2026-09-06T18:03:20Z'),
+      totalRecords: 30,
+      tenantsTouched: ['t-kairos', null],
+      byAction: [
+        { action: 'role.assigned', count: 21, lastOccurredAt: new Date('2026-09-06T18:03:20Z') },
+        { action: 'role.revoked', count: 9, lastOccurredAt: new Date('2026-09-04T10:11:00Z') },
+      ],
+    });
+    expect(rendered(db, 0).params).toContain('u_1c07');
+  });
+
+  it('returns nulls/empties for an actor with no records', async () => {
+    const db = fakeDb();
+    db.execute
+      .mockResolvedValueOnce({ rows: [{ first_seen: null, last_seen: null, total: 0, tenants: null }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await expect(reader(db).summarizeActor('nobody', {})).resolves.toEqual({
+      actor: 'nobody',
+      firstSeen: null,
+      lastSeen: null,
+      totalRecords: 0,
+      tenantsTouched: [],
+      byAction: [],
+    });
+  });
+
+  it('scopes by tenantId and occurred window when supplied', async () => {
+    const db = fakeDb();
+    db.execute
+      .mockResolvedValueOnce({ rows: [{ first_seen: null, last_seen: null, total: 0, tenants: null }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await reader(db).summarizeActor('u1', {
+      tenantId: 't1',
+      occurredAfter: new Date('2026-08-01T00:00:00Z'),
+      occurredBefore: new Date('2026-09-01T00:00:00Z'),
+    });
+
+    const { sql: text, params } = rendered(db, 0);
+    expect(text).toMatch(/tenant_id =/i);
+    expect(text).toMatch(/occurred_at >=/i);
+    expect(text).toMatch(/occurred_at </i);
+    expect(params).toEqual(expect.arrayContaining(['t1']));
+  });
+});
+
+describe('PostgresAuditEventReader.stats', () => {
+  it('shapes perDay/topActions/topActors/perTenant from four grouped queries', async () => {
+    const db = fakeDb();
+    db.execute
+      .mockResolvedValueOnce({ rows: [{ day: '2026-09-07', count: 312 }] })
+      .mockResolvedValueOnce({ rows: [{ action: 'invoice.status_changed', count: 612 }] })
+      .mockResolvedValueOnce({ rows: [{ actor: 'svc_reconciler', count: 488 }] })
+      .mockResolvedValueOnce({ rows: [{ tenant_id: 't_kairos', count: 900 }] });
+
+    const stats = await reader(db).stats('30d');
+
+    expect(stats).toEqual({
+      window: '30d',
+      perDay: [{ day: '2026-09-07', count: 312 }],
+      topActions: [{ action: 'invoice.status_changed', count: 612 }],
+      topActors: [{ actor: 'svc_reconciler', count: 488 }],
+      perTenant: [{ tenantId: 't_kairos', count: 900 }],
+    });
+  });
+
+  it('scopes every query to tenantId when supplied', async () => {
+    const db = fakeDb([]);
+    await reader(db).stats('7d', 't9');
+    for (let i = 0; i < 4; i += 1) {
+      const { sql: text, params } = rendered(db, i);
+      expect(text).toMatch(/tenant_id =/i);
+      expect(params).toEqual(expect.arrayContaining(['t9']));
+    }
+  });
+
+  it('defaults to a 30-day window for an unparseable window string', async () => {
+    const db = fakeDb([]);
+    await reader(db).stats('not-a-window');
+    expect(rendered(db, 0).sql).toMatch(/occurred_at >=/i);
+  });
+});
+
+describe('PostgresAuditEventReader.countByDeclared', () => {
+  it('counts each declared entity type and action, defaulting to 0 when never audited', async () => {
+    const db = fakeDb();
+    db.execute
+      .mockResolvedValueOnce({ rows: [{ entity_type: 'invoice', count: 18402 }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const result = await reader(db).countByDeclared({ entityTypes: ['invoice', 'dispute'], actions: ['payout.reversed'] });
+
+    expect(result).toEqual([
+      { kind: 'entityType', value: 'invoice', count: 18402, assessment: 'healthy' },
+      { kind: 'entityType', value: 'dispute', count: 0, assessment: 'never_audited' },
+      { kind: 'action', value: 'payout.reversed', count: 0, assessment: 'never_audited' },
+    ]);
+  });
+
+  it('dedupes repeated declared entries', async () => {
+    const db = fakeDb();
+    db.execute.mockResolvedValueOnce({ rows: [{ entity_type: 'invoice', count: 5 }] });
+
+    const result = await reader(db).countByDeclared({ entityTypes: ['invoice', 'invoice'], actions: [] });
+    expect(result).toEqual([{ kind: 'entityType', value: 'invoice', count: 5, assessment: 'healthy' }]);
+  });
+
+  it('skips a query entirely when a declared list is empty', async () => {
+    const db = fakeDb([]);
+    await reader(db).countByDeclared({ entityTypes: [], actions: [] });
+    expect(db.execute).not.toHaveBeenCalled();
+  });
+
+  it('scopes counts by tenantId when supplied', async () => {
+    const db = fakeDb();
+    db.execute.mockResolvedValueOnce({ rows: [] });
+    await reader(db).countByDeclared({ entityTypes: ['invoice'], actions: [], tenantId: 't1' });
+    const { sql: text, params } = rendered(db, 0);
+    expect(text).toMatch(/tenant_id =/i);
+    expect(params).toEqual(expect.arrayContaining(['t1']));
+  });
+});

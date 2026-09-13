@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Module } from '@nestjs/common';
+import { ForbiddenException, Module, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import {
   AUTHZ_ADMIN_PORT,
   AUTHZ_DELEGATION_SERVICE,
   AUTHZ_OBSERVABILITY_PORT,
+  type AuthzObservabilityPort,
+  type DelegationService,
 } from '../authorization.core.permission-table';
 import { AuthorizationApiModule } from './authorization-api.module';
 import { AuthzObservabilityController } from './observability/authz-observability.controller';
@@ -35,6 +37,8 @@ const auditRecord = vi.fn();
       provide: AUTHZ_OBSERVABILITY_PORT,
       useValue: {
         listRoles,
+        getRole: vi.fn().mockResolvedValue({ id: 'issuer', description: null, grantsAll: false, actions: [] }),
+        countHolders: vi.fn().mockResolvedValue(0),
         listUserRoleAssignments: vi.fn().mockResolvedValue([]),
         explainAccess: vi.fn(),
         listDelegations: vi.fn().mockResolvedValue({ delegations: [] }),
@@ -45,6 +49,7 @@ const auditRecord = vi.fn();
           describedCount: 0,
           totalCount: 0,
         }),
+        whoCan: vi.fn().mockResolvedValue({ action: 'invoice.void', tenantId: null, roles: [], delegations: [] }),
       },
     },
     {
@@ -53,7 +58,12 @@ const auditRecord = vi.fn();
     },
     {
       provide: AUTHZ_DELEGATION_SERVICE,
-      useValue: { delegate, revokeDelegation: vi.fn(), listDelegations: vi.fn().mockResolvedValue({ granted: [], received: [] }) },
+      useValue: {
+        delegate,
+        revokeDelegation: vi.fn(),
+        getById: vi.fn().mockResolvedValue(null),
+        listDelegations: vi.fn().mockResolvedValue({ granted: [], received: [] }),
+      },
     },
     { provide: 'MY_AUDIT', useValue: { record: auditRecord } },
   ],
@@ -105,6 +115,56 @@ describe('AuthorizationApiModule.forRoot — real DI wiring', () => {
       { granteeId: 'u2', actions: ['invoice.void'], expiresAt: new Date(Date.now() + 86_400_000).toISOString() },
     );
     expect(delegate).toHaveBeenCalledWith(expect.objectContaining({ granterId: 'a1', tenantId: 't1' }));
+  });
+
+  it('delegation controller enforces the tenant ceiling on revoke, end to end through real DI', async () => {
+    const moduleRef = await build();
+    const delegationService = moduleRef.get<DelegationService>(AUTHZ_DELEGATION_SERVICE);
+    const controller = moduleRef.get(AuthzDelegationController);
+    const otherTenantsDelegation = {
+      id: 'd7',
+      granterId: 'someone-else',
+      granteeId: 'u2',
+      tenantId: 't2',
+      actions: ['invoice.void'],
+      expiresAt: new Date(Date.now() + 86_400_000),
+      revokedAt: null,
+      reason: null,
+      createdAt: new Date(),
+      status: 'active' as const,
+    };
+
+    (delegationService.getById as ReturnType<typeof vi.fn>).mockResolvedValueOnce(otherTenantsDelegation);
+    await expect(
+      controller.revoke({ id: 'admin-1', persona: 'issuer_admin', tenantId: 't1' }, 'd7'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    (delegationService.getById as ReturnType<typeof vi.fn>).mockResolvedValueOnce(otherTenantsDelegation);
+    await controller.revoke(platformActor, 'd7');
+    expect(delegationService.revokeDelegation).toHaveBeenCalledWith('d7', 'a1');
+  });
+
+  it('observability controller serves a role detail and 404s when the role is unknown', async () => {
+    const moduleRef = await build();
+    const port = moduleRef.get<AuthzObservabilityPort>(AUTHZ_OBSERVABILITY_PORT);
+    const controller = moduleRef.get(AuthzObservabilityController);
+
+    await expect(controller.role('issuer')).resolves.toMatchObject({ id: 'issuer', holderCount: 0 });
+
+    (port.getRole as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    await expect(controller.role('ghost')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('observability controller routes expiring-delegations and who-can through to the port', async () => {
+    const moduleRef = await build();
+    const port = moduleRef.get<AuthzObservabilityPort>(AUTHZ_OBSERVABILITY_PORT);
+    const controller = moduleRef.get(AuthzObservabilityController);
+
+    await controller.expiringDelegations('7d', 't1');
+    expect(port.listDelegations).toHaveBeenCalledWith(expect.objectContaining({ expiringWithinDays: 7, tenantId: 't1' }));
+
+    await controller.whoCan('invoice.void', 't1');
+    expect(port.whoCan).toHaveBeenCalledWith('invoice.void', 't1');
   });
 
   it('falls back to the no-op audit emitter when auditEmitterToken is omitted', async () => {

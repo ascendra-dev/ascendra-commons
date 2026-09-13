@@ -28,7 +28,7 @@ export class PaymentLinkApiService {
       correlationId: query.correlationId,
       since: query.since ? new Date(query.since) : undefined,
       until: query.until ? new Date(query.until) : undefined,
-      limit: query.limit,
+      limit: Number.isFinite(query.limit) ? query.limit : undefined,
       cursor: query.cursor,
     });
   }

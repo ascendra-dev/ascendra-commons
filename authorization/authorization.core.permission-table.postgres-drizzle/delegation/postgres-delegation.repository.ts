@@ -38,6 +38,15 @@ export class PostgresDelegationRepository implements DelegationRepository {
     `);
   }
 
+  async getById(id: string): Promise<DelegationRecord | null> {
+    const { rows } = await this.db.execute<DelegationRow>(sql`
+      SELECT id, granter_id, grantee_id, tenant_id, actions, expires_at, revoked_at, reason, created_at
+      FROM commons_authz_delegation
+      WHERE id = ${id}
+    `);
+    return rows[0] ? toRecord(rows[0]) : null;
+  }
+
   async listForActor(actorId: string, tenantId: string | null): Promise<DelegationRecord[]> {
     const { rows } = await this.db.execute<DelegationRow>(sql`
       SELECT id, granter_id, grantee_id, tenant_id, actions, expires_at, revoked_at, reason, created_at

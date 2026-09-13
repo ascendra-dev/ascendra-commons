@@ -21,6 +21,7 @@ export type {
   JobCadenceView,
   RunHistoryQuery,
   RunHistoryPage,
+  FailedItemSummary,
 } from './job-observability.types';
 export { parseCadence, humanizeDuration } from './cadence';
 export type { ParsedCadence } from './cadence';

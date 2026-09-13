@@ -3,6 +3,7 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 import { PostgresEventDeliveryObservabilityService } from './postgres-event-delivery-observability.service';
 import type { SqlExecutor } from '../persistence/sql-executor';
+import { encodeKeysetCursor } from '../../domain-events.core';
 
 const dialect = new PgDialect();
 
@@ -100,6 +101,66 @@ describe('PostgresEventDeliveryObservabilityService.listDeliveries', () => {
 
     const db2 = fakeDb([]);
     await expect(service(db2).listDeliveries({ cursor: 'garbage' })).resolves.toEqual({ deliveries: [] });
+  });
+
+  it('defaults to newest-first (order by delivered_at desc, id desc)', async () => {
+    const db = fakeDb([]);
+    await service(db).listDeliveries();
+    expect(rendered(db).sql).toMatch(/order by delivered_at desc, id desc/i);
+  });
+
+  it("honors order: 'asc' for a chronological read, including the cursor comparison direction", async () => {
+    const db = fakeDb([]);
+    await service(db).listDeliveries({ order: 'asc' });
+    expect(rendered(db).sql).toMatch(/order by delivered_at asc, id asc/i);
+
+    const cursor = encodeKeysetCursor(new Date('2026-06-01T10:00:00Z'), 'id-5');
+    const db2 = fakeDb([]);
+    await service(db2).listDeliveries({ order: 'asc', cursor });
+    expect(rendered(db2).sql).toMatch(/delivered_at > .* or .*delivered_at = .* and id >/is);
+  });
+});
+
+describe('PostgresEventDeliveryObservabilityService.deliveryStats', () => {
+  it('scopes to the application and the since cutoff, and maps per-day + top-event rows', async () => {
+    const dayRows = [
+      { day: '2026-06-01', total: '3', no_listener_count: '1', dispatch_failed_count: '0' },
+      { day: '2026-06-02', total: '5', no_listener_count: '0', dispatch_failed_count: '1' },
+    ];
+    const topRows = [{ event_name: 'invoice.sent', total_deliveries: '6' }];
+    const db = {
+      execute: vi
+        .fn()
+        .mockResolvedValueOnce({ rows: dayRows })
+        .mockResolvedValueOnce({ rows: topRows }),
+    } satisfies SqlExecutor as SqlExecutor & { execute: ReturnType<typeof vi.fn> };
+
+    const since = new Date('2026-06-01T00:00:00Z');
+    const stats = await service(db).deliveryStats(since);
+
+    expect(dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).params).toContain('ascendra-pay');
+    expect(dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).sql).toMatch(/group by date_trunc\('day', delivered_at\)/i);
+    expect(dialect.sqlToQuery(db.execute.mock.calls[1][0] as SQL).sql).toMatch(/group by event_name/i);
+
+    expect(stats).toEqual({
+      perDay: [
+        { date: '2026-06-01', total: 3, noListenerCount: 1, dispatchFailedCount: 0 },
+        { date: '2026-06-02', total: 5, noListenerCount: 0, dispatchFailedCount: 1 },
+      ],
+      topEvents: [{ eventName: 'invoice.sent', totalDeliveries: 6 }],
+      noListenerRate: 1 / 8,
+      dispatchFailedRate: 1 / 8,
+    });
+  });
+
+  it('returns zero rates rather than dividing by zero when the window has no deliveries', async () => {
+    const db = {
+      execute: vi.fn().mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] }),
+    } satisfies SqlExecutor as SqlExecutor & { execute: ReturnType<typeof vi.fn> };
+
+    const stats = await service(db).deliveryStats(new Date('2026-06-01T00:00:00Z'));
+
+    expect(stats).toEqual({ perDay: [], topEvents: [], noListenerRate: 0, dispatchFailedRate: 0 });
   });
 });
 

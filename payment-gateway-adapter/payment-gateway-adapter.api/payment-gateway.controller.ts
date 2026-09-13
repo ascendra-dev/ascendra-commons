@@ -1,7 +1,21 @@
-import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Inject, Param, Query } from '@nestjs/common';
 import { RequiresAction } from '../../authorization/authorization.core';
 import { WEBHOOK_ACTIONS } from './payment-gateway-api.options';
 import { PaymentGatewayApiService } from './payment-gateway-api.service';
+
+/**
+ * Parses the `limit` query param, rejecting anything that isn't a finite
+ * number (e.g. `?limit=abc`) instead of letting it become `NaN` and flow
+ * unguarded into `Math.min`/`Math.max` and a raw SQL `limit` clause.
+ */
+function parseLimit(limit: string | undefined): number | undefined {
+  if (limit === undefined) return undefined;
+  const parsed = Number(limit);
+  if (!Number.isFinite(parsed)) {
+    throw new BadRequestException('limit must be a finite number');
+  }
+  return parsed;
+}
 
 /**
  * Read endpoints for a webhook security/ops screen: the event log, a
@@ -30,7 +44,7 @@ export class PaymentGatewayController {
       correlationId,
       since,
       until,
-      limit: limit !== undefined ? Number(limit) : undefined,
+      limit: parseLimit(limit),
       cursor,
     });
   }
@@ -43,7 +57,7 @@ export class PaymentGatewayController {
     @Query('cursor') cursor?: string,
   ) {
     return this.service.getTrace(correlationId, {
-      limit: limit !== undefined ? Number(limit) : undefined,
+      limit: parseLimit(limit),
       cursor,
     });
   }

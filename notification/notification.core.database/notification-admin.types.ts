@@ -55,6 +55,41 @@ export interface DeliveryHistoryPage {
   nextCursor?: string;
 }
 
+export interface DeliveryStatsQuery {
+  tenantId?: string;
+  /** Inclusive start of the window. Defaults to 7 days before `until`. */
+  since?: Date;
+  /** Exclusive end of the window. Defaults to now. */
+  until?: Date;
+}
+
+export interface DeliveryChannelStatusCount {
+  channel: NotificationChannel;
+  status: DeliveryRecord['status'];
+  count: number;
+}
+
+export interface DeliveryTypeStatusCount {
+  notificationType: string;
+  status: DeliveryRecord['status'];
+  count: number;
+}
+
+export interface DeliveryDayCount {
+  /** UTC calendar day, `YYYY-MM-DD`. */
+  day: string;
+  count: number;
+}
+
+/** `GET /notifications/stats` — send volume grouped a few ways over one window. */
+export interface DeliveryStats {
+  since: Date;
+  until: Date;
+  byChannel: DeliveryChannelStatusCount[];
+  byType: DeliveryTypeStatusCount[];
+  byDay: DeliveryDayCount[];
+}
+
 /** A hole in the routing/template/credential config, for a "config health" panel. */
 export interface CoverageGap {
   notificationType: string;

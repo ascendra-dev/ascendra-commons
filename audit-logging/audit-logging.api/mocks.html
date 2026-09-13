@@ -310,19 +310,19 @@
       <a class="nav-item active" href="#audit-log">Audit Log</a>
       <a class="nav-item" href="#entity-history">Entity History</a>
       <a class="nav-item" href="#trace">Request / Job Trace</a>
-      <a class="nav-item" href="#actor-activity">Actor Activity <span class="pill">new API</span></a>
+      <a class="nav-item" href="#actor-activity">Actor Activity</a>
     </div>
 
     <div class="nav-group">
       <div class="nav-group-title">Insight</div>
-      <a class="nav-item" href="#overview">Overview <span class="pill">new API</span></a>
-      <a class="nav-item" href="#coverage">Coverage &amp; Gaps <span class="pill">new API</span></a>
+      <a class="nav-item" href="#overview">Overview</a>
+      <a class="nav-item" href="#coverage">Coverage &amp; Gaps</a>
     </div>
 
     <div class="nav-group">
       <div class="nav-group-title">Operations</div>
-      <a class="nav-item" href="#export">Export <span class="pill">new API</span></a>
-      <a class="nav-item" href="#retention">Retention &amp; Volume <span class="pill">new API</span></a>
+      <a class="nav-item" href="#export">Export</a>
+      <a class="nav-item" href="#retention">Retention &amp; Volume <span class="pill">proposed</span></a>
     </div>
   </nav>
 
@@ -331,10 +331,11 @@
       <h1 class="page-title">Audit Logging — Admin Console</h1>
       <p class="page-sub">
         Screen mocks for the <code>audit-logging</code> module's admin surface, each mapped to the
-        endpoint that backs it. Screens marked <b>Proposed</b> are legitimate parts of an audit
-        console that <code>audit-logging.api</code> does not serve yet — the API to add is called out
-        on each. Every read is gated <code>@RequiresAction('audit.view')</code>; a non-platform actor's
-        query is auto-scoped to their own tenant.
+        endpoint that backs it. Only <b>Retention &amp; Volume</b> remains <b>Proposed</b> — a
+        legitimate part of an audit console that <code>audit-logging.api</code> doesn't serve yet
+        (deliberately deferred; see its section below). Every read is gated
+        <code>@RequiresAction('audit.view')</code>; a non-platform actor's query is auto-scoped to
+        their own tenant.
       </p>
     </div>
 
@@ -361,9 +362,9 @@
         <tr>
           <td>Record Detail</td>
           <td><span class="endpoint"><span class="m">GET</span>/audit/events/:id</span></td>
-          <td><span class="status partial">Partial</span></td>
-          <td>Record fields are already in the list payload, but there is no single-record fetch and no
-              server-computed field-level diff. Drawer works off the list row today.</td>
+          <td><span class="status live">Live</span></td>
+          <td>Single-record fetch with a server-computed field-level <code>diff[]</code> (before → after).
+              Same tenant-scoping as the list; a cross-tenant id 404s exactly like a missing one.</td>
         </tr>
         <tr>
           <td>Entity History</td>
@@ -380,30 +381,32 @@
         <tr>
           <td>Actor Activity</td>
           <td><span class="endpoint"><span class="m">GET</span>/audit/actors/:actor/activity</span></td>
-          <td><span class="status proposed">Proposed</span></td>
-          <td>Possible today only as <code>/audit/events?actor=…</code> — no actor summary
-              (counts by action, first/last seen, tenants touched).</td>
+          <td><span class="status live">Live</span></td>
+          <td>Actor summary — counts by action, first/last seen, distinct tenants touched
+              (<code>array_agg(DISTINCT tenant_id)</code>), <code>GROUP BY</code> over <code>commons_audit_event</code>.</td>
         </tr>
         <tr>
           <td>Overview</td>
           <td><span class="endpoint"><span class="m">GET</span>/audit/stats</span></td>
-          <td><span class="status proposed">Proposed</span></td>
-          <td>Aggregates: volume by day, top actions, top actors, records per tenant.
-              No aggregation endpoint exists.</td>
+          <td><span class="status live">Live</span></td>
+          <td>Aggregates: volume by day, top actions, top actors, records per tenant —
+              <code>{ perDay[], topActions[], topActors[], perTenant[] }</code>, over a <code>window</code>
+              (default 30d).</td>
         </tr>
         <tr>
           <td>Coverage &amp; Gaps</td>
-          <td><span class="endpoint"><span class="m">GET</span>/audit/coverage</span></td>
-          <td><span class="status proposed">Proposed</span></td>
-          <td>Which declared entity types / audited actions have <em>never</em> produced a record —
-              drift detection, mirrors <code>authorization</code>'s <code>actionCatalogHealth</code>.</td>
+          <td><span class="endpoint"><span class="m">POST</span>/audit/coverage</span></td>
+          <td><span class="status live">Live</span></td>
+          <td>Caller POSTs its own declared <code>{ entityTypes[], actions[] }</code>; response is a
+              per-declared-entry <code>{ kind, value, count, assessment }[]</code> — a per-request comparison,
+              no catalog table. Mirrors <code>authorization</code>'s <code>actionCatalogHealth</code>.</td>
         </tr>
         <tr>
           <td>Export</td>
           <td><span class="endpoint"><span class="m">GET</span>/audit/events.csv</span></td>
-          <td><span class="status proposed">Proposed</span></td>
-          <td>A filtered result set as one download for an external auditor. Pagination only today.
-              Large ranges should be an async job that writes to <code>file-storage</code>.</td>
+          <td><span class="status live">Live</span></td>
+          <td>Same <code>AuditQuery</code> filters as the list, rendered as one <code>text/csv</code> response
+              for a bounded range. An async job to <code>file-storage</code> for large ranges is out of scope.</td>
         </tr>
         <tr>
           <td>Retention &amp; Volume</td>
@@ -506,10 +509,11 @@
         <span class="pager"><span>Newer</span><span>Older</span></span>
       </div>
 
-      <div class="proposed-note">
-        <div><b>Enhancement on this screen — Export.</b> A "Download CSV" action on the current filter.
-        Small ranges: <span class="sig">GET /audit/events.csv?…same filters</span>. Large ranges: an async
-        export job writing to <code>file-storage</code>, matching how a legal notification archive is handled.</div>
+      <div class="note">
+        <div><b>Export.</b> A "Download CSV" action on the current filter is live:
+        <span class="sig">GET /audit/events.csv?…same filters</span> (same <code>AuditQuery</code> params,
+        <code>text/csv</code> response). A large-range async export job writing to <code>file-storage</code>
+        remains out of scope — see the Export screen below.</div>
       </div>
     </section>
 
@@ -519,16 +523,9 @@
       <div class="screen-head" style="margin-bottom:0.5rem">
         <h2 class="screen-name" style="font-size:var(--text-heading-sm)">Record detail</h2>
         <span class="endpoint"><span class="m">GET</span>/audit/events/:id</span>
-        <span class="status partial">Partial</span>
+        <span class="status live">Live</span>
       </div>
-      <p class="screen-purpose" style="margin-bottom:0.875rem">Opened from a row in the Audit Log. Full record, plus a readable before → after diff.</p>
-
-      <div class="proposed-note">
-        <div><b>Missing API.</b> The list row already carries every <code>AuditEvent</code> field, so the
-        drawer renders from it today. What's missing: <span class="sig">GET /audit/events/:id</span> for a
-        deep link / permalink to one record, and a server-side field-level diff so the client isn't
-        diffing raw <code>before</code>/<code>after</code> JSON blobs itself.</div>
-      </div>
+      <p class="screen-purpose" style="margin-bottom:0.875rem">Opened from a row in the Audit Log — a deep link / permalink to one record, with a server-computed before → after diff.</p>
 
       <dl class="kv">
         <dt>Record id</dt><dd class="mono">ae_0J9K2M7Q</dd>
@@ -623,22 +620,15 @@
       </div>
     </section>
 
-    <!-- ═══════════════ 5 · ACTOR ACTIVITY (proposed) ═══════════════ -->
+    <!-- ═══════════════ 5 · ACTOR ACTIVITY ═══════════════ -->
     <section class="screen" id="actor-activity">
       <div class="screen-head">
         <h2 class="screen-name">Actor Activity</h2>
         <span class="endpoint"><span class="m">GET</span>/audit/actors/:actor/activity</span>
-        <span class="status proposed">Proposed</span>
+        <span class="status live">Live</span>
       </div>
       <p class="screen-purpose">Everything one actor (user or service) did, with a summary — the "what has this account been doing" view a compliance officer or an incident responder needs.</p>
       <p class="gating">Gate: <code>audit.view</code>. Tenant-scoped for non-platform actors (they see only that actor's activity within their own tenant).</p>
-
-      <div class="proposed-note">
-        <div><b>Missing API.</b> Achievable in part today via <span class="sig">GET /audit/events?actor=u_1c07</span>,
-        but there is no <b>summary</b> — count by action, first/last seen, tenants touched, entity types
-        touched. Proposed: <span class="sig">GET /audit/actors/:actor/activity</span> returning
-        <code>{ summary, records[] }</code>.</div>
-      </div>
 
       <dl class="kv">
         <dt>Actor</dt><dd>u_1c07 · ascendra_admin</dd>
@@ -662,21 +652,20 @@
       </div>
     </section>
 
-    <!-- ═══════════════ 6 · OVERVIEW (proposed) ═══════════════ -->
+    <!-- ═══════════════ 6 · OVERVIEW ═══════════════ -->
     <section class="screen" id="overview">
       <div class="screen-head">
         <h2 class="screen-name">Overview</h2>
         <span class="endpoint"><span class="m">GET</span>/audit/stats</span>
-        <span class="status proposed">Proposed</span>
+        <span class="status live">Live</span>
       </div>
       <p class="screen-purpose">The landing dashboard — audit volume and shape at a glance, so an operator notices "activity dropped to zero" or "one actor spiked" without running a query.</p>
-      <p class="gating">Gate: <code>audit.view</code>. Non-platform actor → all figures scoped to their tenant.</p>
+      <p class="gating">Gate: <code>audit.view</code>. Non-platform actor → all figures scoped to their tenant; a platform admin sees every tenant by default and may pass <code>tenantId</code> to filter to one.</p>
 
-      <div class="proposed-note">
-        <div><b>Missing API.</b> No aggregation endpoint exists — the reader only returns rows.
-        Proposed: <span class="sig">GET /audit/stats?window=30d</span> →
-        <code>{ perDay[], topActions[], topActors[], perTenant[] }</code>, computed with
-        <code>GROUP BY</code> over <code>commons_audit_event</code>.</div>
+      <div class="note">
+        <div><b>Window.</b> <span class="sig">GET /audit/stats?window=30d</span> →
+        <code>{ window, perDay[], topActions[], topActors[], perTenant[] }</code>, computed with
+        <code>GROUP BY</code> over <code>commons_audit_event</code>. <code>window</code> defaults to 30 days.</div>
       </div>
 
       <div class="kpi-row">
@@ -712,21 +701,21 @@
       </div>
     </section>
 
-    <!-- ═══════════════ 7 · COVERAGE & GAPS (proposed) ═══════════════ -->
+    <!-- ═══════════════ 7 · COVERAGE & GAPS ═══════════════ -->
     <section class="screen" id="coverage">
       <div class="screen-head">
         <h2 class="screen-name">Coverage &amp; Gaps</h2>
-        <span class="endpoint"><span class="m">GET</span>/audit/coverage</span>
-        <span class="status proposed">Proposed</span>
+        <span class="endpoint"><span class="m">POST</span>/audit/coverage</span>
+        <span class="status live">Live</span>
       </div>
       <p class="screen-purpose">Drift detection — which entity types and audited actions the vertical <em>declared</em> but that have never actually produced an audit record. A silent gap in the audit trail is a compliance risk.</p>
-      <p class="gating">Gate: <code>audit.view</code>. Platform-admin only in practice (needs the full picture across tenants).</p>
+      <p class="gating">Gate: <code>audit.view</code>. Tenant-scoped for non-platform actors, same convention as the list; platform-admin in practice (needs the full picture across tenants).</p>
 
-      <div class="proposed-note">
-        <div><b>Missing API.</b> Mirrors <code>authorization</code>'s <code>actionCatalogHealth(knownActions)</code>.
-        Proposed: <span class="sig">POST /audit/coverage</span> with the vertical's declared
-        <code>{ entityTypes[], actions[] }</code> → rows present in the catalog but with zero records,
-        and (optionally) records whose <code>action</code> isn't in the declared set.</div>
+      <div class="note">
+        <div><b>Per-request comparison.</b> Mirrors <code>authorization</code>'s <code>actionCatalogHealth(knownActions)</code>
+        — no catalog table. <span class="sig">POST /audit/coverage</span> with the vertical's declared
+        <code>{ entityTypes[], actions[] }</code> → <code>{ kind, value, count, assessment }[]</code>, one row
+        per declared entry, counted live against <code>commons_audit_event</code>.</div>
       </div>
 
       <div class="scrollx">
@@ -742,21 +731,23 @@
       </div>
     </section>
 
-    <!-- ═══════════════ 8 · EXPORT (proposed) ═══════════════ -->
+    <!-- ═══════════════ 8 · EXPORT ═══════════════ -->
     <section class="screen" id="export">
       <div class="screen-head">
         <h2 class="screen-name">Export</h2>
         <span class="endpoint"><span class="m">GET</span>/audit/events.csv</span>
-        <span class="status proposed">Proposed</span>
+        <span class="status live">Live</span>
       </div>
-      <p class="screen-purpose">Hand an external auditor a filtered slice of the log as one file. Today the only way out is to page the JSON API.</p>
+      <p class="screen-purpose">Hand an external auditor a filtered slice of the log as one file.</p>
       <p class="gating">Gate: <code>audit.view</code> (same as the read). Non-platform actor → tenant-scoped, exactly like the list.</p>
 
-      <div class="proposed-note">
-        <div><b>Missing API.</b> Two shapes: <span class="sig">GET /audit/events.csv?…filters</span> for a
-        bounded range (streamed), and — for a quarter/year of a busy tenant — an async export job that
-        writes a file to <code>file-storage</code> and notifies on completion (the same pattern the
-        notification module documents for a long-retention archive).</div>
+      <div class="note">
+        <div><b>Bounded ranges only.</b> <span class="sig">GET /audit/events.csv?…filters</span> reuses the
+        same <code>AuditQuery</code> filters and returns one <code>text/csv</code> response for a normal
+        page (same default/max limit as the JSON list). For a quarter/year of a busy tenant, an async export
+        job that writes a file to <code>file-storage</code> and notifies on completion (the same pattern the
+        notification module documents for a long-retention archive) is a deliberately separate, not-yet-built
+        piece of work — the row below illustrates that shape, not something this endpoint does.</div>
       </div>
 
       <div class="filterbar">

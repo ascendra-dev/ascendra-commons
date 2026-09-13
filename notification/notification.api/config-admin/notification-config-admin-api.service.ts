@@ -1,5 +1,6 @@
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import type { Actor } from '../../../authorization/authorization.core';
+import { renderTemplate } from '../../notification.core';
 import {
   NOTIFICATION_CONFIG_ADMIN_PORT,
   type NotificationConfigAdminPort,
@@ -11,6 +12,7 @@ import type {
   DeleteChannelRouteBody,
   DeleteProviderCredentialBody,
   DeleteTemplateBody,
+  PreviewTemplateBody,
   SetChannelRouteBody,
   SetProviderCredentialBody,
   SetTemplateBody,
@@ -68,6 +70,11 @@ export class NotificationConfigAdminApiService {
 
   listTemplates() {
     return this.port.listTemplates();
+  }
+
+  /** Renders a candidate template against sample variables — stateless, no port/persistence involved. */
+  previewTemplate(body: PreviewTemplateBody) {
+    return renderTemplate({ subject: body.subject, body: body.body, isHtml: body.isHtml }, body.variables ?? {});
   }
 
   // ---- credentials ----

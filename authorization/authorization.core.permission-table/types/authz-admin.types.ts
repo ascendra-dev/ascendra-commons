@@ -49,6 +49,8 @@ export interface DelegationQuery {
   granteeId?: string;
   tenantId?: string;
   status?: DelegationStatus;
+  /** Only unrevoked delegations expiring within this many days from now (`GET /authz/delegations/expiring`). Combine with other filters as needed. */
+  expiringWithinDays?: number;
   /** Default 50, capped at 200. */
   limit?: number;
   /** Opaque — pass the previous page's `nextCursor`. */
@@ -68,12 +70,48 @@ export interface DelegationPage {
 export interface AccessExplanation {
   userId: string;
   tenantId: string | null;
-  roles: Array<{ roleId: string; grantsAll: boolean; grantedActions: string[] }>;
+  /**
+   * `tenantId` on each entry is the scope *that role assignment row* was granted
+   * at — `null` for a platform-wide (every-tenant) assignment, otherwise the
+   * tenant it's scoped to. The query matches both a tenant-scoped and a
+   * platform-wide assignment of the same role in one pass, so this is what lets
+   * a client tell them apart.
+   */
+  roles: Array<{ roleId: string; tenantId: string | null; grantsAll: boolean; grantedActions: string[] }>;
   delegations: Array<{ id: string; granterId: string; actions: string[]; expiresAt: Date }>;
   effectiveActions: string[] | '*';
   action?: string;
   allowed?: boolean;
   reason?: string;
+}
+
+/** `RoleView` plus how many user/tenant assignment rows hold it — `GET /authz/roles/:id`. */
+export interface RoleDetail extends RoleView {
+  holderCount: number;
+}
+
+/** One role that grants an action, and who holds it. */
+export interface WhoCanRoleGrant {
+  roleId: string;
+  grantsAll: boolean;
+  /** Distinct user ids holding this role — scoped to the queried tenant (plus any platform-wide holders) when a tenant was given, every tenant otherwise. */
+  holderUserIds: string[];
+}
+
+/** One active delegation that grants an action directly (independent of any role). */
+export interface WhoCanDelegationGrant {
+  id: string;
+  granterId: string;
+  granteeId: string;
+  expiresAt: Date;
+}
+
+/** The reverse of `explainAccess` — every role and active delegation that grants one action. `GET /authz/who-can`. */
+export interface WhoCanResult {
+  action: string;
+  tenantId: string | null;
+  roles: WhoCanRoleGrant[];
+  delegations: WhoCanDelegationGrant[];
 }
 
 export interface ActionCatalogHealth {

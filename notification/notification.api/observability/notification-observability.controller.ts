@@ -1,5 +1,5 @@
 import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
-import { RequiresAction } from '../../../authorization/authorization.core';
+import { CurrentActor, RequiresAction, type Actor } from '../../../authorization/authorization.core';
 import { NOTIFICATION_ACTIONS } from '../notification-api.options';
 import { NotificationObservabilityApiService } from './notification-observability-api.service';
 import type { NotificationChannel } from '../../notification.core';
@@ -9,6 +9,9 @@ import type { DeliveryRecord } from '../../notification.core.database';
  * Read endpoints for a "did it send / is the config complete" admin screen. All
  * gated on `notification.view`. Requires `AuthorizationGuard` wired globally as
  * `APP_GUARD` (see `authorization.core`'s README).
+ *
+ * `deliveries`, `deliveries/:id` and `stats` are tenant-ceiling-scoped in the
+ * service — a non-platform actor only ever sees their own tenant's rows.
  */
 @Controller('notifications')
 export class NotificationObservabilityController {
@@ -19,6 +22,7 @@ export class NotificationObservabilityController {
   @Get('deliveries')
   @RequiresAction(NOTIFICATION_ACTIONS.VIEW)
   deliveries(
+    @CurrentActor() actor: Actor,
     @Query('notificationType') notificationType?: string,
     @Query('channel') channel?: NotificationChannel,
     @Query('tenantId') tenantId?: string,
@@ -30,7 +34,7 @@ export class NotificationObservabilityController {
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ) {
-    return this.service.getDeliveryHistory({
+    return this.service.getDeliveryHistory(actor, {
       notificationType,
       channel,
       tenantId,
@@ -44,6 +48,12 @@ export class NotificationObservabilityController {
     });
   }
 
+  @Get('deliveries/:id')
+  @RequiresAction(NOTIFICATION_ACTIONS.VIEW)
+  delivery(@CurrentActor() actor: Actor, @Param('id') id: string) {
+    return this.service.getDelivery(actor, id);
+  }
+
   @Get('deliveries/:id/content')
   @RequiresAction(NOTIFICATION_ACTIONS.VIEW)
   deliveryContent(@Param('id') id: string) {
@@ -54,5 +64,11 @@ export class NotificationObservabilityController {
   @RequiresAction(NOTIFICATION_ACTIONS.VIEW)
   coverageGaps() {
     return this.service.coverageGaps();
+  }
+
+  @Get('stats')
+  @RequiresAction(NOTIFICATION_ACTIONS.VIEW)
+  stats(@CurrentActor() actor: Actor, @Query('tenantId') tenantId?: string, @Query('window') window?: string) {
+    return this.service.getDeliveryStats(actor, { tenantId, window });
   }
 }

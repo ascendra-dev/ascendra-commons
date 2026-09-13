@@ -13,6 +13,9 @@ export interface DelegationRepository {
   /** Set `revoked_at`/`revoked_by` if the row is still active. Idempotent. */
   revoke(id: string, revokedBy: string): Promise<void>;
 
+  /** One delegation by id, or `null` if it doesn't exist. Used to enforce the tenant ceiling before a revoke. */
+  getById(id: string): Promise<DelegationRecord | null>;
+
   /** Every delegation this actor granted or received, within `tenantId`, newest first. */
   listForActor(actorId: string, tenantId: string | null): Promise<DelegationRecord[]>;
 }

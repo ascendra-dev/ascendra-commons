@@ -19,6 +19,12 @@ export type { FileScanner, ScanVerdict } from './file-scanner.port';
 export { NoopFileScanner } from './file-scanner.port';
 export type { FileAccessRecorder, FileAccessEvent } from './file-access-recorder.port';
 export { NoopFileAccessRecorder } from './file-access-recorder.port';
+export type {
+  FileUploadRejectionRecorder,
+  FileUploadRejectionEvent,
+  FileUploadRejectionReason,
+} from './file-upload-rejection-recorder.port';
+export { NoopFileUploadRejectionRecorder } from './file-upload-rejection-recorder.port';
 export type { SignedLinkResolver } from './signed-link-resolver.port';
 export { MissingSignedLinkResolver, MissingSignedLinkResolverError } from './signed-link-resolver.port';
 
@@ -48,6 +54,13 @@ export type {
   FileAccessLogEntry,
   FileAccessLogPage,
   CategoryUsageRow,
+  FileStatsQuery,
+  UploadsByDayRow,
+  CategoryStatsRow,
+  FileStatsSummary,
+  FileRejectionQuery,
+  FileRejectionRow,
+  FileRejectionPage,
   FileCategoryOverrideInput,
   FileCategoryView,
 } from './file-storage-admin.types';
@@ -70,6 +83,7 @@ export {
   FILE_VALIDATOR,
   FILE_SCANNER,
   FILE_ACCESS_RECORDER,
+  FILE_UPLOAD_REJECTION_RECORDER,
   SIGNED_LINK_RESOLVER,
   FILE_STORAGE_AUDIT_EMITTER,
   FILE_STORAGE_OPTIONS,

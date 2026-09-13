@@ -52,6 +52,11 @@ export class DelegationService {
     return this.repo.revoke(id, revokedBy);
   }
 
+  /** One delegation by id, or `null` if it doesn't exist. `authorization.api` uses this for the tenant-ceiling check before a revoke. */
+  getById(id: string): Promise<DelegationRecord | null> {
+    return this.repo.getById(id);
+  }
+
   /** Delegations this actor granted and delegations granted to them, in this tenant, newest first. */
   async listDelegations(actor: Actor): Promise<{ granted: DelegationRecord[]; received: DelegationRecord[] }> {
     const records = await this.repo.listForActor(actor.id, actor.tenantId);

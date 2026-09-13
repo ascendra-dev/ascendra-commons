@@ -32,6 +32,13 @@ describe('PaymentLinkApiService', () => {
     });
   });
 
+  it('listAttempts drops a non-numeric limit instead of forwarding NaN', async () => {
+    const { svc, observability } = service();
+    await svc.listAttempts({ limit: Number('not-a-number') });
+
+    expect(observability.listAttempts).toHaveBeenCalledWith(expect.objectContaining({ limit: undefined }));
+  });
+
   it('getTrace overrides correlationId onto the base query', async () => {
     const { svc, observability } = service();
     await svc.getTrace('corr-9', { limit: 5 });

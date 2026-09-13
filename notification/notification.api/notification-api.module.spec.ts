@@ -24,8 +24,10 @@ const auditRecord = vi.fn();
       provide: NOTIFICATION_OBSERVABILITY_PORT,
       useValue: {
         getDeliveryHistory,
+        getDelivery: vi.fn().mockResolvedValue(null),
         getDeliveryContent: vi.fn().mockResolvedValue(null),
         configCoverageGaps: vi.fn().mockResolvedValue([]),
+        getDeliveryStats: vi.fn().mockResolvedValue({ since: new Date(), until: new Date(), byChannel: [], byType: [], byDay: [] }),
       },
     },
     {
@@ -67,7 +69,7 @@ describe('NotificationApiModule.forRoot — real DI wiring', () => {
 
   it('observability controller routes through to the port', async () => {
     const moduleRef = await build();
-    await moduleRef.get(NotificationObservabilityController).deliveries('invoice.sent');
+    await moduleRef.get(NotificationObservabilityController).deliveries(platformActor, 'invoice.sent');
     expect(getDeliveryHistory).toHaveBeenCalled();
   });
 

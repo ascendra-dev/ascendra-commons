@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AuthzObservabilityApiService } from './authz-observability-api.service';
 import type { AuthzObservabilityPort } from '../../authorization.core.permission-table';
 import type { AuthzApiOptions } from '../authz-api.options';
@@ -6,6 +7,8 @@ import type { AuthzApiOptions } from '../authz-api.options';
 function fakePort(): AuthzObservabilityPort {
   return {
     listRoles: vi.fn().mockResolvedValue([{ id: 'issuer', description: null, grantsAll: false, actions: [] }]),
+    getRole: vi.fn().mockResolvedValue({ id: 'issuer', description: null, grantsAll: false, actions: [] }),
+    countHolders: vi.fn().mockResolvedValue(3),
     listUserRoleAssignments: vi.fn().mockResolvedValue([]),
     explainAccess: vi.fn().mockResolvedValue({ userId: 'u1', tenantId: 't1', roles: [], delegations: [], effectiveActions: [] }),
     listDelegations: vi.fn().mockResolvedValue({ delegations: [] }),
@@ -16,6 +19,7 @@ function fakePort(): AuthzObservabilityPort {
       describedCount: 0,
       totalCount: 0,
     }),
+    whoCan: vi.fn().mockResolvedValue({ action: 'invoice.void', tenantId: 't1', roles: [], delegations: [] }),
   };
 }
 
@@ -41,5 +45,47 @@ describe('AuthzObservabilityApiService', () => {
     const port = fakePort();
     await new AuthzObservabilityApiService(port, OPTIONS).actionCatalogHealth();
     expect(port.actionCatalogHealth).toHaveBeenCalledWith(['invoice.view', 'invoice.void']);
+  });
+});
+
+describe('AuthzObservabilityApiService.getRole', () => {
+  it('merges the role with its holder count', async () => {
+    const port = fakePort();
+    const detail = await new AuthzObservabilityApiService(port, OPTIONS).getRole('issuer');
+    expect(detail).toEqual({ id: 'issuer', description: null, grantsAll: false, actions: [], holderCount: 3 });
+    expect(port.countHolders).toHaveBeenCalledWith('issuer');
+  });
+
+  it('throws NotFoundException (404) for an unknown role, without calling countHolders', async () => {
+    const port = fakePort();
+    (port.getRole as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    await expect(new AuthzObservabilityApiService(port, OPTIONS).getRole('ghost')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(port.countHolders).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthzObservabilityApiService.listDelegations (expiring)', () => {
+  it('passes expiringWithinDays through to the port', async () => {
+    const port = fakePort();
+    await new AuthzObservabilityApiService(port, OPTIONS).listDelegations({ expiringWithinDays: 7, tenantId: 't1' });
+    expect(port.listDelegations).toHaveBeenCalledWith({ expiringWithinDays: 7, tenantId: 't1' });
+  });
+});
+
+describe('AuthzObservabilityApiService.whoCan', () => {
+  it('passes action and tenantId through to the port', async () => {
+    const port = fakePort();
+    await new AuthzObservabilityApiService(port, OPTIONS).whoCan({ action: 'invoice.void', tenantId: 't1' });
+    expect(port.whoCan).toHaveBeenCalledWith('invoice.void', 't1');
+  });
+
+  it('rejects a missing action with BadRequestException', async () => {
+    const port = fakePort();
+    await expect(
+      new AuthzObservabilityApiService(port, OPTIONS).whoCan({ action: '' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(port.whoCan).not.toHaveBeenCalled();
   });
 });
