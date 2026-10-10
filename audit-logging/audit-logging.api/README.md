@@ -9,11 +9,11 @@ no audit-emitter.
 
 | Method | Path | → |
 |---|---|---|
-| GET | `/audit/events` | `find(AuditQuery)` — query params: `entityType`, `entityId`, `tenantId`, `actor`, `action`, `correlationId`, `occurredAfter`, `occurredBefore`, `limit`, `cursor`. Returns `AuditQueryResult` (records newest-first + `nextCursor`) unchanged. |
+| GET | `/audit/events` | `find(AuditQuery)` — query params: `entityType`, `entityId`, `tenantId`, `actor`, `action`, `correlationId`, `occurredAfter`, `occurredBefore`, `limit`, `cursor`. Returns api-contract.md's cursor list shape: `{ data, meta: { nextCursor } }` (records newest-first; `nextCursor` omitted on the last page), mapped from the core's `AuditQueryResult` in the controller. |
 | GET | `/audit/events.csv` | Same `AuditQuery` filters as `/audit/events`, rendered as CSV (`text/csv`) instead of JSON — one bounded page, for a small ad-hoc export. No async/large-range export job (that writes to `file-storage`) is built here. |
 | GET | `/audit/events/:id` | `findOne(id)` — one record plus its server-computed field-level `diff` (`AuditEventDetail`, via `diffFields`). 404s (never leaks existence) for a missing or cross-tenant id. |
-| GET | `/audit/entities/:type/:id/history` | one entity's full audit history, paginated. |
-| GET | `/audit/trace/:correlationId` | every record from one request / job run — a cross-module trace. |
+| GET | `/audit/entities/:type/:id/history` | one entity's full audit history, paginated. Same `{ data, meta: { nextCursor } }` shape as `/audit/events`. |
+| GET | `/audit/trace/:correlationId` | every record from one request / job run — a cross-module trace. Same `{ data, meta: { nextCursor } }` shape as `/audit/events`. |
 | GET | `/audit/actors/:actor/activity` | `summarizeActor(actor, query)` — counts by action, first/last seen, distinct tenants touched. Query params: `occurredAfter`, `occurredBefore`. |
 | GET | `/audit/stats` | `stats(window, tenantFilter)` — the Overview dashboard: `perDay`/`topActions`/`topActors`/`perTenant`. Query params: `window` (e.g. `'30d'`, default 30 days), `tenantId` (platform admin only). |
 | POST | `/audit/coverage` | `countByDeclared({ entityTypes, actions })` — body is the caller's own declared catalog; response is a per-declared-entry `{ kind, value, count, assessment }[]`, no catalog table involved. |

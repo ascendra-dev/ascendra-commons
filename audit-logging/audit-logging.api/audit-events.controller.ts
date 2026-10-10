@@ -1,9 +1,19 @@
 import { Body, Controller, Get, Header, Inject, Param, Post, Query } from '@nestjs/common';
 import { CurrentActor, RequiresAction, type Actor } from '../../authorization/authorization.core';
+import type { AuditQueryResult } from '../audit-logging.core';
 import { AUDIT_ACTIONS } from './audit-api.options';
 import { renderAuditEventsCsv } from './audit-events-csv';
 import { AuditEventsApiService } from './audit-events-api.service';
 import type { AuditCoverageRequestDto } from './dto/audit-api.dto';
+
+/**
+ * api-contract.md Rule 4's cursor-based list shape. The core port's `{ records, nextCursor }`
+ * stays a domain type (the postgres reader and the CSV endpoint use it as-is) — the wire
+ * shape is this controller's concern. An absent `nextCursor` serializes as `meta: {}`.
+ */
+function toCursorList({ records, nextCursor }: AuditQueryResult) {
+  return { data: records, meta: { nextCursor } };
+}
 
 /**
  * Read endpoints for a compliance / ops audit screen. All gated on `audit.view`.
@@ -17,7 +27,7 @@ export class AuditEventsController {
 
   @Get('events')
   @RequiresAction(AUDIT_ACTIONS.VIEW)
-  events(
+  async events(
     @CurrentActor() actor: Actor,
     @Query('entityType') entityType?: string,
     @Query('entityId') entityId?: string,
@@ -30,7 +40,7 @@ export class AuditEventsController {
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ) {
-    return this.service.find(actor, {
+    return toCursorList(await this.service.find(actor, {
       entityType,
       entityId,
       tenantId,
@@ -41,7 +51,7 @@ export class AuditEventsController {
       occurredBefore,
       limit: limit !== undefined ? Number(limit) : undefined,
       cursor,
-    });
+    }));
   }
 
   @Get('events.csv')
@@ -107,30 +117,30 @@ export class AuditEventsController {
 
   @Get('entities/:type/:id/history')
   @RequiresAction(AUDIT_ACTIONS.VIEW)
-  entityHistory(
+  async entityHistory(
     @CurrentActor() actor: Actor,
     @Param('type') type: string,
     @Param('id') id: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ) {
-    return this.service.entityHistory(actor, type, id, {
+    return toCursorList(await this.service.entityHistory(actor, type, id, {
       limit: limit !== undefined ? Number(limit) : undefined,
       cursor,
-    });
+    }));
   }
 
   @Get('trace/:correlationId')
   @RequiresAction(AUDIT_ACTIONS.VIEW)
-  trace(
+  async trace(
     @CurrentActor() actor: Actor,
     @Param('correlationId') correlationId: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ) {
-    return this.service.trace(actor, correlationId, {
+    return toCursorList(await this.service.trace(actor, correlationId, {
       limit: limit !== undefined ? Number(limit) : undefined,
       cursor,
-    });
+    }));
   }
 }

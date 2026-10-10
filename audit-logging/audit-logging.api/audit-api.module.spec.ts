@@ -62,6 +62,24 @@ describe('AuditApiModule.forRoot — real DI wiring', () => {
     expect(find).toHaveBeenCalledWith(expect.objectContaining({ entityType: 'invoice', tenantId: 't1' }));
   });
 
+  it('returns the api-contract cursor list shape from GET /audit/events', async () => {
+    const moduleRef = await build();
+    const platformActor: Actor = { id: 'p1', persona: 'platform', tenantId: null };
+    find.mockResolvedValueOnce({ records: [auditEvent()], nextCursor: 'c-2' });
+
+    const page = await moduleRef.get(AuditEventsController).events(platformActor);
+    expect(page).toEqual({ data: [auditEvent()], meta: { nextCursor: 'c-2' } });
+  });
+
+  it('omits nextCursor on the last page', async () => {
+    const moduleRef = await build();
+    const platformActor: Actor = { id: 'p1', persona: 'platform', tenantId: null };
+    find.mockResolvedValueOnce({ records: [] });
+
+    const page = await moduleRef.get(AuditEventsController).trace(platformActor, 'trace-9');
+    expect(page).toEqual({ data: [], meta: {} });
+  });
+
   it('routes GET /audit/trace/:correlationId', async () => {
     const moduleRef = await build();
     const platformActor: Actor = { id: 'p1', persona: 'platform', tenantId: null };
