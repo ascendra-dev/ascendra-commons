@@ -28,6 +28,42 @@ describe('diffFields', () => {
     expect(diffFields({ tags: ['a', 'b'] }, { tags: ['a', 'c'] })).toEqual([{ field: 'tags', before: ['a', 'b'], after: ['a', 'c'] }]);
   });
 
+  it('reports a change inside a nested object at its dot path, not as the whole object', () => {
+    const before = { name: 'Ayesha', address: { street: '12 Old Rd', city: 'Lahore', geo: { lat: 31.5 } } };
+    const after = { name: 'Ayesha', address: { street: '7 New St', city: 'Lahore', geo: { lat: 31.6 } } };
+    expect(diffFields(before, after)).toEqual([
+      { field: 'address.geo.lat', before: 31.5, after: 31.6 },
+      { field: 'address.street', before: '12 Old Rd', after: '7 New St' },
+    ]);
+  });
+
+  it('reports each leaf of a nested object added or removed as a whole', () => {
+    expect(diffFields({ address: null }, { address: { street: '7 New St', city: 'Lahore' } })).toEqual([
+      { field: 'address.city', before: null, after: 'Lahore' },
+      { field: 'address.street', before: null, after: '7 New St' },
+    ]);
+    expect(diffFields({ address: { street: '7 New St' } }, {})).toEqual([
+      { field: 'address.street', before: '7 New St', after: null },
+    ]);
+  });
+
+  it('ignores key order inside nested objects', () => {
+    expect(diffFields({ address: { street: 'a', city: 'b' } }, { address: { city: 'b', street: 'a' } })).toEqual([]);
+  });
+
+  it('keeps arrays, including arrays of objects, as single values', () => {
+    expect(diffFields({ lines: [{ sku: 'a' }] }, { lines: [{ sku: 'a' }, { sku: 'b' }] })).toEqual([
+      { field: 'lines', before: [{ sku: 'a' }], after: [{ sku: 'a' }, { sku: 'b' }] },
+    ]);
+  });
+
+  it('keeps an empty object as a leaf', () => {
+    expect(diffFields({ meta: {} }, { meta: { source: 'api' } })).toEqual([
+      { field: 'meta', before: {}, after: null },
+      { field: 'meta.source', before: null, after: 'api' },
+    ]);
+  });
+
   it('sorts diff entries by field name', () => {
     expect(diffFields({ z: 1, a: 1 }, { z: 2, a: 2 })).toEqual([
       { field: 'a', before: 1, after: 2 },
