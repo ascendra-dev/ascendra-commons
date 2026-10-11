@@ -25,6 +25,7 @@ function auditEvent(over: Partial<AuditEvent> = {}): AuditEvent {
 }
 
 const find = vi.fn().mockResolvedValue({ records: [] });
+const countUpTo = vi.fn().mockResolvedValue(0);
 const findOne = vi.fn().mockResolvedValue(null);
 const summarizeActor = vi.fn().mockResolvedValue({
   actor: 'u1',
@@ -38,7 +39,7 @@ const stats = vi.fn().mockResolvedValue({ window: '30d', perDay: [], topActions:
 const countByDeclared = vi.fn().mockResolvedValue([]);
 
 @Module({
-  providers: [{ provide: AUDIT_EVENT_READER, useValue: { find, findOne, summarizeActor, stats, countByDeclared } }],
+  providers: [{ provide: AUDIT_EVENT_READER, useValue: { find, countUpTo, findOne, summarizeActor, stats, countByDeclared } }],
   exports: [AUDIT_EVENT_READER],
 })
 class FakeReaderModule {}
@@ -121,14 +122,28 @@ describe('AuditApiModule.forRoot — real DI wiring', () => {
     expect(findOne).toHaveBeenCalledWith('someone-elses-record', 't1');
   });
 
-  it('routes GET /audit/events.csv through find() and renders CSV', async () => {
+  it('streams GET /audit/events.csv with the api-contract export headers', async () => {
     const moduleRef = await build();
     const platformActor: Actor = { id: 'p1', persona: 'platform', tenantId: null };
+    countUpTo.mockResolvedValueOnce(1);
     find.mockResolvedValueOnce({ records: [auditEvent()] });
+    const headers = new Map<string, string>([['Access-Control-Expose-Headers', 'X-Request-Id']]);
+    const res = { getHeader: (n: string) => headers.get(n), setHeader: (n: string, v: string) => headers.set(n, v) };
 
-    const csv = await moduleRef.get(AuditEventsController).eventsCsv(platformActor, 'invoice');
+    const file = await moduleRef.get(AuditEventsController).eventsCsv(platformActor, res, 'invoice');
+    let csv = '';
+    for await (const chunk of file.getStream()) csv += chunk;
+
     expect(csv).toContain('id,occurredAt,entityType');
     expect(csv).toContain('ae-1');
+    expect(find).toHaveBeenLastCalledWith(expect.objectContaining({ entityType: 'invoice' }));
+    expect(headers.get('Content-Disposition')).toMatch(/^attachment; filename="audit-events-.+\.csv"$/);
+    expect(headers.get('X-Export-Row-Count')).toBe('1');
+    expect(headers.get('X-Export-Truncated')).toBe('false');
+    expect(headers.get('X-Export-Limit')).toBe('100000');
+    expect(headers.get('Access-Control-Expose-Headers')).toBe(
+      'X-Request-Id, Content-Disposition, X-Export-Row-Count, X-Export-Truncated, X-Export-Limit',
+    );
   });
 
   it('routes GET /audit/actors/:actor/activity, tenant-scoped for a non-platform actor', async () => {

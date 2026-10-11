@@ -5,9 +5,10 @@ import type { AuditEvent, AuditEventReader } from '../audit-logging.core';
 import type { AuditApiOptions } from './audit-api.options';
 import type { Actor } from '../../authorization/authorization.core';
 
-function deps(isPlatformAdmin: AuditApiOptions['isPlatformAdmin'] = (a) => a.tenantId === null) {
+function deps(isPlatformAdmin: AuditApiOptions['isPlatformAdmin'] = (a) => a.tenantId === null, exportMaxRows = 100_000) {
   const reader: AuditEventReader = {
     find: vi.fn().mockResolvedValue({ records: [] }),
+    countUpTo: vi.fn().mockResolvedValue(0),
     findOne: vi.fn().mockResolvedValue(null),
     summarizeActor: vi.fn().mockResolvedValue({
       actor: 'u1',
@@ -20,7 +21,7 @@ function deps(isPlatformAdmin: AuditApiOptions['isPlatformAdmin'] = (a) => a.ten
     stats: vi.fn().mockResolvedValue({ window: '30d', perDay: [], topActions: [], topActors: [], perTenant: [] }),
     countByDeclared: vi.fn().mockResolvedValue([]),
   };
-  return { reader, svc: new AuditEventsApiService(reader, { isPlatformAdmin, catalog: [] }) };
+  return { reader, svc: new AuditEventsApiService(reader, { isPlatformAdmin, catalog: [], exportMaxRows }) };
 }
 
 function auditEvent(over: Partial<AuditEvent> = {}): AuditEvent {
@@ -193,5 +194,80 @@ describe('AuditEventsApiService.coverage', () => {
     const { svc, reader } = deps();
     await svc.coverage(platformAdmin, { entityTypes: [], actions: ['payout.reversed'] });
     expect(reader.countByDeclared).toHaveBeenCalledWith({ entityTypes: [], actions: ['payout.reversed'] });
+  });
+});
+
+async function collect(pages: AsyncIterable<AuditEvent[]>): Promise<AuditEvent[][]> {
+  const out: AuditEvent[][] = [];
+  for await (const page of pages) out.push(page);
+  return out;
+}
+
+describe('AuditEventsApiService.exportEvents', () => {
+  it('counts one past the cap, and reports an untruncated result', async () => {
+    const { svc, reader } = deps(undefined, 10);
+    (reader.countUpTo as ReturnType<typeof vi.fn>).mockResolvedValue(3);
+
+    const result = await svc.exportEvents(platformAdmin, { entityType: 'invoice' });
+    expect(reader.countUpTo).toHaveBeenCalledWith(expect.objectContaining({ entityType: 'invoice' }), 11);
+    expect(result).toMatchObject({ rowCount: 3, truncated: false, limit: 10 });
+    expect(result.filename).toMatch(/^audit-events-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.csv$/);
+  });
+
+  it('flags truncation when more rows match than the cap', async () => {
+    const { svc, reader } = deps(undefined, 10);
+    (reader.countUpTo as ReturnType<typeof vi.fn>).mockResolvedValue(11);
+    expect(await svc.exportEvents(platformAdmin, {})).toMatchObject({ rowCount: 10, truncated: true });
+  });
+
+  it('pins occurredBefore to now when absent or in the future, keeps an earlier one', async () => {
+    const { svc, reader } = deps();
+    const before = Date.now();
+    await svc.exportEvents(platformAdmin, { occurredBefore: '2999-01-01T00:00:00Z' });
+    const pinned = (reader.countUpTo as ReturnType<typeof vi.fn>).mock.calls[0][0].occurredBefore as Date;
+    expect(pinned.getTime()).toBeGreaterThanOrEqual(before);
+    expect(pinned.getTime()).toBeLessThanOrEqual(Date.now());
+
+    await svc.exportEvents(platformAdmin, { occurredBefore: '2026-01-01T00:00:00Z' });
+    expect(reader.countUpTo).toHaveBeenLastCalledWith(
+      expect.objectContaining({ occurredBefore: new Date('2026-01-01T00:00:00Z') }),
+      100_001,
+    );
+  });
+
+  it('forces a non-platform actor to their own tenant', async () => {
+    const { svc, reader } = deps();
+    await svc.exportEvents(tenantAdmin, { tenantId: 't2' });
+    expect(reader.countUpTo).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't1' }), 100_001);
+  });
+
+  it('walks the cursor until rowCount rows are yielded, never past it', async () => {
+    const { svc, reader } = deps(undefined, 3);
+    (reader.countUpTo as ReturnType<typeof vi.fn>).mockResolvedValue(4);
+    (reader.find as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ records: [auditEvent({ id: 'a' }), auditEvent({ id: 'b' })], nextCursor: 'c-1' })
+      .mockResolvedValueOnce({ records: [auditEvent({ id: 'c' })], nextCursor: 'c-2' });
+
+    const pages = await collect((await svc.exportEvents(platformAdmin, {})).pages);
+    expect(pages.map((p) => p.map((r) => r.id))).toEqual([['a', 'b'], ['c']]);
+    expect(reader.find).toHaveBeenNthCalledWith(1, expect.objectContaining({ limit: 3, cursor: undefined }));
+    expect(reader.find).toHaveBeenNthCalledWith(2, expect.objectContaining({ limit: 1, cursor: 'c-1' }));
+    expect(reader.find).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops when the result runs out before rowCount', async () => {
+    const { svc, reader } = deps();
+    (reader.countUpTo as ReturnType<typeof vi.fn>).mockResolvedValue(5);
+    (reader.find as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ records: [auditEvent()] });
+
+    const pages = await collect((await svc.exportEvents(platformAdmin, {})).pages);
+    expect(pages).toHaveLength(1);
+    expect(reader.find).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads no rows for an empty result', async () => {
+    const { svc, reader } = deps();
+    expect(await collect((await svc.exportEvents(platformAdmin, {})).pages)).toEqual([]);
+    expect(reader.find).not.toHaveBeenCalled();
   });
 });

@@ -1,12 +1,11 @@
 import type { AuditEvent } from '../audit-logging.core';
 
 /**
- * Renders a page of `AuditEvent`s as CSV, for `GET /audit/events.csv` — the
- * Export screen's "small range" path. Reuses the same bounded `find()`/
- * `AuditQuery` the JSON list endpoint uses; there is deliberately no
- * unbounded/async export-to-file-storage flow here (see the module README's
- * "what's not built" and the mock's Export screen note — that's a separate,
- * explicitly out-of-scope piece of work).
+ * Streams `AuditEvent`s as CSV, for `GET /audit/events.csv` (api-contract Rule 9):
+ * the header row, then one chunk per page the export walks. The row cap lives in
+ * `AuditEventsApiService.exportEvents`; there is deliberately no unbounded/async
+ * export-to-file-storage flow here (see the module README's "what's not built" —
+ * that's a separate, explicitly out-of-scope piece of work).
  *
  * `before`/`after` are serialized as JSON strings, one column each — a
  * spreadsheet consumer can still read the flat fields without them.
@@ -25,28 +24,31 @@ const COLUMNS = [
   'reason',
 ] as const;
 
-export function renderAuditEventsCsv(records: readonly AuditEvent[]): string {
-  const lines = [COLUMNS.join(',')];
-  for (const record of records) {
-    lines.push(
-      [
-        record.id,
-        record.occurredAt.toISOString(),
-        record.entityType,
-        record.entityId,
-        record.tenantId ?? '',
-        record.actor,
-        record.action,
-        record.before ? JSON.stringify(record.before) : '',
-        record.after ? JSON.stringify(record.after) : '',
-        record.correlationId,
-        record.reason ?? '',
-      ]
-        .map(csvField)
-        .join(','),
-    );
+export async function* streamAuditEventsCsv(pages: AsyncIterable<readonly AuditEvent[]>): AsyncGenerator<string> {
+  yield COLUMNS.join(',') + '\r\n';
+  for await (const records of pages) {
+    if (records.length > 0) yield records.map(renderRow).join('');
   }
-  return lines.join('\r\n') + '\r\n';
+}
+
+function renderRow(record: AuditEvent): string {
+  return (
+    [
+      record.id,
+      record.occurredAt.toISOString(),
+      record.entityType,
+      record.entityId,
+      record.tenantId ?? '',
+      record.actor,
+      record.action,
+      record.before ? JSON.stringify(record.before) : '',
+      record.after ? JSON.stringify(record.after) : '',
+      record.correlationId,
+      record.reason ?? '',
+    ]
+      .map(csvField)
+      .join(',') + '\r\n'
+  );
 }
 
 function csvField(value: string): string {

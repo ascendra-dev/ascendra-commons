@@ -10,7 +10,7 @@ no audit-emitter.
 | Method | Path | → |
 |---|---|---|
 | GET | `/audit/events` | `find(AuditQuery)` — query params: `entityType`, `entityId`, `tenantId`, `actor`, `action`, `correlationId`, `occurredAfter`, `occurredBefore`, `limit`, `cursor`. Returns api-contract.md's cursor list shape: `{ data, meta: { nextCursor } }` (records newest-first; `nextCursor` omitted on the last page), mapped from the core's `AuditQueryResult` in the controller. |
-| GET | `/audit/events.csv` | Same `AuditQuery` filters as `/audit/events`, rendered as CSV (`text/csv`) instead of JSON — one bounded page, for a small ad-hoc export. No async/large-range export job (that writes to `file-storage`) is built here. |
+| GET | `/audit/events.csv` | api-contract.md Rule 9's list export: the same filters as `/audit/events` (no `limit`/`cursor`), **every** matching row up to `forRoot({ exportMaxRows })` (default 100,000), streamed as `text/csv` newest-first. `occurredBefore` is pinned to the request time; a capped `countUpTo()` runs first so `X-Export-Row-Count` / `X-Export-Truncated` / `X-Export-Limit` and a timestamped `Content-Disposition` filename go out before the body. A larger result is truncated, not rejected. No async export job (that writes to `file-storage`) is built here. |
 | GET | `/audit/events/:id` | `findOne(id)` — one record plus its server-computed field-level `diff` (`AuditEventDetail`, via `diffFields`). 404s (never leaks existence) for a missing or cross-tenant id. |
 | GET | `/audit/entities/:type/:id/history` | one entity's full audit history, paginated. Same `{ data, meta: { nextCursor } }` shape as `/audit/events`. |
 | GET | `/audit/trace/:correlationId` | every record from one request / job run — a cross-module trace. Same `{ data, meta: { nextCursor } }` shape as `/audit/events`. |
@@ -45,6 +45,8 @@ import { PostgresAuditObservabilityModule } from '.../audit-logging.core.postgre
   imports: [
     AuditApiModule.forRoot({
       imports: [PostgresAuditObservabilityModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', imports: [DatabaseModule] })],
+      catalog: [{ entityType: 'invoice', actions: ['invoice.created', 'invoice.void'] }],   // required
+      exportMaxRows: 50_000,                                                                 // optional, default 100,000
     }),
     { provide: APP_GUARD, useExisting: AuthorizationGuard },   // required
   ],

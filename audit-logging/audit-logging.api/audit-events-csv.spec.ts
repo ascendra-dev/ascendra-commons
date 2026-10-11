@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderAuditEventsCsv } from './audit-events-csv';
+import { streamAuditEventsCsv } from './audit-events-csv';
 import type { AuditEvent } from '../audit-logging.core';
 
 function event(over: Partial<AuditEvent> = {}): AuditEvent {
@@ -19,9 +19,19 @@ function event(over: Partial<AuditEvent> = {}): AuditEvent {
   };
 }
 
-describe('renderAuditEventsCsv', () => {
-  it('emits a header row and one line per record', () => {
-    const csv = renderAuditEventsCsv([event()]);
+async function* pagesOf(...pages: AuditEvent[][]) {
+  yield* pages;
+}
+
+async function renderAuditEventsCsv(...pages: AuditEvent[][]): Promise<string> {
+  let csv = '';
+  for await (const chunk of streamAuditEventsCsv(pagesOf(...pages))) csv += chunk;
+  return csv;
+}
+
+describe('streamAuditEventsCsv', () => {
+  it('emits a header row and one line per record', async () => {
+    const csv = await renderAuditEventsCsv([event()]);
     const lines = csv.trim().split('\r\n');
 
     expect(lines[0]).toBe('id,occurredAt,entityType,entityId,tenantId,actor,action,before,after,correlationId,reason');
@@ -30,18 +40,25 @@ describe('renderAuditEventsCsv', () => {
     );
   });
 
-  it('renders only the header row for an empty result set', () => {
-    expect(renderAuditEventsCsv([])).toBe('id,occurredAt,entityType,entityId,tenantId,actor,action,before,after,correlationId,reason\r\n');
+  it('renders only the header row for an empty result set', async () => {
+    expect(await renderAuditEventsCsv([])).toBe('id,occurredAt,entityType,entityId,tenantId,actor,action,before,after,correlationId,reason\r\n');
   });
 
-  it('renders null tenantId and reason as empty fields', () => {
-    const csv = renderAuditEventsCsv([event({ tenantId: null, reason: null, before: null, after: null })]);
+  it('renders null tenantId and reason as empty fields', async () => {
+    const csv = await renderAuditEventsCsv([event({ tenantId: null, reason: null, before: null, after: null })]);
     const [, dataLine] = csv.trim().split('\r\n');
     expect(dataLine).toBe('ae-1,2026-09-07T09:41:02.481Z,invoice,inv-1,,u-1,status_changed,,,trace-1,');
   });
 
-  it('quotes and escapes a field containing a comma or double quote', () => {
-    const csv = renderAuditEventsCsv([event({ reason: 'Marked "paid", after reconciliation' })]);
+  it('quotes and escapes a field containing a comma or double quote', async () => {
+    const csv = await renderAuditEventsCsv([event({ reason: 'Marked "paid", after reconciliation' })]);
     expect(csv).toContain('"Marked ""paid"", after reconciliation"');
+  });
+
+  it('emits one header row across several pages', async () => {
+    const csv = await renderAuditEventsCsv([event({ id: 'a' })], [], [event({ id: 'b' }), event({ id: 'c' })]);
+    const lines = csv.trim().split('\r\n');
+    expect(lines).toHaveLength(4);
+    expect(lines.map((l) => l.split(',')[0])).toEqual(['id', 'a', 'b', 'c']);
   });
 });

@@ -117,6 +117,24 @@ describe('PostgresAuditEventReader.find', () => {
   });
 });
 
+describe('PostgresAuditEventReader.countUpTo', () => {
+  it('counts over a LIMIT-capped subquery with the same filters as find(), ignoring limit/cursor', async () => {
+    const db = fakeDb([{ count: 7 }]);
+    const count = await reader(db).countUpTo(
+      { entityType: 'invoice', tenantId: null, limit: 5, cursor: 'whatever' },
+      100_001,
+    );
+
+    expect(count).toBe(7);
+    const { sql: text, params } = rendered(db);
+    expect(text).toMatch(/select count\(\*\)::int as count\s+from \(\s*select 1 from commons_audit_event/i);
+    expect(text).toMatch(/entity_type =/i);
+    expect(text).toMatch(/tenant_id is null/i);
+    expect(text).not.toMatch(/id </i);
+    expect(params).toEqual(['ascendra-pay', 'invoice', 100_001]);
+  });
+});
+
 describe('PostgresAuditEventReader.findOne', () => {
   it('scopes to id + application and maps the row', async () => {
     const db = fakeDb([row({ id: 'ae-1' })]);

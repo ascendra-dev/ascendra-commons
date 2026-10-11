@@ -42,18 +42,7 @@ export class PostgresAuditEventReader implements AuditEventReader {
   async find(query: AuditQuery): Promise<AuditQueryResult> {
     const limit = Math.min(Math.max(1, query.limit ?? DEFAULT_LIMIT), MAX_LIMIT);
 
-    const conds: SQL[] = [sql`application = ${this.application}`];
-    if (query.entityType !== undefined) conds.push(sql`entity_type = ${query.entityType}`);
-    if (query.entityId !== undefined) conds.push(sql`entity_id = ${query.entityId}`);
-    if ('tenantId' in query) {
-      conds.push(query.tenantId === null ? sql`tenant_id is null` : sql`tenant_id = ${query.tenantId}`);
-    }
-    if (query.actor !== undefined) conds.push(sql`actor = ${query.actor}`);
-    if (query.action !== undefined) conds.push(sql`action = ${query.action}`);
-    if (query.correlationId !== undefined) conds.push(sql`correlation_id = ${query.correlationId}`);
-    if (query.occurredAfter) conds.push(sql`occurred_at >= ${query.occurredAfter}`);
-    if (query.occurredBefore) conds.push(sql`occurred_at < ${query.occurredBefore}`);
-
+    const conds = this.filterConds(query);
     const cursor = query.cursor ? decodeKeysetCursor(query.cursor) : null;
     if (cursor) {
       conds.push(
@@ -77,6 +66,20 @@ export class PostgresAuditEventReader implements AuditEventReader {
       return { records, nextCursor: encodeKeysetCursor(last.occurredAt, last.id) };
     }
     return { records: rows };
+  }
+
+  async countUpTo(query: AuditQuery, max: number): Promise<number> {
+    const rows = (
+      await this.db.execute(sql`
+        select count(*)::int as count
+        from (
+          select 1 from commons_audit_event
+          where ${sql.join(this.filterConds(query), sql` and `)}
+          limit ${max}
+        ) as capped
+      `)
+    ).rows as Array<{ count: number }>;
+    return rows[0]?.count ?? 0;
   }
 
   async findOne(id: string, tenantId?: string | null): Promise<AuditEvent | null> {
@@ -240,6 +243,21 @@ export class PostgresAuditEventReader implements AuditEventReader {
       ...declaredEntityTypes.map((value) => toEntry('entityType', value, entityCounts.get(value) ?? 0)),
       ...declaredActions.map((value) => toEntry('action', value, actionCounts.get(value) ?? 0)),
     ];
+  }
+  /** `AuditQuery`'s filter fields as ANDable conditions — shared by `find()` and `countUpTo()`; ignores `limit`/`cursor`. */
+  private filterConds(query: AuditQuery): SQL[] {
+    const conds: SQL[] = [sql`application = ${this.application}`];
+    if (query.entityType !== undefined) conds.push(sql`entity_type = ${query.entityType}`);
+    if (query.entityId !== undefined) conds.push(sql`entity_id = ${query.entityId}`);
+    if ('tenantId' in query) {
+      conds.push(query.tenantId === null ? sql`tenant_id is null` : sql`tenant_id = ${query.tenantId}`);
+    }
+    if (query.actor !== undefined) conds.push(sql`actor = ${query.actor}`);
+    if (query.action !== undefined) conds.push(sql`action = ${query.action}`);
+    if (query.correlationId !== undefined) conds.push(sql`correlation_id = ${query.correlationId}`);
+    if (query.occurredAfter) conds.push(sql`occurred_at >= ${query.occurredAfter}`);
+    if (query.occurredBefore) conds.push(sql`occurred_at < ${query.occurredBefore}`);
+    return conds;
   }
 }
 

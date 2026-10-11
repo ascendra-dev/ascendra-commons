@@ -38,17 +38,24 @@ export interface AuditApiModuleConfig {
    * Declared in code; an app that keeps it in a JSON file can import that file and pass it here.
    */
   catalog: AuditCatalogEntry[];
+  /**
+   * Row cap for `GET /audit/events.csv`. A larger result is truncated to this many rows (newest
+   * first) and flagged via `X-Export-Truncated` (api-contract Rule 9). Default 100,000.
+   */
+  exportMaxRows?: number;
 }
 
 /** The shape bound under `AUDIT_API_OPTIONS`. */
 export interface AuditApiOptions {
   isPlatformAdmin: (actor: Actor) => boolean | Promise<boolean>;
   catalog: AuditCatalogEntry[];
+  exportMaxRows: number;
 }
 
 export function resolveAuditApiOptions(config: AuditApiModuleConfig): AuditApiOptions {
   return {
     isPlatformAdmin: config.isPlatformAdmin ?? ((actor) => actor.tenantId === null),
     catalog: config.catalog,
+    exportMaxRows: config.exportMaxRows ?? 100_000,
   };
 }

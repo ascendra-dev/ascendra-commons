@@ -17,6 +17,9 @@ export interface AuditEventsQueryDto {
   cursor?: string;
 }
 
+/** Query params for `GET /audit/events.csv` — the list's filters, without pagination (api-contract Rule 9). */
+export type AuditEventsExportQueryDto = Omit<AuditEventsQueryDto, 'limit' | 'cursor'>;
+
 /** Query params for `GET /audit/actors/:actor/activity`. */
 export interface AuditActorActivityQueryDto {
   occurredAfter?: string;

@@ -18,7 +18,7 @@ package.
 | `AuditListener` | **Shipped, not consumer-authored** — `@OnCriticalEvent(AUDIT_EVENT_NAME)` → `persistAuditRecord`. A thin dispatcher by construction. Registered by `AuditLoggingModule.forRoot()`. |
 | `persistAuditRecord()` | The one piece of real logic — no mapping step (`AuditEventInput` is a `Pick<>` of `AuditRecordRaised`), adds `correlationId` from ambient context. |
 | `AuditEventRepository` (`insert()` only) | The **write** port — write-once by construction of the interface. Never assumes a database (an external sink is in scope). |
-| `AuditEventReader` (`find(AuditQuery)`) | The **read** port — deliberately separate, so a custom write repo isn't forced to implement reads. `audit-logging.api` and a stack adapter's observability module use it. |
+| `AuditEventReader` (`find(AuditQuery)`, `countUpTo(AuditQuery, max)`, …) | The **read** port — deliberately separate, so a custom write repo isn't forced to implement reads. `audit-logging.api` and a stack adapter's observability module use it. |
 | `runWithCorrelationId` / `getCurrentCorrelationId` / `CorrelationIdMiddleware` | `AsyncLocalStorage` correlation id — works for an HTTP request and a background job run alike. `getCurrentCorrelationId()` never returns undefined. |
 | `encodeKeysetCursor` / `decodeKeysetCursor` | Stack-agnostic pagination cursor for `AuditEventReader` (kept in `.core` so a second stack adapter reuses it). |
 | `AuditLoggingModule.forRoot({ auditEventRepositoryToken, imports })` | Binds `AUDIT_EVENT_REPOSITORY` + registers `AuditListener`. |

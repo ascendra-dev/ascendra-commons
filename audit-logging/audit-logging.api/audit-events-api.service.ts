@@ -5,6 +5,7 @@ import {
   diffFields,
   type ActorActivitySummary,
   type AuditCoverageEntry,
+  type AuditEvent,
   type AuditEventDetail,
   type AuditEventReader,
   type AuditQuery,
@@ -16,9 +17,25 @@ import type { AuditApiOptions, AuditCatalogEntry } from './audit-api.options';
 import type {
   AuditActorActivityQueryDto,
   AuditCoverageRequestDto,
+  AuditEventsExportQueryDto,
   AuditEventsQueryDto,
   AuditStatsQueryDto,
 } from './dto/audit-api.dto';
+
+/** Rows fetched per `find()` call while an export walks its result — the postgres reader's own max page size. */
+const EXPORT_PAGE_SIZE = 200;
+
+/** What `GET /audit/events.csv` sends: api-contract Rule 9's headers, plus the rows to stream. */
+export interface AuditEventsExport {
+  filename: string;
+  /** Rows the export will stream — `min(matched, limit)`. */
+  rowCount: number;
+  /** More rows matched than `limit` allowed. */
+  truncated: boolean;
+  limit: number;
+  /** Newest first, walked lazily page by page as the response streams. */
+  pages: AsyncIterable<AuditEvent[]>;
+}
 
 /**
  * Reads audit records for a compliance/ops screen, over `AuditEventReader`. The
@@ -36,6 +53,31 @@ export class AuditEventsApiService {
 
   find(actor: Actor, dto: AuditEventsQueryDto): Promise<AuditQueryResult> {
     return this.query(actor, this.baseQuery(dto));
+  }
+
+  /**
+   * The full filtered result of `find()`, for the CSV export — not one page, up to
+   * `exportMaxRows`. Pins `occurredBefore` to now so rows written mid-export can't
+   * disagree with the up-front `rowCount`, then counts (capped) before any row is
+   * read, so the response headers are known before the body streams.
+   */
+  async exportEvents(actor: Actor, dto: AuditEventsExportQueryDto): Promise<AuditEventsExport> {
+    const now = new Date();
+    const base = this.baseQuery(dto);
+    const query = await this.scoped(actor, {
+      ...base,
+      occurredBefore: base.occurredBefore && base.occurredBefore < now ? base.occurredBefore : now,
+    });
+    const limit = this.options.exportMaxRows;
+    const matched = await this.reader.countUpTo(query, limit + 1);
+    const rowCount = Math.min(matched, limit);
+    return {
+      filename: `audit-events-${now.toISOString().slice(0, 19).replace(/:/g, '-')}Z.csv`,
+      rowCount,
+      truncated: matched > limit,
+      limit,
+      pages: this.walk(query, rowCount),
+    };
   }
 
   entityHistory(actor: Actor, entityType: string, entityId: string, dto: AuditEventsQueryDto): Promise<AuditQueryResult> {
@@ -115,13 +157,30 @@ export class AuditEventsApiService {
   }
 
   private async query(actor: Actor, query: AuditQuery): Promise<AuditQueryResult> {
-    if (await this.options.isPlatformAdmin(actor)) {
-      return this.reader.find(query);
-    }
+    return this.reader.find(await this.scoped(actor, query));
+  }
+
+  /** `query` as `actor` may run it — a non-platform actor is forced to their own tenant. */
+  private async scoped(actor: Actor, query: AuditQuery): Promise<AuditQuery> {
+    if (await this.options.isPlatformAdmin(actor)) return query;
     if (actor.tenantId === null) {
       throw new ForbiddenException('a tenant-scoped actor cannot read the audit log without a tenant');
     }
-    return this.reader.find({ ...query, tenantId: actor.tenantId });
+    return { ...query, tenantId: actor.tenantId };
+  }
+
+  /** Follows `nextCursor` until `total` rows are yielded or the result runs out. */
+  private async *walk(query: AuditQuery, total: number): AsyncGenerator<AuditEvent[]> {
+    let remaining = total;
+    let cursor: string | undefined;
+    while (remaining > 0) {
+      const page = await this.reader.find({ ...query, limit: Math.min(EXPORT_PAGE_SIZE, remaining), cursor });
+      const records = page.records.slice(0, remaining);
+      yield records;
+      remaining -= records.length;
+      if (!page.nextCursor) return;
+      cursor = page.nextCursor;
+    }
   }
 
   private baseQuery(dto: AuditEventsQueryDto): AuditQuery {

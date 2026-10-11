@@ -124,6 +124,14 @@ export interface AuditEventReader {
   find(query: AuditQuery): Promise<AuditQueryResult>;
 
   /**
+   * How many records match `query`'s filters, counting no further than `max`
+   * (returns `min(actual, max)`) — so it stays cheap on a huge table. `limit`
+   * and `cursor` are ignored. The CSV export uses it to know its row count and
+   * whether it hit the cap before streaming any rows.
+   */
+  countUpTo(query: AuditQuery, max: number): Promise<number>;
+
+  /**
    * One record by id — the Record Detail screen's permalink / deep link.
    * `tenantId` follows `AuditQuery`'s convention: absent = no filter (a
    * platform admin may fetch any record), a string = only that tenant's
