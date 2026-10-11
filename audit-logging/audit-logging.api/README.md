@@ -16,7 +16,7 @@ no audit-emitter.
 | GET | `/audit/trace/:correlationId` | every record from one request / job run — a cross-module trace. Same `{ data, meta: { nextCursor } }` shape as `/audit/events`. |
 | GET | `/audit/actors/:actor/activity` | `summarizeActor(actor, query)` — counts by action, first/last seen, distinct tenants touched. Query params: `occurredAfter`, `occurredBefore`. |
 | GET | `/audit/stats` | `stats(window, tenantFilter)` — the Overview dashboard: `perDay`/`topActions`/`topActors`/`perTenant`. Query params: `window` (e.g. `'30d'`, default 30 days), `tenantId` (platform admin only). |
-| GET | `/audit/catalog` | The app's audit vocabulary configured via `forRoot({ catalog })` — `{ entityType, actions }[]`, a bare array (api-contract.md Rule 4's bounded case). Not tenant-scoped (it's vocabulary, not data); `[]` when none is configured. Meant for populating filter selects. |
+| GET | `/audit/catalog` | The app's audit vocabulary from `forRoot({ catalog })` (required) — `{ entityType, actions }[]`, a bare array (api-contract.md Rule 4's bounded case). Not tenant-scoped (it's vocabulary, not data). Feeds the audit UI's Entity type / Action selects, so an app passing `[]` gets empty dropdowns. |
 | POST | `/audit/coverage` | `countByDeclared({ entityTypes, actions })` — body is the caller's own declared catalog; an empty body (or none) uses the configured `catalog` instead. Response is a per-declared-entry `{ kind, value, count, assessment }[]`, no catalog table involved. |
 
 All gated on `@RequiresAction('audit.view')`.

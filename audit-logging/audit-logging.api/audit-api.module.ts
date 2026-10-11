@@ -16,12 +16,16 @@ import { AuditEventsController } from './audit-events.controller';
  * ```typescript
  * AuditApiModule.forRoot({
  *   imports: [PostgresAuditObservabilityModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', imports: [DatabaseModule] })],
+ *   catalog: [
+ *     { entityType: 'invoice', actions: ['invoice.created', 'invoice.issued', 'invoice.void'] },
+ *     { entityType: 'channel_route', actions: ['notification.route_set'] },
+ *   ],
  * })
  * ```
  */
 @Module({})
 export class AuditApiModule {
-  static forRoot(config: AuditApiModuleConfig = {}): DynamicModule {
+  static forRoot(config: AuditApiModuleConfig): DynamicModule {
     return {
       module: AuditApiModule,
       imports: config.imports ?? [],

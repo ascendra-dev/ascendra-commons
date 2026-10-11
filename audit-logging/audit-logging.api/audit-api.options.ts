@@ -32,11 +32,12 @@ export interface AuditApiModuleConfig {
    */
   isPlatformAdmin?: (actor: Actor) => boolean | Promise<boolean>;
   /**
-   * The app's own audit vocabulary — served by `GET /audit/catalog` (e.g. to populate filter
-   * selects) and used by `POST /audit/coverage` when its body declares nothing. Declared in
-   * code; an app that keeps it in a JSON file can import that file and pass it here. Default: `[]`.
+   * The app's own audit vocabulary — served by `GET /audit/catalog` (it feeds the audit UI's
+   * Entity type / Action selects) and used by `POST /audit/coverage` when its body declares
+   * nothing. Required, so forgetting it is a compile error rather than empty filters at runtime.
+   * Declared in code; an app that keeps it in a JSON file can import that file and pass it here.
    */
-  catalog?: AuditCatalogEntry[];
+  catalog: AuditCatalogEntry[];
 }
 
 /** The shape bound under `AUDIT_API_OPTIONS`. */
@@ -48,6 +49,6 @@ export interface AuditApiOptions {
 export function resolveAuditApiOptions(config: AuditApiModuleConfig): AuditApiOptions {
   return {
     isPlatformAdmin: config.isPlatformAdmin ?? ((actor) => actor.tenantId === null),
-    catalog: config.catalog ?? [],
+    catalog: config.catalog,
   };
 }

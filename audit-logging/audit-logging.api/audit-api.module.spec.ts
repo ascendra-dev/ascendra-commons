@@ -49,7 +49,7 @@ const catalog = [
 ];
 
 describe('AuditApiModule.forRoot — real DI wiring', () => {
-  async function build(config: { catalog?: typeof catalog } = {}) {
+  async function build(config: { catalog: typeof catalog } = { catalog: [] }) {
     return Test.createTestingModule({
       imports: [AuditApiModule.forRoot({ imports: [FakeReaderModule], ...config })],
     }).compile();
@@ -157,7 +157,7 @@ describe('AuditApiModule.forRoot — real DI wiring', () => {
     expect(moduleRef.get(AuditEventsController).catalog()).toEqual(catalog);
   });
 
-  it('serves an empty catalog when none is configured', async () => {
+  it('serves an empty catalog when configured as []', async () => {
     const moduleRef = await build();
     expect(moduleRef.get(AuditEventsController).catalog()).toEqual([]);
   });
