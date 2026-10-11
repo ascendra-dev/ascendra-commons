@@ -52,7 +52,7 @@ export class PostgresAuditEventReader implements AuditEventReader {
 
     const rows = (
       await this.db.execute(sql`
-        select id, entity_type, entity_id, tenant_id, actor, action, before, after, correlation_id, reason, occurred_at
+        select id, entity_type, entity_id, tenant_id, actor, action, before, after, correlation_id, reason, occurred_at, application
         from commons_audit_event
         where ${sql.join(conds, sql` and `)}
         order by occurred_at desc, id desc
@@ -90,7 +90,7 @@ export class PostgresAuditEventReader implements AuditEventReader {
 
     const rows = (
       await this.db.execute(sql`
-        select id, entity_type, entity_id, tenant_id, actor, action, before, after, correlation_id, reason, occurred_at
+        select id, entity_type, entity_id, tenant_id, actor, action, before, after, correlation_id, reason, occurred_at, application
         from commons_audit_event
         where ${sql.join(conds, sql` and `)}
         limit 1
@@ -276,6 +276,7 @@ function mapRow(row: Record<string, unknown>): AuditEvent {
     before: (row.before ?? null) as Record<string, unknown> | null,
     after: (row.after ?? null) as Record<string, unknown> | null,
     correlationId: String(row.correlation_id),
+    application: String(row.application),
     reason: row.reason == null ? null : String(row.reason),
     occurredAt: row.occurred_at instanceof Date ? row.occurred_at : new Date(String(row.occurred_at)),
   };

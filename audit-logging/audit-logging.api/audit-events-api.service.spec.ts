@@ -36,6 +36,7 @@ function auditEvent(over: Partial<AuditEvent> = {}): AuditEvent {
     after: { status: 'paid' },
     correlationId: 'trace-1',
     reason: null,
+    application: 'ascendra-pay',
     occurredAt: new Date('2026-09-07T09:41:02Z'),
     ...over,
   };

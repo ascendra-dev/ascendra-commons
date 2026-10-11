@@ -17,15 +17,21 @@ export type AuditEventInput = Pick<
 };
 
 /**
- * The persisted, immutable record — AuditEventInput plus the id the
- * persistence layer assigned on insert (never supplied by the caller, so it
- * can't be part of AuditEventInput). No UPDATE or DELETE is ever exposed
+ * The persisted, immutable record — AuditEventInput plus what the persistence
+ * layer assigned on insert (never supplied by the caller, so neither can be
+ * part of AuditEventInput): the id, and the application that wrote it. No UPDATE or DELETE is ever exposed
  * against this shape at the application layer — audit records are
  * write-once. What a repository's find() (not built — see this pattern's
  * README) would read back.
  */
 export interface AuditEvent extends AuditEventInput {
   readonly id: string;
+  /**
+   * Which Ascendra application wrote this record (e.g. `'ascendra-pay'`) — stamped by the
+   * persistence adapter from its `forRoot({ application })`. Constant within one app's own
+   * database today; it's what distinguishes rows once audit history is consolidated.
+   */
+  readonly application: string;
 }
 
 /**

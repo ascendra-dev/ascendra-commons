@@ -78,7 +78,10 @@ back too.
 compliance reporting ("every admin action across every Ascendra product, this
 quarter") is a plausible near-term ask. The Postgres adapter already carries a
 passive `application` column (stamped on insert, filtered on by the reader) so a
-consolidation needs no backfill. `action` is **verb-only**, not `resource.verb`
+consolidation needs no backfill. It's returned on every `AuditEvent` (and the CSV
+export) but not yet a query filter — cross-application reads, a per-application
+catalog and `application`-led indexes wait for an actual consolidation
+(MODULE-STANDARD §4). `action` is **verb-only**, not `resource.verb`
 — `entityType` already carries the resource (deliberate; not a dimension-9
 deviation).
 

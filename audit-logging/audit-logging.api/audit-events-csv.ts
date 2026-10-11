@@ -22,6 +22,7 @@ const COLUMNS = [
   'after',
   'correlationId',
   'reason',
+  'application',
 ] as const;
 
 export async function* streamAuditEventsCsv(pages: AsyncIterable<readonly AuditEvent[]>): AsyncGenerator<string> {
@@ -45,6 +46,7 @@ function renderRow(record: AuditEvent): string {
       record.after ? JSON.stringify(record.after) : '',
       record.correlationId,
       record.reason ?? '',
+      record.application,
     ]
       .map(csvField)
       .join(',') + '\r\n'

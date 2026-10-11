@@ -31,6 +31,7 @@ function row(over: Partial<Record<string, unknown>> = {}): Record<string, unknow
     correlation_id: 'trace-1',
     reason: null,
     occurred_at: new Date('2026-06-01T10:00:00Z'),
+    application: 'ascendra-pay',
     ...over,
   };
 }
@@ -51,6 +52,7 @@ describe('PostgresAuditEventReader.find', () => {
       tenantId: 'tenant-1',
       before: { status: 'sent' },
       correlationId: 'trace-1',
+      application: 'ascendra-pay',
     });
     expect(result.records[1]).toMatchObject({ tenantId: null, before: null });
     expect(result.nextCursor).toBeUndefined();
