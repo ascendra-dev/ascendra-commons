@@ -12,6 +12,16 @@ export const AUDIT_ACTIONS = {
   VIEW: 'audit.view',
 } as const;
 
+/**
+ * One entity type the app audits, with the actions it records against it. Actions are grouped
+ * explicitly rather than derived from a name prefix — the naming convention isn't enforced
+ * (e.g. `notification.route_set` is recorded on entity type `channel_route`).
+ */
+export interface AuditCatalogEntry {
+  entityType: string;
+  actions: string[];
+}
+
 export interface AuditApiModuleConfig {
   /** Modules exporting `AUDIT_EVENT_READER` — a stack adapter's `PostgresAuditObservabilityModule`. */
   imports?: DynamicModule['imports'];
@@ -21,13 +31,23 @@ export interface AuditApiModuleConfig {
    * A non-platform actor's reads are forced to their own `tenantId`.
    */
   isPlatformAdmin?: (actor: Actor) => boolean | Promise<boolean>;
+  /**
+   * The app's own audit vocabulary — served by `GET /audit/catalog` (e.g. to populate filter
+   * selects) and used by `POST /audit/coverage` when its body declares nothing. Declared in
+   * code; an app that keeps it in a JSON file can import that file and pass it here. Default: `[]`.
+   */
+  catalog?: AuditCatalogEntry[];
 }
 
 /** The shape bound under `AUDIT_API_OPTIONS`. */
 export interface AuditApiOptions {
   isPlatformAdmin: (actor: Actor) => boolean | Promise<boolean>;
+  catalog: AuditCatalogEntry[];
 }
 
 export function resolveAuditApiOptions(config: AuditApiModuleConfig): AuditApiOptions {
-  return { isPlatformAdmin: config.isPlatformAdmin ?? ((actor) => actor.tenantId === null) };
+  return {
+    isPlatformAdmin: config.isPlatformAdmin ?? ((actor) => actor.tenantId === null),
+    catalog: config.catalog ?? [],
+  };
 }

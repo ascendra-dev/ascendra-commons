@@ -31,8 +31,11 @@ export interface AuditStatsQueryDto {
   tenantId?: string;
 }
 
-/** Body of `POST /audit/coverage` — the caller's own declared catalog. */
+/**
+ * Body of `POST /audit/coverage` — the caller's own declared catalog. Leave both empty (or send
+ * no body) to use the catalog configured on `AuditApiModule.forRoot`.
+ */
 export interface AuditCoverageRequestDto {
-  entityTypes: string[];
-  actions: string[];
+  entityTypes?: string[];
+  actions?: string[];
 }

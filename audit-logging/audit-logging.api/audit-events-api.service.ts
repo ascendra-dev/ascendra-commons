@@ -12,7 +12,7 @@ import {
   type AuditStats,
 } from '../audit-logging.core';
 import { AUDIT_API_OPTIONS } from './tokens';
-import type { AuditApiOptions } from './audit-api.options';
+import type { AuditApiOptions, AuditCatalogEntry } from './audit-api.options';
 import type {
   AuditActorActivityQueryDto,
   AuditCoverageRequestDto,
@@ -86,12 +86,21 @@ export class AuditEventsApiService {
     return this.reader.stats(dto.window ?? '30d', actor.tenantId);
   }
 
-  /** The Coverage & Gaps screen — a per-request comparison, no catalog table. */
-  async coverage(actor: Actor, dto: AuditCoverageRequestDto): Promise<AuditCoverageEntry[]> {
+  /** The app's configured audit vocabulary (`forRoot({ catalog })`) — not tenant data, so not tenant-scoped. */
+  catalog(): AuditCatalogEntry[] {
+    return this.options.catalog;
+  }
+
+  /**
+   * The Coverage & Gaps screen — a per-request comparison, no catalog table. An empty body falls
+   * back to the configured catalog, so the screen and the filter selects share one list.
+   */
+  async coverage(actor: Actor, dto: AuditCoverageRequestDto | undefined): Promise<AuditCoverageEntry[]> {
     const tenantId = await this.resolveTenantScope(actor);
+    const declaresNothing = !dto?.entityTypes?.length && !dto?.actions?.length;
     return this.reader.countByDeclared({
-      entityTypes: dto.entityTypes ?? [],
-      actions: dto.actions ?? [],
+      entityTypes: declaresNothing ? this.options.catalog.map((e) => e.entityType) : (dto?.entityTypes ?? []),
+      actions: declaresNothing ? this.options.catalog.flatMap((e) => e.actions) : (dto?.actions ?? []),
       ...(tenantId !== undefined ? { tenantId } : {}),
     });
   }

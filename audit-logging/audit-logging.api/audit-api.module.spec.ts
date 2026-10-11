@@ -43,10 +43,15 @@ const countByDeclared = vi.fn().mockResolvedValue([]);
 })
 class FakeReaderModule {}
 
+const catalog = [
+  { entityType: 'invoice', actions: ['invoice.created', 'invoice.void'] },
+  { entityType: 'channel_route', actions: ['notification.route_set'] },
+];
+
 describe('AuditApiModule.forRoot — real DI wiring', () => {
-  async function build() {
+  async function build(config: { catalog?: typeof catalog } = {}) {
     return Test.createTestingModule({
-      imports: [AuditApiModule.forRoot({ imports: [FakeReaderModule] })],
+      imports: [AuditApiModule.forRoot({ imports: [FakeReaderModule], ...config })],
     }).compile();
   }
 
@@ -145,5 +150,32 @@ describe('AuditApiModule.forRoot — real DI wiring', () => {
     const platformActor: Actor = { id: 'p1', persona: 'platform', tenantId: null };
     await moduleRef.get(AuditEventsController).coverage(platformActor, { entityTypes: ['invoice'], actions: [] });
     expect(countByDeclared).toHaveBeenCalledWith({ entityTypes: ['invoice'], actions: [] });
+  });
+
+  it('serves the configured catalog from GET /audit/catalog', async () => {
+    const moduleRef = await build({ catalog });
+    expect(moduleRef.get(AuditEventsController).catalog()).toEqual(catalog);
+  });
+
+  it('serves an empty catalog when none is configured', async () => {
+    const moduleRef = await build();
+    expect(moduleRef.get(AuditEventsController).catalog()).toEqual([]);
+  });
+
+  it('falls back to the configured catalog when POST /audit/coverage declares nothing', async () => {
+    const moduleRef = await build({ catalog });
+    const platformActor: Actor = { id: 'p1', persona: 'platform', tenantId: null };
+    await moduleRef.get(AuditEventsController).coverage(platformActor, undefined);
+    expect(countByDeclared).toHaveBeenLastCalledWith({
+      entityTypes: ['invoice', 'channel_route'],
+      actions: ['invoice.created', 'invoice.void', 'notification.route_set'],
+    });
+  });
+
+  it('prefers a declared POST /audit/coverage body over the configured catalog', async () => {
+    const moduleRef = await build({ catalog });
+    const platformActor: Actor = { id: 'p1', persona: 'platform', tenantId: null };
+    await moduleRef.get(AuditEventsController).coverage(platformActor, { entityTypes: ['user'] });
+    expect(countByDeclared).toHaveBeenLastCalledWith({ entityTypes: ['user'], actions: [] });
   });
 });

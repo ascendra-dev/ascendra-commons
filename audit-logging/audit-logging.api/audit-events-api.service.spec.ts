@@ -20,7 +20,7 @@ function deps(isPlatformAdmin: AuditApiOptions['isPlatformAdmin'] = (a) => a.ten
     stats: vi.fn().mockResolvedValue({ window: '30d', perDay: [], topActions: [], topActors: [], perTenant: [] }),
     countByDeclared: vi.fn().mockResolvedValue([]),
   };
-  return { reader, svc: new AuditEventsApiService(reader, { isPlatformAdmin }) };
+  return { reader, svc: new AuditEventsApiService(reader, { isPlatformAdmin, catalog: [] }) };
 }
 
 function auditEvent(over: Partial<AuditEvent> = {}): AuditEvent {

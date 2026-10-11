@@ -109,9 +109,16 @@ export class AuditEventsController {
     return this.service.stats(actor, { window, tenantId });
   }
 
+  /** api-contract.md Rule 4's bounded bare-array case — the app's fixed vocabulary, never paginated. */
+  @Get('catalog')
+  @RequiresAction(AUDIT_ACTIONS.VIEW)
+  catalog() {
+    return this.service.catalog();
+  }
+
   @Post('coverage')
   @RequiresAction(AUDIT_ACTIONS.VIEW)
-  coverage(@CurrentActor() actor: Actor, @Body() body: AuditCoverageRequestDto) {
+  coverage(@CurrentActor() actor: Actor, @Body() body?: AuditCoverageRequestDto) {
     return this.service.coverage(actor, body);
   }
 
