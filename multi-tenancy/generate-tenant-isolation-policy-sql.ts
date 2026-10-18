@@ -44,7 +44,7 @@ export function tenantIsolationPredicateSql(options: TenantIsolationPolicyOption
  * `tenantIsolationPredicateSql()` directly when composing with `soft-delete`
  * instead. Generates migration *text* for a developer to read and run
  * through the project's own migration tooling, the same trust level as SQL
- * written directly in a `.migration.sql` file — not parameterized, not
+ * written directly in a migration file — not parameterized, not
  * escaped beyond the table-name identifier check. Never pass end-user input
  * as `tableName`.
  */

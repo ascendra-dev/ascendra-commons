@@ -1,10 +1,11 @@
--- Reference migration for the file-storage pattern's Postgres/Drizzle adapter.
+-- file-storage · Postgres/Drizzle adapter — the file record table.
 --
--- This library never runs migrations against a consumer's database
--- (MODULE-STANDARD.md dimension 7). Copy this into the consuming project's own
--- migration tooling, or re-export `fileRecordTable` from `file-record.schema.ts`
--- and let `drizzle-kit generate` produce the equivalent. Keep the three in sync
--- (schema, this file, the store's SQL).
+-- Released migrations are never edited: a schema change is the next numbered
+-- file in this folder (MODULE-STANDARD.md dimension 7). This library never runs
+-- them — the consuming project's own migration tool does.
+--
+-- The table's current shape: `persistence/file-record.schema.ts` and the store's SQL
+-- — change them together.
 
 CREATE TABLE IF NOT EXISTS "commons_file_record" (
   "id"           uuid PRIMARY KEY DEFAULT gen_random_uuid(),

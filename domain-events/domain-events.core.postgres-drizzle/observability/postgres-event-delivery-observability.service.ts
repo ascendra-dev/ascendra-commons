@@ -24,7 +24,7 @@ const MAX_LIMIT = 200;
  * `PostgresEventDeliveryRecorder` intends.
  *
  * Scoped to one `application` — an app's own event-delivery screen. Corresponding
- * table: `../persistence/domain-event-delivery.schema.ts` / `.migration.sql`.
+ * table: `../persistence/domain-event-delivery.schema.ts` (DDL: `../migrations/`).
  */
 @Injectable()
 export class PostgresEventDeliveryObservabilityService implements EventDeliveryObservabilityPort {

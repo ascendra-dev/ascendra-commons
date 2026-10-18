@@ -48,7 +48,7 @@ const sql = generateSoftDeletePolicySql('invoice', {
 **Not parameterized, not escaped beyond the table-name identifier check** —
 this produces migration *text* for a developer to read and run through the
 project's own migration tooling, the same trust level as SQL written directly
-in a `.migration.sql` file. Never pass end-user input as `scopingPredicateSql`.
+in a migration file. Never pass end-user input as `scopingPredicateSql`.
 
 ## Implementations — no manual `WHERE` clause anywhere
 

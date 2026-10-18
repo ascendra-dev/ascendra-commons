@@ -1,13 +1,12 @@
--- Reference migration for the domain-events pattern's delivery log
--- (PostgresEventDeliveryRecorder + PostgresEventDeliveryObservabilityService).
+-- domain-events · delivery log (PostgresEventDeliveryRecorder +
+-- PostgresEventDeliveryObservabilityService).
 --
--- This library never runs migrations against a consumer's database (see
--- MODULE-STANDARD.md dimension 7). Copy this into the consuming project's own
--- migration tooling, or re-export `domainEventDeliveryTable` from
--- `domain-event-delivery.schema.ts` and let `drizzle-kit generate` produce it.
+-- Released migrations are never edited: a schema change is the next numbered
+-- file in this folder (MODULE-STANDARD.md dimension 7). This library never runs
+-- them — the consuming project's own migration tool does.
 --
--- Keep in sync with `domain-event-delivery.schema.ts` and the INSERT in
--- `postgres-event-delivery-recorder.ts`.
+-- The table's current shape: `persistence/domain-event-delivery.schema.ts` and the
+-- INSERT in `recorder/postgres-event-delivery-recorder.ts` — change them together.
 --
 -- DELIVERY ONLY — one row per emit()/emitCritical() call, never a listener's
 -- own outcome. See `domain-events.core`'s README, "What this does and doesn't

@@ -10,7 +10,7 @@ import { EVENT_DELIVERY_APPLICATION_ID, EVENT_DELIVERY_SQL_EXECUTOR } from '../t
  * write failure is logged and swallowed, never propagated
  * (`InProcessDomainEventEmitter` also guards the call).
  *
- * Corresponding table: `../persistence/domain-event-delivery.schema.ts` / `.migration.sql`.
+ * Corresponding table: `../persistence/domain-event-delivery.schema.ts` (DDL: `../migrations/`).
  */
 @Injectable()
 export class PostgresEventDeliveryRecorder implements EventDeliveryRecorder {

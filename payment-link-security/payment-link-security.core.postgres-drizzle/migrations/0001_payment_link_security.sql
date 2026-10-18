@@ -1,15 +1,14 @@
--- Reference migration for the payment-link-security pattern's Postgres/Drizzle
--- adapter — two tables: the token store and the resolution log.
+-- payment-link-security · Postgres/Drizzle adapter — two tables: the token store and
+-- the resolution log.
 --
--- This library never runs migrations against a consumer's database (see
--- MODULE-STANDARD.md dimension 7). Copy this into the consuming project's own
--- migration tooling, or re-export `paymentLinkTokenTable` /
--- `paymentLinkResolutionTable` from their own `.schema.ts` files and let
--- `drizzle-kit generate` produce the equivalent.
+-- Released migrations are never edited: a schema change is the next numbered
+-- file in this folder (MODULE-STANDARD.md dimension 7). This library never runs
+-- them — the consuming project's own migration tool does.
 --
--- Keep in sync with `payment-link-token.schema.ts` / `payment-link-resolution.schema.ts`
--- and the INSERT/UPDATE column lists in `postgres-payment-link-token-service.ts`
--- and `postgres-token-resolution-recorder.ts`.
+-- The tables' current shape: `persistence/payment-link-token.schema.ts` /
+-- `persistence/payment-link-resolution.schema.ts` and the INSERT/UPDATE column lists in
+-- `service/postgres-payment-link-token-service.ts` and
+-- `recorder/postgres-token-resolution-recorder.ts`.
 
 CREATE TABLE IF NOT EXISTS "commons_payment_link_token" (
   "id"           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),

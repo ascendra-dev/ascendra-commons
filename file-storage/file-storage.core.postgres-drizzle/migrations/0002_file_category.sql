@@ -1,4 +1,11 @@
--- Reference migration — see file-record.migration.sql for the "not run by this library" note.
+-- file-storage · the file category catalog.
+--
+-- Released migrations are never edited: a schema change is the next numbered
+-- file in this folder (MODULE-STANDARD.md dimension 7). This library never runs
+-- them — the consuming project's own migration tool does.
+--
+-- The table's current shape: `persistence/file-category.schema.ts` and the catalog's SQL.
+--
 -- Requires PostgreSQL 15+ (partial unique indexes below need no special feature, but the
 -- category catalog assumes a modern Postgres elsewhere).
 

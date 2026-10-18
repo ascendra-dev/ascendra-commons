@@ -1,4 +1,5 @@
--- Reference migration — see file-record.migration.sql for the "not run by this library" note.
+-- file-storage · attachments (needs 0001's commons_file_record). Never edited once
+-- released — see 0001's header.
 
 CREATE TABLE IF NOT EXISTS "commons_attachment" (
   "id"               uuid PRIMARY KEY DEFAULT gen_random_uuid(),

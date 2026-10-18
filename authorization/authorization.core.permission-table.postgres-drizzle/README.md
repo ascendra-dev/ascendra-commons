@@ -1,7 +1,7 @@
 # `authorization.core.permission-table.postgres-drizzle` — Model 2 / Postgres
 
 The Postgres + Drizzle stack adapter for the permission-table model. It ships
-**only** schema, migration, repositories, and seed helpers — the resolver, the
+**only** schema, migrations, repositories, and seed helpers — the resolver, the
 `Authorizer`, the delegation rules/service, the cache, and the admin ports are
 stack-agnostic and live in `authorization.core.permission-table`.
 
@@ -13,7 +13,8 @@ implementing the same ports (`PermissionRepository`, `DelegationRepository`,
 
 | Folder | Contents |
 |---|---|
-| `persistence/` | `schema.ts` (Drizzle `pgTable` for `commons_authz_*`), `authorization.migration.sql` (hand-kept DDL — **keep in sync with `schema.ts`**), `sql-executor.ts`, `sql-helpers.ts` |
+| `persistence/` | `schema.ts` (Drizzle `pgTable` for `commons_authz_*`), `sql-executor.ts`, `sql-helpers.ts` |
+| `migrations/` | the DDL, numbered — **never edited once released**; a schema change is the next file |
 | `authorizer/` | `PostgresPermissionRepository` — implements `PermissionRepository` |
 | `delegation/` | `PostgresDelegationRepository` — implements `DelegationRepository` |
 | `admin/` | `PostgresAuthzAdminService` / `PostgresAuthzObservabilityService` — implement the admin ports |
@@ -23,13 +24,9 @@ implementing the same ports (`PermissionRepository`, `DelegationRepository`,
 
 ### 1. Create the tables
 
-```typescript
-// src/db/schema.ts
-export * from 'src/ascendra-commons/authorization/authorization.core.permission-table.postgres-drizzle';
-```
-
-…or copy `persistence/authorization.migration.sql` into your migrations.
-**Requires PostgreSQL 15+** (`NULLS NOT DISTINCT`).
+Apply `migrations/` through your project's own migration tool — never re-export
+the schema tables to `drizzle-kit` too, or it generates them a second time
+(MODULE-STANDARD dimension 7). **Requires PostgreSQL 15+** (`NULLS NOT DISTINCT`).
 
 ### 2. Seed roles + actions (once, at deploy time / in a migration)
 

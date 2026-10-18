@@ -1,12 +1,11 @@
--- Reference migration for the rate-limiting pattern's Postgres/Drizzle adapter.
+-- rate-limiting · Postgres/Drizzle adapter — the rejection log.
 --
--- This library never runs migrations against a consumer's database (see
--- MODULE-STANDARD.md dimension 7). Copy this into the consuming project's own
--- migration tooling, or re-export `rateLimitRejectionTable` from
--- `rate-limit-rejection.schema.ts` and let `drizzle-kit generate` produce it.
+-- Released migrations are never edited: a schema change is the next numbered
+-- file in this folder (MODULE-STANDARD.md dimension 7). This library never runs
+-- them — the consuming project's own migration tool does.
 --
--- Keep in sync with `rate-limit-rejection.schema.ts` and the INSERT column
--- list in `postgres-rate-limit-event-recorder.ts`.
+-- The table's current shape: `persistence/rate-limit-rejection.schema.ts` and the INSERT
+-- column list in `recorder/postgres-rate-limit-event-recorder.ts` — change them together.
 
 CREATE TABLE IF NOT EXISTS "commons_rate_limit_rejection" (
   "id"              bigserial   PRIMARY KEY,

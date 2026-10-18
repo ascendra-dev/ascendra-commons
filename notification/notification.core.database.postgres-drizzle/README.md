@@ -8,7 +8,8 @@ The Postgres + Drizzle stack adapter. It implements three things over
 | `config/` | `NotificationConfig` (routing / templates / credentials, TTL-cached) | `POSTGRES_NOTIFICATION_CONFIG` | `NotificationModule.forRoot({ configToken })` |
 | `delivery-log/` | `NotificationDeliveryRecorder` (batched INSERT + webhook UPDATE) | `POSTGRES_NOTIFICATION_DELIVERY_RECORDER` | `NotificationModule.forRoot({ deliveryRecorderToken })` |
 | `admin/` | `NotificationObservabilityPort` + `NotificationConfigAdminPort` | `NOTIFICATION_OBSERVABILITY_PORT` / `NOTIFICATION_CONFIG_ADMIN_PORT` (family tokens) | `PostgresNotificationAdminModule.forRoot(...)` |
-| `persistence/` | `config.schema.ts` + `delivery.schema.ts` (Drizzle) + hand-kept `.migration.sql` — **keep in sync** | | |
+| `persistence/` | `config.schema.ts` + `delivery.schema.ts` (Drizzle) — the tables' current shape | | |
+| `migrations/` | the DDL, numbered — **never edited once released**; a schema change is the next file | | |
 | `seed/` | `seedNotificationConfigFromData(db, application, data)` — behaviour-preserving `static` → `database` | | |
 
 The resolver algorithm, the `ConfigCache`, the cursor helper, and the admin
@@ -18,11 +19,9 @@ ports/DTOs are stack-agnostic and live in `notification.core.database`.
 
 ### 1. Tables
 
-```typescript
-export * from 'src/ascendra-commons/notification/notification.core.database.postgres-drizzle';
-```
-
-…or copy `persistence/config.migration.sql` + `persistence/delivery.migration.sql`.
+Apply `migrations/` (`0001_config`, `0002_delivery`) through your project's own
+migration tool — never re-export the schema tables to `drizzle-kit` too, or it
+generates them a second time (MODULE-STANDARD dimension 7).
 **Requires PostgreSQL 15+** (`NULLS NOT DISTINCT`).
 
 ### 2. Seed the deployment defaults

@@ -11,7 +11,7 @@ const TOKEN_BYTES = 32;
 
 /**
  * Reference `PaymentLinkTokenService` for Postgres. Corresponding table:
- * `../persistence/payment-link-token.schema.ts` / `.migration.sql`.
+ * `../persistence/payment-link-token.schema.ts` (DDL: `../migrations/`).
  *
  * **Never stores or logs the raw token** — `generate()` returns it once (the
  * caller embeds it in the link URL); everywhere else, only its SHA-256 hash

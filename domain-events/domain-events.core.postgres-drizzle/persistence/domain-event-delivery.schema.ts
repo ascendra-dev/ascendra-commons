@@ -8,9 +8,9 @@ import { bigserial, index, integer, pgTable, text, timestamp } from 'drizzle-orm
  * outcome; see `domain-events.core`'s README, "What this does and doesn't
  * observe."
  *
- * Source of truth for the columns; `domain-event-delivery.migration.sql` is
- * the hand-kept DDL — keep the two, plus the INSERT in
- * `postgres-event-delivery-recorder.ts`, in sync.
+ * Source of truth for the columns — change it together with the INSERT in
+ * `postgres-event-delivery-recorder.ts`, and ship the change as the next
+ * numbered file in `../migrations/` (never an edit to a released one).
  */
 export const domainEventDeliveryTable = pgTable(
   'commons_domain_events_delivery',

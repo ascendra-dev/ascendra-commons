@@ -18,8 +18,7 @@ import {
  * provider webhook. Honors the best-effort contract itself: a write failure is
  * logged and swallowed, never propagated (`Notifier` also guards the call).
  *
- * Corresponding table: `notification-delivery.schema.ts` /
- * `notification-delivery.migration.sql`.
+ * Corresponding table: `../persistence/delivery.schema.ts` (DDL: `../migrations/`).
  */
 @Injectable()
 export class PostgresNotificationDeliveryRecorder implements NotificationDeliveryRecorder {

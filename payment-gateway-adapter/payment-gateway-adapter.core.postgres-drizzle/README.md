@@ -6,7 +6,8 @@ Two tables: an atomic dedup ledger, and the full observability trail.
 |---|---|---|---|
 | `webhook/` | `WebhookEventLog` — `claim()` (atomic dedup) + `recordRejectedEvent()` | `WEBHOOK_EVENT_LOG` (core token) | `PostgresWebhookEventLogModule.forRoot(...)` |
 | `observability/` | `WebhookObservabilityPort` — `listEvents()` / `outcomeCounts()`, read-only | `WEBHOOK_OBSERVABILITY_PORT` (core token) | `PostgresWebhookObservabilityModule.forRoot(...)` |
-| `persistence/*.schema.ts` + `.migration.sql` | the reference tables — **keep in sync** | | |
+| `persistence/*.schema.ts` | the tables' current shape | | |
+| `migrations/` | the DDL, numbered — **never edited once released**; a schema change is the next file | | |
 
 No family package — both core ports are stack-agnostic and live in
 `payment-gateway-adapter.core`. A project on another stack implements those
@@ -26,11 +27,7 @@ sees (`ignored_backwards`, `signature_invalid`). This is what
 
 ## Wiring
 
-```typescript
-export * from 'src/ascendra-commons/payment-gateway-adapter/payment-gateway-adapter.core.postgres-drizzle';   // for drizzle-kit
-```
-
-…or copy `persistence/payment-gateway-webhook.migration.sql`.
+Tables: apply `migrations/` through your project's own migration tool — never re-export the schema tables to `drizzle-kit` too, or it generates them a second time (MODULE-STANDARD dimension 7).
 
 ```typescript
 PostgresWebhookEventLogModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', imports: [DatabaseModule] }),

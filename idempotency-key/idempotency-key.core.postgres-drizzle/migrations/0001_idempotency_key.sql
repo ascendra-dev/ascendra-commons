@@ -1,10 +1,11 @@
--- Reference migration for the idempotency-key pattern's Postgres/Drizzle adapter (Model 1).
+-- idempotency-key · Postgres/Drizzle adapter (Model 1).
 --
--- This library never runs migrations against a consumer's database
--- (MODULE-STANDARD.md dimension 7). Copy this into the consuming project's own
--- migration tooling, or re-export `idempotencyKeyTable` from `idempotency-key.schema.ts`
--- and let `drizzle-kit generate` produce the equivalent. Keep the three in sync
--- (schema, this file, the store's SQL).
+-- Released migrations are never edited: a schema change is the next numbered
+-- file in this folder (MODULE-STANDARD.md dimension 7). This library never runs
+-- them — the consuming project's own migration tool does.
+--
+-- The table's current shape: `persistence/idempotency-key.schema.ts` and the store's
+-- SQL — change them together.
 --
 -- reclaim_count / late_complete_no_op_count / correlation_id added 2026-09-12
 -- (observability pass) — if a project already ran the pre-2026-09-12 form of

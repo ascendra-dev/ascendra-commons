@@ -1,13 +1,12 @@
--- Reference migration for the notification pattern's delivery log
--- (PostgresNotificationDeliveryRecorder + PostgresNotificationObservabilityService).
+-- notification · delivery log (PostgresNotificationDeliveryRecorder +
+-- PostgresNotificationObservabilityService).
 --
--- This library never runs migrations against a consumer's database (see
--- MODULE-STANDARD.md dimension 7). Copy this into the consuming project's own
--- migration tooling, or re-export `notificationDelivery` from
--- `notification-delivery.schema.ts` and let `drizzle-kit generate` produce it.
+-- Released migrations are never edited: a schema change is the next numbered
+-- file in this folder (MODULE-STANDARD.md dimension 7). This library never runs
+-- them — the consuming project's own migration tool does.
 --
--- Keep in sync with `notification-delivery.schema.ts` and the INSERT in
--- `postgres-notification-delivery-recorder.ts`.
+-- The table's current shape: `persistence/delivery.schema.ts` and the INSERT in
+-- `delivery-log/postgres-notification-delivery-recorder.ts` — change them together.
 --
 -- `recipient_ref` is redacted (`user:<id>` / `raw:email` / `raw:phone` / `raw`) —
 -- never an address. `status` is 'sent' / 'failed' at send time; a provider

@@ -2,11 +2,12 @@ import { index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } fro
 
 /**
  * The reference `commons_idempotency_key` table — source of truth for the
- * columns. `PostgresIdempotencyStore` writes exactly these; keep this,
- * `idempotency-key.migration.sql`, and the store's SQL in sync.
+ * columns. `PostgresIdempotencyStore` writes exactly these; change this and the
+ * store's SQL together, and ship the change as the next numbered file in
+ * `../migrations/` (never an edit to a released one).
  *
- * A consuming project on Postgres/Drizzle re-exports this from its own schema
- * barrel for `drizzle-kit`, or copies the migration. A project on another stack
+ * A consuming project never re-exports this into the schema files `drizzle-kit`
+ * reads — the DDL comes from `../migrations/`. A project on another stack
  * ignores this folder and provides its own `IdempotencyStore`.
  */
 export const idempotencyKeyTable = pgTable(

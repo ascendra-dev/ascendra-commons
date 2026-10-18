@@ -38,7 +38,7 @@ export interface SoftDeletePolicyOptions {
  *
  * Returns the migration text — print it into a `.sql` file via the
  * project's own migration tooling, the same way every other Postgres
- * adapter in this library treats its own reference `.migration.sql`.
+ * adapter in this library ships its `migrations/` files.
  */
 export function generateSoftDeletePolicySql(tableName: string, options: SoftDeletePolicyOptions = {}): string {
   assertValidIdentifier('table name', tableName);

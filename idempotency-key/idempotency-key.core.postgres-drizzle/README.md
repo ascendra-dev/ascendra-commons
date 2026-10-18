@@ -7,7 +7,7 @@ The atomic claim over a `commons_idempotency_key` table.
 | File | |
 |---|---|
 | `persistence/idempotency-key.schema.ts` | Drizzle `pgTable` — source of truth for the columns |
-| `persistence/idempotency-key.migration.sql` | the same table as hand-kept DDL + indexes — **keep in sync** |
+| `migrations/` | the DDL + indexes, numbered — **never edited once released**; a schema change is the next file |
 | `persistence/sql-executor.ts` | the minimal db shape (`{ rows }` only) |
 | `postgres-idempotency-store.ts` | `IdempotencyStore` — `claim()` / `complete()` |
 | `postgres-idempotency-store.module.ts` | `forRoot({ sqlExecutorToken, staleAfterSeconds, imports })` → `POSTGRES_IDEMPOTENCY_STORE` |

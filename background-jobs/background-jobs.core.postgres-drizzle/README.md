@@ -15,7 +15,7 @@ lock here explicitly and pass its token to `BackgroundJobsModule.forRoot({ advis
 
 | | `PostgresAdvisoryLock` | `PostgresLeaseLock` |
 |---|---|---|
-| Extra DB objects | none | `commons_jobs_lock` (one table + migration) |
+| Extra DB objects | none | `commons_jobs_lock` (`migrations/0002_lease_lock.sql`) |
 | Connection | **dedicated single connection**, never a transaction-mode pooler | any pooled connection, any pooler |
 | Crash frees it | when the connection closes | when the lease (`leaseSeconds`, default 900) expires |
 | Knobs | none | `leaseSeconds` |
@@ -26,9 +26,9 @@ pooler") or want forgiving wiring, use `PostgresLeaseLock`.
 
 ## Wiring (lease lock)
 
-```typescript
-export * from 'src/ascendra-commons/background-jobs/background-jobs.core.postgres-drizzle';   // drizzle-kit
+Tables: apply `migrations/` (`0001_job_run`; `0002_lease_lock` is unused with the advisory lock, and harmless) through your project's own migration tool — never re-export the schema tables to `drizzle-kit` too, or it generates them a second time (MODULE-STANDARD dimension 7).
 
+```typescript
 BackgroundJobsModule.forRoot({
   advisoryLockToken: POSTGRES_LEASE_LOCK,
   jobRunRecorderToken: POSTGRES_JOB_RUN_RECORDER,

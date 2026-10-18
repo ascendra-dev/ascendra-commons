@@ -21,7 +21,7 @@ export interface NotificationConfigOptions {
  * `application` and goes through the stack-agnostic `ConfigCache` (from
  * `notification.core.database`).
  *
- * Corresponding tables: `persistence/config.schema.ts` / `config.migration.sql`.
+ * Corresponding tables: `persistence/config.schema.ts` (DDL: `migrations/`).
  */
 @Injectable()
 export class PostgresNotificationConfig implements NotificationConfig {

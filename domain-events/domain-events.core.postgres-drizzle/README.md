@@ -6,7 +6,8 @@ Two library-owned statements over `commons_domain_events_delivery`:
 |---|---|---|---|
 | `recorder/` | `EventDeliveryRecorder` — one `INSERT` per `emit()`/`emitCritical()` call, `application` stamped | `EVENT_DELIVERY_RECORDER` (core token) | `InProcessDomainEventEmitterModule.forRoot({ recorderToken })` |
 | `observability/` | `EventDeliveryObservabilityPort` — one dynamic `SELECT`, keyset-paginated, plus one aggregate query, both `application`-scoped | `EVENT_DELIVERY_OBSERVABILITY_PORT` (core token) | `PostgresEventDeliveryObservabilityModule.forRoot(...)` |
-| `persistence/domain-event-delivery.schema.ts` + `.migration.sql` | the reference table — **keep in sync** with the `INSERT`/`SELECT` | | |
+| `persistence/domain-event-delivery.schema.ts` | the table's current shape — change it with the `INSERT`/`SELECT` | | |
+| `migrations/` | the DDL, numbered — **never edited once released**; a schema change is the next file | | |
 
 There is no family package — both ports and all DTOs are stack-agnostic and
 live in `domain-events.core`; the keyset-cursor helper is there too. A project
@@ -24,11 +25,7 @@ package for it.
 
 ## Wiring
 
-```typescript
-export * from 'src/ascendra-commons/domain-events/domain-events.core.postgres-drizzle';   // for drizzle-kit
-```
-
-…or copy `persistence/domain-event-delivery.migration.sql`. **Requires PostgreSQL 15+** (`filter (where ...)` in `deliveryCatalog()`'s aggregate query).
+Tables: apply `migrations/` through your project's own migration tool — never re-export the schema tables to `drizzle-kit` too, or it generates them a second time (MODULE-STANDARD dimension 7). **Requires PostgreSQL 15+** (`filter (where ...)` in `deliveryCatalog()`'s aggregate query).
 
 ```typescript
 DomainEventsModule.forRoot({

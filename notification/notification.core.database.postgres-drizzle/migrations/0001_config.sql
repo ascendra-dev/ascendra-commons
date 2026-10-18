@@ -1,11 +1,10 @@
--- Reference migration for the notification pattern's Postgres/Drizzle adapter (Model 2).
+-- notification · Postgres/Drizzle config tables (Model 2).
 --
--- This library never runs migrations against a consumer's database (see
--- MODULE-STANDARD.md dimension 7). Copy this into the consuming project's own
--- migration tooling, or re-export the tables from `schema.ts` and let
--- `drizzle-kit generate` produce the equivalent. Requires PostgreSQL 15+.
+-- Released migrations are never edited: a schema change is the next numbered
+-- file in this folder (MODULE-STANDARD.md dimension 7). This library never runs
+-- them — the consuming project's own migration tool does.
 --
--- Keep in sync with `schema.ts`.
+-- The tables' current shape: `persistence/config.schema.ts`. Requires PostgreSQL 15+.
 --
 -- `application` = which Ascendra app the row belongs to. Constant within one
 -- app's own database; the column and every read's `application = $1` filter

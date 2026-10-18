@@ -1,4 +1,4 @@
-/* persistence (re-export tables for drizzle-kit; copy the .migration.sql files) */
+/* persistence (tables for typed queries — never re-exported to drizzle-kit; the DDL is migrations/) */
 export { fileRecordTable, attachmentTable, fileCategoryTable, fileAccessTable, fileRejectionTable } from './persistence';
 export type { SqlExecutor } from './persistence/sql-executor';
 

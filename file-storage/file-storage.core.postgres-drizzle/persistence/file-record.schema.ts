@@ -2,12 +2,14 @@ import { bigint, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-co
 
 /**
  * The reference `commons_file_record` table — source of truth for the columns.
- * `PostgresAttachmentStore` writes exactly these; keep this,
- * `file-record.migration.sql`, and the store's SQL in sync.
+ * `PostgresAttachmentStore` writes exactly these; change this and the store's
+ * SQL together, and ship the change as the next numbered file in
+ * `../migrations/` (never an edit to a released one).
  *
- * A consuming project on Postgres/Drizzle re-exports this from its own schema
- * barrel for `drizzle-kit`, or copies the migration. A project on another
- * stack ignores this folder and provides its own `AttachmentStore`.
+ * A consuming project imports this table where it queries it, but never
+ * re-exports it into the schema files `drizzle-kit` reads — the table comes from
+ * `../migrations/`, and drizzle-kit would generate it a second time. A project
+ * on another stack ignores this folder and provides its own `AttachmentStore`.
  */
 export const fileRecordTable = pgTable(
   'commons_file_record',

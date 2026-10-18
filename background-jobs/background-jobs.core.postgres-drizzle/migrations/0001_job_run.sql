@@ -1,13 +1,11 @@
--- Reference migration for the background-jobs pattern's Postgres/Drizzle adapter.
+-- background-jobs · Postgres/Drizzle run recorder — the job run table.
 --
--- This library never runs migrations against a consumer's database (see
--- MODULE-STANDARD.md dimension 7 — the DB instance and its migration history are
--- always consumer-owned). Copy this statement into the consuming project's own
--- migration tooling, or export `jobRunTable` from `job-run.schema.ts` and let
--- `drizzle-kit generate` produce the equivalent.
+-- Released migrations are never edited: a schema change is the next numbered
+-- file in this folder (MODULE-STANDARD.md dimension 7). This library never runs
+-- them — the consuming project's own migration tool does.
 --
--- Keep this in sync with `job-run.schema.ts` and the INSERT column list in
--- `postgres-job-run-recorder.ts` — the three describe one table.
+-- The table's current shape: `run-recorder/job-run.schema.ts` and the INSERT column
+-- list in `run-recorder/postgres-job-run-recorder.ts` — change them together.
 --
 -- `application` = which Ascendra app the row belongs to. Constant within one
 -- app's own database; the column and every read's `application = $1` filter (and

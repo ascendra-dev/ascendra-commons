@@ -1,4 +1,4 @@
-// Schema — re-export from your own schema barrel so drizzle-kit picks it up
+// Schema — tables for typed queries; never re-export them to drizzle-kit (the DDL is migrations/)
 export {
   authzRole,
   authzAction,

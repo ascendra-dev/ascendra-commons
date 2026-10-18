@@ -12,9 +12,8 @@ import { JOB_RUN_APPLICATION_ID, JOB_RUN_SQL_EXECUTOR } from '../tokens';
  * writes none of this; a consumer on a different stack provides its own
  * `JobRunRecorder`.
  *
- * Corresponding table: `job-run.schema.ts` / `job-run.migration.sql` in this
- * folder — the column list below is the third copy of that one table; keep the
- * three in sync.
+ * Corresponding table: `job-run.schema.ts` (DDL: `../migrations/`) — the column
+ * list below must match it.
  *
  * Honors `JobRunRecorder`'s best-effort contract itself: a write failure is
  * logged and swallowed, never propagated. `IdempotentJobRunner` also guards the

@@ -1,13 +1,13 @@
--- Reference migration for the payment-gateway-adapter pattern's Postgres/Drizzle
--- adapter — two tables: the atomic dedup ledger and the full observability log.
+-- payment-gateway-adapter · Postgres/Drizzle adapter — two tables: the atomic dedup
+-- ledger and the full observability log.
 --
--- This library never runs migrations against a consumer's database (see
--- MODULE-STANDARD.md dimension 7). Copy this into the consuming project's own
--- migration tooling, or re-export `webhookClaimTable` / `webhookEventTable`
--- from their own `.schema.ts` files and let `drizzle-kit generate` produce it.
+-- Released migrations are never edited: a schema change is the next numbered
+-- file in this folder (MODULE-STANDARD.md dimension 7). This library never runs
+-- them — the consuming project's own migration tool does.
 --
--- Keep in sync with `webhook-claim.schema.ts` / `webhook-event.schema.ts` and
--- the INSERT column lists in `postgres-webhook-event-log.ts`.
+-- The tables' current shape: `persistence/webhook-claim.schema.ts` /
+-- `persistence/webhook-event.schema.ts` and the INSERT column lists in
+-- `webhook/postgres-webhook-event-log.ts` — change them together.
 
 CREATE TABLE IF NOT EXISTS "commons_payment_gateway_webhook_claim" (
   "application"        text        NOT NULL,

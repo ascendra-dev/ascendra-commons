@@ -5,6 +5,7 @@
 | Version | Date | Reason |
 |---------|------|--------|
 | 1.0 | 2026-09-04 | First cut. Written after `authorization`, `notification`, and `domain-events` each independently grew an `application`/`tenantId` seam and a Model 1/Model 2 split, on their own reasoning, in their own words. This document makes the reasoning explicit and checkable across all seven modules instead of re-derived per module. |
+| 1.1 | 2026-10-18 | Dimension 7: migrations move to numbered, never-edited `<package>/migrations/NNNN_<name>.sql` files (were one hand-kept `*.migration.sql` per table, kept in sync by editing); `*.schema.ts` tables are no longer re-exported to `drizzle-kit`. |
 
 ---
 
@@ -36,7 +37,7 @@ a **container folder** of dot-named **packages**, each an independent copy unit
 | `<module>.core` | The contract only — interfaces, the cross-cutting mechanism (guard/decorators/compute helpers), `forRoot()` as pure token wiring, a `Missing*` throwing stub. **No working implementation.** |
 | `<module>.core.<capability>` | A single implementation, Model 1 *or* Model 2, when it isn't a stack family — `authorization.core.static-map` (Model 1), `domain-events.core.in-process` (Model 1), `domain-events.core.broker` (Model 2, currently a throwing stub — the seam is real, the transport isn't built). Name by capability, not slot. |
 | `<module>.core.<family>` | A Model 2 family — stack-agnostic: ports a stack adapter implements, DTOs, pure rules, the port-based implementation. No SQL. May be thin (`notification.core.database` is just a cache util, a cursor helper, and the admin ports/DTOs — notification's DB story has no shared *algorithm* the way `authorization.core.permission-table` does) — that's still worth its own package so a second stack adapter shares it. |
-| `<module>.core.<family>.<db>-<orm>` | One stack (e.g. `…permission-table.postgres-drizzle`) — schema, migration, repositories, seed **only**. Sub-folders by job allowed here; `index.ts` stays the sole public surface and exports modules, not classes. |
+| `<module>.core.<family>.<db>-<orm>` | One stack (e.g. `…permission-table.postgres-drizzle`) — schema, `migrations/` (dimension 7), repositories, seed **only**. Sub-folders by job allowed here; `index.ts` stays the sole public surface and exports modules, not classes. |
 | `<module>.api` | Opt-in HTTP controllers + thin `.api` services + request DTOs, over the family **ports**. Never imports a stack adapter — wired to one at the vertical via tokens. |
 | `<module>.ui` | Reserved — React, ships from `ascendra-commons-ui`, not here. |
 
@@ -257,6 +258,19 @@ came from `ascendra-commons` and keep them together
 Indexes and constraints carry the same prefix. The Drizzle `pgTable` *export
 identifiers* keep their short names (`authzRole`, `jobRunTable`) — only the SQL
 name strings are prefixed.
+
+**Migrations are numbered and never edited once released.** A stack adapter
+ships its DDL as `<package>/migrations/NNNN_<name>.sql` (`0001_audit_event.sql`,
+`0002_…`), numbered per package, in the order they must run (a referenced table
+first). Released means on `origin/main` — consumers sync from there. A released
+file is never edited, renamed or deleted: a consumer's database has already run
+it, so a schema change is always the **next** numbered file (an `ALTER`, a
+backfill), shipped together with the matching `*.schema.ts` and adapter SQL
+changes. The `*.schema.ts` file is the table's *current* shape (for typed
+queries); `migrations/` is its history. This library never runs them — the
+consumer applies them through its own migration tool, and never also re-exports
+the `*.schema.ts` tables to `drizzle-kit`, which would generate the same tables a
+second time.
 
 **N/A here comes in two different strengths — say which.** A module whose
 Model 1 *and* every plausible Model 2 have no database at all (`authorization`'s

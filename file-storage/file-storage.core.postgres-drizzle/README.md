@@ -3,10 +3,12 @@
 The Postgres/Drizzle **metadata** backend for `file-storage` — everything that
 isn't the blob. Three independently-wired concerns.
 
-This library never runs migrations (`MODULE-STANDARD.md` dimension 7). Copy the
-`persistence/*.migration.sql` files into the consuming project's tooling, or
-re-export the schema tables for `drizzle-kit`. Keep schema / migration / adapter
-SQL in sync.
+This library never runs migrations (`MODULE-STANDARD.md` dimension 7). Apply
+`migrations/` (`0001_file_record` … `0005_file_rejection`, in order — attachment
+and file access reference file record) through the consuming project's own
+migration tool; never re-export the schema tables to `drizzle-kit` too, or it
+generates them a second time. Released migrations are never edited — a schema
+change is the next numbered file, together with the schema and the adapter SQL.
 
 ## Tables
 

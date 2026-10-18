@@ -4,14 +4,13 @@ import { bigserial, index, integer, pgTable, text, timestamp } from 'drizzle-orm
  * The reference `commons_jobs_job_run` table — one concrete Postgres/Drizzle shape of the
  * generic `JobRunSummary` (see `../../job-run-recorder.interface.ts`), plus
  * `application`. This is the single source of truth for the reference schema:
- * `PostgresJobRunRecorder` writes exactly these columns, and
- * `job-run.migration.sql` in this folder is the hand-kept DDL form of the same
- * table — keep the three in sync when changing any of them.
+ * `PostgresJobRunRecorder` writes exactly these columns — change the two
+ * together, and ship the change as the next numbered file in `../migrations/`
+ * (never an edit to a released one).
  *
- * A consuming project on Postgres/Drizzle can `export` this table from its own
- * schema barrel so `drizzle-kit` picks it up (instead of pasting the raw
- * migration), and reads its run-history admin screen through this typed table
- * — the adapter itself ships no read path. A project on a different stack
+ * A consuming project reads its run-history admin screen through this typed
+ * table — the adapter itself ships no read path — but never re-exports it into
+ * the schema files `drizzle-kit` reads (the DDL comes from `../migrations/`). A project on a different stack
  * ignores this file and provides its own `JobRunRecorder`.
  *
  * `application` — which Ascendra app the row belongs to — is on every row and

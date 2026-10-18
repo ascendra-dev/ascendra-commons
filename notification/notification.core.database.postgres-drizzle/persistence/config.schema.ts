@@ -3,12 +3,13 @@ import { boolean, index, jsonb, pgTable, primaryKey, text, unique } from 'drizzl
 /**
  * The reference `commons_notification_*` schema — one concrete Postgres/Drizzle shape
  * of the `NotificationConfig` interface (Model 2). Source of truth for the
- * columns; `notification-config.migration.sql` in this folder is the hand-kept
- * DDL form — keep the two in sync.
+ * columns — a change ships as the next numbered file in `../migrations/` (never
+ * an edit to a released one).
  *
- * Three tables, one per `NotificationConfig` method. Re-export from your own
- * schema barrel for `drizzle-kit`, or paste the migration. Requires
- * PostgreSQL 15+ (NULLS NOT DISTINCT).
+ * Three tables, one per `NotificationConfig` method. Import them where you
+ * query them, but never re-export them into the schema files `drizzle-kit`
+ * reads — the DDL comes from `../migrations/`. Requires PostgreSQL 15+
+ * (NULLS NOT DISTINCT).
  *
  * Every row carries `application` (which Ascendra app it belongs to), and every
  * read filters by it — so these tables stay correct whether each app keeps its

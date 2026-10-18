@@ -15,9 +15,9 @@ import type { DeliveryContent } from '../../notification.core';
  * it to `delivered` / `bounced` via `updateDeliveryStatus`, matched on
  * `provider_message_id`.
  *
- * Source of truth for the columns; `notification-delivery.migration.sql` is the
- * hand-kept DDL — keep the two, plus the INSERT in
- * `postgres-notification-delivery-recorder.ts`, in sync.
+ * Source of truth for the columns — change it together with the INSERT in
+ * `postgres-notification-delivery-recorder.ts`, and ship the change as the next
+ * numbered file in `../migrations/` (never an edit to a released one).
  */
 export const notificationDelivery = pgTable(
   'commons_notification_delivery',

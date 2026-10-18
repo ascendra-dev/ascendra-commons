@@ -6,7 +6,8 @@ One table, one write path, one read path.
 |---|---|---|---|
 | `recorder/` | `RateLimitEventRecorder` — one `INSERT` per rejection | `RATE_LIMIT_EVENT_RECORDER` (core token) | `RateLimitingThrottlerModule.forRoot({ recorderToken })` |
 | `observability/` | `RateLimitObservabilityPort` — `listRejections()` / `rejectionCatalog()`, read-only | `RATE_LIMIT_OBSERVABILITY_PORT` (core token) | `PostgresRateLimitObservabilityModule.forRoot(...)` |
-| `persistence/rate-limit-rejection.schema.ts` + `.migration.sql` | the reference table — **keep in sync** | | |
+| `persistence/rate-limit-rejection.schema.ts` | the table's current shape — change it with the `INSERT` | | |
+| `migrations/` | the DDL, numbered — **never edited once released**; a schema change is the next file | | |
 
 No family package — both core ports are stack-agnostic and live in
 `rate-limiting.core`. A project on another stack implements those and ignores
@@ -14,11 +15,7 @@ this folder.
 
 ## Wiring
 
-```typescript
-export * from 'src/ascendra-commons/rate-limiting/rate-limiting.core.postgres-drizzle';   // for drizzle-kit
-```
-
-…or copy `persistence/rate-limit-rejection.migration.sql`.
+Tables: apply `migrations/` through your project's own migration tool — never re-export the schema tables to `drizzle-kit` too, or it generates them a second time (MODULE-STANDARD dimension 7).
 
 ```typescript
 RateLimitingThrottlerModule.forRoot({

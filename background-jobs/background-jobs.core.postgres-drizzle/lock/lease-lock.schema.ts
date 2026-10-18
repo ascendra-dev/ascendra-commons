@@ -7,9 +7,9 @@ import { pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
  * works through a transaction-mode pooler — unlike the session-level
  * `pg_advisory_lock` the core's `PostgresAdvisoryLock` uses.
  *
- * Source of truth for the reference schema; `lease-lock.migration.sql` in
- * this folder is the hand-kept DDL form, and `postgres-lease-lock.ts`'s
- * statements are the third copy — keep the three in sync.
+ * Source of truth for the reference schema — change it together with
+ * `postgres-lease-lock.ts`'s statements, and ship the change as the next
+ * numbered file in `../migrations/` (never an edit to a released one).
  *
  * `locked_until` is the lease: a holder that crashes without releasing simply
  * lets the row expire, and the next run claims it. The holder renews

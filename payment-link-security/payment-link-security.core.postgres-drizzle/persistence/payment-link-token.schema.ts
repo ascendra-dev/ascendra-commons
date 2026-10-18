@@ -6,9 +6,9 @@ import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
  * same posture a password gets, not a plaintext secret at rest. `resolve()`
  * hashes the incoming token and looks up by `token_hash`.
  *
- * Source of truth for the columns; `payment-link-token.migration.sql` is the
- * hand-kept DDL — keep the two, plus `postgres-payment-link-token-service.ts`,
- * in sync.
+ * Source of truth for the columns — change it together with
+ * `postgres-payment-link-token-service.ts`, and ship the change as the next
+ * numbered file in `../migrations/` (never an edit to a released one).
  */
 export const paymentLinkTokenTable = pgTable(
   'commons_payment_link_token',

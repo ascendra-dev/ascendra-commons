@@ -3,11 +3,11 @@ import { boolean, index, pgTable, primaryKey, text, timestamp, unique, uuid } fr
 /**
  * The reference `commons_authz_*` schema — one concrete Postgres/Drizzle shape of the
  * database-backed authorization model (Model 2). Source of truth for the
- * columns; `authorization.migration.sql` in this folder is the hand-kept DDL
- * form of the same tables — keep the two in sync.
+ * columns — a change ships as the next numbered file in `../migrations/` (never
+ * an edit to a released one).
  *
- * A consuming project on Postgres/Drizzle can re-export these from its own
- * schema barrel so `drizzle-kit generate` produces the migration; a project on
+ * A consuming project never re-exports these into the schema files
+ * `drizzle-kit` reads — the DDL comes from `../migrations/`; a project on
  * another stack ignores this folder and provides its own `Authorizer`.
  *
  * Tables are `commons_authz_`-prefixed on purpose — `role` / `user_role` are

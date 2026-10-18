@@ -10,7 +10,7 @@ type ExistingResult = Exclude<ClaimResult, { status: 'claimed' }>;
 
 /**
  * The atomic claim for Postgres/Drizzle (Model 1). Corresponding table:
- * `persistence/idempotency-key.schema.ts` / `idempotency-key.migration.sql`.
+ * `persistence/idempotency-key.schema.ts` (DDL: `migrations/`).
  *
  * `claim()` is one `INSERT … ON CONFLICT DO UPDATE … WHERE (stale) … RETURNING` —
  * atomic regardless of node, the guarantee from Postgres's conflict handling on

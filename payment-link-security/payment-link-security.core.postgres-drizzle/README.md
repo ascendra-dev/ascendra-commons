@@ -8,7 +8,8 @@ Two tables: the token store and the resolution log.
 | `recorder/` | `TokenResolutionRecorder` — one `INSERT` per `resolve()` call | `TOKEN_RESOLUTION_RECORDER` (core token) | `PostgresPaymentLinkTokenServiceModule.forRoot({ recorderToken })` |
 | `observability/` | `TokenResolutionObservabilityPort` — `listAttempts()` / `outcomeCounts()`, read-only | `TOKEN_RESOLUTION_OBSERVABILITY_PORT` (core token) | `PostgresTokenResolutionObservabilityModule.forRoot(...)` |
 | `hash-token.ts` | The one place a raw token becomes a storable/loggable value (SHA-256) | — | used internally by both `service/` and `recorder/` |
-| `persistence/*.schema.ts` + `.migration.sql` | the reference tables — **keep in sync** | | |
+| `persistence/*.schema.ts` | the tables' current shape | | |
+| `migrations/` | the DDL, numbered — **never edited once released**; a schema change is the next file | | |
 
 No family package — both core ports (`PaymentLinkTokenService`, the recorder,
 and the observability port) are stack-agnostic and live in
@@ -26,11 +27,7 @@ storage or a log again. A leaked table row never hands back a usable link.
 
 ## Wiring
 
-```typescript
-export * from 'src/ascendra-commons/payment-link-security/payment-link-security.core.postgres-drizzle';   // for drizzle-kit
-```
-
-…or copy `persistence/payment-link-security.migration.sql`.
+Tables: apply `migrations/` through your project's own migration tool — never re-export the schema tables to `drizzle-kit` too, or it generates them a second time (MODULE-STANDARD dimension 7).
 
 ```typescript
 PaymentLinkSecurityModule.forRoot({

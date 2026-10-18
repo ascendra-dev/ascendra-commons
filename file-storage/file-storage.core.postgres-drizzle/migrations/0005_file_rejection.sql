@@ -1,4 +1,4 @@
--- Reference migration — see file-record.migration.sql for the "not run by this library" note.
+-- file-storage · the upload rejection log. Never edited once released — see 0001's header.
 
 CREATE TABLE IF NOT EXISTS "commons_file_rejection" (
   "id"           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
