@@ -61,7 +61,8 @@ its `BREAKING CHANGE:` footer.
 
 What a consuming NestJS project does, once per project and then per module.
 `ascendra-commons-sandbox` follows it to the letter — its `src/modules/commons/`
-is the worked example.
+is the worked example, and its `docs/NEW-MODULE.md` is the step-by-step for
+bringing one more module in (data and admin UI included).
 
 1. **Vendor** — `node ascendra-commons.js init`, then `add` the packages you need
    (see "Distribution"). Never edit `src/ascendra-commons/`.
