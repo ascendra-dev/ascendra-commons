@@ -394,6 +394,15 @@ describe('PostgresAuditEventReader.countByDeclared', () => {
     expect(result).toEqual([{ kind: 'entityType', value: 'invoice', count: 5, assessment: 'healthy' }]);
   });
 
+  it('matches the declared lists with IN — a spread list inside ANY() is invalid SQL', async () => {
+    const db = fakeDb();
+    db.execute.mockResolvedValue({ rows: [] });
+    await reader(db).countByDeclared({ entityTypes: ['invoice', 'payment'], actions: ['created'] });
+    expect(rendered(db, 0).sql).toMatch(/entity_type in \(\$\d+, \$\d+\)/i);
+    expect(rendered(db, 1).sql).toMatch(/action in \(\$\d+\)/i);
+    expect(rendered(db, 0).sql).not.toMatch(/any\(/i);
+  });
+
   it('skips a query entirely when a declared list is empty', async () => {
     const db = fakeDb([]);
     await reader(db).countByDeclared({ entityTypes: [], actions: [] });

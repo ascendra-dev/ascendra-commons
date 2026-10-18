@@ -271,7 +271,7 @@ export class PostgresAuditEventReader implements AuditEventReader {
         await this.db.execute(sql`
           select entity_type, count(*)::int as count
           from commons_audit_event
-          where ${sql.join([...conds, sql`entity_type = any(${declaredEntityTypes})`], sql` and `)}
+          where ${sql.join([...conds, sql`entity_type in ${declaredEntityTypes}`], sql` and `)}
           group by entity_type
         `)
       ).rows as Array<{ entity_type: string; count: number }>;
@@ -284,7 +284,7 @@ export class PostgresAuditEventReader implements AuditEventReader {
         await this.db.execute(sql`
           select action, count(*)::int as count
           from commons_audit_event
-          where ${sql.join([...conds, sql`action = any(${declaredActions})`], sql` and `)}
+          where ${sql.join([...conds, sql`action in ${declaredActions}`], sql` and `)}
           group by action
         `)
       ).rows as Array<{ action: string; count: number }>;
