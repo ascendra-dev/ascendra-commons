@@ -36,11 +36,12 @@ const summarizeActor = vi.fn().mockResolvedValue({
   tenantsTouched: [],
   byAction: [],
 });
-const stats = vi.fn().mockResolvedValue({ window: '30d', perDay: [], topActions: [], topActors: [], perTenant: [] });
+const overviewStats = vi.fn().mockResolvedValue({ window: '30d', perDay: [], kpis: {} });
+const topActions = vi.fn().mockResolvedValue({ window: '7d', topActions: [] });
 const countByDeclared = vi.fn().mockResolvedValue([]);
 
 @Module({
-  providers: [{ provide: AUDIT_EVENT_READER, useValue: { find, countUpTo, findOne, summarizeActor, stats, countByDeclared } }],
+  providers: [{ provide: AUDIT_EVENT_READER, useValue: { find, countUpTo, findOne, summarizeActor, overviewStats, topActions, countByDeclared } }],
   exports: [AUDIT_EVENT_READER],
 })
 class FakeReaderModule {}
@@ -154,11 +155,13 @@ describe('AuditApiModule.forRoot — real DI wiring', () => {
     expect(summarizeActor).toHaveBeenCalledWith('u1', expect.objectContaining({ tenantId: 't1' }));
   });
 
-  it('routes GET /audit/stats, tenant-scoped for a non-platform actor', async () => {
+  it('routes GET /audit/stats/overview and /stats/top-actions, tenant-scoped for a non-platform actor', async () => {
     const moduleRef = await build();
     const tenantActor: Actor = { id: 'a1', persona: 'compliance', tenantId: 't1' };
-    await moduleRef.get(AuditEventsController).stats(tenantActor);
-    expect(stats).toHaveBeenCalledWith('30d', 't1');
+    await moduleRef.get(AuditEventsController).overviewStats(tenantActor);
+    expect(overviewStats).toHaveBeenCalledWith('30d', 't1');
+    await moduleRef.get(AuditEventsController).topActions(tenantActor);
+    expect(topActions).toHaveBeenCalledWith('7d', 't1');
   });
 
   it('routes POST /audit/coverage', async () => {

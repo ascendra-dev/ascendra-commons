@@ -18,7 +18,8 @@ function deps(isPlatformAdmin: AuditApiOptions['isPlatformAdmin'] = (a) => a.ten
       tenantsTouched: [],
       byAction: [],
     }),
-    stats: vi.fn().mockResolvedValue({ window: '30d', perDay: [], topActions: [], topActors: [], perTenant: [] }),
+    overviewStats: vi.fn().mockResolvedValue({ window: '30d', perDay: [], kpis: {} }),
+    topActions: vi.fn().mockResolvedValue({ window: '7d', topActions: [] }),
     countByDeclared: vi.fn().mockResolvedValue([]),
   };
   return { reader, svc: new AuditEventsApiService(reader, { isPlatformAdmin, catalog: [], exportMaxRows }) };
@@ -153,34 +154,40 @@ describe('AuditEventsApiService.actorActivity', () => {
   });
 });
 
-describe('AuditEventsApiService.stats', () => {
+describe('AuditEventsApiService.overviewStats / topActions', () => {
   it('forces a non-platform actor to their own tenant, ignoring a tenantId param', async () => {
     const { svc, reader } = deps();
-    await svc.stats(tenantAdmin, { tenantId: 't9' });
-    expect(reader.stats).toHaveBeenCalledWith('30d', 't1');
+    await svc.overviewStats(tenantAdmin, { tenantId: 't9' });
+    expect(reader.overviewStats).toHaveBeenCalledWith('30d', 't1');
+    await svc.topActions(tenantAdmin, { tenantId: 't9' });
+    expect(reader.topActions).toHaveBeenCalledWith('7d', 't1');
   });
 
   it('lets a platform admin filter by any tenant, or null, or omit it entirely', async () => {
     const { svc, reader } = deps();
-    await svc.stats(platformAdmin, {});
-    expect(reader.stats).toHaveBeenLastCalledWith('30d', undefined);
+    await svc.overviewStats(platformAdmin, {});
+    expect(reader.overviewStats).toHaveBeenLastCalledWith('30d', undefined);
 
-    await svc.stats(platformAdmin, { tenantId: 't2' });
-    expect(reader.stats).toHaveBeenLastCalledWith('30d', 't2');
+    await svc.overviewStats(platformAdmin, { tenantId: 't2' });
+    expect(reader.overviewStats).toHaveBeenLastCalledWith('30d', 't2');
 
-    await svc.stats(platformAdmin, { tenantId: 'null' });
-    expect(reader.stats).toHaveBeenLastCalledWith('30d', null);
+    await svc.topActions(platformAdmin, { tenantId: 'null' });
+    expect(reader.topActions).toHaveBeenLastCalledWith('7d', null);
   });
 
-  it('defaults window to 30d and passes through a supplied window', async () => {
+  it('defaults the window (30d overview, 7d top actions) and passes through a supplied one', async () => {
     const { svc, reader } = deps();
-    await svc.stats(platformAdmin, { window: '7d' });
-    expect(reader.stats).toHaveBeenCalledWith('7d', undefined);
+    await svc.overviewStats(platformAdmin, { window: '90d' });
+    expect(reader.overviewStats).toHaveBeenCalledWith('90d', undefined);
+    await svc.topActions(platformAdmin, { window: '30d' });
+    expect(reader.topActions).toHaveBeenCalledWith('30d', undefined);
   });
 
   it('403s a non-platform actor with no tenant', async () => {
     const { svc } = deps(() => false);
-    await expect(svc.stats({ id: 'x', persona: 'p', tenantId: null }, {})).rejects.toBeInstanceOf(ForbiddenException);
+    const noTenant = { id: 'x', persona: 'p', tenantId: null };
+    await expect(svc.overviewStats(noTenant, {})).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.topActions(noTenant, {})).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
 

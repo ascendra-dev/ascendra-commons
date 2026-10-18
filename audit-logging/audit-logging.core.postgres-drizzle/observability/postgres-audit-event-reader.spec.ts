@@ -183,8 +183,8 @@ describe('PostgresAuditEventReader.summarizeActor', () => {
       })
       .mockResolvedValueOnce({
         rows: [
-          { action: 'role.assigned', count: 21, last_occurred_at: new Date('2026-09-06T18:03:20Z') },
-          { action: 'role.revoked', count: 9, last_occurred_at: new Date('2026-09-04T10:11:00Z') },
+          { entity_type: 'user', action: 'role_granted', count: 21, last_occurred_at: new Date('2026-09-06T18:03:20Z') },
+          { entity_type: 'user', action: 'role_revoked', count: 9, last_occurred_at: new Date('2026-09-04T10:11:00Z') },
         ],
       });
 
@@ -197,11 +197,12 @@ describe('PostgresAuditEventReader.summarizeActor', () => {
       totalRecords: 30,
       tenantsTouched: ['t-kairos', null],
       byAction: [
-        { action: 'role.assigned', count: 21, lastOccurredAt: new Date('2026-09-06T18:03:20Z') },
-        { action: 'role.revoked', count: 9, lastOccurredAt: new Date('2026-09-04T10:11:00Z') },
+        { entityType: 'user', action: 'role_granted', count: 21, lastOccurredAt: new Date('2026-09-06T18:03:20Z') },
+        { entityType: 'user', action: 'role_revoked', count: 9, lastOccurredAt: new Date('2026-09-04T10:11:00Z') },
       ],
     });
     expect(rendered(db, 0).params).toContain('u_1c07');
+    expect(rendered(db, 1).sql).toMatch(/group by entity_type, action/i);
   });
 
   it('returns nulls/empties for an actor with no records', async () => {
@@ -240,40 +241,75 @@ describe('PostgresAuditEventReader.summarizeActor', () => {
   });
 });
 
-describe('PostgresAuditEventReader.stats', () => {
-  it('shapes perDay/topActions/topActors/perTenant from four grouped queries', async () => {
+describe('PostgresAuditEventReader.overviewStats', () => {
+  const now = new Date('2026-09-13T12:00:00Z');
+  const kpiRow = {
+    records_24h: 40, records_24h_prior: 32,
+    records_7d: 300, records_7d_prior: 0,
+    actors_30d: 12, actors_30d_prior: 12,
+    entity_types_30d: 5, entity_types_30d_prior: 4,
+  };
+
+  it('zero-fills every day of the window and reports each KPI against the period before', async () => {
     const db = fakeDb();
     db.execute
-      .mockResolvedValueOnce({ rows: [{ day: '2026-09-07', count: 312 }] })
-      .mockResolvedValueOnce({ rows: [{ action: 'invoice.status_changed', count: 612 }] })
-      .mockResolvedValueOnce({ rows: [{ actor: 'svc_reconciler', count: 488 }] })
-      .mockResolvedValueOnce({ rows: [{ tenant_id: 't_kairos', count: 900 }] });
+      .mockResolvedValueOnce({ rows: [{ day: '2026-09-11', count: 9 }, { day: '2026-09-13', count: 4 }] })
+      .mockResolvedValueOnce({ rows: [kpiRow] });
 
-    const stats = await reader(db).stats('30d');
+    const stats = await reader(db).overviewStats('3d', undefined, now);
 
     expect(stats).toEqual({
-      window: '30d',
-      perDay: [{ day: '2026-09-07', count: 312 }],
-      topActions: [{ action: 'invoice.status_changed', count: 612 }],
-      topActors: [{ actor: 'svc_reconciler', count: 488 }],
-      perTenant: [{ tenantId: 't_kairos', count: 900 }],
+      window: '3d',
+      perDay: [
+        { day: '2026-09-10', count: 0 },
+        { day: '2026-09-11', count: 9 },
+        { day: '2026-09-12', count: 0 },
+        { day: '2026-09-13', count: 4 },
+      ],
+      kpis: {
+        records24h: { value: 40, deltaPct: 25 },
+        records7d: { value: 300, deltaPct: null },
+        distinctActors30d: { value: 12, deltaPct: 0 },
+        entityTypes30d: { value: 5, deltaPct: 25 },
+      },
     });
   });
 
-  it('scopes every query to tenantId when supplied', async () => {
-    const db = fakeDb([]);
-    await reader(db).stats('7d', 't9');
-    for (let i = 0; i < 4; i += 1) {
-      const { sql: text, params } = rendered(db, i);
-      expect(text).toMatch(/tenant_id =/i);
+  it('scopes both queries to the application and tenantId when supplied', async () => {
+    const db = fakeDb();
+    db.execute.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [kpiRow] });
+    await reader(db).overviewStats('7d', 't9', now);
+    for (const call of [0, 1]) {
+      const { sql: text, params } = rendered(db, call);
+      expect(text).toMatch(/application = .* and tenant_id =/i);
       expect(params).toEqual(expect.arrayContaining(['t9']));
     }
   });
+});
 
-  it('defaults to a 30-day window for an unparseable window string', async () => {
+describe('PostgresAuditEventReader.topActions', () => {
+  it('ranks by (entity type, action), with distinct actors, top 10', async () => {
+    const db = fakeDb([
+      { entity_type: 'invoice', action: 'created', count: 61, actors: 4 },
+      { entity_type: 'user', action: 'created', count: 7, actors: 1 },
+    ]);
+
+    await expect(reader(db).topActions('7d')).resolves.toEqual({
+      window: '7d',
+      topActions: [
+        { entityType: 'invoice', action: 'created', count: 61, actors: 4 },
+        { entityType: 'user', action: 'created', count: 7, actors: 1 },
+      ],
+    });
+    const { sql: text } = rendered(db, 0);
+    expect(text).toMatch(/group by entity_type, action/i);
+    expect(text).toMatch(/limit 10/i);
+  });
+
+  it('scopes platform-level rows with tenantId null, and defaults an unparseable window to 30 days', async () => {
     const db = fakeDb([]);
-    await reader(db).stats('not-a-window');
-    expect(rendered(db, 0).sql).toMatch(/occurred_at >=/i);
+    await expect(reader(db).topActions('not-a-window', null)).resolves.toEqual({ window: '30d', topActions: [] });
+    expect(rendered(db, 0).sql).toMatch(/tenant_id is null/i);
   });
 });
 
