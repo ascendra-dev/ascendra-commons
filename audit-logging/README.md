@@ -88,11 +88,13 @@ acceptable.
 `audit-logging` is **the module to watch** for `applicationId` — cross-product
 compliance reporting ("every admin action across every Ascendra product, this
 quarter") is a plausible near-term ask. The Postgres adapter already carries a
-passive `application` column (stamped on insert, filtered on by the reader) so a
-consolidation needs no backfill. It's returned on every `AuditEvent` (and the CSV
-export) but not yet a query filter — cross-application reads, a per-application
-catalog and `application`-led indexes wait for an actual consolidation
-(MODULE-STANDARD §4). `action` is **verb-only**, not `resource.verb`
+`application` column (stamped on insert, scoped on by the reader) so a
+consolidation needs no backfill. The read side is ready for one: the reader's
+`application` may be a list, `GET /audit/events` (and the CSV export) filter by
+`application`, and `GET /audit/catalog` lists the reader's applications. Still
+waiting for an actual consolidation (MODULE-STANDARD §4): stamping a per-request
+application on the write side, a per-application catalog, and `application`-led
+indexes. `action` is **verb-only**, not `resource.verb`
 — `entityType` already carries the resource (deliberate; not a dimension-9
 deviation).
 

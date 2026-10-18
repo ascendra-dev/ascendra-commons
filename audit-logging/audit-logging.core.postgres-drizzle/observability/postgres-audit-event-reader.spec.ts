@@ -137,6 +137,23 @@ describe('PostgresAuditEventReader.countUpTo', () => {
   });
 });
 
+describe('PostgresAuditEventReader application scope', () => {
+  it('scopes to every configured application, and narrows to one with AuditQuery.application', async () => {
+    const db = fakeDb([]);
+    const multi = new PostgresAuditEventReader(db, ['ascendra-pay', 'ascendra-erp']);
+    expect(multi.applications()).toEqual(['ascendra-pay', 'ascendra-erp']);
+
+    await multi.find({ application: 'ascendra-erp' });
+    const { sql: text, params } = rendered(db);
+    expect(text).toMatch(/application in \(\$1, \$2\) and application = \$3/i);
+    expect(params.slice(0, 3)).toEqual(['ascendra-pay', 'ascendra-erp', 'ascendra-erp']);
+  });
+
+  it('a single configured application is a one-item scope', () => {
+    expect(reader(fakeDb()).applications()).toEqual(['ascendra-pay']);
+  });
+});
+
 describe('PostgresAuditEventReader.findOne', () => {
   it('scopes to id + application and maps the row', async () => {
     const db = fakeDb([row({ id: 'ae-1' })]);
@@ -145,7 +162,7 @@ describe('PostgresAuditEventReader.findOne', () => {
     expect(result).toMatchObject({ id: 'ae-1', entityType: 'invoice' });
     const { sql: text, params } = rendered(db);
     expect(text).toMatch(/id =/i);
-    expect(text).toMatch(/application =/i);
+    expect(text).toMatch(/application in/i);
     expect(text).not.toMatch(/tenant_id (=|is null)/i); // no tenant filter in WHERE (column still in SELECT list)
     expect(params).toEqual(expect.arrayContaining(['ae-1', 'ascendra-pay']));
   });
@@ -281,7 +298,7 @@ describe('PostgresAuditEventReader.overviewStats', () => {
     await reader(db).overviewStats('7d', 't9', now);
     for (const call of [0, 1]) {
       const { sql: text, params } = rendered(db, call);
-      expect(text).toMatch(/application = .* and tenant_id =/i);
+      expect(text).toMatch(/application in .* and tenant_id =/i);
       expect(params).toEqual(expect.arrayContaining(['t9']));
     }
   });

@@ -7,6 +7,7 @@ import type { Actor } from '../../authorization/authorization.core';
 
 function deps(isPlatformAdmin: AuditApiOptions['isPlatformAdmin'] = (a) => a.tenantId === null, exportMaxRows = 100_000) {
   const reader: AuditEventReader = {
+    applications: vi.fn().mockReturnValue(['ascendra-pay', 'ascendra-erp']),
     find: vi.fn().mockResolvedValue({ records: [] }),
     countUpTo: vi.fn().mockResolvedValue(0),
     findOne: vi.fn().mockResolvedValue(null),
@@ -95,6 +96,19 @@ describe('AuditEventsApiService', () => {
     const { svc, reader } = deps();
     await svc.trace(platformAdmin, 'trace-xyz', {});
     expect(reader.find).toHaveBeenCalledWith(expect.objectContaining({ correlationId: 'trace-xyz' }));
+  });
+});
+
+describe('AuditEventsApiService application filter + catalog', () => {
+  it('passes an application filter through, for any actor that can read the log', async () => {
+    const { svc, reader } = deps();
+    await svc.find(tenantAdmin, { application: 'ascendra-erp' });
+    expect(reader.find).toHaveBeenCalledWith(expect.objectContaining({ application: 'ascendra-erp', tenantId: 't1' }));
+  });
+
+  it("serves the catalog's entries and the reader's applications", () => {
+    const { svc } = deps();
+    expect(svc.catalog()).toEqual({ entries: [], applications: ['ascendra-pay', 'ascendra-erp'] });
   });
 });
 

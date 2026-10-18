@@ -42,7 +42,7 @@ const retention = vi.fn().mockResolvedValue({ oldestRecordAt: null, rowCount: 0,
 const countByDeclared = vi.fn().mockResolvedValue([]);
 
 @Module({
-  providers: [{ provide: AUDIT_EVENT_READER, useValue: { find, countUpTo, findOne, summarizeActor, overviewStats, topActions, retention, countByDeclared } }],
+  providers: [{ provide: AUDIT_EVENT_READER, useValue: { applications: () => ['ascendra-pay'], find, countUpTo, findOne, summarizeActor, overviewStats, topActions, retention, countByDeclared } }],
   exports: [AUDIT_EVENT_READER],
 })
 class FakeReaderModule {}
@@ -181,12 +181,12 @@ describe('AuditApiModule.forRoot — real DI wiring', () => {
 
   it('serves the configured catalog from GET /audit/catalog', async () => {
     const moduleRef = await build({ catalog });
-    expect(moduleRef.get(AuditEventsController).catalog()).toEqual(catalog);
+    expect(moduleRef.get(AuditEventsController).catalog()).toEqual({ entries: catalog, applications: ['ascendra-pay'] });
   });
 
   it('serves an empty catalog when configured as []', async () => {
     const moduleRef = await build();
-    expect(moduleRef.get(AuditEventsController).catalog()).toEqual([]);
+    expect(moduleRef.get(AuditEventsController).catalog()).toEqual({ entries: [], applications: ['ascendra-pay'] });
   });
 
   it('falls back to the configured catalog when POST /audit/coverage declares nothing', async () => {
