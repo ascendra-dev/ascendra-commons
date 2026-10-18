@@ -45,6 +45,7 @@ describe('AuthorizationGuard', () => {
     const guard = makeGuard(authorizer, { handler: { action: 'invoice.void' } });
 
     await expect(guard.canActivate(ctx({ actor }))).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(guard.canActivate(ctx({ actor }))).rejects.toThrow('it needs "invoice.void"');
     expect(authorizer.can).toHaveBeenCalledWith(actor, 'invoice.void');
   });
 
