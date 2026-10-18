@@ -73,6 +73,16 @@ await this.events.emitCritical(AUDIT_EVENT_NAME,
 publisher, which by not catching it lets the transaction roll the state change
 back too.
 
+**That only holds if the audit write is *in* that transaction.** The Postgres
+repository writes through exactly the executor it's given (`sqlExecutorToken`) —
+with a plain connection pool, the audit insert commits on its own: a change that
+rolls back *after* the audit write still leaves its audit record behind, and an
+audit record can't be rolled back with the change. For "a change and its audit
+record commit together or not at all", the token must resolve to an executor
+bound to the caller's current transaction (e.g. a request-scoped Drizzle
+transaction handle). The plain pool is fine when "audit what was attempted" is
+acceptable.
+
 ## `applicationId` / `tenantId`
 
 `audit-logging` is **the module to watch** for `applicationId` — cross-product
