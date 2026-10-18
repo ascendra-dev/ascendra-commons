@@ -57,6 +57,40 @@ migrations live in `<package>/migrations/`, numbered without gaps; nothing on
 `origin/main` under a `migrations/` folder changes; and every `!` commit carries
 its `BREAKING CHANGE:` footer.
 
+## Integrating into a project
+
+What a consuming NestJS project does, once per project and then per module.
+`ascendra-commons-sandbox` follows it to the letter — its `src/modules/commons/`
+is the worked example.
+
+1. **Vendor** — `node ascendra-commons.js init`, then `add` the packages you need
+   (see "Distribution"). Never edit `src/ascendra-commons/`.
+2. **Migrate** — the delivered migrations land in your migrations folder; apply
+   them with your own tool (`drizzle-kit migrate`). Keep your `drizzle-kit`
+   schema to your own tables — never the vendored `*.schema.ts`.
+3. **Configure in one place** — `src/modules/commons/`: one file per module
+   holding its `forRoot(...)` (and its config: catalog, persona map, …), and a
+   `CommonsModule` that imports them all, which your `AppModule` imports. Module
+   READMEs show each `forRoot`.
+4. **Provide what the modules expect from the host:**
+   - **A database connection** under a token you pass as `sqlExecutorToken` —
+     any Drizzle pg database satisfies the adapters' minimal `SqlExecutor`
+     (`execute(sql) → { rows }`). An adapter writes through exactly the executor
+     it's given: for an audit record to roll back with the change it records,
+     give it one bound to the caller's transaction (with a plain pool it isn't).
+   - **`request.actor`** — `{ id, persona, tenantId }` (`authorization.core`'s
+     `Actor`), set by your authentication *before* authorization's global
+     `AuthorizationGuard` runs. That guard is deny-by-default: every route needs
+     `@RequiresAction(...)` or `@NoActionRequired()`.
+   - **`CorrelationIdMiddleware`** on every route (from `audit-logging.core`), so
+     audit records from one request share a correlation id.
+   - **`application`** — your app's id, passed to each Postgres adapter's
+     `forRoot`; it's stamped on every row and every read filters by it.
+   - **api-contract plumbing** — the Rule 1 error filter and `X-Request-Id`
+     (Rule 7), so the modules' endpoints answer like your own.
+5. **Keep it current** — `node ascendra-commons.js update`, then migrate.
+   `status` in CI catches an edited copy or an undelivered migration.
+
 ## Status
 
 Fifteen patterns implemented, all tested with real NestJS DI wiring:
