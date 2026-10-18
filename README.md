@@ -49,6 +49,13 @@ change that needs several steps also gets an `UPGRADING.md` in the package. No
 CHANGELOG file — and `main`'s history is never rewritten, or a consumer's
 vendored commit disappears (`update` then falls back to a plain file diff).
 
+**Repo rules the script relies on** are enforced by `npm run check`
+(`scripts/check.js`), which a pre-push hook runs — `npm install` installs it:
+packages import each other only through `index.ts` and only toward `.core`;
+migrations live in `<package>/migrations/`, numbered without gaps; nothing on
+`origin/main` under a `migrations/` folder changes; and every `!` commit carries
+its `BREAKING CHANGE:` footer.
+
 ## Status
 
 Fifteen patterns implemented, all tested with real NestJS DI wiring:

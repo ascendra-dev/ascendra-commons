@@ -1,0 +1,5 @@
+#!/bin/sh
+# Blocks a push that breaks the repo rules consumers' ascendra-commons.js relies on — see scripts/check.js.
+# Installed by `npm install` (the "prepare" script points core.hooksPath here). Bypass, rarely: git push --no-verify.
+git fetch --quiet origin main 2>/dev/null || echo "(couldn't fetch origin/main — checking against the last fetched one)"
+exec node scripts/check.js

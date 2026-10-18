@@ -229,24 +229,42 @@ function packageOf(root, absPath) {
 
 const IMPORT_RE = /^\s*(?:import|export)\s[^'";]*?from\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\brequire\(\s*['"]([^'"]+)['"]\s*\)/gm;
 
+/**
+ * Every import in a package's `.ts` files: `{ file, specifier, isSpec }`, plus — for a relative import that lands in
+ * another package — `target` (that package) and `entry` (whether it imports the package root, i.e. its index.ts).
+ */
+function importsOf(root, id) {
+  const out = [];
+  for (const rel of listFiles(path.join(root, id)).filter((f) => f.endsWith('.ts'))) {
+    const file = path.join(root, id, rel);
+    for (const m of fs.readFileSync(file, 'utf8').matchAll(IMPORT_RE)) {
+      const specifier = m[1] ?? m[2] ?? m[3];
+      const entry = { file: `${id}/${rel}`, specifier, isSpec: rel.endsWith('.spec.ts') };
+      if (specifier.startsWith('.')) {
+        const resolved = path.resolve(path.dirname(file), specifier);
+        const target = packageOf(root, resolved);
+        if (target && target !== id) {
+          entry.target = target;
+          entry.entry = [path.join(root, target), path.join(root, target, 'index')].includes(resolved.replace(/\.(ts|js)$/, ''));
+        }
+      }
+      out.push(entry);
+    }
+  }
+  return out;
+}
+
 /** What a package's code imports: other packages (`hard` from code, `specOnly` from tests alone) and npm packages. */
 function scanImports(root, id) {
   const hard = new Set();
   const spec = new Set();
   const npm = new Set();
   const builtins = new Set(builtinModules);
-  for (const rel of listFiles(path.join(root, id)).filter((f) => f.endsWith('.ts'))) {
-    const file = path.join(root, id, rel);
-    const isSpec = rel.endsWith('.spec.ts');
-    for (const m of fs.readFileSync(file, 'utf8').matchAll(IMPORT_RE)) {
-      const specifier = m[1] ?? m[2] ?? m[3];
-      if (specifier.startsWith('.')) {
-        const dep = packageOf(root, path.resolve(path.dirname(file), specifier));
-        if (dep && dep !== id) (isSpec ? spec : hard).add(dep);
-      } else if (!isSpec && !specifier.startsWith('node:')) {
-        const name = specifier.startsWith('@') ? specifier.split('/').slice(0, 2).join('/') : specifier.split('/')[0];
-        if (!builtins.has(name)) npm.add(name);
-      }
+  for (const { specifier, isSpec, target } of importsOf(root, id)) {
+    if (target) (isSpec ? spec : hard).add(target);
+    else if (!specifier.startsWith('.') && !isSpec && !specifier.startsWith('node:')) {
+      const name = specifier.startsWith('@') ? specifier.split('/').slice(0, 2).join('/') : specifier.split('/')[0];
+      if (!builtins.has(name)) npm.add(name);
     }
   }
   return { hard, specOnly: new Set([...spec].filter((d) => !hard.has(d))), npm };
@@ -667,7 +685,12 @@ async function main() {
   process.exitCode = command ? 1 : 0;
 }
 
-main().catch((err) => {
-  console.error(err instanceof UserError ? err.message : err.stack ?? err);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(err instanceof UserError ? err.message : err.stack ?? err);
+    process.exitCode = 1;
+  });
+}
+
+// For this repo's own scripts/check.js — the same package and import rules `add` relies on.
+module.exports = { isPackage, importsOf, listFiles, migrationFiles };

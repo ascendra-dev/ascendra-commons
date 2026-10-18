@@ -7,6 +7,7 @@
 | 1.0 | 2026-09-04 | First cut. Written after `authorization`, `notification`, and `domain-events` each independently grew an `application`/`tenantId` seam and a Model 1/Model 2 split, on their own reasoning, in their own words. This document makes the reasoning explicit and checkable across all seven modules instead of re-derived per module. |
 | 1.1 | 2026-10-18 | Dimension 7: migrations move to numbered, never-edited `<package>/migrations/NNNN_<name>.sql` files (were one hand-kept `*.migration.sql` per table, kept in sync by editing); `*.schema.ts` tables are no longer re-exported to `drizzle-kit`. |
 | 1.2 | 2026-10-18 | Dimensions 2 and 11: `ascendra-commons.js` (add / update / remove / status) is the distribution and copy-sync tool; a dependency must be an import; breaking changes are marked in the commit (`!` + `BREAKING CHANGE:` footer). |
+| 1.3 | 2026-10-18 | `scripts/check.js` + a pre-push hook enforce §1b's dependency direction (and `index.ts`-only imports), dimension 7's migration rules, and dimension 11's breaking-change footer. |
 
 ---
 
@@ -274,7 +275,8 @@ changes. The `*.schema.ts` file is the table's *current* shape (for typed
 queries); `migrations/` is its history. This library never runs them — the
 consumer applies them through its own migration tool, and never also re-exports
 the `*.schema.ts` tables to `drizzle-kit`, which would generate the same tables a
-second time.
+second time. `scripts/check.js` (the pre-push hook) enforces the layout, the
+numbering and the never-edited rule against `origin/main`.
 
 **N/A here comes in two different strengths — say which.** A module whose
 Model 1 *and* every plausible Model 2 have no database at all (`authorization`'s

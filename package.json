@@ -5,7 +5,9 @@
   "description": "Reusable NestJS backend patterns for Ascendra-umbrella projects (Next.js/NestJS/Drizzle/Supabase stack). Copy-based distribution, not an npm package.",
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check": "node scripts/check.js",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
