@@ -19,9 +19,9 @@
  * - `<target>/VENDORED.json` — written only by this script: the commit every vendored package came from, a sha256
  *   per file (so a local edit is caught before an update overwrites it), and each migration already delivered.
  *
- * Packages are copied verbatim, `.spec.ts` files included (exclude `<target>/**\/*.spec.ts` from your build/typecheck,
- * as ascendra-commons' own code depends on vitest only there). A package's hard dependencies (other packages its
- * non-test code imports) are added with it. A choice between implementations (an emitter transport, an authorizer)
+ * Packages are copied unchanged, except what only serves ascendra-commons' own development: tests (`*.spec.ts` — they
+ * run in ascendra-commons, where the code changes) and design mocks (`mocks.html`). A package's hard dependencies
+ * (other packages its code imports) are added with it. A choice between implementations (an emitter transport, an authorizer)
  * is never imported, so name it yourself — the package README's "Consuming this module" lists it.
  *
  * Migrations: each package's `migrations/NNNN_<name>.sql` is never edited once released (MODULE-STANDARD dimension 7),
@@ -107,8 +107,16 @@ function listFiles(dir) {
   return out.sort();
 }
 
-function hashTree(dir) {
-  return Object.fromEntries(listFiles(dir).map((f) => [f, sha256(fs.readFileSync(path.join(dir, f)))]));
+function hashTree(dir, files = listFiles(dir)) {
+  return Object.fromEntries(files.map((f) => [f, sha256(fs.readFileSync(path.join(dir, f)))]));
+}
+
+/** Files that serve only ascendra-commons' own development — never copied into a consumer. */
+const NOT_VENDORED = [/\.spec\.ts$/, /(^|\/)mocks\.html$/];
+
+/** The files of a source package that a consumer receives. */
+function vendoredFiles(dir) {
+  return listFiles(dir).filter((f) => !NOT_VENDORED.some((re) => re.test(f)));
 }
 
 function git(cwd, ...gitArgs) {
@@ -254,20 +262,20 @@ function importsOf(root, id) {
   return out;
 }
 
-/** What a package's code imports: other packages (`hard` from code, `specOnly` from tests alone) and npm packages. */
+/** What a package's code (tests aside — they aren't vendored) imports: other packages (`hard`) and npm packages. */
 function scanImports(root, id) {
   const hard = new Set();
-  const spec = new Set();
   const npm = new Set();
   const builtins = new Set(builtinModules);
   for (const { specifier, isSpec, target } of importsOf(root, id)) {
-    if (target) (isSpec ? spec : hard).add(target);
-    else if (!specifier.startsWith('.') && !isSpec && !specifier.startsWith('node:')) {
+    if (isSpec) continue;
+    if (target) hard.add(target);
+    else if (!specifier.startsWith('.') && !specifier.startsWith('node:')) {
       const name = specifier.startsWith('@') ? specifier.split('/').slice(0, 2).join('/') : specifier.split('/')[0];
       if (!builtins.has(name)) npm.add(name);
     }
   }
-  return { hard, specOnly: new Set([...spec].filter((d) => !hard.has(d))), npm };
+  return { hard, npm };
 }
 
 /** The packages asked for plus every hard dependency, transitively — `id → [what pulled it in]` (empty = asked for). */
@@ -311,18 +319,11 @@ function missingNpm(root, ids) {
   return needed;
 }
 
-function reportFollowUps(root, ids, vendored) {
+function reportMissingNpm(root, ids) {
   const npm = missingNpm(root, ids);
-  if (npm.size) {
-    console.log('\nnpm packages the vendored code imports that package.json lacks — install them yourself:');
-    for (const [name, version] of npm) console.log(`  ${name}${version ? `@${version}` : ''}`);
-  }
-  const specGaps = [];
-  for (const id of ids) for (const dep of scanImports(root, id).specOnly) if (!vendored.has(dep)) specGaps.push(`${id} → ${dep}`);
-  if (specGaps.length) {
-    console.log('\nTests only (fine if *.spec.ts under the target is excluded from your build/typecheck):');
-    for (const g of specGaps) console.log(`  ${g}`);
-  }
+  if (!npm.size) return;
+  console.log('\nnpm packages the vendored code imports that package.json lacks — install them yourself:');
+  for (const [name, version] of npm) console.log(`  ${name}${version ? `@${version}` : ''}`);
 }
 
 // ─── migrations ────────────────────────────────────────────────────────────────
@@ -414,7 +415,7 @@ function copyPackage(config, source, id) {
   const dest = path.join(targetDir(config), id);
   fs.rmSync(dest, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(dest), { recursive: true });
-  for (const file of listFiles(path.join(source.root, id))) {
+  for (const file of vendoredFiles(path.join(source.root, id))) {
     fs.mkdirSync(path.dirname(path.join(dest, file)), { recursive: true });
     fs.copyFileSync(path.join(source.root, id, file), path.join(dest, file));
   }
@@ -513,7 +514,7 @@ async function cmdAdd(args) {
     saveLock(config, lock);
     writeJson(CONFIG_PATH, config);
     console.log(`\n✓ Added ${fresh.length} package(s).`);
-    reportFollowUps(source.root, fresh, new Set(closure.keys()));
+    reportMissingNpm(source.root, fresh);
     console.log("\nNext: wire them up — each package's README, \"Consuming this module\" / \"Wiring\".");
   } finally {
     source.close();
@@ -551,7 +552,7 @@ async function cmdUpdate(args) {
 
     const changes = [];
     for (const id of ids) {
-      const upstream = hashTree(path.join(source.root, id));
+      const upstream = hashTree(path.join(source.root, id), vendoredFiles(path.join(source.root, id)));
       const before = lock.packages[id]?.files;
       if (!before) { changes.push({ id, kind: 'new', note: `needed by ${closure.get(id).join(', ') || 'you'}` }); continue; }
       const changed = Object.keys(upstream).filter((f) => f in before && before[f] !== upstream[f]).length;
@@ -597,7 +598,7 @@ async function cmdUpdate(args) {
     deliverMigrations(config, source, pending, lock, ids);
     saveLock(config, lock);
     console.log(`\n✓ Updated to ${source.commit.slice(0, 7)}. Review the diff${pending.length ? ', apply the new migrations' : ''}, and fix any compile errors.`);
-    reportFollowUps(source.root, changes.map((c) => c.id), new Set(ids));
+    reportMissingNpm(source.root, changes.map((c) => c.id));
     refreshScript(source);
   } finally {
     source.close();

@@ -7,7 +7,7 @@ same tech stack (NestJS + Drizzle + Supabase, consumed by Next.js frontends via
 ## Distribution
 
 Copy-based, mirroring `ascendra-ui`'s model: a consumer project copies a pattern's
-folder into its own `src/ascendra-commons/{pattern}/`, verbatim, same folder
+folder into its own `src/ascendra-commons/{pattern}/`, unchanged, same folder
 name, under one wrapper folder that distinguishes vendored code from the
 project's own (see `module-packaging-pattern.md` in the `ascendra-pay-002`
 project for the full reasoning). No npm publish step, no package registry.
@@ -23,7 +23,8 @@ node ascendra-commons.js status                       # read-only check (exit 1 
 node ascendra-commons.js remove <package>
 ```
 
-- **`add`** copies the packages verbatim into `src/ascendra-commons/`, plus every
+- **`add`** copies the packages into `src/ascendra-commons/` — unchanged, minus their
+  tests (`*.spec.ts`, which run here) and design mocks (`mocks.html`) — plus every
   package their code imports (`audit-logging.core`, `domain-events.core`, …). A
   choice between implementations — an emitter transport, an authorization model —
   is never imported, so name it; each module README's "Consuming this module"

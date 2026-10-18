@@ -8,6 +8,7 @@
 | 1.1 | 2026-10-18 | Dimension 7: migrations move to numbered, never-edited `<package>/migrations/NNNN_<name>.sql` files (were one hand-kept `*.migration.sql` per table, kept in sync by editing); `*.schema.ts` tables are no longer re-exported to `drizzle-kit`. |
 | 1.2 | 2026-10-18 | Dimensions 2 and 11: `ascendra-commons.js` (add / update / remove / status) is the distribution and copy-sync tool; a dependency must be an import; breaking changes are marked in the commit (`!` + `BREAKING CHANGE:` footer). |
 | 1.3 | 2026-10-18 | `scripts/check.js` + a pre-push hook enforce §1b's dependency direction (and `index.ts`-only imports), dimension 7's migration rules, and dimension 11's breaking-change footer. |
+| 1.4 | 2026-10-18 | Dimension 2: consumers no longer receive `*.spec.ts` or `mocks.html` — they serve this repo only. |
 
 ---
 
@@ -130,9 +131,11 @@ exported surface.
 
 ### 2. Packaging & distribution
 
-Own top-level folder in this repo. Copied verbatim into the consumer's
+Own top-level folder in this repo. Copied unchanged into the consumer's
 `src/ascendra-commons/{pattern}/` — no build step, no registry, same folder
-name — by `ascendra-commons.js add` (root README, "Distribution"). A dependency
+name — by `ascendra-commons.js add` (root README, "Distribution"), minus what
+only serves this repo: tests (`*.spec.ts`) and design mocks (`mocks.html`). So
+nothing a consumer needs may live only in a test or a mock. A dependency
 on another vendored module (`audit-logging` on `domain-events`, `file-storage` on
 `authorization`) is a relative import of that package's `index.ts` from code
 (not only from a `.spec.ts`), and `add` follows those imports — so a dependency
