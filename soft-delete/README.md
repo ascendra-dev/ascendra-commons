@@ -85,7 +85,7 @@ deleted what and when"; this module doesn't need a parallel one.
 
 ## Consuming this module
 
-Copy `soft-delete/` into `src/ascendra-commons/soft-delete/`.
+`node ascendra-commons.js add soft-delete` (see the root README, "Distribution").
 
 ## Depends on
 

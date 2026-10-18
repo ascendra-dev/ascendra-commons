@@ -88,9 +88,8 @@ read surface.
 
 ## Consuming this module
 
-Copy `payment-gateway-adapter/payment-gateway-adapter.core/` +
-`payment-gateway-adapter/payment-gateway-adapter.core.postgres-drizzle/` into
-`src/ascendra-commons/payment-gateway-adapter/`; add `.api` for the admin read
-surface. Write your own `ManualPaymentAdapter` / `{GatewayName}Adapter` in
+`node ascendra-commons.js add payment-gateway-adapter.core.postgres-drizzle`
+(brings `payment-gateway-adapter.core` and `localization-currency` with it); add
+`payment-gateway-adapter.api` for the admin read surface. Write your own `ManualPaymentAdapter` / `{GatewayName}Adapter` in
 your own `src/modules/payments/` — they implement `PaymentGatewayAdapter`,
 they don't live here.

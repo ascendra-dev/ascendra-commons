@@ -58,10 +58,10 @@ await this.notifier.notify({ notificationType: 'invoice.sent', tenantId, recipie
 
 ## Consuming this module
 
-Copy `notification/notification.core/` plus exactly one config source
-(`notification.core.static`, or `notification.core.database` +
-`notification.core.database.postgres-drizzle`), and optionally
-`notification.api`. Bind a real `NotificationSender` per channel you actually
+`node ascendra-commons.js add` exactly one config source —
+`notification.core.static`, or `notification.core.database.postgres-drizzle`
+(which brings `notification.core.database`) — and optionally `notification.api`;
+`notification.core` comes with any of them. Bind a real `NotificationSender` per channel you actually
 deliver on.
 
 ## Depends on

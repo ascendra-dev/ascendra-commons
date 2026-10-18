@@ -69,6 +69,6 @@ into `NotificationRequest.tenantId`.
 
 ## Consuming this module
 
-Copy `domain-events/domain-events.core/` + `domain-events/domain-events.core.in-process/`
-into `src/ascendra-commons/domain-events/`. `audit-logging` and any other module
+`node ascendra-commons.js add domain-events.core.in-process` (brings
+`domain-events.core` with it) — the transport is your choice, so name it. `audit-logging` and any other module
 that depends on domain events depends on **`domain-events.core` only**.

@@ -11,8 +11,43 @@ folder into its own `src/ascendra-commons/{pattern}/`, verbatim, same folder
 name, under one wrapper folder that distinguishes vendored code from the
 project's own (see `module-packaging-pattern.md` in the `ascendra-pay-002`
 project for the full reasoning). No npm publish step, no package registry.
-There is no upgrade tooling yet — that gets built once there's a second version
-of a pattern that a consumer actually needs to sync to, not before.
+
+`ascendra-commons.js` (this repo's root; zero dependencies) does the copying and
+keeps it honest. From the consumer project's root:
+
+```bash
+node ../ascendra-commons/ascendra-commons.js init     # once: copies the script in, writes ascendra-commons.json
+node ascendra-commons.js add audit-logging.core.postgres-drizzle domain-events.core.in-process
+node ascendra-commons.js update                       # later: newer commons, safely
+node ascendra-commons.js status                       # read-only check (exit 1 on a problem — fit for CI)
+node ascendra-commons.js remove <package>
+```
+
+- **`add`** copies the packages verbatim into `src/ascendra-commons/`, plus every
+  package their code imports (`audit-logging.core`, `domain-events.core`, …). A
+  choice between implementations — an emitter transport, an authorization model —
+  is never imported, so name it; each module README's "Consuming this module"
+  says which.
+- **`update`** refuses if vendored files were edited locally (a sha256 per file
+  in `src/ascendra-commons/VENDORED.json`), shows the commits touching your
+  packages since the vendored one — **breaking changes first** — and asks before
+  replacing anything. A project's packages always come from one commit: `add`
+  matches the vendored commit; moving forward is `update`'s job.
+- **Migrations** (`<package>/migrations/NNNN_*.sql`, never edited once released —
+  `MODULE-STANDARD.md` dimension 7) are delivered once into the project's own
+  migrations — via `drizzle-kit generate --custom` (so its journal lists them) or
+  as a timestamped copy into a plain folder — and an update delivers only new
+  ones, refusing if a delivered one changed upstream.
+- It lists npm packages the project lacks; it never runs `npm install`, writes
+  `forRoot()` wiring, or touches a database. `--from <path>` reads a local
+  checkout instead of GitHub, to try unpushed work.
+
+**Breaking changes** are marked in the commit, where `update` finds them: a `!`
+after the type and a `BREAKING CHANGE:` footer saying what the consumer must do
+(`feat(audit-logging)!: …` / `BREAKING CHANGE: pass catalog to forRoot()`). A
+change that needs several steps also gets an `UPGRADING.md` in the package. No
+CHANGELOG file — and `main`'s history is never rewritten, or a consumer's
+vendored commit disappears (`update` then falls back to a plain file diff).
 
 ## Status
 

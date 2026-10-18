@@ -116,7 +116,7 @@ two policies fighting each other over the same rows.
 
 ## Consuming this module
 
-Copy `multi-tenancy/` into `src/ascendra-commons/multi-tenancy/`.
+`node ascendra-commons.js add multi-tenancy` (see the root README, "Distribution").
 
 ## Depends on
 

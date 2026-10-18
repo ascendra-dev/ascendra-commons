@@ -52,8 +52,8 @@ Each job supplies its own `@Cron` / `OnApplicationBootstrap` wiring class around
 
 ## Consuming this module
 
-Copy `background-jobs/background-jobs.core/` plus one stack adapter, and
-optionally `background-jobs.api`.
+`node ascendra-commons.js add` one stack adapter (`background-jobs.core.postgres-drizzle`,
+which brings this package), and optionally `background-jobs.api`.
 
 ## Depends on
 

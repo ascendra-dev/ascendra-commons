@@ -27,7 +27,7 @@ storage or a log again. A leaked table row never hands back a usable link.
 
 ## Wiring
 
-Tables: apply `migrations/` through your project's own migration tool — never re-export the schema tables to `drizzle-kit` too, or it generates them a second time (MODULE-STANDARD dimension 7).
+Tables: apply `migrations/` (`ascendra-commons.js` delivers them into your migrations) with your own migration tool — never re-export the schema tables to `drizzle-kit` too, or it generates them a second time (MODULE-STANDARD dimension 7).
 
 ```typescript
 PaymentLinkSecurityModule.forRoot({

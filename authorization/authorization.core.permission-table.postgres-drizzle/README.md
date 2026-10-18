@@ -24,7 +24,8 @@ implementing the same ports (`PermissionRepository`, `DelegationRepository`,
 
 ### 1. Create the tables
 
-Apply `migrations/` through your project's own migration tool — never re-export
+Apply `migrations/` (delivered into your migrations by `ascendra-commons.js`) with
+your own migration tool — never re-export
 the schema tables to `drizzle-kit` too, or it generates them a second time
 (MODULE-STANDARD dimension 7). **Requires PostgreSQL 15+** (`NULLS NOT DISTINCT`).
 

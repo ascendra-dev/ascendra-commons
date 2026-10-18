@@ -5,9 +5,9 @@ isn't the blob. Three independently-wired concerns.
 
 This library never runs migrations (`MODULE-STANDARD.md` dimension 7). Apply
 `migrations/` (`0001_file_record` … `0005_file_rejection`, in order — attachment
-and file access reference file record) through the consuming project's own
-migration tool; never re-export the schema tables to `drizzle-kit` too, or it
-generates them a second time. Released migrations are never edited — a schema
+and file access reference file record) with the consuming project's own
+migration tool, once `ascendra-commons.js` has delivered them; never re-export
+the schema tables to `drizzle-kit` too, or it generates them a second time. Released migrations are never edited — a schema
 change is the next numbered file, together with the schema and the adapter SQL.
 
 ## Tables

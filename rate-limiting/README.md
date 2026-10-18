@@ -70,6 +70,6 @@ hitting both is a strong enumeration signal, not two unrelated blips.
 
 ## Consuming this module
 
-Copy `rate-limiting/rate-limiting.core/` + `rate-limiting/rate-limiting.core.throttler/`
-into `src/ascendra-commons/rate-limiting/`; add `.core.postgres-drizzle` +
-`.api` if you want the recorded log and its admin read surface.
+`node ascendra-commons.js add rate-limiting.core.throttler` (brings
+`rate-limiting.core` with it); add `rate-limiting.core.postgres-drizzle` +
+`rate-limiting.api` if you want the recorded log and its admin read surface.

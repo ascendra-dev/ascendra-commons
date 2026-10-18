@@ -79,7 +79,7 @@ table of its own.
 
 ## Consuming this module
 
-Copy `optimistic-locking/` into `src/ascendra-commons/optimistic-locking/`.
+`node ascendra-commons.js add optimistic-locking` (see the root README, "Distribution").
 
 ```typescript
 import { updateWithOptimisticLock, StaleVersionError } from '@/ascendra-commons/optimistic-locking';

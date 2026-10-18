@@ -42,10 +42,11 @@ contracts (a non-DB reader over an external SIEM is in scope), so they live in
 
 ## Consuming this module
 
-Copy `audit-logging/audit-logging.core/` **and** `domain-events/domain-events.core`
-+ `domain-events/domain-events.core.in-process` (`audit-logging.core` depends on
-`domain-events.core`; the vertical also needs a transport). Then one stack
-adapter, and optionally `audit-logging.api`.
+`node ascendra-commons.js add` one stack adapter (`audit-logging.core.postgres-drizzle`)
+and a domain-events transport (`domain-events.core.in-process`) — the transport
+isn't imported, so name it — and optionally `audit-logging.api` (which needs an
+authorization model too, e.g. `authorization.core.static-map`).
+`audit-logging.core`, `domain-events.core` and `authorization.core` come with them.
 
 ```typescript
 DomainEventsModule.forRoot({     // required — the listener is reached via emitCritical()

@@ -26,7 +26,7 @@ pooler") or want forgiving wiring, use `PostgresLeaseLock`.
 
 ## Wiring (lease lock)
 
-Tables: apply `migrations/` (`0001_job_run`; `0002_lease_lock` is unused with the advisory lock, and harmless) through your project's own migration tool — never re-export the schema tables to `drizzle-kit` too, or it generates them a second time (MODULE-STANDARD dimension 7).
+Tables: apply `migrations/` (`0001_job_run`; `0002_lease_lock` is unused with the advisory lock, and harmless) (`ascendra-commons.js` delivers them into your migrations) with your own migration tool — never re-export the schema tables to `drizzle-kit` too, or it generates them a second time (MODULE-STANDARD dimension 7).
 
 ```typescript
 BackgroundJobsModule.forRoot({

@@ -77,7 +77,6 @@ resolution log stores the same hash the token table does.
 
 ## Consuming this module
 
-Copy `payment-link-security/payment-link-security.core/` +
-`payment-link-security/payment-link-security.core.postgres-drizzle/` into
-`src/ascendra-commons/payment-link-security/`; add `.api` if you want the
-admin read surface.
+`node ascendra-commons.js add payment-link-security.core.postgres-drizzle` (brings
+`payment-link-security.core` with it); add `payment-link-security.api` too if you
+want the admin read surface.

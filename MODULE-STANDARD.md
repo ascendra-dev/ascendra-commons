@@ -6,6 +6,7 @@
 |---------|------|--------|
 | 1.0 | 2026-09-04 | First cut. Written after `authorization`, `notification`, and `domain-events` each independently grew an `application`/`tenantId` seam and a Model 1/Model 2 split, on their own reasoning, in their own words. This document makes the reasoning explicit and checkable across all seven modules instead of re-derived per module. |
 | 1.1 | 2026-10-18 | Dimension 7: migrations move to numbered, never-edited `<package>/migrations/NNNN_<name>.sql` files (were one hand-kept `*.migration.sql` per table, kept in sync by editing); `*.schema.ts` tables are no longer re-exported to `drizzle-kit`. |
+| 1.2 | 2026-10-18 | Dimensions 2 and 11: `ascendra-commons.js` (add / update / remove / status) is the distribution and copy-sync tool; a dependency must be an import; breaking changes are marked in the commit (`!` + `BREAKING CHANGE:` footer). |
 
 ---
 
@@ -130,10 +131,13 @@ exported surface.
 
 Own top-level folder in this repo. Copied verbatim into the consumer's
 `src/ascendra-commons/{pattern}/` — no build step, no registry, same folder
-name. If the module depends on another vendored module (`audit-logging` on
-`domain-events`, `file-storage` on `authorization`), that dependency is stated
-explicitly in the README's "Consuming this module" section, since the consumer
-must copy both.
+name — by `ascendra-commons.js add` (root README, "Distribution"). A dependency
+on another vendored module (`audit-logging` on `domain-events`, `file-storage` on
+`authorization`) is a relative import of that package's `index.ts` from code
+(not only from a `.spec.ts`), and `add` follows those imports — so a dependency
+must be an import, never a convention. What `add` can't see is stated in the
+README's "Consuming this module" section: a choice between implementations
+(a transport, an authorization model) that nothing imports.
 
 ### 3. `forRoot()` config discipline
 
@@ -346,10 +350,12 @@ alone.
 
 Three tiers, stated per module where relevant:
 
-- **Copy-sync** (fix in `ascendra-commons` → reaches a consumer's copy): today,
-  manual `git rm` + re-copy. The real fix is an `ascendra-ui`-style
-  `upgrade.js` diffing tool — not built yet, tracked once at the repo level
-  (see root README), not repeated per module.
+- **Copy-sync** (fix in `ascendra-commons` → reaches a consumer's copy):
+  `ascendra-commons.js update`, at the repo level (root README, "Distribution"),
+  not repeated per module. What a module owes it: new migrations as new numbered
+  files (dimension 7), and a breaking change marked in its commit — `!` plus a
+  `BREAKING CHANGE:` footer with what the consumer must do — with an
+  `UPGRADING.md` in the package when it takes more than one step.
 - **Model 1 → Model 2 migration**: what a module's own move to its richer
   model actually requires (schema, seed/backfill, an admin UI if one is
   needed) — stated in the module's own "Model 2" section as design work, not

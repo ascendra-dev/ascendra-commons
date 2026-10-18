@@ -74,7 +74,7 @@ fires can log from its own catch block.
 
 ## Consuming this module
 
-Copy `localization-currency/` into `src/ascendra-commons/localization-currency/`.
+`node ascendra-commons.js add localization-currency` (see the root README, "Distribution").
 
 ## Depends on
 
