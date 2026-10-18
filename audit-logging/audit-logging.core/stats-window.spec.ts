@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fillDailyCounts, kpiValue, parseStatsWindow } from './stats-window';
+import { fillDailyCounts, fillMonthlyCounts, kpiValue, parseStatsWindow } from './stats-window';
 
 const now = new Date('2026-09-13T00:00:00Z');
 
@@ -50,5 +50,21 @@ describe('kpiValue', () => {
   it('has no percent change when the prior period was empty', () => {
     expect(kpiValue(7, 0)).toEqual({ value: 7, deltaPct: null });
     expect(kpiValue(0, 0)).toEqual({ value: 0, deltaPct: null });
+  });
+});
+
+describe('fillMonthlyCounts', () => {
+  it('spans every UTC month from the first record to now, across a year end, zero on quiet months', () => {
+    const counts = new Map([['2025-11', 30], ['2026-01', 12]]);
+    expect(fillMonthlyCounts(new Date('2025-11-20T08:00:00Z'), new Date('2026-02-03T00:00:00Z'), counts)).toEqual([
+      { month: '2025-11', count: 30 },
+      { month: '2025-12', count: 0 },
+      { month: '2026-01', count: 12 },
+      { month: '2026-02', count: 0 },
+    ]);
+  });
+
+  it('is empty with no records', () => {
+    expect(fillMonthlyCounts(null, now, new Map())).toEqual([]);
   });
 });

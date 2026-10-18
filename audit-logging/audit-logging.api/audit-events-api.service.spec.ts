@@ -20,6 +20,7 @@ function deps(isPlatformAdmin: AuditApiOptions['isPlatformAdmin'] = (a) => a.ten
     }),
     overviewStats: vi.fn().mockResolvedValue({ window: '30d', perDay: [], kpis: {} }),
     topActions: vi.fn().mockResolvedValue({ window: '7d', topActions: [] }),
+    retention: vi.fn().mockResolvedValue({ oldestRecordAt: null, rowCount: 0, tableSizeBytes: null, perMonth: [] }),
     countByDeclared: vi.fn().mockResolvedValue([]),
   };
   return { reader, svc: new AuditEventsApiService(reader, { isPlatformAdmin, catalog: [], exportMaxRows }) };
@@ -188,6 +189,18 @@ describe('AuditEventsApiService.overviewStats / topActions', () => {
     const noTenant = { id: 'x', persona: 'p', tenantId: null };
     await expect(svc.overviewStats(noTenant, {})).rejects.toBeInstanceOf(ForbiddenException);
     await expect(svc.topActions(noTenant, {})).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe('AuditEventsApiService.retention', () => {
+  it('scopes a non-platform actor to their own tenant; a platform admin may pick one or none', async () => {
+    const { svc, reader } = deps();
+    await svc.retention(tenantAdmin, { tenantId: 't9' });
+    expect(reader.retention).toHaveBeenLastCalledWith('t1');
+    await svc.retention(platformAdmin, {});
+    expect(reader.retention).toHaveBeenLastCalledWith(undefined);
+    await svc.retention(platformAdmin, { tenantId: 'null' });
+    expect(reader.retention).toHaveBeenLastCalledWith(null);
   });
 });
 

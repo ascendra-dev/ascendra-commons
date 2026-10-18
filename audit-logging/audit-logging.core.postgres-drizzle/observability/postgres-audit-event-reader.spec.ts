@@ -313,6 +313,46 @@ describe('PostgresAuditEventReader.topActions', () => {
   });
 });
 
+describe('PostgresAuditEventReader.retention', () => {
+  const now = new Date('2026-10-18T09:00:00Z');
+
+  it('reports the oldest record, the row count, the whole table size, and every month since', async () => {
+    const db = fakeDb();
+    db.execute
+      .mockResolvedValueOnce({ rows: [{ oldest: new Date('2026-08-05T10:00:00Z'), total: '3741' }] })
+      .mockResolvedValueOnce({ rows: [{ month: '2026-08', count: '900' }, { month: '2026-10', count: '41' }] })
+      .mockResolvedValueOnce({ rows: [{ bytes: '1974272' }] });
+
+    await expect(reader(db).retention(undefined, now)).resolves.toEqual({
+      oldestRecordAt: new Date('2026-08-05T10:00:00Z'),
+      rowCount: 3741,
+      tableSizeBytes: 1974272,
+      perMonth: [
+        { month: '2026-08', count: 900 },
+        { month: '2026-09', count: 0 },
+        { month: '2026-10', count: 41 },
+      ],
+    });
+    expect(rendered(db, 2).sql).toMatch(/pg_total_relation_size/i);
+  });
+
+  it('scoped to a tenant: no table size, and no size query at all', async () => {
+    const db = fakeDb();
+    db.execute
+      .mockResolvedValueOnce({ rows: [{ oldest: null, total: 0 }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await expect(reader(db).retention('t9', now)).resolves.toEqual({
+      oldestRecordAt: null,
+      rowCount: 0,
+      tableSizeBytes: null,
+      perMonth: [],
+    });
+    expect(db.execute).toHaveBeenCalledTimes(2);
+    expect(rendered(db, 0).params).toEqual(expect.arrayContaining(['t9']));
+  });
+});
+
 describe('PostgresAuditEventReader.countByDeclared', () => {
   it('counts each declared entity type and action, defaulting to 0 when never audited', async () => {
     const db = fakeDb();

@@ -322,7 +322,7 @@
     <div class="nav-group">
       <div class="nav-group-title">Operations</div>
       <a class="nav-item" href="#export">Export</a>
-      <a class="nav-item" href="#retention">Retention &amp; Volume <span class="pill">proposed</span></a>
+      <a class="nav-item" href="#retention">Retention &amp; Volume</a>
     </div>
   </nav>
 
@@ -331,9 +331,7 @@
       <h1 class="page-title">Audit Logging — Admin Console</h1>
       <p class="page-sub">
         Screen mocks for the <code>audit-logging</code> module's admin surface, each mapped to the
-        endpoint that backs it. Only <b>Retention &amp; Volume</b> remains <b>Proposed</b> — a
-        legitimate part of an audit console that <code>audit-logging.api</code> doesn't serve yet
-        (deliberately deferred; see its section below). Every read is gated
+        endpoint that backs it. Every read is gated
         <code>@RequiresAction('audit.view')</code>; a non-platform actor's query is auto-scoped to
         their own tenant.
       </p>
@@ -411,9 +409,9 @@
         <tr>
           <td>Retention &amp; Volume</td>
           <td><span class="endpoint"><span class="m">GET</span>/audit/retention</span></td>
-          <td><span class="status proposed">Proposed</span></td>
-          <td>Oldest record, row count, table size, whether a retention job is configured.
-              Read-only — deletion stays out of scope.</td>
+          <td><span class="status live">Live</span></td>
+          <td>Oldest record, row count, table size (whole table; <code>null</code> scoped to a tenant), volume per
+              month. Read-only — records are kept indefinitely; deletion stays out of scope.</td>
         </tr>
       </tbody>
     </table>
@@ -768,30 +766,24 @@
       </div>
     </section>
 
-    <!-- ═══════════════ 9 · RETENTION & VOLUME (proposed) ═══════════════ -->
+    <!-- ═══════════════ 9 · RETENTION & VOLUME ═══════════════ -->
     <section class="screen" id="retention">
       <div class="screen-head">
         <h2 class="screen-name">Retention &amp; Volume</h2>
         <span class="endpoint"><span class="m">GET</span>/audit/retention</span>
-        <span class="status proposed">Proposed</span>
+        <span class="status live">Live</span>
       </div>
-      <p class="screen-purpose">Read-only health of the audit store itself — how far back it goes, how big it is, and whether anything is pruning it.</p>
-      <p class="gating">Gate: <code>audit.view</code>, platform-admin only.</p>
-
-      <div class="proposed-note">
-        <div><b>Missing API.</b> <span class="sig">GET /audit/retention</span> →
-        <code>{ oldestRecordAt, rowCount, approxBytes, retentionJob: null | { keepForDays, lastRunAt } }</code>.
-        <b>No delete endpoint is proposed</b> — audit records are write-once; a retention job, if a
-        deployment needs one, is a consuming-project cron, not part of this API.</div>
-      </div>
+      <p class="screen-purpose">Read-only health of the audit store itself — how far back it goes, how big it is, and how fast it grows.</p>
+      <p class="gating">Gate: <code>audit.view</code>; a tenant admin sees their own tenant's figures (no table size).</p>
 
       <dl class="kv">
-        <dt>Oldest record</dt><dd>2025-11-02 (309 days)</dd>
+        <dt>Oldest record</dt><dd>2025-11-02 (11 months ago)</dd>
         <dt>Row count</dt><dd>1,204,881</dd>
-        <dt>Approx. size</dt><dd>612 MB</dd>
-        <dt>Retention job</dt><dd><span class="badge warn">none configured</span> — table grows unbounded</dd>
-        <dt>Correlation-id coverage</dt><dd>99.8% of rows (0.2% pre-middleware)</dd>
+        <dt>Table size</dt><dd>612 MB</dd>
+        <dt>Retention</dt><dd><span class="badge warn">kept indefinitely</span> — no retention policy; the table only grows</dd>
       </dl>
+      <p class="screen-purpose">Plus a bar chart of records per month since the oldest. No delete endpoint exists or is proposed —
+      audit records are write-once; a retention policy, if a deployment needs one, is a separate decision.</p>
     </section>
 
     <!-- ═══════════════ EMPTY STATE (variant) ═══════════════ -->

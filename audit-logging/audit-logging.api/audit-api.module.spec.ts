@@ -38,10 +38,11 @@ const summarizeActor = vi.fn().mockResolvedValue({
 });
 const overviewStats = vi.fn().mockResolvedValue({ window: '30d', perDay: [], kpis: {} });
 const topActions = vi.fn().mockResolvedValue({ window: '7d', topActions: [] });
+const retention = vi.fn().mockResolvedValue({ oldestRecordAt: null, rowCount: 0, tableSizeBytes: null, perMonth: [] });
 const countByDeclared = vi.fn().mockResolvedValue([]);
 
 @Module({
-  providers: [{ provide: AUDIT_EVENT_READER, useValue: { find, countUpTo, findOne, summarizeActor, overviewStats, topActions, countByDeclared } }],
+  providers: [{ provide: AUDIT_EVENT_READER, useValue: { find, countUpTo, findOne, summarizeActor, overviewStats, topActions, retention, countByDeclared } }],
   exports: [AUDIT_EVENT_READER],
 })
 class FakeReaderModule {}
@@ -162,6 +163,13 @@ describe('AuditApiModule.forRoot — real DI wiring', () => {
     expect(overviewStats).toHaveBeenCalledWith('30d', 't1');
     await moduleRef.get(AuditEventsController).topActions(tenantActor);
     expect(topActions).toHaveBeenCalledWith('7d', 't1');
+  });
+
+  it('routes GET /audit/retention, tenant-scoped for a non-platform actor', async () => {
+    const moduleRef = await build();
+    const tenantActor: Actor = { id: 'a1', persona: 'compliance', tenantId: 't1' };
+    await moduleRef.get(AuditEventsController).retention(tenantActor);
+    expect(retention).toHaveBeenCalledWith('t1');
   });
 
   it('routes POST /audit/coverage', async () => {
