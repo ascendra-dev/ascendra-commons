@@ -5,7 +5,8 @@ import { AUDIT_EVENT_READER } from '../audit-logging.core';
 import type { AuditEvent } from '../audit-logging.core';
 import { AuditApiModule } from './audit-api.module';
 import { AuditEventsController } from './audit-events.controller';
-import type { Actor } from '../../authorization/authorization.core';
+import { AuthorizationEnforcedGuard, type Actor } from '../../authorization/authorization.core';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 
 function auditEvent(over: Partial<AuditEvent> = {}): AuditEvent {
   return {
@@ -204,5 +205,12 @@ describe('AuditApiModule.forRoot — real DI wiring', () => {
     const platformActor: Actor = { id: 'p1', persona: 'platform', tenantId: null };
     await moduleRef.get(AuditEventsController).coverage(platformActor, { entityTypes: ['user'] });
     expect(countByDeclared).toHaveBeenLastCalledWith({ entityTypes: ['user'], actions: [] });
+  });
+});
+
+describe('AuditEventsController — fails closed', () => {
+  it('declares AuthorizationEnforcedGuard on the whole controller', () => {
+    // A missing global AuthorizationGuard must be a 500, never every signed-in user reading the audit log.
+    expect(Reflect.getMetadata(GUARDS_METADATA, AuditEventsController)).toContain(AuthorizationEnforcedGuard);
   });
 });
