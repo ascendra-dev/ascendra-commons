@@ -34,7 +34,8 @@ interface MinimalRequest {
  */
 @Injectable()
 export class RecordingThrottlerGuard extends ThrottlerGuard {
-  private readonly logger = new Logger(RecordingThrottlerGuard.name);
+  // Not `logger`: ThrottlerGuard (6.7+) has its own protected `logger`, which this must not shadow.
+  private readonly recordLogger = new Logger(RecordingThrottlerGuard.name);
   private readonly recorder: RateLimitEventRecorder;
 
   constructor(
@@ -74,7 +75,7 @@ export class RecordingThrottlerGuard extends ThrottlerGuard {
         correlationId: typeof correlationHeader === 'string' ? correlationHeader : undefined,
       });
     } catch (err) {
-      this.logger.error(
+      this.recordLogger.error(
         'Failed to record a rate-limit rejection — the 429 itself is unaffected',
         err instanceof Error ? err.stack : String(err),
       );
