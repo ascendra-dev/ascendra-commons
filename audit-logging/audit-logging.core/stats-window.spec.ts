@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fillDailyCounts, fillMonthlyCounts, kpiValue, parseStatsWindow } from './stats-window';
+import { calendarDays, fillDailyCounts, fillMonthlyCounts, isValidTimeZone, kpiValue, parseStatsWindow } from './stats-window';
 
 const now = new Date('2026-09-13T00:00:00Z');
 
@@ -27,11 +27,40 @@ describe('parseStatsWindow', () => {
   });
 });
 
+describe('calendarDays', () => {
+  it('lists the days before today and today, in UTC', () => {
+    expect(calendarDays(new Date('2026-09-13T12:00:00Z'), 3, 'UTC')).toEqual([
+      '2026-09-10', '2026-09-11', '2026-09-12', '2026-09-13',
+    ]);
+  });
+
+  it("uses the zone's own date — ahead of UTC and behind it", () => {
+    // 21:00 UTC is already the 14th in Dubai (UTC+4)…
+    expect(calendarDays(new Date('2026-09-13T21:00:00Z'), 1, 'Asia/Dubai')).toEqual(['2026-09-13', '2026-09-14']);
+    // …and 03:00 UTC still the 12th in Los Angeles (UTC−7).
+    expect(calendarDays(new Date('2026-09-13T03:00:00Z'), 1, 'America/Los_Angeles')).toEqual(['2026-09-11', '2026-09-12']);
+  });
+
+  it('crosses a month and a DST change as plain calendar days', () => {
+    expect(calendarDays(new Date('2026-11-02T12:00:00Z'), 3, 'America/New_York')).toEqual([
+      '2026-10-30', '2026-10-31', '2026-11-01', '2026-11-02',
+    ]);
+  });
+});
+
+describe('isValidTimeZone', () => {
+  it('accepts IANA zones and UTC, rejects anything else', () => {
+    expect(isValidTimeZone('Asia/Dubai')).toBe(true);
+    expect(isValidTimeZone('UTC')).toBe(true);
+    expect(isValidTimeZone('Mars/Olympus')).toBe(false);
+    expect(isValidTimeZone("UTC'; drop table x; --")).toBe(false);
+  });
+});
+
 describe('fillDailyCounts', () => {
-  it('spans every UTC day from since to now, zero where there were no records', () => {
-    const since = new Date('2026-09-10T15:30:00Z');
+  it('gives every day its count, zero where there were no records', () => {
     const counts = new Map([['2026-09-10', 4], ['2026-09-12', 7]]);
-    expect(fillDailyCounts(since, now, counts)).toEqual([
+    expect(fillDailyCounts(['2026-09-10', '2026-09-11', '2026-09-12', '2026-09-13'], counts)).toEqual([
       { day: '2026-09-10', count: 4 },
       { day: '2026-09-11', count: 0 },
       { day: '2026-09-12', count: 7 },

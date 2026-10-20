@@ -160,7 +160,7 @@ describe('AuditApiModule.forRoot — real DI wiring', () => {
     const moduleRef = await build();
     const tenantActor: Actor = { id: 'a1', persona: 'compliance', tenantId: 't1' };
     await moduleRef.get(AuditEventsController).overviewStats(tenantActor);
-    expect(overviewStats).toHaveBeenCalledWith('30d', 't1');
+    expect(overviewStats).toHaveBeenCalledWith('30d', 't1', 'UTC');
     await moduleRef.get(AuditEventsController).topActions(tenantActor);
     expect(topActions).toHaveBeenCalledWith('7d', 't1');
   });

@@ -273,7 +273,7 @@ describe('PostgresAuditEventReader.overviewStats', () => {
       .mockResolvedValueOnce({ rows: [{ day: '2026-09-11', count: 9 }, { day: '2026-09-13', count: 4 }] })
       .mockResolvedValueOnce({ rows: [kpiRow] });
 
-    const stats = await reader(db).overviewStats('3d', undefined, now);
+    const stats = await reader(db).overviewStats('3d', undefined, 'UTC', now);
 
     expect(stats).toEqual({
       window: '3d',
@@ -295,12 +295,30 @@ describe('PostgresAuditEventReader.overviewStats', () => {
   it('scopes both queries to the application and tenantId when supplied', async () => {
     const db = fakeDb();
     db.execute.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [kpiRow] });
-    await reader(db).overviewStats('7d', 't9', now);
+    await reader(db).overviewStats('7d', 't9', 'UTC', now);
     for (const call of [0, 1]) {
       const { sql: text, params } = rendered(db, call);
       expect(text).toMatch(/application in .* and tenant_id =/i);
       expect(params).toEqual(expect.arrayContaining(['t9']));
     }
+  });
+});
+
+describe('PostgresAuditEventReader.overviewStats — time zone', () => {
+  it("buckets the volume by the zone's dates, from its first day's local midnight", async () => {
+    const db = fakeDb();
+    db.execute.mockResolvedValueOnce({ rows: [{ day: '2026-09-14', count: 2 }] }).mockResolvedValueOnce({
+      rows: [{ records_24h: 0, records_24h_prior: 0, records_7d: 0, records_7d_prior: 0, actors_30d: 0, actors_30d_prior: 0, entity_types_30d: 0, entity_types_30d_prior: 0 }],
+    });
+    // 21:00 UTC on the 13th is the 14th in Dubai.
+    const stats = await reader(db).overviewStats('1d', undefined, 'Asia/Dubai', new Date('2026-09-13T21:00:00Z'));
+
+    expect(stats.perDay).toEqual([{ day: '2026-09-13', count: 0 }, { day: '2026-09-14', count: 2 }]);
+    const { sql: text, params } = rendered(db, 0);
+    expect(text).toMatch(/at time zone \$\d+, 'YYYY-MM-DD'/i);
+    expect(text).toMatch(/occurred_at >= \(\$\d+::date::timestamp at time zone \$\d+\)/i);
+    // Values are bound, never interpolated.
+    expect(params).toEqual(expect.arrayContaining(['Asia/Dubai', '2026-09-13']));
   });
 });
 

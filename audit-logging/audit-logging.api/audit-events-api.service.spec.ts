@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuditEventsApiService } from './audit-events-api.service';
 import type { AuditEvent, AuditEventReader } from '../audit-logging.core';
 import type { AuditApiOptions } from './audit-api.options';
@@ -173,7 +173,7 @@ describe('AuditEventsApiService.overviewStats / topActions', () => {
   it('forces a non-platform actor to their own tenant, ignoring a tenantId param', async () => {
     const { svc, reader } = deps();
     await svc.overviewStats(tenantAdmin, { tenantId: 't9' });
-    expect(reader.overviewStats).toHaveBeenCalledWith('30d', 't1');
+    expect(reader.overviewStats).toHaveBeenCalledWith('30d', 't1', 'UTC');
     await svc.topActions(tenantAdmin, { tenantId: 't9' });
     expect(reader.topActions).toHaveBeenCalledWith('7d', 't1');
   });
@@ -181,10 +181,10 @@ describe('AuditEventsApiService.overviewStats / topActions', () => {
   it('lets a platform admin filter by any tenant, or null, or omit it entirely', async () => {
     const { svc, reader } = deps();
     await svc.overviewStats(platformAdmin, {});
-    expect(reader.overviewStats).toHaveBeenLastCalledWith('30d', undefined);
+    expect(reader.overviewStats).toHaveBeenLastCalledWith('30d', undefined, 'UTC');
 
     await svc.overviewStats(platformAdmin, { tenantId: 't2' });
-    expect(reader.overviewStats).toHaveBeenLastCalledWith('30d', 't2');
+    expect(reader.overviewStats).toHaveBeenLastCalledWith('30d', 't2', 'UTC');
 
     await svc.topActions(platformAdmin, { tenantId: 'null' });
     expect(reader.topActions).toHaveBeenLastCalledWith('7d', null);
@@ -193,9 +193,16 @@ describe('AuditEventsApiService.overviewStats / topActions', () => {
   it('defaults the window (30d overview, 7d top actions) and passes through a supplied one', async () => {
     const { svc, reader } = deps();
     await svc.overviewStats(platformAdmin, { window: '90d' });
-    expect(reader.overviewStats).toHaveBeenCalledWith('90d', undefined);
+    expect(reader.overviewStats).toHaveBeenCalledWith('90d', undefined, 'UTC');
     await svc.topActions(platformAdmin, { window: '30d' });
     expect(reader.topActions).toHaveBeenCalledWith('30d', undefined);
+  });
+
+  it("passes the overview's time zone through, and 400s an unknown one", async () => {
+    const { svc, reader } = deps();
+    await svc.overviewStats(platformAdmin, { tz: 'Asia/Dubai' });
+    expect(reader.overviewStats).toHaveBeenLastCalledWith('30d', undefined, 'Asia/Dubai');
+    await expect(svc.overviewStats(platformAdmin, { tz: 'Mars/Olympus' })).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('403s a non-platform actor with no tenant', async () => {
