@@ -5,17 +5,17 @@ import { AuditRecordRaised } from './audit-record-raised';
 import { runWithCorrelationId } from './correlation-context';
 
 function fakeEvent(overrides?: { tenantId?: string | null; reason?: string | null }): AuditRecordRaised {
-  return new AuditRecordRaised(
-    'invoice',
-    'inv-1',
-    overrides?.tenantId !== undefined ? overrides.tenantId : 'tenant-1',
-    'user-1',
-    'status_changed',
-    { status: 'sent' },
-    { status: 'paid' },
-    new Date('2026-01-03T10:00:00Z'),
-    overrides?.reason !== undefined ? overrides.reason : null,
-  );
+  return new AuditRecordRaised({
+    entityType: 'invoice',
+    entityId: 'inv-1',
+    tenantId: overrides?.tenantId !== undefined ? overrides.tenantId : 'tenant-1',
+    actor: 'user-1',
+    action: 'status_changed',
+    before: { status: 'sent' },
+    after: { status: 'paid' },
+    occurredAt: new Date('2026-01-03T10:00:00Z'),
+    reason: overrides?.reason !== undefined ? overrides.reason : null,
+  });
 }
 
 describe('persistAuditRecord', () => {

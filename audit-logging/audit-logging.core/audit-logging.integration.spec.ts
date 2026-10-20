@@ -51,16 +51,16 @@ describe('audit-logging + domain-events, real end to end', () => {
     const moduleRef = await buildTestModule(insert);
     const emitter = moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER);
 
-    const event = new AuditRecordRaised(
-      'test_entity',
-      'entity-1',
-      'tenant-1',
-      'user-1',
-      'changed',
-      { status: 'old' },
-      { status: 'new' },
-      new Date('2026-02-01T00:00:00Z'),
-    );
+    const event = new AuditRecordRaised({
+      entityType: 'test_entity',
+      entityId: 'entity-1',
+      tenantId: 'tenant-1',
+      actor: 'user-1',
+      action: 'changed',
+      before: { status: 'old' },
+      after: { status: 'new' },
+      occurredAt: new Date('2026-02-01T00:00:00Z'),
+    });
     await emitter.emitCritical(AUDIT_EVENT_NAME, event);
 
     expect(insert).toHaveBeenCalledTimes(1);
@@ -86,7 +86,7 @@ describe('audit-logging + domain-events, real end to end', () => {
     try {
       await emitter.emitCritical(
         AUDIT_EVENT_NAME,
-        new AuditRecordRaised('test_entity', 'entity-2', null, 'user-1', 'changed', null, null, new Date()),
+        new AuditRecordRaised({ entityType: 'test_entity', entityId: 'entity-2', tenantId: null, actor: 'user-1', action: 'changed', occurredAt: new Date() }),
       );
     } catch (err) {
       caught = err;
@@ -105,7 +105,7 @@ describe('audit-logging + domain-events, real end to end', () => {
     await runWithCorrelationId('trace-abc', async () => {
       await emitter.emitCritical(
         AUDIT_EVENT_NAME,
-        new AuditRecordRaised('test_entity', 'entity-3', null, 'user-1', 'changed', null, null, new Date()),
+        new AuditRecordRaised({ entityType: 'test_entity', entityId: 'entity-3', tenantId: null, actor: 'user-1', action: 'changed', occurredAt: new Date() }),
       );
     });
 

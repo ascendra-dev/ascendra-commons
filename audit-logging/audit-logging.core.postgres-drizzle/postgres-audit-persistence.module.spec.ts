@@ -90,7 +90,7 @@ describe('PostgresAuditPersistenceModule wired into AuditLoggingModule', () => {
     await runWithCorrelationId('trace-xyz', async () => {
       await emitter.emitCritical(
         AUDIT_EVENT_NAME,
-        new AuditRecordRaised('invoice', 'inv-9', 'tenant-1', 'user-1', 'status_changed', null, null, new Date()),
+        new AuditRecordRaised({ entityType: 'invoice', entityId: 'inv-9', tenantId: 'tenant-1', actor: 'user-1', action: 'status_changed', occurredAt: new Date() }),
       );
     });
 
@@ -128,7 +128,7 @@ describe('PostgresAuditPersistenceModule wired into AuditLoggingModule', () => {
     await expect(
       emitter.emitCritical(
         AUDIT_EVENT_NAME,
-        new AuditRecordRaised('invoice', 'inv-2', null, 'user-1', 'deleted', null, null, new Date()),
+        new AuditRecordRaised({ entityType: 'invoice', entityId: 'inv-2', tenantId: null, actor: 'user-1', action: 'deleted', occurredAt: new Date() }),
       ),
     ).rejects.toThrow('constraint violation');
     await moduleRef.close();
