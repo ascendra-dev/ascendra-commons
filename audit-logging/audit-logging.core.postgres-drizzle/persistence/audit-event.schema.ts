@@ -49,7 +49,7 @@ export const auditEventTable = pgTable(
     application: text('application').notNull(),
   },
   (table) => [
-    /** "this record's full history" — the not-yet-built `AuditQuery` by `entityType`+`entityId`. */
+    /** "this record's full history" — `AuditQuery` by `entityType`+`entityId` (`GET /audit/entities/:type/:id/history`). */
     index('commons_audit_event_entity_idx').on(table.entityType, table.entityId),
     /** "this tenant's activity feed, recent first" — `AuditQuery` by `tenantId`+`occurredAfter`/`occurredBefore`. */
     index('commons_audit_event_tenant_time_idx').on(table.tenantId, table.occurredAt),
