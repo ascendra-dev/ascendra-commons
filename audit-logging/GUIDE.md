@@ -287,31 +287,39 @@ sequenceDiagram
 **1. Feature code raises the event**, inside the change it audits:
 
 ```ts
-await this.events.emitCritical(AUDIT_EVENT_NAME,
-  new AuditRecordRaised('invoice', invoiceId, tenantId, actorId, 'status_changed',
-    { status: previousStatus }, { status: 'paid' }, new Date()));
+await this.events.emitCritical(AUDIT_EVENT_NAME, new AuditRecordRaised({
+  entityType: 'invoice',
+  entityId: invoiceId,
+  tenantId,                          // required — null means a platform-level change
+  actor: actorId,
+  action: 'status_changed',
+  before: { status: previousStatus },
+  after: { status: 'paid' },
+  occurredAt: new Date(),
+}));
 ```
 
-The constructor is positional — `(entityType, entityId, tenantId, actor, action, before, after, occurredAt, reason?)`:
+The constructor takes one named object, `AuditRecordFields`, so no two strings can be swapped unnoticed:
 
 ```ts
-// audit-logging.core/audit-record-raised.ts
+// audit-logging.core/audit-record-raised.ts (trimmed)
+export interface AuditRecordFields {
+  entityType: string;
+  entityId: string;
+  tenantId: string | null;                   // required, even when null — never a default
+  actor: string;
+  action: string;                            // verb only
+  before?: Record<string, unknown> | null;   // omit for a create
+  after?: Record<string, unknown> | null;    // omit for a delete
+  occurredAt: Date;                          // the business fact's time, not "now"
+  reason?: string | null;
+}
+
 export class AuditRecordRaised implements DomainEvent {
-  constructor(
-    public readonly entityType: string,
-    public readonly entityId: string,
-    public readonly tenantId: string | null,
-    public readonly actor: string,
-    public readonly action: string,
-    public readonly before: Record<string, unknown> | null,
-    public readonly after: Record<string, unknown> | null,
-    public readonly occurredAt: Date,          // the business fact's time, not "now"
-    public readonly reason: string | null = null,
-  ) {}
+  // readonly entityType … reason — every field, `before` / `after` / `reason` defaulting to null
+  constructor(fields: AuditRecordFields) { /* … */ }
 }
 ```
-
-> Three strings in a row (`entityType`, `entityId`, `tenantId`) compile fine when swapped — see the review, §12.
 
 **2. The shipped listener** — the consumer writes none:
 
@@ -572,10 +580,10 @@ All under `@RequiresAction('audit.view')`, all tenant-scoped the same way (§8).
 
 **Two things that depend on the consuming app's wiring:**
 
-- `AuthorizationGuard` must be registered **globally** (`APP_GUARD`), after authentication. If it isn't, `@RequiresAction`
-  is just metadata: `@CurrentActor()` still demands a signed-in actor, but **any signed-in user** can read every audit
-  record, and `/audit/catalog` (which takes no actor) is public. The review lists making the controller fail closed as
-  a gap (§12).
+- `AuthorizationGuard` must be registered **globally** (`APP_GUARD`), after authentication. `@RequiresAction` is only
+  metadata, so the controller also declares `@UseGuards(AuthorizationEnforcedGuard)` (from `authorization.core`):
+  `AuthorizationGuard` marks each request it lets through, and the controller's guard fails an unmarked one with
+  `AuthorizationNotEnforcedError` — a 500 naming the fix, instead of every signed-in user reading the audit log.
 - Reads and exports are **not themselves audited** today (a gap in `AUDIT-REPORT.md`).
 
 ---
@@ -718,13 +726,11 @@ fixing, and re-probed after.
 | No index for the list's order, traces, actor activity | full sort / scan | migration 0002 — `EXPLAIN` uses each | `266f6d4` |
 | Comments calling built reads "not built" | stale | fixed | `aa626b8` |
 | Volume-by-day bars were UTC days, the first one partial | bar ≠ link ≠ calendar | viewer's time zone, whole days | `0f908ad` |
+| Without a global `AuthorizationGuard`, any signed-in user read the audit log | open | fails closed — `AuthorizationEnforcedGuard` (new in `authorization.core`) → 500 naming the fix; verified with a miswired app | `cf763d6`, `7bd10ab` |
+| `AuditRecordRaised` took 9 positional parameters (swapped strings compiled) | positional | one named `AuditRecordFields` object — **breaking** | `32968af` |
 
 **Open design findings** (in `AUDIT-REPORT.md`'s backlog)
 
-- **The controller trusts the app's guard wiring.** Without a global `AuthorizationGuard`, any signed-in user can read
-  the audit log. Fail closed: guard the controller itself, or fail at startup.
-- **`AuditRecordRaised` has 9 positional parameters.** Swapped strings compile. An options object or a factory before
-  more modules copy the pattern.
 - **No real-database tests.** The reader's SQL is asserted as text; its behaviour (the time-zone cast, index use) is
   verified only through the sandbox.
 - **No size limit on `before` / `after`.** A large snapshot bloats the table.

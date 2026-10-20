@@ -64,9 +64,16 @@ Auditing an entity is done entirely from the producer side — raise an
 audited, inside the same transaction as the change:
 
 ```typescript
-await this.events.emitCritical(AUDIT_EVENT_NAME,
-  new AuditRecordRaised('invoice', invoiceId, tenantId, actorId, 'status_changed',
-    { status: previousStatus }, { status: 'paid' }, new Date()));
+await this.events.emitCritical(AUDIT_EVENT_NAME, new AuditRecordRaised({
+  entityType: 'invoice',
+  entityId: invoiceId,
+  tenantId,                          // required — null means a platform-level change
+  actor: actorId,
+  action: 'status_changed',
+  before: { status: previousStatus },
+  after: { status: 'paid' },
+  occurredAt: new Date(),
+}));
 ```
 
 `emitCritical()`, not `emit()` — a thrown audit failure propagates back to the

@@ -54,6 +54,8 @@ the next layer up (retention, access auditing, request context, scale), not flaw
 | **Backend review:** a bad date, `limit` or cursor → 400 (were 500; an undecodable cursor silently returned the first page again); a non-UUID record id → 404 (was 500). New `InvalidAuditCursorError`. | commons `0e922bd` |
 | **Backend review:** CSV export neutralizes cells a spreadsheet would run as formulas (`= + - @`). | commons `cab8b21` |
 | **Backend review:** an inbound `x-correlation-id` is kept only when well-formed (1–128 of `[A-Za-z0-9._:-]`). | commons `d2a82c7` |
+| **Follow-up:** the audit API fails closed without a global `AuthorizationGuard` — new `AuthorizationEnforcedGuard` in `authorization.core`, declared on the controller; a miswired app now gets a 500 naming the fix instead of an open audit log. | commons `cf763d6`, `7bd10ab` |
+| **Follow-up:** `AuditRecordRaised` takes one named `AuditRecordFields` object instead of 9 positional parameters (breaking). | commons `32968af` |
 | **Backend review:** migration 0002 — indexes for the list's order `(application, occurred_at desc, id desc)`, traces `(correlation_id)` and actor activity; `EXPLAIN` on the sandbox uses each. | commons `266f6d4` |
 
 ## Gaps
@@ -63,7 +65,6 @@ the next layer up (retention, access auditing, request context, scale), not flaw
 | Gap | Why it matters | Direction |
 |---|---|---|
 | **No retention / purge** | The table grows forever ("kept indefinitely" is an explicit decision, see README). | Consumer-configured `retention: { keepForDays }` (default indefinite); an automatic `background-jobs` `ScheduledJob` modelled on `JobRunPrunerJob` — daily, application-scoped, batched DELETE oldest-first, run recorded, "run now" via `JobTrigger`; the purge writes its own `audit.purged` record. A deployment that revoked DELETE gives the job its own role. Monthly partitions (purge = drop partition) when volume justifies it. |
-| **The controller trusts the app's guard wiring** | `@RequiresAction` is metadata only: if a consuming app doesn't register `AuthorizationGuard` globally, any signed-in user reads every audit record, and `/audit/catalog` is public. | Fail closed — `@UseGuards` on the controller, or a startup check that the guard is registered. |
 | **Retention figures count the whole table** | The list, traces and actor activity are indexed now (migration 0002), but `count(*)` / per-month counts still read every row. | Approximate counts or caching for the platform-wide figures; monthly roll-ups or partitions at scale. |
 | **Reading / exporting the audit log isn't audited** | Anyone with `audit.view` can export 100,000 rows and leave no trace; most compliance regimes expect access to audit data to be recorded. | Record exports (and optionally record views) as audit events — `audit.exported` with the filter and row count. |
 | **No request context on records** | No IP, user agent, channel (UI / API / job) or on-behalf-of — when a platform admin acts inside a tenant, only one actor is recorded. | Capture request context in ambient context alongside the correlation id; add columns. Decide before more modules copy the record shape. |
@@ -81,7 +82,6 @@ the next layer up (retention, access auditing, request context, scale), not flaw
 | **Raw action labels** | `invoice.created` everywhere — the catalog could carry human labels. |
 | **Sheets aren't linkable by URL** | A business page can link to a filtered list, but can't open an entity's history (or a trace / actor) directly. |
 | **Saved queries are per browser** | Stored in localStorage — not tied to the user, other devices or teammates. |
-| **`AuditRecordRaised` has 9 positional parameters** | Three strings in a row (`entityType`, `entityId`, `tenantId`) compile when swapped. An options object or factory — before more modules copy the shape. |
 | **No real-database tests** | The reader's SQL is asserted as rendered text; its behaviour (time-zone cast, index use) is verified only through the sandbox. |
 | **No size limit on `before` / `after`** | A large snapshot bloats the table and every export. |
 | **No rate limit on the CSV export** | Up to 100,000 rows per request; `rate-limiting` exists in this repo. |
@@ -100,9 +100,8 @@ the next layer up (retention, access auditing, request context, scale), not flaw
 
 ## Suggested order
 
-1. Fail-closed guarding and volume-by-month `tz` — small.
-2. Audit exports / reads, capture request context, and the `AuditRecordRaised` options object — they shape the record
-   and its API, so before more modules copy them.
+1. Volume-by-month `tz` — small.
+2. Audit exports / reads and capture request context — they shape the record, so before more modules copy it.
 3. Retention (the pruner job) and the Coverage & Gaps screen.
 4. The rest of P2 as product demand appears.
 

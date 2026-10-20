@@ -59,6 +59,9 @@ standards the review set.
 
 **Security**
 - [ ] Every route declares `@RequiresAction(...)` or `@NoActionRequired()` — `AuthorizationGuard` denies undeclared routes.
+- [ ] Every `.api` controller declares `@UseGuards(AuthorizationEnforcedGuard)` — it fails closed when the app forgot the
+      global `AuthorizationGuard` (otherwise `@RequiresAction` goes unread).
+- [ ] An event or record with several same-typed fields takes one named object, not positional parameters.
 - [ ] Tenant scope is forced in the service for a non-platform actor — never trusted from the request.
 - [ ] Every read is scoped to the configured `application`.
 - [ ] A record the actor may not see and a missing record give the same 404.
