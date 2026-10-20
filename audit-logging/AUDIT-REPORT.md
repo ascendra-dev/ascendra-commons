@@ -1,8 +1,9 @@
 # Audit Logging — Module Review Report
 
 **Date:** 2026-10-21 · **Scope:** `audit-logging.core`, `audit-logging.core.postgres-drizzle`, `audit-logging.api`,
-and its UI in `ascendra-commons-ui` (`audit-logging.ui` + the `observability/audit` screens) · **Status:** functional
-review complete; the backend code review is still to come.
+and its UI in `ascendra-commons-ui` (`audit-logging.ui` + the `observability/audit` screens) · **Status:** complete —
+functional review, flow walkthrough and backend code review. How the module works, end to end:
+[`GUIDE.md`](./GUIDE.md).
 
 `audit-logging` is the reference module: what this review settles is the standard for every module that follows. This
 report records what the module does well, what was fixed during the review, and the gaps — missing or worth adding —
@@ -50,6 +51,10 @@ the next layer up (retention, access auditing, request context, scale), not flaw
 | Date-only values (`YYYY-MM-DD`) formatted as the day before west of UTC. | ascendra-ui `ea4a4a4` |
 | New reusable `DataTableRunQueryAction` (row drill-down) — standard for every module's list. | ascendra-ui `6949499` |
 | The list links back to the overview, like Retention ("Back to overview"). | commons-ui `fd1f010` |
+| **Backend review:** a bad date, `limit` or cursor → 400 (were 500; an undecodable cursor silently returned the first page again); a non-UUID record id → 404 (was 500). New `InvalidAuditCursorError`. | commons `0e922bd` |
+| **Backend review:** CSV export neutralizes cells a spreadsheet would run as formulas (`= + - @`). | commons `cab8b21` |
+| **Backend review:** an inbound `x-correlation-id` is kept only when well-formed (1–128 of `[A-Za-z0-9._:-]`). | commons `d2a82c7` |
+| **Backend review:** migration 0002 — indexes for the list's order `(application, occurred_at desc, id desc)`, traces `(correlation_id)` and actor activity; `EXPLAIN` on the sandbox uses each. | commons `266f6d4` |
 
 ## Gaps
 
@@ -58,7 +63,8 @@ the next layer up (retention, access auditing, request context, scale), not flaw
 | Gap | Why it matters | Direction |
 |---|---|---|
 | **No retention / purge** | The table grows forever ("kept indefinitely" is an explicit decision, see README). | Consumer-configured `retention: { keepForDays }` (default indefinite); an automatic `background-jobs` `ScheduledJob` modelled on `JobRunPrunerJob` — daily, application-scoped, batched DELETE oldest-first, run recorded, "run now" via `JobTrigger`; the purge writes its own `audit.purged` record. A deployment that revoked DELETE gives the job its own role. Monthly partitions (purge = drop partition) when volume justifies it. |
-| **No `(application, occurred_at)` index** | Platform-wide stats, retention figures and the platform list scan the whole table — only `(tenant_id, occurred_at)` and `(entity_type, entity_id)` exist. Fine today; seconds at millions of rows. | Add the index; consider approximate counts or caching for the platform-wide retention figures. |
+| **The controller trusts the app's guard wiring** | `@RequiresAction` is metadata only: if a consuming app doesn't register `AuthorizationGuard` globally, any signed-in user reads every audit record, and `/audit/catalog` is public. | Fail closed — `@UseGuards` on the controller, or a startup check that the guard is registered. |
+| **Retention figures count the whole table** | The list, traces and actor activity are indexed now (migration 0002), but `count(*)` / per-month counts still read every row. | Approximate counts or caching for the platform-wide figures; monthly roll-ups or partitions at scale. |
 | **Reading / exporting the audit log isn't audited** | Anyone with `audit.view` can export 100,000 rows and leave no trace; most compliance regimes expect access to audit data to be recorded. | Record exports (and optionally record views) as audit events — `audit.exported` with the filter and row count. |
 | **No request context on records** | No IP, user agent, channel (UI / API / job) or on-behalf-of — when a platform admin acts inside a tenant, only one actor is recorded. | Capture request context in ambient context alongside the correlation id; add columns. Decide before more modules copy the record shape. |
 | **No PII handling in `before` / `after`** | Snapshots can hold personal data; there's no redaction or masking hook, and GDPR erasure vs. immutability is undecided. | A redaction hook at `persistAuditRecord` (per entity type, field list); a documented erasure policy (e.g. pseudonymise the actor, keep the event). |
@@ -75,6 +81,10 @@ the next layer up (retention, access auditing, request context, scale), not flaw
 | **Raw action labels** | `invoice.created` everywhere — the catalog could carry human labels. |
 | **Sheets aren't linkable by URL** | A business page can link to a filtered list, but can't open an entity's history (or a trace / actor) directly. |
 | **Saved queries are per browser** | Stored in localStorage — not tied to the user, other devices or teammates. |
+| **`AuditRecordRaised` has 9 positional parameters** | Three strings in a row (`entityType`, `entityId`, `tenantId`) compile when swapped. An options object or factory — before more modules copy the shape. |
+| **No real-database tests** | The reader's SQL is asserted as rendered text; its behaviour (time-zone cast, index use) is verified only through the sandbox. |
+| **No size limit on `before` / `after`** | A large snapshot bloats the table and every export. |
+| **No rate limit on the CSV export** | Up to 100,000 rows per request; `rate-limiting` exists in this repo. |
 
 ### P3 — later / nice to have
 
@@ -85,11 +95,14 @@ the next layer up (retention, access auditing, request context, scale), not flaw
 - Broker-transport correlation-id carry-through; a per-request application on the write side (both in README).
 - No automated frontend tests (verified manually with Playwright); clickable rows are `<tr onClick>`, not keyboard
   reachable; the volume chart's tooltip shows the raw `YYYY-MM-DD`.
+- Cursor precision — milliseconds in the cursor, microseconds in Postgres. Safe while every row comes from a JS
+  `Date`; a row written with `now()` could be skipped at a page boundary.
 
 ## Suggested order
 
-1. The `(application, occurred_at)` index and volume-by-month `tz` — small; fold into the backend code review.
-2. Audit exports / reads and capture request context — it shapes the record format, so before more modules copy it.
+1. Fail-closed guarding and volume-by-month `tz` — small.
+2. Audit exports / reads, capture request context, and the `AuditRecordRaised` options object — they shape the record
+   and its API, so before more modules copy them.
 3. Retention (the pruner job) and the Coverage & Gaps screen.
 4. The rest of P2 as product demand appears.
 
@@ -103,3 +116,5 @@ the next layer up (retention, access auditing, request context, scale), not flaw
 - Row drill-downs use `DataTableRunQueryAction` (a fresh run over the filter's default range).
 - Per-day statistics are counted in the viewer's time zone, whole days only.
 - A distinct-count KPI doesn't link to a list of records — it needs a breakdown of its own.
+- The backend conventions this review checks — input validation, cursors, CSV, headers, indexes — are listed in
+  [`../MODULE-GUIDE-TEMPLATE.md`](../MODULE-GUIDE-TEMPLATE.md).

@@ -176,3 +176,8 @@ seams, the Model 1/Model 2 split, persistence ownership, UI contract, naming,
 testing, and the upgrade plan (copy-sync tooling, Model 1→2 migration, and why
 "→ a centralized service" is deliberately not a roadmap item for any module
 here).
+
+Beside its `README.md`, each module carries a `GUIDE.md` (how it works, for a developer
+new to it) and an `AUDIT-REPORT.md` (its latest review and gaps) — see
+`MODULE-GUIDE-TEMPLATE.md` for what they cover and the conventions a review checks;
+`audit-logging/` is the worked example.

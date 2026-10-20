@@ -1,0 +1,94 @@
+# Module Guide & Review — Template
+
+What every module in this repo documents beside its `README.md`, and the conventions a module's review checks.
+Set by the `audit-logging` review (2026-10) — [`audit-logging/GUIDE.md`](./audit-logging/GUIDE.md) and
+[`audit-logging/AUDIT-REPORT.md`](./audit-logging/AUDIT-REPORT.md) are the worked example. Complements
+[`MODULE-STANDARD.md`](./MODULE-STANDARD.md) (how a module is structured), which this doesn't repeat.
+
+## The three documents
+
+| File | Answers | Written for | Update when |
+|---|---|---|---|
+| `<module>/README.md` | What is it, how do I consume it? | A consuming app's developer | The public surface changes |
+| `<module>/GUIDE.md` | How does it work, how do I change it safely? | A developer new to the module | A path, a layer or a rule changes |
+| `<module>/AUDIT-REPORT.md` | Is it complete and correct? What's missing? | Whoever plans the next work | After a review; as gaps get built |
+
+Link all three from each other, and the module README's "What's not built" to the report.
+
+## `GUIDE.md` — required sections
+
+1. **What it does, in one minute** — purpose, and a vocabulary table of the module's own terms.
+2. **Packages and dependencies** — a Mermaid graph of the packages and what each ships / never depends on.
+3. **Framework building blocks** — the NestJS pieces the module uses (dynamic modules, tokens, ports, guards,
+   decorators, middleware, listeners), each with a real excerpt. Skip what the module doesn't use.
+4. **Wiring it into an app** — the reference consumer's config (the sandbox), and a numbered checklist.
+5. **Each path, end to end** — a sequence or flow diagram per write / read path, then each layer with its code.
+   Include failure semantics (what propagates, what rolls back, what doesn't).
+6. **Every endpoint** — route, reader/port call, behaviour that isn't obvious.
+7. **Security model** — a table: authentication, authorization, tenant scope, application scope, existence leaks,
+   injection, input validation, exports. Then what depends on the consuming app's wiring.
+8. **Data model, indexes, migrations** — DDL, an index table mapping each index to the read it serves.
+9. **Testing** — commands, the spec patterns, what isn't covered.
+10. **How to change things** — add a field / filter / endpoint, change a shape, ship to the sandbox.
+11. **Latest review** — fixed (before → after, commit) and open findings.
+12. **File map.**
+
+Excerpts are real code, trimmed with `// …` — never pseudo-code. Name the file above each one.
+
+## `AUDIT-REPORT.md` — required sections
+
+Date and scope · verdict · what's in place · fixed during the review (with commits) · gaps as **P1** (compliance,
+security, scale) / **P2** (product) / **P3** (later), each with why it matters and a direction · suggested order ·
+standards the review set.
+
+## How a module review runs
+
+1. **Screens** — walk every screen with the module owner; fix UI-library issues at the library.
+2. **Drill-downs** — every number that can link does, carrying exactly the window it counted.
+3. **Each screen's data** — significance, cost, correctness (time zones, partial windows).
+4. **Flow walkthrough** — one request end to end; becomes the guide's §5.
+5. **Backend code review** — read every source file; reproduce each suspected bug against the sandbox **before**
+   fixing, re-probe after; one commit per fix, with tests.
+
+## Backend conventions a review checks
+
+**Structure**
+- [ ] Ports in `.core`, one stack adapter per package, the API depends on the port only (`scripts/check.js`).
+- [ ] Injection tokens are `Symbol`s; adapters bind them with `useExisting` / `useValue`; every `forRoot` takes `imports`.
+- [ ] Domain results stay domain types; the controller alone shapes the wire format (api-contract).
+
+**Security**
+- [ ] Every route declares `@RequiresAction(...)` or `@NoActionRequired()` — `AuthorizationGuard` denies undeclared routes.
+- [ ] Tenant scope is forced in the service for a non-platform actor — never trusted from the request.
+- [ ] Every read is scoped to the configured `application`.
+- [ ] A record the actor may not see and a missing record give the same 404.
+- [ ] Every SQL value is a bound parameter — dates, zones, ids included. No string-built SQL.
+- [ ] A caller's mistake is a 400 / 404 with a message saying what to fix — **never a 500**. Probe: a bad date, a bad
+      number, a garbage cursor, a malformed id.
+- [ ] A cursor the reader didn't issue is rejected (400) — never silently ignored (that restarts at page 1).
+- [ ] Exported CSV neutralizes cells starting with `= + - @`, tab or CR.
+- [ ] Inbound headers that end up stored (e.g. `x-correlation-id`) are validated.
+
+**Data**
+- [ ] Every read a screen makes has an index — check with `EXPLAIN` on the sandbox (with `enable_seqscan = off` on
+      a small table). List the index → read mapping in the guide.
+- [ ] Migrations: `NNNN_<snake_case>.sql`, never edit a released one; mirror in the Drizzle schema; note
+      `CREATE INDEX CONCURRENTLY` for large tables.
+- [ ] Per-day statistics are bucketed in the viewer's time zone, whole days only.
+- [ ] Keyset pagination with a stable tie-break (`occurred_at, id`); default and max page size.
+
+**Quality**
+- [ ] Specs per layer: reader (rendered SQL + bound params), service (rules, validation), module (wiring / routing).
+- [ ] A breaking change: Conventional Commit `!` + `BREAKING CHANGE:` footer.
+- [ ] Shipped to the sandbox (`ascendra-commons.js update --from`), migrated, rebuilt and probed.
+
+## UI conventions a review checks (ascendra-commons-ui)
+
+- [ ] Drill-down links run the list's own filter query by URL (`?q=<queryId>&q.<field>=…`, `buildQuerySearch`); the
+      module's `links.ts` adds only the path; query ids in one exported constant.
+- [ ] A link carries exactly the window its number was counted over, anchored to when the numbers were fetched
+      (`dataUpdatedAt`, never render time — that breaks hydration). Verify: the number clicked equals the list's total.
+- [ ] Row drill-downs use `DataTableRunQueryAction`.
+- [ ] A distinct-count number doesn't link to a list of records — it needs its own breakdown.
+- [ ] Test URL triggers with a stored last run in the browser, not only a fresh one.
+- [ ] Pixel diffs in dark mode use a zero threshold — dark-on-dark changes hide under a tolerance.
