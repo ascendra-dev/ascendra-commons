@@ -30,6 +30,24 @@ async function renderAuditEventsCsv(...pages: AuditEvent[][]): Promise<string> {
   return csv;
 }
 
+describe('streamAuditEventsCsv — formula injection', () => {
+  it('prefixes a value a spreadsheet would run as a formula, in any column', async () => {
+    const csv = await renderAuditEventsCsv([
+      event({ reason: '=HYPERLINK("http://x.test","click")', actor: '+1-555', entityId: '@SUM(A1)', tenantId: '-2+3' }),
+    ]);
+    const row = csv.trim().split('\r\n')[1];
+    expect(row).toContain(`"'=HYPERLINK(""http://x.test"",""click"")"`);
+    expect(row).toContain(",'+1-555,");
+    expect(row).toContain(",'@SUM(A1),");
+    expect(row).toContain(",'-2+3,");
+  });
+
+  it('leaves ordinary values untouched — JSON snapshots, ids, dates', async () => {
+    const csv = await renderAuditEventsCsv([event({ reason: 'a-b = c' })]);
+    expect(csv).not.toContain("'");
+  });
+});
+
 describe('streamAuditEventsCsv', () => {
   it('emits a header row and one line per record', async () => {
     const csv = await renderAuditEventsCsv([event()]);
