@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 import { PostgresAuditEventReader } from './postgres-audit-event-reader';
+import { encodeKeysetCursor, InvalidAuditCursorError } from '../../audit-logging.core';
 import type { SqlExecutor } from '../persistence/sql-executor';
 
 const dialect = new PgDialect();
@@ -16,11 +17,14 @@ function rendered(db: ReturnType<typeof fakeDb>, call = 0) {
   return dialect.sqlToQuery(db.execute.mock.calls[call][0] as SQL);
 }
 
+/** A uuid-shaped id per number — the reader only accepts ids a Postgres `uuid` column could hold. */
+const uuidOf = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+
 let seq = 0;
 function row(over: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
   seq += 1;
   return {
-    id: `id-${seq}`,
+    id: uuidOf(seq),
     entity_type: 'invoice',
     entity_id: 'inv-1',
     tenant_id: 'tenant-1',
@@ -97,7 +101,7 @@ describe('PostgresAuditEventReader.find', () => {
   });
 
   it('returns a nextCursor when more rows exist and keys the next page off it', async () => {
-    const many = Array.from({ length: 51 }, (_, i) => row({ id: `id-${100 + i}` }));
+    const many = Array.from({ length: 51 }, (_, i) => row({ id: uuidOf(100 + i) }));
     const db = fakeDb(many);
     const page = await reader(db).find({ limit: 50 });
 
@@ -109,13 +113,19 @@ describe('PostgresAuditEventReader.find', () => {
     expect(rendered(db2).sql).toMatch(/occurred_at < .* or .*occurred_at = .* and id </is);
   });
 
-  it('caps limit at 200 and ignores a malformed cursor', async () => {
+  it('caps limit at 200', async () => {
     const db = fakeDb([]);
     await reader(db).find({ limit: 100_000 });
     expect(rendered(db).params).toContain(201);
+  });
 
-    const db2 = fakeDb([]);
-    await expect(reader(db2).find({ cursor: 'garbage' })).resolves.toEqual({ records: [] });
+  it("rejects a cursor it didn't issue instead of restarting from the first page", async () => {
+    const db = fakeDb([]);
+    await expect(reader(db).find({ cursor: 'garbage' })).rejects.toBeInstanceOf(InvalidAuditCursorError);
+    // Decodes fine, but no uuid column holds that id — binding it would be a cast error.
+    const foreign = encodeKeysetCursor(new Date('2026-10-01T00:00:00Z'), 'not-a-uuid');
+    await expect(reader(db).find({ cursor: foreign })).rejects.toBeInstanceOf(InvalidAuditCursorError);
+    expect(db.execute).not.toHaveBeenCalled();
   });
 });
 
@@ -156,30 +166,36 @@ describe('PostgresAuditEventReader application scope', () => {
 
 describe('PostgresAuditEventReader.findOne', () => {
   it('scopes to id + application and maps the row', async () => {
-    const db = fakeDb([row({ id: 'ae-1' })]);
-    const result = await reader(db).findOne('ae-1');
+    const db = fakeDb([row({ id: uuidOf(1) })]);
+    const result = await reader(db).findOne(uuidOf(1));
 
-    expect(result).toMatchObject({ id: 'ae-1', entityType: 'invoice' });
+    expect(result).toMatchObject({ id: uuidOf(1), entityType: 'invoice' });
     const { sql: text, params } = rendered(db);
     expect(text).toMatch(/id =/i);
     expect(text).toMatch(/application in/i);
     expect(text).not.toMatch(/tenant_id (=|is null)/i); // no tenant filter in WHERE (column still in SELECT list)
-    expect(params).toEqual(expect.arrayContaining(['ae-1', 'ascendra-pay']));
+    expect(params).toEqual(expect.arrayContaining([uuidOf(1), 'ascendra-pay']));
   });
 
   it('returns null when nothing matches (including a cross-tenant id)', async () => {
     const db = fakeDb([]);
-    await expect(reader(db).findOne('missing')).resolves.toBeNull();
+    await expect(reader(db).findOne(uuidOf(404))).resolves.toBeNull();
+  });
+
+  it('answers a non-uuid id with null without querying — a miss, not a cast error', async () => {
+    const db = fakeDb([]);
+    await expect(reader(db).findOne('123')).resolves.toBeNull();
+    expect(db.execute).not.toHaveBeenCalled();
   });
 
   it('filters by tenantId when supplied, and by IS NULL for an explicit null', async () => {
     const scoped = fakeDb([]);
-    await reader(scoped).findOne('ae-1', 't-3');
+    await reader(scoped).findOne(uuidOf(1), 't-3');
     expect(rendered(scoped).sql).toMatch(/tenant_id =/i);
     expect(rendered(scoped).params).toContain('t-3');
 
     const platformOnly = fakeDb([]);
-    await reader(platformOnly).findOne('ae-1', null);
+    await reader(platformOnly).findOne(uuidOf(1), null);
     expect(rendered(platformOnly).sql).toMatch(/tenant_id is null/i);
   });
 });

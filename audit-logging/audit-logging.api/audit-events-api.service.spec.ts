@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuditEventsApiService } from './audit-events-api.service';
-import type { AuditEvent, AuditEventReader } from '../audit-logging.core';
+import { InvalidAuditCursorError, type AuditEvent, type AuditEventReader } from '../audit-logging.core';
 import type { AuditApiOptions } from './audit-api.options';
 import type { Actor } from '../../authorization/authorization.core';
 
@@ -166,6 +166,30 @@ describe('AuditEventsApiService.actorActivity', () => {
       'u1',
       expect.objectContaining({ occurredAfter: new Date('2026-06-01T00:00:00Z') }),
     );
+  });
+});
+
+describe('AuditEventsApiService input validation', () => {
+  it('400s a date that is not one, on the list and the actor activity', async () => {
+    const { svc, reader } = deps();
+    await expect(svc.find(platformAdmin, { occurredAfter: 'yesterday' })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.actorActivity(platformAdmin, 'u1', { occurredBefore: 'nope' })).rejects.toBeInstanceOf(BadRequestException);
+    expect(reader.find).not.toHaveBeenCalled();
+  });
+
+  it('400s a limit that is not a positive whole number', async () => {
+    const { svc } = deps();
+    for (const limit of [Number.NaN, 0, -3, 2.5]) {
+      await expect(svc.find(platformAdmin, { limit })).rejects.toBeInstanceOf(BadRequestException);
+    }
+  });
+
+  it("400s a cursor the reader didn't issue — on the list, a history and a trace", async () => {
+    const { svc, reader } = deps();
+    vi.mocked(reader.find).mockRejectedValue(new InvalidAuditCursorError('x'));
+    await expect(svc.find(platformAdmin, { cursor: 'garbage' })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.entityHistory(platformAdmin, 'invoice', 'i1', { cursor: 'garbage' })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.trace(platformAdmin, 'c1', { cursor: 'garbage' })).rejects.toBeInstanceOf(BadRequestException);
   });
 });
 
