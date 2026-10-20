@@ -4,6 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { AuthorizationGuard, AuthorizationNotDeclaredError } from './authorization.guard';
 import { ACTION_METADATA_KEY, NO_ACTION_REQUIRED_KEY } from './requires-action.decorator';
 import { Authorizer } from './authorizer.port';
+import { AUTHORIZATION_CHECKED } from './authorization-enforced.guard';
 
 const HANDLER = function handler() {};
 const CONTROLLER = class Controller {};
@@ -116,5 +117,25 @@ describe('AuthorizationGuard', () => {
 
     await expect(guard.canActivate(ctx({ actor }))).resolves.toBe(true);
     expect(authorizer.can).toHaveBeenCalledWith(actor, 'invoice.void');
+  });
+});
+
+describe('AuthorizationGuard — marks the requests it lets through', () => {
+  it('marks an allowed request, on @RequiresAction() and @NoActionRequired() routes', async () => {
+    const allowed: Record<string | symbol, unknown> = { actor: { id: 'u1', persona: 'issuer', tenantId: 't1' } };
+    await makeGuard({ can: vi.fn().mockResolvedValue(true) }, { handler: { action: 'invoice.void' } }).canActivate(ctx(allowed as Record<string, unknown>));
+    expect(allowed[AUTHORIZATION_CHECKED]).toBe(true);
+
+    const open: Record<string | symbol, unknown> = {};
+    await makeGuard({ can: vi.fn() }, { handler: { noAction: true } }).canActivate(ctx(open as Record<string, unknown>));
+    expect(open[AUTHORIZATION_CHECKED]).toBe(true);
+  });
+
+  it('never marks a request it refuses', async () => {
+    const denied: Record<string | symbol, unknown> = { actor: { id: 'u1', persona: 'payer', tenantId: null } };
+    await expect(
+      makeGuard({ can: vi.fn().mockResolvedValue(false) }, { handler: { action: 'invoice.void' } }).canActivate(ctx(denied as Record<string, unknown>)),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(denied[AUTHORIZATION_CHECKED]).toBeUndefined();
   });
 });
