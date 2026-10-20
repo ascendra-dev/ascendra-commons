@@ -21,8 +21,11 @@
   },
   "devDependencies": {
     "@nestjs/testing": "^12.2.0",
-    "@types/node": "^20.0.0",
+    "@types/node": "^24.19.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.12"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }
