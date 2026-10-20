@@ -100,6 +100,8 @@ deviation).
 
 ## What's not built
 
+The 2026-10 module review lists the gaps in priority order — see [`AUDIT-REPORT.md`](./AUDIT-REPORT.md).
+
 - No retention/purge — audit records are kept indefinitely (explicit decision).
 - No admin **UI** — `audit-logging.api` ships the read endpoints; the frontend
   is `ascendra-commons-ui`.
