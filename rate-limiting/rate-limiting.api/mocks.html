@@ -100,20 +100,43 @@
   .breadcrumb b { color: var(--foreground); font-weight: 500; }
   .scrollx { overflow-x: auto; }
   h3.sub { font-size: var(--text-heading-sm); font-weight: 600; margin: 1.5rem 0 0.5rem; }
+  .seg { display: inline-flex; padding: 2px; border-radius: 0.5rem; background: var(--muted); border: 1px solid var(--border); gap: 2px; }
+  .seg span { padding: 0.2rem 0.65rem; border-radius: 0.375rem; font-size: var(--text-label); color: var(--muted-foreground); }
+  .seg span.on { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+  .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+  .panel { border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.125rem; }
+  .panel h4 { margin: 0 0 0.75rem; font-size: var(--text-body-sm); font-weight: 600; }
+  .bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.625rem; }
+  .bars a { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.75rem; color: inherit; text-decoration: none; }
+  .bars .bar { grid-column: 1 / -1; height: 6px; border-radius: 999px; background: var(--muted); overflow: hidden; }
+  .bars .bar i { display: block; height: 100%; background: color-mix(in oklab, var(--negative) 70%, transparent); border-radius: 999px; }
+  .bars .n { font-variant-numeric: tabular-nums; font-weight: 500; }
+  .src { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .src:last-child { border-bottom: 0; }
+  .src .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .muted { color: var(--muted-foreground); }
+  .link { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: color-mix(in oklab, var(--primary) 40%, transparent); }
+  .empty { text-align: center; padding: 2.5rem 1rem; color: var(--muted-foreground); border: 1px dashed var(--border); border-radius: var(--radius); }
+  .empty b { display: block; color: var(--foreground); font-size: var(--text-body); margin-bottom: 0.25rem; }
+  .sheet { margin-left: auto; max-width: 420px; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; box-shadow: 0 12px 32px -12px rgba(0,0,0,0.25); }
+  .sheet h4 { margin: 0; font-size: var(--text-heading-sm); }
+  .sheet .desc { color: var(--muted-foreground); font-size: var(--text-label); margin: 0.25rem 0 1.25rem; }
+  .ann { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0.5rem 0 0; }
+  .ann li { margin: 0.2rem 0; }
+  .vchart { display: flex; align-items: flex-end; gap: 3px; height: 96px; padding: 0.5rem 0 0; border-bottom: 1px solid var(--border); }
+  .vchart a { flex: 1; background: color-mix(in oklab, var(--negative) 65%, transparent); border-radius: 2px 2px 0 0; min-height: 1px; }
+  .vchart a.zero { background: var(--border); }
+  .vaxis { display: flex; justify-content: space-between; color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.25rem; }
 </style>
 </head>
 <body>
 <div class="shell">
   <nav class="sidebar">
-    <div class="brand"><span></span>Rate Limiting Console</div>
+    <div class="brand"><span></span>Observability</div>
     <div class="nav-group">
-      <div class="nav-group-title">Investigate</div>
-      <a class="nav-item active" href="#rejections">Rejections</a>
-      <a class="nav-item" href="#trace">Request Trace</a>
-    </div>
-    <div class="nav-group">
-      <div class="nav-group-title">Insight</div>
-      <a class="nav-item" href="#catalog">Route Catalog</a>
+      <div class="nav-group-title">Rate limiting</div>
+      <a class="nav-item active" href="#overview">Overview</a>
+      <a class="nav-item" href="#rejections">Rejections</a>
     </div>
   </nav>
 
@@ -122,15 +145,21 @@
       <h1 class="page-title">Rate Limiting — Admin Console</h1>
       <p class="page-sub">
         Screen mocks for the <code>rate-limiting</code> module's admin surface. Every read is gated
-        <code>@RequiresAction('rate-limit.view')</code> — an ops/security persona; a rejected,
-        unauthenticated request has no tenant to scope by.
+        <code>@RequiresAction('rate-limit.view')</code> — an ops/security persona. No tenant scoping: a
+        rejected request usually wasn't signed in, so it has no tenant.
       </p>
     </div>
 
     <div class="note warn">
       <div><b>Why this console exists.</b> A <code>429</code> used to vanish with no trace anywhere. If
-      a public endpoint — a payment link, most concretely — is actually being hammered, nothing told
-      you it was happening.</div>
+      a public endpoint — a payment link, most concretely — is being hammered, this is where it shows.</div>
+    </div>
+
+    <div class="note">
+      <div><b>What a row is.</b> The recorder counts rejections in memory and writes every 10 seconds, so the
+      log holds one row per <b>route, source, limit and minute</b> — "203.0.113.7 was turned away 280 times on
+      <code>/pay/:token</code> in 09:40", not 280 rows. Rejections arrive up to ~10s late. A row whose minute is
+      still running keeps counting.</div>
     </div>
 
     <h3 class="sub">Endpoint coverage map</h3>
@@ -138,81 +167,164 @@
     <table class="cov">
       <thead><tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr></thead>
       <tbody>
-        <tr><td>Rejections</td><td><span class="endpoint"><span class="m">GET</span>/rate-limits/rejections</span></td><td><span class="status live">Live</span></td><td>All filters exposed. Keyset pagination.</td></tr>
-        <tr><td>Request Trace</td><td><span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/trace/:correlationId</span></td><td><span class="status live">Live</span></td><td>Cross-module trace.</td></tr>
-        <tr><td>Route Catalog</td><td><span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/catalog</span></td><td><span class="status live">Live</span></td><td>Counts per route — the "being hammered" number.</td></tr>
+        <tr><td>Overview — by route</td><td><span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/catalog?since</span></td><td><span class="status live">Live</span></td><td>Total rejections per route — the "being hammered" number.</td></tr>
+        <tr><td>Overview — top sources</td><td><span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/top-identifiers?since&amp;limit=10</span></td><td><span class="status live">Live</span></td><td>Per source: total, routes hit, last seen.</td></tr>
+        <tr><td>Overview — volume &amp; retention</td><td><span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/volume?tz</span></td><td><span class="status live">Live</span></td><td>Per day for 30 days (viewer's zone), oldest window, rows, table size.</td></tr>
+        <tr><td>Rejections</td><td><span class="endpoint"><span class="m">GET</span>/rate-limits/rejections</span></td><td><span class="status live">Live</span></td><td>route, identifier, since/until filters. Keyset pagination — no total count.</td></tr>
+        <tr><td>Trace sheet</td><td><span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/trace/:correlationId</span></td><td><span class="status live">Live</span></td><td>Only from a row that has a correlation id.</td></tr>
       </tbody>
     </table>
     </div>
 
-    <!-- 1 · REJECTIONS -->
+    <!-- 1 · OVERVIEW -->
+    <section class="screen" id="overview">
+      <div class="screen-head">
+        <h2 class="screen-name">Overview</h2>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">The landing screen — which routes are absorbing rejections, and who is causing them.</p>
+      <p class="gating">Gate: <code>rate-limit.view</code>. Calls <code>catalog</code> and <code>top-identifiers</code> with the same <code>since</code>.</p>
+
+      <div class="filterbar">
+        <span class="seg"><span>Past hour</span><span class="on">Past 24 hours</span><span>Past 7 days</span></span>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi alert"><div class="k-label">Rejections</div><div class="k-value"><a class="link" href="#rejections">920</a></div></div>
+        <div class="kpi"><div class="k-label">Routes affected</div><div class="k-value">3</div></div>
+        <div class="kpi"><div class="k-label">Busiest route</div><div class="k-value" style="font-size: var(--text-body)"><code>/pay/:token</code> · 96%</div></div>
+      </div>
+
+      <div class="panels">
+        <div class="panel">
+          <h4>Rejections by route</h4>
+          <ul class="bars">
+            <li><a href="#rejections"><code>/pay/:token</code><span class="n link">880</span><span class="bar"><i style="width: 100%"></i></span></a></li>
+            <li><a href="#rejections"><code>/login</code><span class="n link">35</span><span class="bar"><i style="width: 4%"></i></span></a></li>
+            <li><a href="#rejections"><code>/quotes</code><span class="n link">5</span><span class="bar"><i style="width: 1%"></i></span></a></li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h4>Top sources</h4>
+          <a class="src" href="#rejections"><span class="mono">203.0.113.7</span><span class="n link">280</span>
+            <span class="meta"><span class="badge action">/pay/:token</span>· last 09:41</span></a>
+          <a class="src" href="#rejections"><span><span class="mono">(overflow)</span> <span class="muted">— many sources, counted together</span></span><span class="n link">224</span>
+            <span class="meta"><span class="badge action">/pay/:token</span>· last 09:41</span></a>
+          <a class="src" href="#rejections"><span class="mono">192.0.2.44</span><span class="n link">35</span>
+            <span class="meta"><span class="badge action">/login</span>· last 09:40</span></a>
+          <a class="src" href="#rejections"><span class="mono">100.64.0.12</span><span class="n link">5</span>
+            <span class="meta"><span class="badge action">/quotes</span>· last 09:40</span></a>
+          <a class="src" href="#rejections"><span class="mono">198.18.0.109</span><span class="n link">4</span>
+            <span class="meta"><span class="badge action">/pay/:token</span>· last 09:41</span></a>
+        </div>
+      </div>
+
+      <ul class="ann">
+        <li>Every number opens the Rejections list filtered to it, over the same period: a route → <code>route</code>, a source → <code>identifier</code>, the total → just <code>since</code>.</li>
+        <li>A source that hit several routes shows each as a badge. <code>(overflow)</code> is what the recorder couldn't tell apart under a wide flood — its count is exact, its sources aren't.</li>
+        <li>Shares are of the period's total. Times are the viewer's local time (<code>formatDateTime</code>).</li>
+      </ul>
+
+
+      <h3 class="sub">Volume &amp; retention</h3>
+      <div class="panel">
+        <div class="screen-head" style="justify-content: space-between"><h4 style="margin:0">Rejections per day · past 30 days</h4>
+          <span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/volume?tz</span></div>
+        <div class="vchart"><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="" style="height: 1%" title="12 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="" style="height: 4%" title="40 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="" style="height: 1%" title="5 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="" style="height: 10%" title="88 rejections"></a><a href="#rejections" class="" style="height: 3%" title="31 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="" style="height: 1%" title="9 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="" style="height: 15%" title="140 rejections"></a><a href="#rejections" class="zero" style="height: 1%" title="0 rejections"></a><a href="#rejections" class="" style="height: 100%" title="920 rejections"></a></div>
+        <div class="vaxis"><span>22 Sep</span><span>Today</span></div>
+        <div class="kpi-row" style="margin: 1rem 0 0">
+          <div class="kpi"><div class="k-label">Oldest window</div><div class="k-value" style="font-size: var(--text-body)">24 Jul 2026</div><div class="k-label">89 days ago</div></div>
+          <div class="kpi"><div class="k-label">Stored windows</div><div class="k-value">4,812</div></div>
+          <div class="kpi"><div class="k-label">Table size</div><div class="k-value">1.2 MB</div><div class="k-label">every application sharing it</div></div>
+        </div>
+      </div>
+      <ul class="ann">
+        <li>Not tied to the period picker — always the past 30 calendar days in the viewer's time zone (<code>tz</code>), zero-filled. A bar opens the list filtered to that day.</li>
+        <li>Answers "is this getting worse, or one spike?" — the period tiles above can't.</li>
+        <li>Retention is the app's: it prunes with its own cutoff (the sandbox keeps 90 days). The API reports what's left — the oldest window shows the prune is running, not the policy.</li>
+      </ul>
+
+      <div class="note warn">
+        <div><b>Reading this screen.</b> <code>/pay/:token</code> absorbing most rejections — from one source, or
+        from an <code>(overflow)</code> of many — is worth investigating. Cross-reference
+        <code>payment-link-security</code>'s resolutions for the same period: a matching spike in
+        <code>not_found</code> is a strong enumeration signal.</div>
+      </div>
+
+      <h3 class="sub">Empty state</h3>
+      <div class="empty"><b>No rejections in the past 24 hours</b>Nothing has hit a rate limit — try a longer period.</div>
+    </section>
+
+    <!-- 2 · REJECTIONS -->
     <section class="screen" id="rejections">
       <div class="screen-head">
         <h2 class="screen-name">Rejections</h2>
         <span class="endpoint"><span class="m">GET</span>/rate-limits/rejections</span>
         <span class="status live">Live</span>
       </div>
-      <p class="screen-purpose">Every throttled (429) request, newest first.</p>
+      <p class="screen-purpose">Every rejection window, newest minute first.</p>
       <p class="gating">Gate: <code>rate-limit.view</code>. No tenant scoping.</p>
 
       <div class="filterbar">
-        <span class="field"><span class="lbl">Route</span><span class="val">any</span></span>
-        <span class="field"><span class="lbl">Identifier</span><span class="val">any</span></span>
+        <span class="field"><span class="lbl">Route</span><span class="val">/pay/:token</span></span>
+        <span class="field"><span class="lbl">Source</span><span class="val">any</span></span>
+        <span class="field"><span class="lbl">Period</span><span class="val">Past 24 hours</span></span>
         <button class="btn-secondary" type="button">Reset</button>
-        <button class="btn" type="button">Apply</button>
       </div>
 
       <div class="scrollx">
       <table class="table">
-        <thead><tr><th>Rejected at</th><th>Route</th><th>Identifier</th><th>Limit</th><th>Window</th></tr></thead>
+        <thead><tr><th>Minute</th><th>Route</th><th>Source</th><th class="t-num">Rejections</th><th>Seen</th><th>Limit</th><th>Correlation</th></tr></thead>
         <tbody>
-          <tr><td class="t-time">2026-09-12 09:41:02</td><td><span class="badge action">/pay/:token</span></td><td class="t-id">203.0.113.7</td><td class="t-num">20</td><td>60s</td></tr>
-          <tr><td class="t-time">2026-09-12 09:40:58</td><td><span class="badge action">/pay/:token</span></td><td class="t-id">203.0.113.7</td><td class="t-num">20</td><td>60s</td></tr>
-          <tr><td class="t-time">2026-09-12 09:40:51</td><td><span class="badge action">/pay/:token</span></td><td class="t-id">203.0.113.7</td><td class="t-num">20</td><td>60s</td></tr>
-          <tr><td class="t-time">2026-09-12 08:12:04</td><td><span class="badge action">/invoices</span></td><td class="t-id">198.51.100.9</td><td class="t-num">100</td><td>60s</td></tr>
+          <tr><td class="t-time">21 Oct 09:41</td><td><span class="badge action">/pay/:token</span></td><td class="t-id">(overflow) <span class="muted">— many sources</span></td><td class="t-num">224</td><td class="t-time">09:41:23 – 09:41:23</td><td class="muted" style="white-space: nowrap">20 / 60s</td><td class="muted">—</td></tr>
+          <tr><td class="t-time">21 Oct 09:41</td><td><span class="badge action">/pay/:token</span></td><td class="t-id">198.18.0.109</td><td class="t-num">4</td><td class="t-time">09:41:23 – 09:41:23</td><td class="muted" style="white-space: nowrap">20 / 60s</td><td class="muted">—</td></tr>
+          <tr><td class="t-time">21 Oct 09:40</td><td><span class="badge action">/quotes</span></td><td class="t-id">100.64.0.12</td><td class="t-num">2</td><td class="t-time">09:40:59 – 09:41:00</td><td class="muted" style="white-space: nowrap">10 / 60s</td><td><a class="t-id link" href="#trace">7f3c…a91e</a></td></tr>
+          <tr><td class="t-time">21 Oct 09:40</td><td><span class="badge action">/login</span></td><td class="t-id">192.0.2.44</td><td class="t-num">35</td><td class="t-time">09:40:41 – 09:40:47</td><td class="muted" style="white-space: nowrap">5 / 60s</td><td class="muted">—</td></tr>
+          <tr><td class="t-time">21 Oct 09:40</td><td><span class="badge action">/pay/:token</span></td><td class="t-id">203.0.113.7</td><td class="t-num">280</td><td class="t-time">09:40:02 – 09:40:58</td><td class="muted" style="white-space: nowrap">20 / 60s</td><td class="muted">—</td></tr>
         </tbody>
       </table>
       </div>
 
       <div class="pagebar">
-        <span>Showing 4 of ~226 · page size 50</span>
+        <span>50 per page</span>
         <span class="pager"><span>Newer</span><span>Older</span></span>
       </div>
+
+      <ul class="ann">
+        <li><b>Source</b> is what the throttler counted by — an IP, behind one trusted proxy. Clicking it filters the list to that source. Copyable.</li>
+        <li><b>Seen</b> is the first and last rejection inside the minute — a burst reads as a narrow span, a steady drip as a wide one.</li>
+        <li><b>Correlation</b> only when the caller sent one (a well-behaved client, rarely an attacker) — it opens the Trace sheet. No link otherwise.</li>
+        <li>No "of N" total: the list pages by cursor with no count query, like audit's. The Overview carries the totals.</li>
+        <li>Route and Period come from the URL, so the Overview's links land here pre-filtered.</li>
+      </ul>
+
+      <h3 class="sub">Empty state</h3>
+      <div class="empty"><b>No rejections match</b>Nothing was rate-limited for these filters — widen the period or clear a filter.</div>
     </section>
 
-    <!-- 2 · TRACE -->
+    <!-- 3 · TRACE SHEET -->
     <section class="screen" id="trace">
       <div class="screen-head">
-        <h2 class="screen-name">Request Trace</h2>
+        <h2 class="screen-name">Trace sheet</h2>
         <span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/trace/:correlationId</span>
         <span class="status live">Live</span>
       </div>
-      <p class="breadcrumb">correlation <b>—</b> (a rejected request rarely carries one — most callers hitting this are unauthenticated)</p>
-      <p class="screen-purpose">Every rejection sharing one correlation id, when the caller supplied one.</p>
-    </section>
+      <p class="screen-purpose">Opened from a row's correlation id — every rejection of that one request (and its retries). Audit's trace sheet, for rate limits.</p>
 
-    <!-- 3 · ROUTE CATALOG -->
-    <section class="screen" id="catalog">
-      <div class="screen-head">
-        <h2 class="screen-name">Route Catalog</h2>
-        <span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/catalog</span>
-        <span class="status live">Live</span>
-      </div>
-      <p class="screen-purpose">The landing dashboard — which route is absorbing the most rejections right now.</p>
-      <p class="gating">Gate: <code>rate-limit.view</code>.</p>
-
-      <div class="kpi-row">
-        <div class="kpi alert"><div class="k-label">/pay/:token (24h)</div><div class="k-value">318</div></div>
-        <div class="kpi"><div class="k-label">/invoices (24h)</div><div class="k-value">6</div></div>
-        <div class="kpi"><div class="k-label">Total rejections (24h)</div><div class="k-value">324</div></div>
+      <div class="sheet">
+        <h4>Request trace</h4>
+        <p class="desc">Correlation: <span class="mono">7f3c2d10-…-a91e</span> (click to copy)</p>
+        <ol class="timeline">
+          <li class="tl-item"><div class="tl-time">21 Oct 09:40 · seen 09:40:59 – 09:41:00</div>
+            <div class="tl-title"><span class="badge bad">2 rejections</span> <span class="badge action">/quotes</span></div>
+            <div class="tl-time mono">100.64.0.12 · limit 10 / 60s</div></li>
+        </ol>
       </div>
 
-      <div class="note warn">
-        <div><b>Reading this screen.</b> <code>/pay/:token</code> absorbing the overwhelming majority of
-        rejections is worth investigating — cross-reference with
-        <code>payment-link-security.api</code>'s outcome catalog for the same window; a matching spike
-        in <code>not_found</code> resolutions is a strong enumeration signal.</div>
-      </div>
+      <ul class="ann">
+        <li>Usually one item: one request, rejected once — or a retry that was rejected again, counted 2.</li>
+        <li>Read-only, no links out, so no sheet opens on top of it. Pages by cursor ("Load older"), like audit's.</li>
+      </ul>
     </section>
 
   </main>
