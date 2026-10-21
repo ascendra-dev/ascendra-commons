@@ -1,5 +1,8 @@
 # Rate Limiting Pattern
 
+**Docs:** [`GUIDE.md`](./GUIDE.md) — how it works, end to end, and how to change it ·
+[`AUDIT-REPORT.md`](./AUDIT-REPORT.md) — the 2026-10 review: what's in place, what was fixed, the gaps (P1 / P2 / P3).
+
 Once any endpoint is public or low-friction — a payment link, most
 concretely — something has to bound how often it can be hit, as defense in
 depth alongside token entropy. This pattern defines that mechanism without
@@ -123,3 +126,8 @@ takes no dependency on `background-jobs` itself.
 `node ascendra-commons.js add rate-limiting.core.throttler` (brings
 `rate-limiting.core` with it); add `rate-limiting.core.postgres-drizzle` +
 `rate-limiting.api` if you want the recorded log and its admin read surface.
+
+## What's not built
+
+The open gaps — per-process throttle counters (Redis storage), a summary on the list, alerting, the
+`payment-link-security` cross-reference, and more — are prioritised in [`AUDIT-REPORT.md`](./AUDIT-REPORT.md).

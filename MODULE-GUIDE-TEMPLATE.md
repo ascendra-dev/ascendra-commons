@@ -2,7 +2,8 @@
 
 What every module in this repo documents beside its `README.md`, and the conventions a module's review checks.
 Set by the `audit-logging` review (2026-10) — [`audit-logging/GUIDE.md`](./audit-logging/GUIDE.md) and
-[`audit-logging/AUDIT-REPORT.md`](./audit-logging/AUDIT-REPORT.md) are the worked example. Complements
+[`audit-logging/AUDIT-REPORT.md`](./audit-logging/AUDIT-REPORT.md) are the worked example; `rate-limiting`
+([`GUIDE.md`](./rate-limiting/GUIDE.md), [`AUDIT-REPORT.md`](./rate-limiting/AUDIT-REPORT.md)) the second. Complements
 [`MODULE-STANDARD.md`](./MODULE-STANDARD.md) (how a module is structured), which this doesn't repeat.
 
 ## The three documents
@@ -71,6 +72,8 @@ standards the review set.
 - [ ] A cursor the reader didn't issue is rejected (400) — never silently ignored (that restarts at page 1).
 - [ ] Exported CSV neutralizes cells starting with `= + - @`, tab or CR.
 - [ ] Inbound headers that end up stored (e.g. `x-correlation-id`) are validated.
+- [ ] Nothing stores a resolved URL — record the route *pattern*: a URL can carry a secret (a token) and splits one
+      route into a row per id. Check the fallback when the HTTP adapter doesn't populate the pattern.
 
 **Data**
 - [ ] Every read a screen makes has an index — check with `EXPLAIN` on the sandbox (with `enable_seqscan = off` on
@@ -78,7 +81,10 @@ standards the review set.
 - [ ] Migrations: `NNNN_<snake_case>.sql`, never edit a released one; mirror in the Drizzle schema; note
       `CREATE INDEX CONCURRENTLY` for large tables.
 - [ ] Per-day statistics are bucketed in the viewer's time zone, whole days only.
-- [ ] Keyset pagination with a stable tie-break (`occurred_at, id`); default and max page size.
+- [ ] Keyset pagination with a stable tie-break (`occurred_at, id`) — and an index carrying the tie-break, or the list
+      sorts every row; default and max page size.
+- [ ] A write path that records the attack itself (rejections, failed lookups) does no I/O per event — count in
+      memory, upsert on an interval, bound the buffer (an overflow bucket keeps totals exact).
 
 **Quality**
 - [ ] Specs per layer: reader (rendered SQL + bound params), service (rules, validation), module (wiring / routing).
@@ -90,8 +96,11 @@ standards the review set.
 - [ ] Drill-down links run the list's own filter query by URL (`?q=<queryId>&q.<field>=…`, `buildQuerySearch`); the
       module's `links.ts` adds only the path; query ids in one exported constant.
 - [ ] A link carries exactly the window its number was counted over, anchored to when the numbers were fetched
-      (`dataUpdatedAt`, never render time — that breaks hydration). Verify: the number clicked equals the list's total.
+      (`dataUpdatedAt`, never render time — that breaks hydration). Verify: the number clicked equals the list's total
+      — or its *sum*, when the number counts something the rows aggregate (rejections in rejection windows).
 - [ ] Row drill-downs use `DataTableRunQueryAction`.
 - [ ] A distinct-count number doesn't link to a list of records — it needs its own breakdown.
 - [ ] Test URL triggers with a stored last run in the browser, not only a fresh one.
 - [ ] Pixel diffs in dark mode use a zero threshold — dark-on-dark changes hide under a tolerance.
+- [ ] A control the mock shows but ascendra-ui lacks is built in ascendra-ui (as `SegmentedControl` was), not replaced
+      by the nearest existing component.
