@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
-import type { CachedResponse, ClaimResult, IdempotencyStore, IdempotencyStoreOptions } from '../idempotency-key.core';
+import type { CachedResponse, ClaimContext, ClaimResult, IdempotencyStore, IdempotencyStoreOptions } from '../idempotency-key.core';
+import { PostgresIdempotencyDuplicateCounter } from './duplicates/postgres-idempotency-duplicate-counter';
 import type { SqlExecutor } from './persistence/sql-executor';
 import { IDEMPOTENCY_SQL_EXECUTOR, IDEMPOTENCY_STORE_OPTIONS } from './tokens';
 
@@ -36,6 +37,11 @@ type ExistingResult = Exclude<ClaimResult, { status: 'claimed' }>;
  * consistent with what the current owner's client saw. That no-op is now
  * itself recorded (`late_complete_no_op_count`, logged) rather than silently
  * discarded — it's the one unambiguous signal that a duplicate actually ran.
+ *
+ * A duplicate `claim()` answers — a replayed `'completed'`, an `'in_progress'`
+ * `409` — is counted by `PostgresIdempotencyDuplicateCounter`: in memory on
+ * the request, added to the row in batches. The duplicate path keeps its two
+ * queries, no more.
  */
 @Injectable()
 export class PostgresIdempotencyStore implements IdempotencyStore {
@@ -44,17 +50,20 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
   constructor(
     @Inject(IDEMPOTENCY_SQL_EXECUTOR) private readonly db: SqlExecutor,
     @Inject(IDEMPOTENCY_STORE_OPTIONS) private readonly options: IdempotencyStoreOptions,
+    @Inject(PostgresIdempotencyDuplicateCounter) private readonly duplicates: PostgresIdempotencyDuplicateCounter,
   ) {}
 
-  async claim(key: string, scope: string, correlationId?: string): Promise<ClaimResult> {
+  async claim(key: string, scope: string, context: ClaimContext = {}): Promise<ClaimResult> {
     const claimId = randomUUID();
+    const correlationId = context.correlationId ?? null;
+    const route = context.route ?? null;
 
     const won = await this.db.execute(sql`
-      insert into commons_idempotency_key (key, scope, status, claim_id, correlation_id)
-      values (${key}, ${scope}, 'pending', ${claimId}, ${correlationId ?? null})
+      insert into commons_idempotency_key (key, scope, status, claim_id, correlation_id, route)
+      values (${key}, ${scope}, 'pending', ${claimId}, ${correlationId}, ${route})
       on conflict (key, scope) do update
         set status = 'pending', created_at = now(), claim_id = ${claimId},
-            correlation_id = ${correlationId ?? null},
+            correlation_id = ${correlationId}, route = ${route},
             reclaim_count = commons_idempotency_key.reclaim_count + 1
         where commons_idempotency_key.status = 'pending'
           and commons_idempotency_key.created_at < now() - make_interval(secs => ${this.options.staleAfterSeconds})
@@ -73,15 +82,17 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
       // re-claim. Not a "reclaim" in the stale-owner sense (the row was gone, not abandoned) —
       // reclaimedStale is false here.
       const reclaimed = await this.db.execute(sql`
-        insert into commons_idempotency_key (key, scope, status, claim_id, correlation_id)
-        values (${key}, ${scope}, 'pending', ${claimId}, ${correlationId ?? null})
+        insert into commons_idempotency_key (key, scope, status, claim_id, correlation_id, route)
+        values (${key}, ${scope}, 'pending', ${claimId}, ${correlationId}, ${route})
         on conflict (key, scope) do nothing
         returning claim_id
       `);
       if (reclaimed.rows.length === 1) return { status: 'claimed', claimId, reclaimedStale: false };
       row = await this.readRow(key, scope); // someone else won the re-claim — read their row
     }
-    return this.classify(row);
+    const result = this.classify(row);
+    this.duplicates.record(key, scope, result.status === 'completed' ? 'replayed' : 'conflict');
+    return result;
   }
 
   async complete(key: string, scope: string, claimId: string, response: CachedResponse): Promise<void> {

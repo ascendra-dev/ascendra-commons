@@ -4,17 +4,25 @@ import {
   decodeKeysetCursor,
   encodeKeysetCursor,
   type CachedResponse,
+  type ClaimHealthQuery,
   type ClaimHealthSummary,
   type ClaimPage,
   type ClaimQuery,
   type IdempotencyClaimRecord,
   type IdempotencyObservabilityPort,
+  type RouteClaimCount,
 } from '../../idempotency-key.core';
 import type { SqlExecutor } from '../persistence/sql-executor';
 import { IDEMPOTENCY_SQL_EXECUTOR } from '../tokens';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
+
+/** Every column `mapRow` reads. `claim_id`, the owner's token, never leaves the store. */
+const CLAIM_COLUMNS = sql.raw(
+  'key, scope, status, status_code, response_body, created_at, reclaim_count, late_complete_no_op_count, ' +
+    'replay_count, conflict_count, last_duplicate_at, route, correlation_id',
+);
 
 /**
  * Reference `IdempotencyObservabilityPort` for Postgres — one library-owned
@@ -33,7 +41,7 @@ export class PostgresIdempotencyObservabilityService implements IdempotencyObser
 
   async getClaim(key: string, scope: string): Promise<IdempotencyClaimRecord | null> {
     const { rows } = await this.db.execute(sql`
-      select key, scope, status, status_code, response_body, created_at, reclaim_count, late_complete_no_op_count, correlation_id
+      select ${CLAIM_COLUMNS}
       from commons_idempotency_key
       where key = ${key} and scope = ${scope}
     `);
@@ -46,6 +54,7 @@ export class PostgresIdempotencyObservabilityService implements IdempotencyObser
     const conds: SQL[] = [];
     if (query.status !== undefined) conds.push(sql`status = ${query.status}`);
     if (query.scope !== undefined) conds.push(sql`scope = ${query.scope}`);
+    if (query.route !== undefined) conds.push(sql`route = ${query.route}`);
     if (query.correlationId !== undefined) conds.push(sql`correlation_id = ${query.correlationId}`);
     if (query.since) conds.push(sql`created_at >= ${query.since}`);
     if (query.until) conds.push(sql`created_at < ${query.until}`);
@@ -62,7 +71,7 @@ export class PostgresIdempotencyObservabilityService implements IdempotencyObser
 
     const rows = (
       await this.db.execute(sql`
-        select key, scope, status, status_code, response_body, created_at, reclaim_count, late_complete_no_op_count, correlation_id
+        select ${CLAIM_COLUMNS}
         from commons_idempotency_key
         ${where}
         order by created_at desc, key desc, scope desc
@@ -78,16 +87,20 @@ export class PostgresIdempotencyObservabilityService implements IdempotencyObser
     return { claims: rows };
   }
 
-  async claimHealthSummary(): Promise<ClaimHealthSummary> {
+  async claimHealthSummary(query: ClaimHealthQuery = {}): Promise<ClaimHealthSummary> {
+    // "Oldest retained" is the whole table's, whatever the period — how far back any period can actually look.
     const { rows } = await this.db.execute(sql`
       select
         count(*) filter (where status = 'pending') as pending_count,
         count(*) filter (where status = 'completed') as completed_count,
         count(*) filter (where reclaim_count > 0) as reclaimed_count,
         coalesce(sum(late_complete_no_op_count), 0) as late_complete_no_op_total,
+        coalesce(sum(replay_count), 0) as replay_total,
+        coalesce(sum(conflict_count), 0) as conflict_total,
         count(*) as total_count,
-        min(created_at) as oldest_retained_at
+        (select min(created_at) from commons_idempotency_key) as oldest_retained_at
       from commons_idempotency_key
+      ${sinceWhere(query.since)}
     `);
     const row = rows[0] ?? {};
     return {
@@ -95,15 +108,45 @@ export class PostgresIdempotencyObservabilityService implements IdempotencyObser
       completedCount: Number(row.completed_count ?? 0),
       reclaimedCount: Number(row.reclaimed_count ?? 0),
       lateCompleteNoOpTotal: Number(row.late_complete_no_op_total ?? 0),
+      replayTotal: Number(row.replay_total ?? 0),
+      conflictTotal: Number(row.conflict_total ?? 0),
       totalCount: Number(row.total_count ?? 0),
-      oldestRetainedAt:
-        row.oldest_retained_at == null
-          ? null
-          : row.oldest_retained_at instanceof Date
-            ? row.oldest_retained_at
-            : new Date(String(row.oldest_retained_at)),
+      oldestRetainedAt: toDateOrNull(row.oldest_retained_at),
     };
   }
+
+  async claimsByRoute(query: ClaimHealthQuery = {}): Promise<RouteClaimCount[]> {
+    const { rows } = await this.db.execute(sql`
+      select
+        route,
+        count(*) as claims,
+        coalesce(sum(replay_count), 0) as replays,
+        coalesce(sum(conflict_count), 0) as conflicts,
+        count(*) filter (where reclaim_count > 0) as reclaimed,
+        coalesce(sum(late_complete_no_op_count), 0) as late_complete_no_ops
+      from commons_idempotency_key
+      ${sinceWhere(query.since)}
+      group by route
+      order by sum(replay_count) + sum(conflict_count) desc, count(*) desc, route
+    `);
+    return rows.map((row) => ({
+      route: row.route == null ? null : String(row.route),
+      claims: Number(row.claims),
+      replays: Number(row.replays),
+      conflicts: Number(row.conflicts),
+      reclaimed: Number(row.reclaimed),
+      lateCompleteNoOps: Number(row.late_complete_no_ops),
+    }));
+  }
+}
+
+function sinceWhere(since: Date | undefined): SQL {
+  return since ? sql`where created_at >= ${since}` : sql``;
+}
+
+function toDateOrNull(value: unknown): Date | null {
+  if (value == null) return null;
+  return value instanceof Date ? value : new Date(String(value));
 }
 
 function mapRow(row: Record<string, unknown>): IdempotencyClaimRecord {
@@ -117,6 +160,10 @@ function mapRow(row: Record<string, unknown>): IdempotencyClaimRecord {
     createdAt: row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at)),
     reclaimCount: Number(row.reclaim_count),
     lateCompleteNoOpCount: Number(row.late_complete_no_op_count),
+    replayCount: Number(row.replay_count ?? 0),
+    conflictCount: Number(row.conflict_count ?? 0),
+    lastDuplicateAt: toDateOrNull(row.last_duplicate_at),
+    route: row.route == null ? null : String(row.route),
     correlationId: row.correlation_id == null ? null : String(row.correlation_id),
   };
 }

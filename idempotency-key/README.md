@@ -43,7 +43,7 @@ async createInvoice(@Body() dto: CreateInvoiceDto) { /* ... */ }
 
 ## The pieces (in `idempotency-key.core`)
 
-- **`IdempotencyStore`** — `claim(key, scope)` → `claimed` / `completed` /
+- **`IdempotencyStore`** — `claim(key, scope, context?)` → `claimed` / `completed` /
   `in_progress`; `complete(key, scope, claimId, response)`. An **atomic** claim
   — a plain `get()` then `save()` races.
 - **`ClaimResult.claimId`** — an ownership token the interceptor threads into
@@ -89,3 +89,15 @@ previously invisible even querying the raw table — see `idempotency-key.core`'
 README, "Observability," for why that mattered more than the usual "nice to
 have a dashboard" case. `idempotency-key.api` ships the read surface;
 `idempotency-key.core.postgres-drizzle` ships the reference implementation.
+
+**2026-10-21 — what the pattern absorbs, and where.** The failures were
+counted, the successes weren't: a repeat request answered with the saved
+response (a *replay*) or turned away with a `409` while the first was still
+running (a *conflict*) left no trace. Both are now counted per claim
+(`replayCount`, `conflictCount`, `lastDuplicateAt`) — in memory on the request,
+added to the row every 10s, so a client hammering one key costs no extra write
+per request (the standard rate-limiting set). Each claim also records its
+endpoint's **route pattern** (`/payments/:id`, never the URL), so the health
+numbers break down per endpoint (`GET /idempotency-keys/routes`) and take a
+period (`?since=`). History reaches back as far as claims are retained (24h by
+default) — this is a short-lived safety store, not a log.

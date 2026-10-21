@@ -6,6 +6,7 @@
 export interface ClaimQueryDto {
   status?: 'pending' | 'completed';
   scope?: string;
+  route?: string;
   correlationId?: string;
   since?: string;
   until?: string;

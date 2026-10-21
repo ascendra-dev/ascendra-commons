@@ -1,6 +1,6 @@
 export type { CachedResponse } from './cached-response.interface';
 export type { ClaimResult } from './claim-result';
-export type { IdempotencyStore } from './idempotency-store.port';
+export type { ClaimContext, IdempotencyStore } from './idempotency-store.port';
 export type { IdempotencyStoreOptions } from './idempotency-store-options';
 export type { IdempotencyScopeResolver } from './idempotency-scope-resolver.port';
 export { ActorScopeResolver } from './actor-scope-resolver';
@@ -12,6 +12,8 @@ export type {
   ClaimQuery,
   ClaimPage,
   ClaimHealthSummary,
+  ClaimHealthQuery,
+  RouteClaimCount,
   IdempotencyObservabilityPort,
 } from './idempotency-observability.port';
 export { encodeKeysetCursor, decodeKeysetCursor } from './keyset-cursor';

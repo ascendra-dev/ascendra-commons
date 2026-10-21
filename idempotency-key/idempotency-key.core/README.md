@@ -18,11 +18,11 @@ package:
 
 | Piece | Purpose |
 |---|---|
-| `IdempotencyStore` (`idempotency-store.port.ts`) | `claim(key, scope, correlationId?)` → `claimed` / `completed` / `in_progress`; `complete(key, scope, claimId, response)`. An **atomic** claim — check-then-act is unsafe. **No implementation here.** |
+| `IdempotencyStore` (`idempotency-store.port.ts`) | `claim(key, scope, context?)` — `context` is `{ correlationId?, route? }` → `claimed` / `completed` / `in_progress`; `complete(key, scope, claimId, response)`. An **atomic** claim — check-then-act is unsafe. **No implementation here.** |
 | `ClaimResult` | The `'claimed'` result carries a `claimId` (an ownership token the interceptor threads back into `complete()`, so a claim reclaimed as stale can't overwrite the new owner's cached response) and a `reclaimedStale` flag — see "Observability" below. |
 | `IdempotencyScopeResolver` + `ActorScopeResolver` | `scope` = the acting tenant/actor id, so one tenant's key can't collide with another's. `ActorScopeResolver` (reads `request.actor`) is the default; an anonymously-reachable endpoint needs its own. |
 | `IdempotencyInterceptor` | Enforcement — reads the `Idempotency-Key` header, claims, caches the handler's real status code (never hardcoded), replays a cached error *as* that error, and only emits the response after `complete()`'s write lands. Also reads `x-correlation-id` (by convention, not a dependency — see "Observability") and logs a warning when `reclaimedStale`. |
-| `IdempotencyObservabilityPort` (`idempotency-observability.port.ts`) | Read-only reporting — `getClaim`, `listClaims`, `claimHealthSummary`. Implemented by a stack adapter, consumed by `idempotency-key.api`. |
+| `IdempotencyObservabilityPort` (`idempotency-observability.port.ts`) | Read-only reporting — `getClaim`, `listClaims`, `claimHealthSummary({ since? })`, `claimsByRoute({ since? })`. Implemented by a stack adapter, consumed by `idempotency-key.api`. |
 | `IdempotencyModule.forRoot({ storeToken, scopeResolverToken?, imports })` | Pure token wiring. Does **not** apply the interceptor — the consumer opts in per-endpoint with `@UseInterceptors(IdempotencyInterceptor)`. |
 
 ## `applicationId` / `tenantId`
@@ -47,9 +47,18 @@ duplicate actually happens). Both are now surfaced:
 - `complete()`'s reference Postgres implementation now detects and counts its
   own 0-row no-op — see `idempotency-key.core.postgres-drizzle`'s README.
 
-`correlationId` is optional on both `IdempotencyStore` methods — read by
-`IdempotencyInterceptor` off the `x-correlation-id` header **by convention, not
-by depending on `audit-logging`** (this module stays self-contained; the two
+2026-10-21: the duplicates the pattern absorbs are counted too — a replay of
+the saved response and a `409` on an in-progress claim (`replayCount`,
+`conflictCount`, `lastDuplicateAt` on the claim record) — and every claim
+records its endpoint's route pattern. A store must count them without adding
+I/O to the duplicate's request (the reference adapter buffers them).
+
+`ClaimContext` is optional on `claim()`. Its `route` is the matched route
+pattern (Express `route.path`, Fastify `routeOptions.url` / `routerPath`, else
+`Controller.handler`) — never the resolved URL. Its `correlationId` is read by
+`IdempotencyInterceptor` off the `x-correlation-id` header, kept only when
+well-formed (`[A-Za-z0-9._:-]`, ≤128 chars — the header is caller-controlled),
+**by convention, not by depending on `audit-logging`** (this module stays self-contained; the two
 naturally agree on the same header when both are wired in one app) — so a
 stack adapter can join a claim to the same id in `commons_audit_event` /
 `commons_notification_delivery` / `commons_domain_events_delivery` /

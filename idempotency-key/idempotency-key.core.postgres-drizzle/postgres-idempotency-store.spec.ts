@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { Logger } from '@nestjs/common';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
+import type { PostgresIdempotencyDuplicateCounter } from './duplicates/postgres-idempotency-duplicate-counter';
 import { PostgresIdempotencyStore } from './postgres-idempotency-store';
 import type { SqlExecutor } from './persistence/sql-executor';
 
@@ -12,12 +13,20 @@ function fakeDb() {
   return { execute: vi.fn() } as unknown as SqlExecutor & { execute: ReturnType<typeof vi.fn> };
 }
 
+function fakeCounter() {
+  return { record: vi.fn() } as unknown as PostgresIdempotencyDuplicateCounter & { record: ReturnType<typeof vi.fn> };
+}
+
+function storeOf(db: SqlExecutor, opts = options, counter = fakeCounter()) {
+  return new PostgresIdempotencyStore(db, opts, counter);
+}
+
 describe('PostgresIdempotencyStore.claim', () => {
   it('claims on a fresh key with a single statement — inserted = true means not a reclaim', async () => {
     const db = fakeDb();
     db.execute.mockResolvedValueOnce({ rows: [{ claim_id: 'c-1', inserted: true }] }); // a plain INSERT — xmax = 0
 
-    const result = await new PostgresIdempotencyStore(db, options).claim('key-1', 'tenant-1');
+    const result = await storeOf(db).claim('key-1', 'tenant-1');
 
     expect(result).toEqual({ status: 'claimed', claimId: expect.any(String), reclaimedStale: false });
     expect(db.execute).toHaveBeenCalledTimes(1);
@@ -27,7 +36,7 @@ describe('PostgresIdempotencyStore.claim', () => {
     const db = fakeDb();
     db.execute.mockResolvedValueOnce({ rows: [{ claim_id: 'c-2', inserted: false }] });
 
-    await expect(new PostgresIdempotencyStore(db, options).claim('key-1', 'tenant-1')).resolves.toMatchObject({
+    await expect(storeOf(db).claim('key-1', 'tenant-1')).resolves.toMatchObject({
       status: 'claimed',
       reclaimedStale: true,
     });
@@ -36,19 +45,52 @@ describe('PostgresIdempotencyStore.claim', () => {
   it('increments reclaim_count in the same atomic statement as the reclaim', async () => {
     const db = fakeDb();
     db.execute.mockResolvedValueOnce({ rows: [{ claim_id: 'c-2', inserted: false }] });
-    await new PostgresIdempotencyStore(db, options).claim('key-1', 'tenant-1');
+    await storeOf(db).claim('key-1', 'tenant-1');
 
     const { sql: text } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
     expect(text).toMatch(/reclaim_count = commons_idempotency_key\.reclaim_count \+ 1/i);
     expect(text).toMatch(/returning claim_id, \(xmax = 0\) as inserted/i);
   });
 
-  it('threads correlationId into the row on both the insert and the reclaim branch', async () => {
+  it('threads correlationId and route into the row on both the insert and the reclaim branch', async () => {
     const db = fakeDb();
     db.execute.mockResolvedValueOnce({ rows: [{ claim_id: 'c-1', inserted: true }] });
-    await new PostgresIdempotencyStore(db, options).claim('key-1', 'tenant-1', 'corr-9');
+    await storeOf(db).claim('key-1', 'tenant-1', { correlationId: 'corr-9', route: '/payments/:id' });
 
-    expect(dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).params).toContain('corr-9');
+    const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(text).toMatch(/correlation_id = \$\d+, route = \$\d+/i); // the reclaim branch sets both too
+    expect(params.filter((p) => p === 'corr-9')).toHaveLength(2);
+    expect(params.filter((p) => p === '/payments/:id')).toHaveLength(2);
+  });
+
+  it('counts a 409 duplicate as a conflict and a replay as replayed — in memory, no extra query', async () => {
+    const db = fakeDb();
+    const counter = fakeCounter();
+    db.execute
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ status: 'pending', status_code: null, response_body: null }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ status: 'completed', status_code: 201, response_body: {} }] });
+    const store = storeOf(db, options, counter);
+
+    await store.claim('key-1', 'tenant-1');
+    await store.claim('key-2', 'tenant-1');
+
+    expect(counter.record.mock.calls).toEqual([
+      ['key-1', 'tenant-1', 'conflict'],
+      ['key-2', 'tenant-1', 'replayed'],
+    ]);
+    expect(db.execute).toHaveBeenCalledTimes(4); // two per duplicate, as before
+  });
+
+  it('never counts the request that wins the claim', async () => {
+    const db = fakeDb();
+    const counter = fakeCounter();
+    db.execute.mockResolvedValueOnce({ rows: [{ claim_id: 'c-1', inserted: true }] });
+
+    await storeOf(db, options, counter).claim('key-1', 'tenant-1');
+
+    expect(counter.record).not.toHaveBeenCalled();
   });
 
   it('reports in_progress for a recent, still-pending duplicate (zero-row claim, then a pending row)', async () => {
@@ -57,7 +99,7 @@ describe('PostgresIdempotencyStore.claim', () => {
       .mockResolvedValueOnce({ rows: [] }) // WHERE did not match — too recent to reclaim
       .mockResolvedValueOnce({ rows: [{ status: 'pending', status_code: null, response_body: null }] });
 
-    await expect(new PostgresIdempotencyStore(db, options).claim('key-1', 'tenant-1')).resolves.toEqual({
+    await expect(storeOf(db).claim('key-1', 'tenant-1')).resolves.toEqual({
       status: 'in_progress',
     });
     expect(db.execute).toHaveBeenCalledTimes(2);
@@ -69,7 +111,7 @@ describe('PostgresIdempotencyStore.claim', () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ status: 'completed', status_code: 201, response_body: { id: 'inv-1' } }] });
 
-    await expect(new PostgresIdempotencyStore(db, options).claim('key-1', 'tenant-1')).resolves.toEqual({
+    await expect(storeOf(db).claim('key-1', 'tenant-1')).resolves.toEqual({
       status: 'completed',
       response: { statusCode: 201, body: { id: 'inv-1' } },
     });
@@ -82,7 +124,7 @@ describe('PostgresIdempotencyStore.claim', () => {
       .mockResolvedValueOnce({ rows: [] }) // fallback SELECT finds nothing — row was deleted
       .mockResolvedValueOnce({ rows: [{ claim_id: 'c-3' }] }); // the DO NOTHING re-insert won
 
-    const store = new PostgresIdempotencyStore(db, options);
+    const store = storeOf(db);
     await expect(store.claim('key-1', 'tenant-1')).resolves.toEqual({
       status: 'claimed',
       claimId: expect.any(String),
@@ -101,7 +143,7 @@ describe('PostgresIdempotencyStore.claim', () => {
       .mockResolvedValueOnce({ rows: [] }) // DO NOTHING re-insert — lost the race
       .mockResolvedValueOnce({ rows: [{ status: 'pending', status_code: null, response_body: null }] }); // their row
 
-    await expect(new PostgresIdempotencyStore(db, options).claim('key-1', 'tenant-1')).resolves.toEqual({
+    await expect(storeOf(db).claim('key-1', 'tenant-1')).resolves.toEqual({
       status: 'in_progress',
     });
     expect(db.execute).toHaveBeenCalledTimes(4);
@@ -110,7 +152,7 @@ describe('PostgresIdempotencyStore.claim', () => {
   it('passes staleAfterSeconds as a bound parameter to make_interval', async () => {
     const db = fakeDb();
     db.execute.mockResolvedValueOnce({ rows: [{ claim_id: 'c', inserted: true }] });
-    await new PostgresIdempotencyStore(db, { staleAfterSeconds: 45 }).claim('k', 's');
+    await storeOf(db, { staleAfterSeconds: 45 }).claim('k', 's');
 
     const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
     expect(text).toMatch(/make_interval\(secs => \$\d+\)/i);
@@ -123,7 +165,7 @@ describe('PostgresIdempotencyStore.complete', () => {
     const db = fakeDb();
     db.execute.mockResolvedValueOnce({ rows: [{ key: 'k1' }] }); // 1 row updated
 
-    await new PostgresIdempotencyStore(db, options).complete('k1', 's1', 'claim-xyz', {
+    await storeOf(db).complete('k1', 's1', 'claim-xyz', {
       statusCode: 200,
       body: { ok: true },
     });
@@ -143,7 +185,7 @@ describe('PostgresIdempotencyStore.complete', () => {
       .mockResolvedValueOnce({ rows: [] }); // the follow-up counter UPDATE
     const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
 
-    await new PostgresIdempotencyStore(db, options).complete('k1', 's1', 'stale-claim', {
+    await storeOf(db).complete('k1', 's1', 'stale-claim', {
       statusCode: 200,
       body: {},
     });
@@ -165,7 +207,7 @@ describe('PostgresIdempotencyStore.complete', () => {
     const errorSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
 
     await expect(
-      new PostgresIdempotencyStore(db, options).complete('k1', 's1', 'stale-claim', { statusCode: 200, body: {} }),
+      storeOf(db).complete('k1', 's1', 'stale-claim', { statusCode: 200, body: {} }),
     ).resolves.toBeUndefined();
     expect(errorSpy).toHaveBeenCalledTimes(1);
   });

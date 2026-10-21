@@ -10,8 +10,9 @@ The atomic claim over a `commons_idempotency_key` table.
 | `migrations/` | the DDL + indexes, numbered — **never edited once released**; a schema change is the next file |
 | `persistence/sql-executor.ts` | the minimal db shape (`{ rows }` only) |
 | `postgres-idempotency-store.ts` | `IdempotencyStore` — `claim()` / `complete()` |
-| `postgres-idempotency-store.module.ts` | `forRoot({ sqlExecutorToken, staleAfterSeconds, imports })` → `POSTGRES_IDEMPOTENCY_STORE` |
-| `observability/postgres-idempotency-observability.service.ts` | `IdempotencyObservabilityPort` — `getClaim()` / `listClaims()` / `claimHealthSummary()`, read-only |
+| `duplicates/postgres-idempotency-duplicate-counter.ts` | counts replays and `409`s in memory, adds them to the claim rows every `flushIntervalMs` |
+| `postgres-idempotency-store.module.ts` | `forRoot({ sqlExecutorToken, staleAfterSeconds, duplicateCounter?, imports })` → `POSTGRES_IDEMPOTENCY_STORE` |
+| `observability/postgres-idempotency-observability.service.ts` | `IdempotencyObservabilityPort` — `getClaim()` / `listClaims()` / `claimHealthSummary()` / `claimsByRoute()`, read-only |
 | `observability/postgres-idempotency-observability.module.ts` | `forRoot({ sqlExecutorToken, imports })` → the core `IDEMPOTENCY_OBSERVABILITY_PORT` token |
 
 ## The claim
@@ -55,6 +56,29 @@ current owner's client actually saw. `late_complete_no_op_count` is the
 **unambiguous** signal that this actually happened — see
 `IdempotencyObservabilityPort.claimHealthSummary()`'s `lateCompleteNoOpTotal`,
 exposed by `idempotency-key.api`'s `GET /idempotency-keys/health`.
+
+## Counting duplicates — no I/O on the duplicate's request
+
+A duplicate `claim()` answers (a replay, a `409`) already costs two queries —
+the claim attempt and the read that classifies it. It must cost no more: a
+client hammering one key would otherwise queue up on that row's lock.
+`PostgresIdempotencyDuplicateCounter` counts it in memory and, every
+`flushIntervalMs` (10s), adds the counts onto the claim rows in one
+`UPDATE … FROM (VALUES …)` per 1,000 claims — `replay_count`,
+`conflict_count`, `last_duplicate_at = greatest(…)`. So several instances add
+into the same rows, and a flood on one key is one row update per flush.
+
+Best-effort, like rate-limiting's recorder: a failed flush is logged and its
+counts dropped, never retried; the buffer is flushed on shutdown. Once
+`maxBufferedKeys` (10,000) claims have duplicates within one interval, further
+claims' duplicates are dropped — **and the drop is logged**, never silent. A
+count for a claim pruned before the flush is a no-op.
+
+`PostgresIdempotencyStoreModule.forRoot({ duplicateCounter: { flushIntervalMs, maxBufferedKeys } })`.
+
+Migration `0002` adds the three count columns and `route` (the route pattern,
+set by the claim) with an index on `(route, created_at)` for the per-route
+breakdown and filter.
 
 ## Cleanup
 

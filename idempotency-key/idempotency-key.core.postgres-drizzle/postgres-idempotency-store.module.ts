@@ -1,6 +1,15 @@
 import { DynamicModule, Module } from '@nestjs/common';
+import {
+  PostgresIdempotencyDuplicateCounter,
+  type PostgresIdempotencyDuplicateCounterOptions,
+} from './duplicates/postgres-idempotency-duplicate-counter';
 import { PostgresIdempotencyStore } from './postgres-idempotency-store';
-import { IDEMPOTENCY_SQL_EXECUTOR, IDEMPOTENCY_STORE_OPTIONS, POSTGRES_IDEMPOTENCY_STORE } from './tokens';
+import {
+  IDEMPOTENCY_DUPLICATE_COUNTER_OPTIONS,
+  IDEMPOTENCY_SQL_EXECUTOR,
+  IDEMPOTENCY_STORE_OPTIONS,
+  POSTGRES_IDEMPOTENCY_STORE,
+} from './tokens';
 
 export interface PostgresIdempotencyStoreModuleConfig {
   /** The injection token the consuming app already provides its Drizzle db under. Aliased via `useExisting`. */
@@ -15,6 +24,8 @@ export interface PostgresIdempotencyStoreModuleConfig {
    * `forRoot()` throws unless it's `> 0`.
    */
   staleAfterSeconds: number;
+  /** How replays and 409s are counted — flush interval and buffer size. Defaults: every 10s, 10,000 claims. */
+  duplicateCounter?: PostgresIdempotencyDuplicateCounterOptions;
   /** Whatever module(s) export the provider behind `sqlExecutorToken`. Omit only if that module is `global: true`. */
   imports?: DynamicModule['imports'];
 }
@@ -51,6 +62,8 @@ export class PostgresIdempotencyStoreModule {
       providers: [
         { provide: IDEMPOTENCY_SQL_EXECUTOR, useExisting: config.sqlExecutorToken },
         { provide: IDEMPOTENCY_STORE_OPTIONS, useValue: { staleAfterSeconds: config.staleAfterSeconds } },
+        { provide: IDEMPOTENCY_DUPLICATE_COUNTER_OPTIONS, useValue: config.duplicateCounter ?? {} },
+        PostgresIdempotencyDuplicateCounter,
         PostgresIdempotencyStore,
         { provide: POSTGRES_IDEMPOTENCY_STORE, useExisting: PostgresIdempotencyStore },
       ],

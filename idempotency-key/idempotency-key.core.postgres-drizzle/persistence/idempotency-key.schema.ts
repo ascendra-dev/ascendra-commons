@@ -43,6 +43,14 @@ export const idempotencyKeyTable = pgTable(
      * `PostgresIdempotencyStore.complete()`.
      */
     lateCompleteNoOpCount: integer('late_complete_no_op_count').notNull().default(0),
+    /** Repeat requests answered with the saved response — added in batches by `PostgresIdempotencyStore`, never on the request itself. */
+    replayCount: integer('replay_count').notNull().default(0),
+    /** Repeat requests turned away with a `409` while the claim was pending — batched like `replayCount`. */
+    conflictCount: integer('conflict_count').notNull().default(0),
+    /** The latest replay or `409`; null if none. */
+    lastDuplicateAt: timestamp('last_duplicate_at', { withTimezone: true, mode: 'date' }),
+    /** The endpoint's route pattern (`/payments/:id`, never the resolved URL), set when the claim is made. */
+    route: text('route'),
     /** Nullable — the caller's correlation id, when threaded through `claim()`, for a cross-module trace. */
     correlationId: text('correlation_id'),
   },
@@ -57,5 +65,7 @@ export const idempotencyKeyTable = pgTable(
     /** `listClaims({ correlationId })` — cross-module trace lookup. No dedicated cardinality
      *  concern (a correlation id is a handful of rows), same posture `audit-logging` takes. */
     index('commons_idempotency_key_correlation_idx').on(t.correlationId),
+    /** `listClaims({ route })` and `claimsByRoute()` over a period (migration 0002). */
+    index('commons_idempotency_key_route_idx').on(t.route, t.createdAt),
   ],
 );

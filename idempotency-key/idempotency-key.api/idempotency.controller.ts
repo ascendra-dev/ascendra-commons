@@ -5,8 +5,8 @@ import { IdempotencyApiService } from './idempotency-api.service';
 
 /**
  * Read endpoints for an idempotency support/ops screen: claim lookup (by
- * `key`+`scope`), a filtered list, a cross-module correlation trace, and a
- * health summary. All gated on `idempotency.view`. No tenant scoping — see
+ * `key`+`scope`), a filtered list, a cross-module correlation trace, a
+ * health summary and per-route counts. All gated on `idempotency.view`. No tenant scoping — see
  * `IdempotencyApiService`'s doc comment for why. Requires `AuthorizationGuard`
  * wired globally as `APP_GUARD` (see `authorization.core`'s README).
  */
@@ -19,6 +19,7 @@ export class IdempotencyController {
   claims(
     @Query('status') status?: 'pending' | 'completed',
     @Query('scope') scope?: string,
+    @Query('route') route?: string,
     @Query('correlationId') correlationId?: string,
     @Query('since') since?: string,
     @Query('until') until?: string,
@@ -28,6 +29,7 @@ export class IdempotencyController {
     return this.service.listClaims({
       status,
       scope,
+      route,
       correlationId,
       since,
       until,
@@ -51,8 +53,15 @@ export class IdempotencyController {
 
   @Get('health')
   @RequiresAction(IDEMPOTENCY_ACTIONS.VIEW)
-  health() {
-    return this.service.claimHealthSummary();
+  health(@Query('since') since?: string) {
+    return this.service.claimHealthSummary(since);
+  }
+
+  /** Claims and duplicates per endpoint — bounded by the routes, so a bare array. */
+  @Get('routes')
+  @RequiresAction(IDEMPOTENCY_ACTIONS.VIEW)
+  routes(@Query('since') since?: string) {
+    return this.service.claimsByRoute(since);
   }
 
   @Get(':scope/:key')

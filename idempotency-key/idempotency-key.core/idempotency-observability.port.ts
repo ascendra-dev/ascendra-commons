@@ -26,6 +26,17 @@ export interface IdempotencyClaimRecord {
    * `staleAfterSeconds`'s doc comment describes.
    */
   lateCompleteNoOpCount: number;
+  /**
+   * How many repeat requests got this claim's saved response replayed — the duplicates the pattern absorbed. Counted
+   * in memory and added every few seconds, so it can trail the live count briefly.
+   */
+  replayCount: number;
+  /** How many repeat requests arrived while this claim was still pending and got a `409`. Counted like `replayCount`. */
+  conflictCount: number;
+  /** When the last replay or `409` for this claim happened; null if none has. */
+  lastDuplicateAt: Date | null;
+  /** The endpoint's route pattern, recorded when the claim was made; null for a claim made before routes were recorded. */
+  route: string | null;
   /** The caller's correlation id, when threaded through `claim()`, for a cross-module trace. */
   correlationId: string | null;
 }
@@ -33,6 +44,8 @@ export interface IdempotencyClaimRecord {
 export interface ClaimQuery {
   status?: 'pending' | 'completed';
   scope?: string;
+  /** Exact route pattern, as recorded. */
+  route?: string;
   correlationId?: string;
   /** Inclusive lower bound on `createdAt`. */
   since?: Date;
@@ -52,8 +65,8 @@ export interface ClaimPage {
 }
 
 /**
- * The health numbers for whatever window the store still retains (rows are
- * pruned — see the adapter README — so this is "recently," not "all time").
+ * The health numbers over claims made since `since`, or over whatever the store still retains when it's omitted (rows
+ * are pruned — see the adapter README — so this is "recently," not "all time").
  */
 export interface ClaimHealthSummary {
   pendingCount: number;
@@ -62,9 +75,30 @@ export interface ClaimHealthSummary {
   reclaimedCount: number;
   /** Sum of every row's `lateCompleteNoOpCount` — an unambiguous duplicate-processing count. */
   lateCompleteNoOpTotal: number;
+  /** Sum of every row's `replayCount` — repeat requests answered with a saved response. */
+  replayTotal: number;
+  /** Sum of every row's `conflictCount` — repeat requests turned away with a `409` while the first was running. */
+  conflictTotal: number;
   totalCount: number;
-  /** The oldest row currently retained — how far back this summary actually looks. */
+  /** The oldest row currently retained — how far back the store can look, whatever `since` asked for. */
   oldestRetainedAt: Date | null;
+}
+
+export interface ClaimHealthQuery {
+  /** Inclusive lower bound on a claim's `createdAt`. Omit for everything retained. */
+  since?: Date;
+}
+
+/** One endpoint's claims and duplicates — `claimsByRoute()`'s row. */
+export interface RouteClaimCount {
+  /** The route pattern; null groups claims made before routes were recorded. */
+  route: string | null;
+  claims: number;
+  replays: number;
+  conflicts: number;
+  /** Claims with `reclaimCount > 0` on this route. */
+  reclaimed: number;
+  lateCompleteNoOps: number;
 }
 
 /**
@@ -77,5 +111,7 @@ export interface IdempotencyObservabilityPort {
   getClaim(key: string, scope: string): Promise<IdempotencyClaimRecord | null>;
   /** Claims, newest first, keyset-paginated. */
   listClaims(query?: ClaimQuery): Promise<ClaimPage>;
-  claimHealthSummary(): Promise<ClaimHealthSummary>;
+  claimHealthSummary(query?: ClaimHealthQuery): Promise<ClaimHealthSummary>;
+  /** Per-route counts over claims made since `since` (everything retained when omitted), most duplicates first. */
+  claimsByRoute(query?: ClaimHealthQuery): Promise<RouteClaimCount[]>;
 }

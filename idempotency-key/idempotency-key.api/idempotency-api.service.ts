@@ -1,12 +1,24 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import {
   IDEMPOTENCY_OBSERVABILITY_PORT,
   type ClaimHealthSummary,
   type ClaimPage,
   type IdempotencyClaimRecord,
   type IdempotencyObservabilityPort,
+  type RouteClaimCount,
 } from '../idempotency-key.core';
 import type { ClaimQueryDto } from './dto/idempotency-api.dto';
+
+/**
+ * A date query param as a Date — a 400 when it isn't one. Unchecked, `new Date('yesterday')` is an Invalid Date that
+ * only fails when the driver serializes it: a 500 for what is the caller's mistake.
+ */
+function dateParam(name: string, value: string | undefined): Date | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new BadRequestException(`"${name}" must be an ISO 8601 date or date-time`);
+  return date;
+}
 
 /**
  * Thin orchestration over `IdempotencyObservabilityPort`. No tenant scoping —
@@ -29,9 +41,10 @@ export class IdempotencyApiService {
     return this.observability.listClaims({
       status: query.status,
       scope: query.scope,
+      route: query.route,
       correlationId: query.correlationId,
-      since: query.since ? new Date(query.since) : undefined,
-      until: query.until ? new Date(query.until) : undefined,
+      since: dateParam('since', query.since),
+      until: dateParam('until', query.until),
       limit: query.limit,
       cursor: query.cursor,
     });
@@ -41,7 +54,11 @@ export class IdempotencyApiService {
     return this.listClaims({ ...query, correlationId });
   }
 
-  claimHealthSummary(): Promise<ClaimHealthSummary> {
-    return this.observability.claimHealthSummary();
+  claimHealthSummary(since?: string): Promise<ClaimHealthSummary> {
+    return this.observability.claimHealthSummary({ since: dateParam('since', since) });
+  }
+
+  claimsByRoute(since?: string): Promise<RouteClaimCount[]> {
+    return this.observability.claimsByRoute({ since: dateParam('since', since) });
   }
 }

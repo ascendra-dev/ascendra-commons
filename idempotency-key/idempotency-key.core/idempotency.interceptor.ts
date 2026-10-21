@@ -9,6 +9,28 @@ import { IDEMPOTENCY_SCOPE_RESOLVER, IDEMPOTENCY_STORE } from './tokens';
 interface MinimalRequest {
   headers: Record<string, string | string[] | undefined>;
   method: string;
+  /** Express: the matched route. */
+  route?: { path?: string };
+  /** Fastify ≥ 4: the matched route's options. */
+  routeOptions?: { url?: string };
+  /** Fastify < 4. */
+  routerPath?: string;
+}
+
+/** A correlation id worth storing — the header is caller-controlled, so anything else is dropped rather than recorded. */
+const CORRELATION_ID = /^[A-Za-z0-9._:-]{1,128}$/;
+
+/**
+ * The route *pattern* (`/payments/:id`), never the resolved URL — so claims group by endpoint, and no id or token in
+ * the path is stored. Falls back to `Controller.handler` when the platform exposes neither.
+ */
+function routePattern(request: MinimalRequest, context: ExecutionContext): string {
+  return (
+    request.route?.path ??
+    request.routeOptions?.url ??
+    request.routerPath ??
+    `${context.getClass().name}.${context.getHandler().name}`
+  );
 }
 
 /**
@@ -38,10 +60,11 @@ export class IdempotencyInterceptor implements NestInterceptor {
     // reused by convention, not by dependency: this module stays self-contained (no import
     // from audit-logging), but the two naturally agree when both are wired in the same app.
     const correlationHeader = request.headers['x-correlation-id'];
-    const correlationId = typeof correlationHeader === 'string' ? correlationHeader : undefined;
+    const correlationId =
+      typeof correlationHeader === 'string' && CORRELATION_ID.test(correlationHeader) ? correlationHeader : undefined;
 
     const scope = await this.scopeResolver.resolveScope(request);
-    const claim = await this.store.claim(key, scope, correlationId);
+    const claim = await this.store.claim(key, scope, { correlationId, route: routePattern(request, context) });
 
     if (claim.status === 'completed') {
       // Replay verbatim, including the original status — a cached error must come back as

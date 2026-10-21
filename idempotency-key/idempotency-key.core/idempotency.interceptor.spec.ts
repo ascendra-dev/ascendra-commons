@@ -6,10 +6,11 @@ import { IdempotencyInterceptor } from './idempotency.interceptor';
 import type { IdempotencyStore } from './idempotency-store.port';
 import type { IdempotencyScopeResolver } from './idempotency-scope-resolver.port';
 
-function fakeContext(headers: Record<string, string>, method = 'POST'): ExecutionContext {
+function fakeContext(headers: Record<string, string>, method = 'POST', extra: Record<string, unknown> = {}): ExecutionContext {
   return {
-    switchToHttp: () => ({ getRequest: () => ({ headers, method }) }),
-    getHandler: () => function handler() {},
+    switchToHttp: () => ({ getRequest: () => ({ headers, method, ...extra }) }),
+    getHandler: () => function create() {},
+    getClass: () => class InvoicesController {},
   } as unknown as ExecutionContext;
 }
 
@@ -139,7 +140,37 @@ describe('IdempotencyInterceptor', () => {
       ),
     );
 
-    expect(store.claim).toHaveBeenCalledWith('k1', 'scope-1', 'corr-1');
+    expect(store.claim).toHaveBeenCalledWith('k1', 'scope-1', expect.objectContaining({ correlationId: 'corr-1' }));
+  });
+
+  it('drops a malformed x-correlation-id rather than recording caller-controlled junk', async () => {
+    const store: IdempotencyStore = { claim: vi.fn().mockResolvedValue(CLAIMED), complete: vi.fn().mockResolvedValue(undefined) };
+    const interceptor = new IdempotencyInterceptor(store, scopeResolver, fakeReflector(200));
+
+    await firstValueFrom(
+      await interceptor.intercept(
+        fakeContext({ 'idempotency-key': 'k1', 'x-correlation-id': '<script>' + 'x'.repeat(200) }),
+        fakeHandler(of({ ok: true })),
+      ),
+    );
+
+    expect(store.claim).toHaveBeenCalledWith('k1', 'scope-1', expect.objectContaining({ correlationId: undefined }));
+  });
+
+  it('claims with the route pattern — Express, then Fastify, then Controller.handler — never the URL', async () => {
+    const claimWith = async (extra: Record<string, unknown>) => {
+      const store: IdempotencyStore = { claim: vi.fn().mockResolvedValue(CLAIMED), complete: vi.fn().mockResolvedValue(undefined) };
+      const interceptor = new IdempotencyInterceptor(store, scopeResolver, fakeReflector(200));
+      await firstValueFrom(
+        await interceptor.intercept(fakeContext({ 'idempotency-key': 'k1' }, 'POST', extra), fakeHandler(of({}))),
+      );
+      return (store.claim as ReturnType<typeof vi.fn>).mock.calls[0][2].route;
+    };
+
+    expect(await claimWith({ route: { path: '/payments/:id' }, url: '/payments/42' })).toBe('/payments/:id');
+    expect(await claimWith({ routeOptions: { url: '/payments/:id' } })).toBe('/payments/:id');
+    expect(await claimWith({ routerPath: '/payments/:id' })).toBe('/payments/:id');
+    expect(await claimWith({ url: '/payments/42' })).toBe('InvoicesController.create');
   });
 
   it('claims with undefined correlationId when the header is absent', async () => {
@@ -148,7 +179,7 @@ describe('IdempotencyInterceptor', () => {
 
     await firstValueFrom(await interceptor.intercept(fakeContext({ 'idempotency-key': 'k1' }), fakeHandler(of({ ok: true }))));
 
-    expect(store.claim).toHaveBeenCalledWith('k1', 'scope-1', undefined);
+    expect(store.claim).toHaveBeenCalledWith('k1', 'scope-1', expect.objectContaining({ correlationId: undefined }));
   });
 
   it('logs a warning, but proceeds exactly as a fresh claim, when reclaimedStale is true', async () => {

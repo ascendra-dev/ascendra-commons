@@ -28,6 +28,10 @@ function row(over: Partial<Record<string, unknown>> = {}): Record<string, unknow
     created_at: new Date('2026-06-01T10:00:00Z'),
     reclaim_count: 0,
     late_complete_no_op_count: 0,
+    replay_count: 3,
+    conflict_count: 1,
+    last_duplicate_at: new Date('2026-06-01T10:00:05Z'),
+    route: '/invoices',
     correlation_id: 'trace-1',
     ...over,
   };
@@ -47,7 +51,21 @@ describe('PostgresIdempotencyObservabilityService.getClaim', () => {
       scope: 'tenant-1',
       status: 'completed',
       response: { statusCode: 201, body: { id: 'inv-1' } },
+      replayCount: 3,
+      conflictCount: 1,
+      lastDuplicateAt: new Date('2026-06-01T10:00:05Z'),
+      route: '/invoices',
       correlationId: 'trace-1',
+    });
+  });
+
+  it('a claim recorded before routes and duplicates were tracked maps to null / zero', async () => {
+    const db = fakeDb([row({ route: null, last_duplicate_at: null, replay_count: 0, conflict_count: 0 })]);
+    await expect(service(db).getClaim('key-1', 'tenant-1')).resolves.toMatchObject({
+      route: null,
+      lastDuplicateAt: null,
+      replayCount: 0,
+      conflictCount: 0,
     });
   });
 
@@ -79,6 +97,7 @@ describe('PostgresIdempotencyObservabilityService.listClaims', () => {
     await service(db).listClaims({
       status: 'pending',
       scope: 'tenant-9',
+      route: '/payments/:id',
       correlationId: 'trace-xyz',
       since: new Date('2026-01-01T00:00:00Z'),
       until: new Date('2026-07-01T00:00:00Z'),
@@ -87,10 +106,11 @@ describe('PostgresIdempotencyObservabilityService.listClaims', () => {
     const { sql: text, params } = rendered(db);
     expect(text).toMatch(/status =/i);
     expect(text).toMatch(/scope =/i);
+    expect(text).toMatch(/route =/i);
     expect(text).toMatch(/correlation_id =/i);
     expect(text).toMatch(/created_at >=/i);
     expect(text).toMatch(/created_at </i);
-    expect(params).toEqual(expect.arrayContaining(['pending', 'tenant-9', 'trace-xyz']));
+    expect(params).toEqual(expect.arrayContaining(['pending', 'tenant-9', '/payments/:id', 'trace-xyz']));
   });
 
   it('returns a nextCursor when more rows exist and keys the next page off it', async () => {
@@ -124,6 +144,8 @@ describe('PostgresIdempotencyObservabilityService.claimHealthSummary', () => {
         completed_count: '96',
         reclaimed_count: '2',
         late_complete_no_op_total: '1',
+        replay_total: '37',
+        conflict_total: '5',
         total_count: '100',
         oldest_retained_at: new Date('2026-06-01T00:00:00Z'),
       },
@@ -134,6 +156,8 @@ describe('PostgresIdempotencyObservabilityService.claimHealthSummary', () => {
       completedCount: 96,
       reclaimedCount: 2,
       lateCompleteNoOpTotal: 1,
+      replayTotal: 37,
+      conflictTotal: 5,
       totalCount: 100,
       oldestRetainedAt: new Date('2026-06-01T00:00:00Z'),
     });
@@ -143,5 +167,39 @@ describe('PostgresIdempotencyObservabilityService.claimHealthSummary', () => {
     const db = fakeDb([{ pending_count: '0', completed_count: '0', reclaimed_count: '0', late_complete_no_op_total: '0', total_count: '0', oldest_retained_at: null }]);
 
     await expect(service(db).claimHealthSummary()).resolves.toMatchObject({ totalCount: 0, oldestRetainedAt: null });
+  });
+
+  it('a period bounds the counts but not "oldest retained" — that stays the whole table\'s', async () => {
+    const db = fakeDb([{ total_count: '0' }]);
+    await service(db).claimHealthSummary({ since: new Date('2026-10-21T00:00:00Z') });
+
+    const { sql: text, params } = rendered(db);
+    expect(text).toMatch(/where created_at >= \$1/i);
+    expect(text).toMatch(/\(select min\(created_at\) from commons_idempotency_key\) as oldest_retained_at/i);
+    expect(params).toEqual([new Date('2026-10-21T00:00:00Z')]);
+  });
+
+  it('no period, no WHERE', async () => {
+    const db = fakeDb([{ total_count: '0' }]);
+    await service(db).claimHealthSummary();
+    expect(rendered(db).sql).not.toMatch(/where created_at/i);
+  });
+});
+
+describe('PostgresIdempotencyObservabilityService.claimsByRoute', () => {
+  it('groups by route, most duplicates first, and maps the counts', async () => {
+    const db = fakeDb([
+      { route: '/payments', claims: '40', replays: '12', conflicts: '3', reclaimed: '1', late_complete_no_ops: '0' },
+      { route: null, claims: '2', replays: '0', conflicts: '0', reclaimed: '0', late_complete_no_ops: '0' },
+    ]);
+
+    await expect(service(db).claimsByRoute({ since: new Date('2026-10-21T00:00:00Z') })).resolves.toEqual([
+      { route: '/payments', claims: 40, replays: 12, conflicts: 3, reclaimed: 1, lateCompleteNoOps: 0 },
+      { route: null, claims: 2, replays: 0, conflicts: 0, reclaimed: 0, lateCompleteNoOps: 0 },
+    ]);
+    const { sql: text } = rendered(db);
+    expect(text).toMatch(/where created_at >= \$1/i);
+    expect(text).toMatch(/group by route/i);
+    expect(text).toMatch(/order by sum\(replay_count\) \+ sum\(conflict_count\) desc/i);
   });
 });

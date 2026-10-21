@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { IdempotencyApiService } from './idempotency-api.service';
 import type { IdempotencyObservabilityPort } from '../idempotency-key.core';
@@ -11,9 +12,12 @@ function service() {
       completedCount: 0,
       reclaimedCount: 0,
       lateCompleteNoOpTotal: 0,
+      replayTotal: 0,
+      conflictTotal: 0,
       totalCount: 0,
       oldestRetainedAt: null,
     }),
+    claimsByRoute: vi.fn().mockResolvedValue([]),
   };
   return { svc: new IdempotencyApiService(observability), observability };
 }
@@ -30,6 +34,7 @@ describe('IdempotencyApiService', () => {
     await svc.listClaims({
       status: 'pending',
       scope: 's1',
+      route: '/payments/:id',
       correlationId: 'corr-1',
       since: '2026-01-01T00:00:00.000Z',
       until: '2026-02-01T00:00:00.000Z',
@@ -40,6 +45,7 @@ describe('IdempotencyApiService', () => {
     expect(observability.listClaims).toHaveBeenCalledWith({
       status: 'pending',
       scope: 's1',
+      route: '/payments/:id',
       correlationId: 'corr-1',
       since: new Date('2026-01-01T00:00:00.000Z'),
       until: new Date('2026-02-01T00:00:00.000Z'),
@@ -54,9 +60,25 @@ describe('IdempotencyApiService', () => {
     expect(observability.listClaims).toHaveBeenCalledWith(expect.objectContaining({ correlationId: 'corr-9', limit: 5 }));
   });
 
-  it('claimHealthSummary delegates to the observability port', async () => {
+  it('claimHealthSummary passes since as a Date, or none', async () => {
     const { svc, observability } = service();
     await svc.claimHealthSummary();
-    expect(observability.claimHealthSummary).toHaveBeenCalledTimes(1);
+    await svc.claimHealthSummary('2026-10-21T00:00:00.000Z');
+    expect(observability.claimHealthSummary).toHaveBeenNthCalledWith(1, { since: undefined });
+    expect(observability.claimHealthSummary).toHaveBeenNthCalledWith(2, { since: new Date('2026-10-21T00:00:00.000Z') });
+  });
+
+  it('claimsByRoute passes since as a Date', async () => {
+    const { svc, observability } = service();
+    await svc.claimsByRoute('2026-10-21T00:00:00.000Z');
+    expect(observability.claimsByRoute).toHaveBeenCalledWith({ since: new Date('2026-10-21T00:00:00.000Z') });
+  });
+
+  it('a malformed date is a 400, not a 500 at the driver', async () => {
+    const { svc, observability } = service();
+    expect(() => svc.claimsByRoute('yesterday')).toThrow(BadRequestException);
+    expect(() => svc.claimHealthSummary('yesterday')).toThrow(BadRequestException);
+    expect(() => svc.listClaims({ until: 'soon' })).toThrow(BadRequestException);
+    expect(observability.claimsByRoute).not.toHaveBeenCalled();
   });
 });
