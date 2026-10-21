@@ -17,7 +17,9 @@ const MAX_LIMIT = 200;
 
 /**
  * Reference `RateLimitObservabilityPort` for Postgres — one dynamic
- * `SELECT`, keyset-paginated newest-first, plus one aggregate query for
+ * `SELECT` over the rejection windows, keyset-paginated newest-first on the
+ * immutable `window_start` (a window's count and last-seen keep growing, so
+ * they can't be the sort key), plus one aggregate query for
  * `rejectionCatalog()`. Read-only. Scoped to one `application`.
  */
 @Injectable()
@@ -34,20 +36,21 @@ export class PostgresRateLimitObservabilityService implements RateLimitObservabi
     if (query.route !== undefined) conds.push(sql`route = ${query.route}`);
     if (query.identifier !== undefined) conds.push(sql`identifier = ${query.identifier}`);
     if (query.correlationId !== undefined) conds.push(sql`correlation_id = ${query.correlationId}`);
-    if (query.since) conds.push(sql`rejected_at >= ${query.since}`);
-    if (query.until) conds.push(sql`rejected_at < ${query.until}`);
+    if (query.since) conds.push(sql`window_start >= ${query.since}`);
+    if (query.until) conds.push(sql`window_start < ${query.until}`);
 
     const cursor = query.cursor ? decodeKeysetCursor(query.cursor) : null;
     if (cursor) {
-      conds.push(sql`(rejected_at < ${cursor.timestamp} or (rejected_at = ${cursor.timestamp} and id < ${cursor.id}))`);
+      conds.push(sql`(window_start < ${cursor.timestamp} or (window_start = ${cursor.timestamp} and id < ${cursor.id}))`);
     }
 
     const rows = (
       await this.db.execute(sql`
-        select id, route, identifier, "limit", ttl_ms, rejected_at, correlation_id
+        select id, route, identifier, "limit", ttl_ms, window_start, rejection_count,
+               first_rejected_at, last_rejected_at, correlation_id
         from commons_rate_limit_rejection
         where ${sql.join(conds, sql` and `)}
-        order by rejected_at desc, id desc
+        order by window_start desc, id desc
         limit ${limit + 1}
       `)
     ).rows.map(mapRow);
@@ -55,17 +58,17 @@ export class PostgresRateLimitObservabilityService implements RateLimitObservabi
     if (rows.length > limit) {
       const rejections = rows.slice(0, limit);
       const last = rejections[rejections.length - 1];
-      return { rejections, nextCursor: encodeKeysetCursor(last.rejectedAt, last.id) };
+      return { rejections, nextCursor: encodeKeysetCursor(last.windowStart, last.id) };
     }
     return { rejections: rows };
   }
 
   async rejectionCatalog(since?: Date): Promise<RouteRejectionCount[]> {
     const conds: SQL[] = [sql`application = ${this.application}`];
-    if (since) conds.push(sql`rejected_at >= ${since}`);
+    if (since) conds.push(sql`window_start >= ${since}`);
 
     const { rows } = await this.db.execute(sql`
-      select route, count(*) as count
+      select route, sum(rejection_count) as count
       from commons_rate_limit_rejection
       where ${sql.join(conds, sql` and `)}
       group by route
@@ -83,7 +86,14 @@ function mapRow(row: Record<string, unknown>): RateLimitRejectionRecord {
     identifier: String(row.identifier),
     limit: Number(row.limit),
     ttlMs: Number(row.ttl_ms),
-    rejectedAt: row.rejected_at instanceof Date ? row.rejected_at : new Date(String(row.rejected_at)),
+    windowStart: toDate(row.window_start),
+    count: Number(row.rejection_count),
+    firstRejectedAt: toDate(row.first_rejected_at),
+    lastRejectedAt: toDate(row.last_rejected_at),
     correlationId: row.correlation_id == null ? null : String(row.correlation_id),
   };
+}
+
+function toDate(value: unknown): Date {
+  return value instanceof Date ? value : new Date(String(value));
 }

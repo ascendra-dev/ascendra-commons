@@ -1,6 +1,6 @@
 /**
  * Opaque keyset-pagination cursor: base64url of `<ISO timestamp>|<id>`. The
- * rejection log keysets on `(rejected_at, id)`. Stack-agnostic — duplicated
+ * rejection log keysets on `(window_start, id)`. Stack-agnostic — duplicated
  * (not shared) across this library's modules so each stays independently
  * copyable.
  */

@@ -55,11 +55,23 @@ public, unauthenticated endpoint is actually being hammered — the exact
 threat this pattern exists to defend against — nothing told you it was
 happening.
 
-`RecordingThrottlerGuard` (in `.core.throttler`) records one
-`RateLimitRejection` per `429` — route pattern, resolved identifier
-(typically an IP), the limit/ttl that was exceeded — through the optional
-`RateLimitEventRecorder` port, best-effort and guarded: a logging failure
-never changes whether the request is actually throttled. Hooked at
+`RecordingThrottlerGuard` (in `.core.throttler`) reports every `429` —
+route pattern, resolved identifier (typically an IP), the limit/ttl that was
+exceeded — through the optional `RateLimitEventRecorder` port, best-effort and
+guarded: a logging failure never changes whether the request is actually
+throttled.
+
+**A flood must not become database load (2026-10-21).** The rejection log is
+needed most exactly when a route is being hammered, so recording can't cost a
+write per blocked request — that would move the attack from the handler onto
+Postgres. The Postgres recorder counts rejections in memory (no I/O on the
+`429` path) and upserts them every 10s as one row per route, identifier,
+limit, minute and correlation id: write volume follows the number of distinct
+sources, not the request rate, and several instances upsert into the same
+rows. Past 10,000 distinct sources between flushes, new ones are counted under
+an `(overflow)` identifier per route, so route totals stay exact. Up to one
+flush interval can be lost if the process dies — acceptable for a best-effort
+log. Hooked at
 `ThrottlerGuard.throwThrottlingException()`, the one method the library
 itself designed to be overridden — not a separate `ExceptionFilter`, which
 couldn't see the limit/tracker detail that method has.

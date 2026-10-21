@@ -19,6 +19,10 @@ export interface RateLimitRejection {
  * to log a rejection must never change whether the request is actually
  * throttled.
  *
+ * It runs on the `429` path, under exactly the load it exists to report, so
+ * an implementation shouldn't do I/O per call — `PostgresRateLimitEventRecorder`
+ * counts in memory and writes on an interval.
+ *
  * Bound under `RATE_LIMIT_EVENT_RECORDER`; `NoopRateLimitEventRecorder` (this
  * package) is the default when nothing is configured.
  */

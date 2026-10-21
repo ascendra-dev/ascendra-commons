@@ -1,8 +1,13 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { PostgresRateLimitEventRecorder } from './postgres-rate-limit-event-recorder';
-import { POSTGRES_RATE_LIMIT_EVENT_RECORDER, RATE_LIMIT_APPLICATION_ID, RATE_LIMIT_SQL_EXECUTOR } from '../tokens';
+import { PostgresRateLimitEventRecorder, type PostgresRateLimitEventRecorderOptions } from './postgres-rate-limit-event-recorder';
+import {
+  POSTGRES_RATE_LIMIT_EVENT_RECORDER,
+  RATE_LIMIT_APPLICATION_ID,
+  RATE_LIMIT_RECORDER_OPTIONS,
+  RATE_LIMIT_SQL_EXECUTOR,
+} from '../tokens';
 
-export interface PostgresRateLimitEventRecorderModuleConfig {
+export interface PostgresRateLimitEventRecorderModuleConfig extends PostgresRateLimitEventRecorderOptions {
   sqlExecutorToken: string | symbol | (new (...args: never[]) => unknown);
   application: string;
   imports?: DynamicModule['imports'];
@@ -24,6 +29,10 @@ export class PostgresRateLimitEventRecorderModule {
       providers: [
         { provide: RATE_LIMIT_SQL_EXECUTOR, useExisting: config.sqlExecutorToken },
         { provide: RATE_LIMIT_APPLICATION_ID, useValue: config.application },
+        {
+          provide: RATE_LIMIT_RECORDER_OPTIONS,
+          useValue: { flushIntervalMs: config.flushIntervalMs, maxBufferedKeys: config.maxBufferedKeys },
+        },
         PostgresRateLimitEventRecorder,
         { provide: POSTGRES_RATE_LIMIT_EVENT_RECORDER, useExisting: PostgresRateLimitEventRecorder },
       ],

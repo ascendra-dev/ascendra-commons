@@ -4,7 +4,7 @@ One table, one write path, one read path.
 
 | Sub-folder | Implements | Bound under | Wired via |
 |---|---|---|---|
-| `recorder/` | `RateLimitEventRecorder` — one `INSERT` per rejection | `RATE_LIMIT_EVENT_RECORDER` (core token) | `RateLimitingThrottlerModule.forRoot({ recorderToken })` |
+| `recorder/` | `RateLimitEventRecorder` — counts in memory, upserts one row per rejection window every `flushIntervalMs` | `RATE_LIMIT_EVENT_RECORDER` (core token) | `RateLimitingThrottlerModule.forRoot({ recorderToken })` |
 | `observability/` | `RateLimitObservabilityPort` — `listRejections()` / `rejectionCatalog()`, read-only | `RATE_LIMIT_OBSERVABILITY_PORT` (core token) | `PostgresRateLimitObservabilityModule.forRoot(...)` |
 | `persistence/rate-limit-rejection.schema.ts` | the table's current shape — change it with the `INSERT` | | |
 | `migrations/` | the DDL, numbered — **never edited once released**; a schema change is the next file | | |
@@ -27,6 +27,35 @@ RateLimitingThrottlerModule.forRoot({
 // for a security/ops read screen (independent — import if wanted):
 PostgresRateLimitObservabilityModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', imports: [DatabaseModule] }),
 ```
+
+Requires **Postgres 15+** (`0002` adds a `UNIQUE NULLS NOT DISTINCT`
+constraint — rejections without a correlation id must still merge into one
+row).
+
+## The recorder buffers
+
+A rejection is counted in memory, never written on the `429` path. Every
+`flushIntervalMs` (default 10s) the buffer is upserted as one row per route,
+identifier, limit, ttl, minute (`window_start`) and correlation id —
+`rejection_count`, `first_rejected_at`, `last_rejected_at`. Several instances
+upsert into the same rows.
+
+```typescript
+PostgresRateLimitEventRecorderModule.forRoot({
+  sqlExecutorToken: DATABASE_CONNECTION,
+  application: 'ascendra-pay',
+  flushIntervalMs: 10_000,   // optional — at most this much is lost if the process dies
+  maxBufferedKeys: 10_000,   // optional — past this, new sources count under '(overflow)' per route
+  imports: [DatabaseModule],
+}),
+```
+
+- **Shutdown:** the buffer is flushed once more in `onModuleDestroy` — call
+  `app.enableShutdownHooks()` so that runs on `SIGTERM`.
+- **Failure:** a failed flush is logged and its counts dropped, never retried.
+- **Overflow:** a distributed flood from more than `maxBufferedKeys` sources
+  between flushes keeps exact per-route totals; only the per-source split of
+  the excess is lost (counted as identifier `(overflow)`).
 
 ## `application`
 

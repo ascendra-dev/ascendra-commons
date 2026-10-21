@@ -8,9 +8,9 @@ Opt-in NestJS controller over `RATE_LIMIT_OBSERVABILITY_PORT`. Stack-agnostic.
 
 | Method | Path | → |
 |---|---|---|
-| GET | `/rate-limits/rejections` | `listRejections(RejectionQuery)` — query params: `route`, `identifier`, `correlationId`, `since`, `until`, `limit`, `cursor`. Returns `RejectionPage` (newest-first + `nextCursor`) unchanged. |
+| GET | `/rate-limits/rejections` | `listRejections(RejectionQuery)` — query params: `route`, `identifier`, `correlationId`, `since`, `until`, `limit`, `cursor`. Returns `RejectionPage` (newest window first + `nextCursor`) unchanged — each row is one rejection *window*: route, identifier, limit, `windowStart` (minute), `count`, `firstRejectedAt`, `lastRejectedAt`, `correlationId`. `since`/`until` bound `windowStart`. |
 | GET | `/rate-limits/rejections/trace/:correlationId` | every rejection from one request — a cross-module trace. |
-| GET | `/rate-limits/rejections/catalog` | counts per route (optionally windowed) — a spike on one route is the "being hammered" signal. |
+| GET | `/rate-limits/rejections/catalog` | total rejections per route (the windows' counts summed; optional `since`) — a spike on one route is the "being hammered" signal. |
 
 All gated on `@RequiresAction('rate-limit.view')`. No tenant scoping — a
 rejected, unauthenticated request has no tenant.

@@ -25,7 +25,10 @@ function row(over: Partial<Record<string, unknown>> = {}): Record<string, unknow
     identifier: '203.0.113.7',
     limit: 20,
     ttl_ms: 60_000,
-    rejected_at: new Date('2026-06-01T10:00:00Z'),
+    window_start: new Date('2026-06-01T10:00:00Z'),
+    rejection_count: 7,
+    first_rejected_at: new Date('2026-06-01T10:00:03Z'),
+    last_rejected_at: '2026-06-01T10:00:41Z',
     correlation_id: 'trace-1',
     ...over,
   };
@@ -41,7 +44,19 @@ describe('PostgresRateLimitObservabilityService.listRejections', () => {
     const result = await service(db).listRejections();
 
     expect(rendered(db).params).toContain('ascendra-pay');
-    expect(result.rejections[0]).toMatchObject({ id: 'a', route: '/pay/:token', limit: 20, ttlMs: 60_000 });
+    expect(result.rejections[0]).toEqual({
+      id: 'a',
+      route: '/pay/:token',
+      identifier: '203.0.113.7',
+      limit: 20,
+      ttlMs: 60_000,
+      windowStart: new Date('2026-06-01T10:00:00Z'),
+      count: 7,
+      firstRejectedAt: new Date('2026-06-01T10:00:03Z'),
+      lastRejectedAt: new Date('2026-06-01T10:00:41Z'),
+      correlationId: 'trace-1',
+    });
+    expect(rendered(db).sql).toMatch(/order by window_start desc, id desc/i);
   });
 
   it('ANDs the optional filters', async () => {
@@ -75,7 +90,7 @@ describe('PostgresRateLimitObservabilityService.listRejections', () => {
 });
 
 describe('PostgresRateLimitObservabilityService.rejectionCatalog', () => {
-  it('scopes to the application, groups by route, orders by count desc', async () => {
+  it('scopes to the application, sums the window counts per route, orders by count desc', async () => {
     const db = fakeDb([
       { route: '/pay/:token', count: '318' },
       { route: '/invoices', count: '4' },
@@ -85,12 +100,13 @@ describe('PostgresRateLimitObservabilityService.rejectionCatalog', () => {
       { route: '/pay/:token', count: 318 },
       { route: '/invoices', count: 4 },
     ]);
+    expect(rendered(db).sql).toMatch(/sum\(rejection_count\) as count/i);
     expect(rendered(db).sql).toMatch(/order by count desc/i);
   });
 
   it('scopes to a since window when given', async () => {
     const db = fakeDb([]);
     await service(db).rejectionCatalog(new Date('2026-01-01T00:00:00Z'));
-    expect(rendered(db).sql).toMatch(/rejected_at >=/i);
+    expect(rendered(db).sql).toMatch(/window_start >=/i);
   });
 });

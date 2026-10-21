@@ -1,11 +1,19 @@
-/** One `commons_rate_limit_rejection` row, mapped and typed. */
+/**
+ * One `commons_rate_limit_rejection` row, mapped and typed — every rejection of
+ * one route, identifier, limit and correlation id within one minute, counted.
+ */
 export interface RateLimitRejectionRecord {
   id: string;
   route: string;
   identifier: string;
   limit: number;
   ttlMs: number;
-  rejectedAt: Date;
+  /** The minute the rejections fell in. Never changes once the row exists — the list's sort key. */
+  windowStart: Date;
+  /** Rejections in this window. Still growing while the window is current. */
+  count: number;
+  firstRejectedAt: Date;
+  lastRejectedAt: Date;
   correlationId: string | null;
 }
 
@@ -13,9 +21,9 @@ export interface RejectionQuery {
   route?: string;
   identifier?: string;
   correlationId?: string;
-  /** Inclusive lower bound on `rejectedAt`. */
+  /** Inclusive lower bound on `windowStart` — minute-granular. */
   since?: Date;
-  /** Exclusive upper bound on `rejectedAt`. */
+  /** Exclusive upper bound on `windowStart` — minute-granular. */
   until?: Date;
   /** Default 50, capped at 200. */
   limit?: number;
@@ -24,7 +32,7 @@ export interface RejectionQuery {
 }
 
 export interface RejectionPage {
-  /** Newest first. */
+  /** Newest window first. */
   rejections: RateLimitRejectionRecord[];
   /** Present only when more rows match — pass back as `RejectionQuery.cursor`. */
   nextCursor?: string;
@@ -33,6 +41,7 @@ export interface RejectionPage {
 /** One row of the "who's hitting our limits" dashboard. */
 export interface RouteRejectionCount {
   route: string;
+  /** Total rejections — the windows' counts summed, not the number of windows. */
   count: number;
 }
 
@@ -42,7 +51,7 @@ export interface RouteRejectionCount {
  * `rate-limiting.api`. Never mutates.
  */
 export interface RateLimitObservabilityPort {
-  /** Rejections, newest first, keyset-paginated. */
+  /** Rejection windows, newest first, keyset-paginated. */
   listRejections(query?: RejectionQuery): Promise<RejectionPage>;
   /** Counts per route within an optional window — a spike on one route (e.g. `pay/:token`) is the "being hammered" signal. */
   rejectionCatalog(since?: Date): Promise<RouteRejectionCount[]>;

@@ -1,4 +1,9 @@
-export { PostgresRateLimitEventRecorder } from './recorder/postgres-rate-limit-event-recorder';
+export {
+  PostgresRateLimitEventRecorder,
+  REJECTION_WINDOW_MS,
+  OVERFLOW_IDENTIFIER,
+} from './recorder/postgres-rate-limit-event-recorder';
+export type { PostgresRateLimitEventRecorderOptions } from './recorder/postgres-rate-limit-event-recorder';
 export { PostgresRateLimitEventRecorderModule } from './recorder/postgres-rate-limit-event-recorder.module';
 export type { PostgresRateLimitEventRecorderModuleConfig } from './recorder/postgres-rate-limit-event-recorder.module';
 export { PostgresRateLimitObservabilityService } from './observability/postgres-rate-limit-observability.service';
