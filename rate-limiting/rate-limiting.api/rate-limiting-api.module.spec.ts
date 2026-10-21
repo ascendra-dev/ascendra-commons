@@ -32,13 +32,18 @@ describe('RateLimitingApiModule.forRoot — real DI wiring', () => {
 
   it('routes GET /rate-limits/rejections', async () => {
     const moduleRef = await build();
-    await moduleRef.get(RateLimitingController).rejections('/pay/:token');
+    listRejections.mockResolvedValueOnce({ rejections: [{ id: '1' }], nextCursor: 'next' });
+    await expect(moduleRef.get(RateLimitingController).rejections('/pay/:token')).resolves.toEqual({
+      data: [{ id: '1' }],
+      meta: { nextCursor: 'next' },
+    });
     expect(listRejections).toHaveBeenCalledWith(expect.objectContaining({ route: '/pay/:token' }));
   });
 
   it('routes GET /rate-limits/rejections/trace/:correlationId', async () => {
     const moduleRef = await build();
-    await moduleRef.get(RateLimitingController).trace('trace-9');
+    // The last page: no nextCursor, so meta is empty once serialized.
+    await expect(moduleRef.get(RateLimitingController).trace('trace-9')).resolves.toEqual({ data: [], meta: { nextCursor: undefined } });
     expect(listRejections).toHaveBeenLastCalledWith(expect.objectContaining({ correlationId: 'trace-9' }));
   });
 
