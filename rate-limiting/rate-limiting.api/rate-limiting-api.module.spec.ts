@@ -10,9 +10,10 @@ import { RateLimitingController } from './rate-limiting.controller';
 const listRejections = vi.fn().mockResolvedValue({ rejections: [] });
 const rejectionCatalog = vi.fn().mockResolvedValue([]);
 const topIdentifiers = vi.fn().mockResolvedValue([]);
+const volume = vi.fn().mockResolvedValue({ oldestWindowAt: null, rowCount: 0, tableSizeBytes: null, perDay: [] });
 
 @Module({
-  providers: [{ provide: RATE_LIMIT_OBSERVABILITY_PORT, useValue: { listRejections, rejectionCatalog, topIdentifiers } }],
+  providers: [{ provide: RATE_LIMIT_OBSERVABILITY_PORT, useValue: { listRejections, rejectionCatalog, topIdentifiers, volume } }],
   exports: [RATE_LIMIT_OBSERVABILITY_PORT],
 })
 class FakePortModule {}
@@ -51,6 +52,16 @@ describe('RateLimitingApiModule.forRoot — real DI wiring', () => {
     const moduleRef = await build();
     await moduleRef.get(RateLimitingController).topIdentifiers(undefined, '/pay/:token', '5');
     expect(topIdentifiers).toHaveBeenCalledWith({ since: undefined, route: '/pay/:token', limit: 5 });
+  });
+});
+
+describe('RateLimitingController.volume', () => {
+  it('routes GET /rate-limits/rejections/volume with tz', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [RateLimitingApiModule.forRoot({ imports: [FakePortModule] })],
+    }).compile();
+    await moduleRef.get(RateLimitingController).volume('Asia/Dubai');
+    expect(volume).toHaveBeenCalledWith('Asia/Dubai');
   });
 });
 

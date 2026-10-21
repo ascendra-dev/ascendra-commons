@@ -8,6 +8,7 @@ function service() {
     listRejections: vi.fn().mockResolvedValue({ rejections: [] }),
     rejectionCatalog: vi.fn().mockResolvedValue([]),
     topIdentifiers: vi.fn().mockResolvedValue([]),
+    volume: vi.fn().mockResolvedValue({ oldestWindowAt: null, rowCount: 0, tableSizeBytes: null, perDay: [] }),
   };
   return { svc: new RateLimitingApiService(observability), observability };
 }
@@ -58,6 +59,14 @@ describe('RateLimitingApiService', () => {
     });
   });
 
+  it('volume passes the time zone through, UTC by default at the adapter', async () => {
+    const { svc, observability } = service();
+    await svc.volume('Asia/Karachi');
+    await svc.volume();
+    expect(observability.volume).toHaveBeenNthCalledWith(1, 'Asia/Karachi');
+    expect(observability.volume).toHaveBeenNthCalledWith(2, undefined);
+  });
+
   describe('a bad param is a 400, never a 500', () => {
     it.each([
       ['since', { since: 'garbage' }],
@@ -82,6 +91,7 @@ describe('RateLimitingApiService', () => {
       expect(() => svc.rejectionCatalog('nope')).toThrow(BadRequestException);
       expect(() => svc.topIdentifiers({ since: 'nope' })).toThrow(BadRequestException);
       expect(() => svc.topIdentifiers({ limit: -5 })).toThrow(BadRequestException);
+      expect(() => svc.volume('Mars/Olympus')).toThrow(/Unknown time zone/);
     });
   });
 });

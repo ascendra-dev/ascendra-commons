@@ -153,3 +153,38 @@ describe('PostgresRateLimitObservabilityService.topIdentifiers', () => {
     expect(params).toEqual(['ascendra-pay', since, '/pay/:token', 100]);
   });
 });
+
+describe('PostgresRateLimitObservabilityService.volume', () => {
+  function volumeDb(perDay: Array<Record<string, unknown>>, totals: Record<string, unknown>, bytes: unknown) {
+    const execute = vi.fn()
+      .mockResolvedValueOnce({ rows: perDay })
+      .mockResolvedValueOnce({ rows: [totals] })
+      .mockResolvedValueOnce({ rows: [{ bytes }] });
+    return { execute } satisfies SqlExecutor as SqlExecutor & { execute: ReturnType<typeof vi.fn> };
+  }
+
+  it("zero-fills 30 days ending today in the viewer's zone, and reports storage", async () => {
+    const db = volumeDb(
+      [{ day: '2026-10-22', count: '920' }],
+      { oldest: new Date('2026-07-24T10:00:00Z'), total: '101' },
+      '81920',
+    );
+    // 21:30 UTC on 21 Oct is already 22 Oct in Karachi.
+    const volume = await service(db).volume('Asia/Karachi', new Date('2026-10-21T21:30:00Z'));
+
+    expect(volume.perDay).toHaveLength(30);
+    expect(volume.perDay[0]).toEqual({ day: '2026-09-23', count: 0 });
+    expect(volume.perDay[29]).toEqual({ day: '2026-10-22', count: 920 });
+    expect(volume).toMatchObject({ oldestWindowAt: new Date('2026-07-24T10:00:00Z'), rowCount: 101, tableSizeBytes: 81920 });
+
+    const { sql: text, params } = rendered(db);
+    expect(text).toMatch(/at time zone/i);
+    expect(params).toEqual(expect.arrayContaining(['ascendra-pay', 'Asia/Karachi', '2026-09-23']));
+    expect(rendered(db, 1).params).toEqual(['ascendra-pay']);
+  });
+
+  it('an empty log has no oldest window and a zero count', async () => {
+    const db = volumeDb([], { oldest: null, total: '0' }, null);
+    await expect(service(db).volume()).resolves.toMatchObject({ oldestWindowAt: null, rowCount: 0, tableSizeBytes: null });
+  });
+});
