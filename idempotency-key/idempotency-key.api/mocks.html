@@ -4,13 +4,6 @@
 <meta charset="utf-8" />
 <title>Idempotency Keys — Admin Console Mocks</title>
 <style>
-  /* ──────────────────────────────────────────────────────────────────────────
-     Tokens transcribed from ../ascendra-ui/app/globals.css (:root and .dark),
-     same block used by the other five ascendra-commons .api mocks.html files —
-     kept byte-identical so every module's mock reads as one console. Light mode
-     is the base; the dark block mirrors globals.css's .dark overrides and is
-     applied by the OS setting only (no toggle — these mocks carry zero JS).
-     ────────────────────────────────────────────────────────────────────────── */
   :root {
     --background: oklch(1 0 0);
     --foreground: oklch(0.2928 0.0163 285.35);
@@ -19,272 +12,154 @@
     --secondary-foreground: oklch(0.147 0.004 49.25);
     --border: oklch(0.9437 0.0027 286.35);
     --card: oklch(1 0 0);
-    --primary: oklch(0.5573 0.2543 283.67);   /* #6c47ff */
+    --primary: oklch(0.5573 0.2543 283.67);
     --radius: 0.625rem;
-
-    --positive: #15892b;
-    --negative: #e02e2e;
-    --warning: #fd7224;
-    --info: #236dd7;
-    --dimmed: #adadb7;
-    --gray-50: #fafafb;
+    --positive: #15892b; --negative: #e02e2e; --warning: #fd7224; --info: #236dd7;
     --gray-700: #767684;
-
-    --shadow-xs: 0px 0px 2px 0px #00000014, 0px 1px 2px 0px #0000000f, 0px 0px 0px 1px #0000000a;
-
-    --text-caption: 0.6875rem;
-    --text-label: 0.75rem;
-    --text-body-sm: 0.875rem;
-    --text-body: 1rem;
-    --text-heading-sm: 1.125rem;
-    --text-heading: 1.25rem;
-    --text-heading-lg: 1.5rem;
-
+    --text-caption: 0.6875rem; --text-label: 0.75rem; --text-body-sm: 0.875rem; --text-body: 1rem;
+    --text-heading-sm: 1.125rem; --text-heading: 1.25rem; --text-heading-lg: 1.5rem;
     --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --background: oklch(0.2238 0.0077 285.76);
-      --foreground: oklch(0.9734 0.0013 286.37);
-      --muted: oklch(0.1785 0.0041 285.98);
-      --muted-foreground: oklch(0.7507 0.0142 286.05);
-      --secondary-foreground: oklch(0.985 0.001 106.423);
-      --border: oklch(0.2582 0.0093 285.73);
-      --card: oklch(0.216 0.006 285.76);
-      --primary: oklch(0.5573 0.2543 283.67);
-      --positive: #31c854;
-      --negative: #f73d3d;
-      --warning: #fd7224;
-      --info: #307ff6;
-      --dimmed: #5f5f6f;
-      --gray-50: #232328;
-      --gray-700: #adadb7;
-      --shadow-xs: 0px 1.5px 2px 0px #00000052, 0px -1px 0px 0px #ffffff0a, 0px 0px 0px 1px #ffffff1f;
+      --background: oklch(0.2238 0.0077 285.76); --foreground: oklch(0.9734 0.0013 286.37);
+      --muted: oklch(0.1785 0.0041 285.98); --muted-foreground: oklch(0.7507 0.0142 286.05);
+      --secondary-foreground: oklch(0.985 0.001 106.423); --border: oklch(0.2582 0.0093 285.73);
+      --card: oklch(0.216 0.006 285.76); --primary: oklch(0.5573 0.2543 283.67);
+      --positive: #31c854; --negative: #f73d3d; --warning: #fd7224; --info: #307ff6; --gray-700: #adadb7;
     }
   }
-
   * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--background);
-    color: var(--foreground);
-    font-family: var(--font-sans);
-    font-size: var(--text-body-sm);
-    line-height: 1.5;
-  }
+  body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); font-size: var(--text-body-sm); line-height: 1.5; }
   code, pre, .mono { font-family: var(--font-mono); }
-
   .shell { display: flex; min-height: 100vh; }
-  .sidebar {
-    width: 248px; flex-shrink: 0; border-right: 1px solid var(--border);
-    padding: 1.25rem 0.75rem; background: var(--background);
-  }
-  .brand {
-    display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem;
-    font-weight: 600; font-size: var(--text-body-sm);
-  }
+  .sidebar { width: 248px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.25rem 0.75rem; background: var(--background); }
+  .brand { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem; font-weight: 600; font-size: var(--text-body-sm); }
   .brand span { width: 18px; height: 18px; border-radius: 5px; background: var(--primary); display: inline-block; }
   .nav-group { margin-bottom: 1rem; }
-  .nav-group-title {
-    color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase;
-    letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem;
-  }
-  .nav-item {
-    display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem;
-    border-radius: 0.375rem; color: var(--muted-foreground); font-size: var(--text-body-sm);
-    text-decoration: none; position: relative;
-  }
+  .nav-group-title { color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase; letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem; }
+  .nav-item { display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem; border-radius: 0.375rem; color: var(--muted-foreground); font-size: var(--text-body-sm); text-decoration: none; position: relative; }
   .nav-item.active { background: color-mix(in oklab, var(--foreground) 8%, transparent); color: var(--foreground); }
-  .nav-item.active::before {
-    content: ""; position: absolute; left: 2px; top: 6px; bottom: 6px; width: 1px; background: var(--foreground);
-  }
-
+  .nav-item.active::before { content: ""; position: absolute; left: 2px; top: 6px; bottom: 6px; width: 1px; background: var(--foreground); }
   .main { flex: 1; min-width: 0; padding: 1.75rem 2rem 4rem; max-width: 1180px; }
   .page-head { margin-bottom: 0.375rem; }
   .page-title { font-size: var(--text-heading-lg); font-weight: 600; margin: 0; }
   .page-sub { color: var(--muted-foreground); margin: 0.25rem 0 0; max-width: 70ch; }
-
-  .note {
-    display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem;
-    background: color-mix(in oklab, var(--info) 6%, transparent);
-    border: 1px solid color-mix(in oklab, var(--info) 22%, transparent);
-    color: var(--foreground); font-size: var(--text-body-sm); margin: 1.25rem 0;
-  }
+  .note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; background: color-mix(in oklab, var(--info) 6%, transparent); border: 1px solid color-mix(in oklab, var(--info) 22%, transparent); color: var(--foreground); font-size: var(--text-body-sm); margin: 1.25rem 0; }
   .note b { color: var(--info); }
-  .note.warn {
-    background: color-mix(in oklab, var(--warning) 7%, transparent);
-    border-color: color-mix(in oklab, var(--warning) 26%, transparent);
-  }
+  .note.warn { background: color-mix(in oklab, var(--warning) 7%, transparent); border-color: color-mix(in oklab, var(--warning) 26%, transparent); }
   .note.warn b { color: var(--warning); }
-
   .cov { width: 100%; border-collapse: collapse; margin: 0.75rem 0 0.5rem; font-size: var(--text-body-sm); }
-  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
-            padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
   .cov td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
   .cov td:first-child { font-weight: 500; white-space: nowrap; }
-
-  .screen {
-    border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem;
-    margin: 1.5rem 0; background: var(--background);
-  }
+  .screen { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin: 1.5rem 0; background: var(--background); }
   .screen-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-bottom: 0.25rem; }
   .screen-name { font-size: var(--text-heading); font-weight: 600; margin: 0; }
   .screen-purpose { color: var(--muted-foreground); margin: 0.25rem 0 1rem; }
-  .endpoint {
-    display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono);
-    font-size: var(--text-caption); padding: 0.15rem 0.45rem; border-radius: 4px;
-    background: var(--muted); border: 1px solid var(--border); color: var(--foreground);
-  }
+  .endpoint { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--text-caption); padding: 0.15rem 0.45rem; border-radius: 4px; background: var(--muted); border: 1px solid var(--border); color: var(--foreground); }
   .endpoint .m { font-weight: 700; color: var(--info); }
-  .status {
-    display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500;
-    letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px;
-    background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent);
-  }
-  .status.live { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent);
-                 box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 22%, transparent); }
-  .status.proposed { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 5%, transparent);
-                     box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent); }
-  .gating {
-    font-size: var(--text-caption); color: var(--muted-foreground); margin: 0 0 1rem;
-    padding-left: 0.75rem; border-left: 2px solid var(--border);
-  }
+  .status { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .status.live { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 22%, transparent); }
+  .gating { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0 0 1rem; padding-left: 0.75rem; border-left: 2px solid var(--border); }
   .gating code { color: var(--foreground); }
-
-  .proposed-note {
-    display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; margin: 0 0 1rem;
-    background: color-mix(in oklab, var(--primary) 5%, transparent);
-    border: 1px dashed color-mix(in oklab, var(--primary) 35%, transparent);
-    font-size: var(--text-body-sm);
-  }
-  .proposed-note b { color: var(--primary); }
-  .proposed-note .sig { font-family: var(--font-mono); font-size: var(--text-caption); }
-
   .filterbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
-  .field {
-    height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem;
-    background: var(--background); color: var(--foreground); font-size: var(--text-body-sm);
-    display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0;
-  }
+  .field { height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--background); color: var(--foreground); font-size: var(--text-body-sm); display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; }
   .field .lbl { color: var(--muted-foreground); }
   .field .val { color: var(--foreground); }
-
-  .btn {
-    height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
-    font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary);
-    position: relative; overflow: hidden;
-    box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16),
-                0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255);
-  }
+  .btn { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer; font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary); position: relative; overflow: hidden; box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16), 0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255); }
   .btn::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(255,255,255,0.2), transparent); }
-  .btn-secondary {
-    height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
-    font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card);
-    box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06),
-                0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1);
-  }
-
+  .btn-secondary { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer; font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card); box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06), 0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1); }
   .table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--text-body-sm); }
-  .table th {
-    text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
-    padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap;
-  }
+  .table th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
   .table td { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); vertical-align: top; }
   .table tbody tr:hover { background: color-mix(in oklab, var(--gray-700) 4%, transparent); }
   .table .t-time { color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .table .t-id { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted-foreground); }
   .table .t-num { text-align: right; font-variant-numeric: tabular-nums; }
-
-  .badge {
-    display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500;
-    letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap;
-    background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent);
-  }
-  .badge.action  { color: var(--primary);  background-color: color-mix(in oklab, var(--primary) 4%, transparent);  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent); }
-  .badge.entity  { color: var(--muted-foreground); background-color: color-mix(in oklab, var(--gray-700) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gray-700) 16%, transparent); }
-  .badge.warn    { color: var(--warning);  background-color: color-mix(in oklab, var(--warning) 4%, transparent);  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 16%, transparent); }
-  .badge.info    { color: var(--info);     background-color: color-mix(in oklab, var(--info) 4%, transparent);     box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 16%, transparent); }
-  .badge.good    { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 16%, transparent); }
-  .badge.bad     { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 16%, transparent); }
-
-  .dot { width: 6px; height: 6px; border-radius: 999px; display: inline-block; flex-shrink: 0; }
-  .dot.violet { background: #9280ff; box-shadow: 0 0 0 3px color-mix(in oklab, #9280ff 25%, transparent); }
-  .dot.sky    { background: #6694f8; box-shadow: 0 0 0 3px color-mix(in oklab, #6694f8 25%, transparent); }
-  .dot.emerald{ background: #31c854; box-shadow: 0 0 0 3px color-mix(in oklab, #31c854 25%, transparent); }
-  .dot.rose   { background: #f86969; box-shadow: 0 0 0 3px color-mix(in oklab, #f86969 25%, transparent); }
-  .dot.amber  { background: #f59e0b; box-shadow: 0 0 0 3px color-mix(in oklab, #f59e0b 25%, transparent); }
-
-  .pagebar {
-    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-    padding: 0.75rem 0.25rem 0; color: var(--muted-foreground); font-size: var(--text-body-sm);
-  }
+  .badge { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .badge.action { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent); }
+  .badge.bad { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 16%, transparent); }
+  .pagebar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.25rem 0; color: var(--muted-foreground); font-size: var(--text-body-sm); }
   .pagebar .pager { display: flex; gap: 0.25rem; }
-  .pagebar .pager span {
-    display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem;
-    padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption);
-  }
-
-  .empty {
-    display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1rem;
-    padding: 2.5rem; border: 1px dashed var(--border); border-radius: 0.75rem; color: var(--muted-foreground);
-  }
-  .empty .ic {
-    width: 3rem; height: 3rem; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;
-    background: color-mix(in oklab, var(--gray-700) 4%, transparent);
-    box-shadow: inset 0 0 0 1px var(--border); font-size: 1.1rem;
-  }
-
-  .kv { display: grid; grid-template-columns: 170px 1fr; gap: 0.4rem 1rem; margin: 0; font-size: var(--text-body-sm); }
-  .kv dt { color: var(--muted-foreground); }
-  .kv dd { margin: 0; word-break: break-word; }
-
-  .diff { margin: 1rem 0 0; border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; }
-  .diff > summary {
-    cursor: pointer; padding: 0.5rem 0.75rem; font-size: var(--text-label); color: var(--secondary-foreground);
-    background: var(--muted); list-style: none;
-  }
-  .diff > summary::-webkit-details-marker { display: none; }
-  .diff pre { margin: 0; padding: 0.75rem; font-size: var(--text-caption); overflow-x: auto; }
-
+  .pagebar .pager span { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem; padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption); }
   .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
   .kpi { background: var(--muted); border-radius: 0.75rem; padding: 0.875rem 1rem; }
   .kpi.alert { background: color-mix(in oklab, var(--negative) 6%, var(--muted)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 20%, transparent); }
   .kpi .k-label { color: var(--muted-foreground); font-size: var(--text-label); }
   .kpi .k-value { font-size: var(--text-heading); font-weight: 600; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
   .kpi.alert .k-value { color: var(--negative); }
-  .kpi .k-delta { font-size: var(--text-caption); color: var(--positive); }
-
   .timeline { position: relative; margin: 0; padding: 0 0 0 1.25rem; list-style: none; }
   .timeline::before { content: ""; position: absolute; left: 3px; top: 4px; bottom: 4px; width: 1px; background: var(--border); }
   .tl-item { position: relative; padding: 0 0 1.1rem; }
   .tl-item::before { content: ""; position: absolute; left: -1.25rem; top: 5px; width: 7px; height: 7px; border-radius: 999px; background: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent); }
   .tl-time { color: var(--muted-foreground); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
   .tl-title { font-size: var(--text-body-sm); margin-top: 0.1rem; }
-  .tl-meta { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.15rem; }
-
   .breadcrumb { color: var(--muted-foreground); font-size: var(--text-body-sm); margin-bottom: 0.75rem; }
   .breadcrumb b { color: var(--foreground); font-weight: 500; }
-
   .scrollx { overflow-x: auto; }
   h3.sub { font-size: var(--text-heading-sm); font-weight: 600; margin: 1.5rem 0 0.5rem; }
+  .seg { display: inline-flex; padding: 2px; border-radius: 0.5rem; background: var(--muted); border: 1px solid var(--border); gap: 2px; }
+  .seg span { padding: 0.2rem 0.65rem; border-radius: 0.375rem; font-size: var(--text-label); color: var(--muted-foreground); }
+  .seg span.on { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+  .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+  .panel { border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.125rem; }
+  .panel h4 { margin: 0 0 0.75rem; font-size: var(--text-body-sm); font-weight: 600; }
+  .bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.625rem; }
+  .bars a { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.75rem; color: inherit; text-decoration: none; }
+  .bars .bar { grid-column: 1 / -1; height: 6px; border-radius: 999px; background: var(--muted); overflow: hidden; }
+  .bars .bar i { display: block; height: 100%; background: color-mix(in oklab, var(--negative) 70%, transparent); border-radius: 999px; }
+  .bars .n { font-variant-numeric: tabular-nums; font-weight: 500; }
+  .src { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .src:last-child { border-bottom: 0; }
+  .src .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .muted { color: var(--muted-foreground); }
+  .link { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: color-mix(in oklab, var(--primary) 40%, transparent); }
+  .empty { text-align: center; padding: 2.5rem 1rem; color: var(--muted-foreground); border: 1px dashed var(--border); border-radius: var(--radius); }
+  .empty b { display: block; color: var(--foreground); font-size: var(--text-body); margin-bottom: 0.25rem; }
+  .sheet { margin-left: auto; max-width: 420px; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; box-shadow: 0 12px 32px -12px rgba(0,0,0,0.25); }
+  .sheet h4 { margin: 0; font-size: var(--text-heading-sm); }
+  .sheet .desc { color: var(--muted-foreground); font-size: var(--text-label); margin: 0.25rem 0 1.25rem; }
+  .ann { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0.5rem 0 0; }
+  .ann li { margin: 0.2rem 0; }
+  .vchart { display: flex; align-items: flex-end; gap: 3px; height: 96px; padding: 0.5rem 0 0; border-bottom: 1px solid var(--border); }
+  .vchart a { flex: 1; background: color-mix(in oklab, var(--negative) 65%, transparent); border-radius: 2px 2px 0 0; min-height: 1px; }
+  .vchart a.zero { background: var(--border); }
+  .vaxis { display: flex; justify-content: space-between; color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.25rem; }
+
+  .badge.good { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 16%, transparent); }
+  .badge.warn { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 16%, transparent); }
+  .badge.info { color: var(--info); background-color: color-mix(in oklab, var(--info) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 16%, transparent); }
+  .kpi.warn { background: color-mix(in oklab, var(--warning) 6%, var(--muted)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 22%, transparent); }
+  .kpi.warn .k-value { color: var(--warning); }
+  .kpi .k-sub { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.1rem; }
+  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 0.4rem 1rem; margin: 0; font-size: var(--text-body-sm); }
+  .kv dt { color: var(--muted-foreground); }
+  .kv dd { margin: 0; word-break: break-word; }
+  .saved { margin-top: 1.25rem; border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; }
+  .saved .head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.75rem; background: var(--muted); font-size: var(--text-label); color: var(--secondary-foreground); }
+  .saved pre { margin: 0; padding: 0.75rem; font-size: var(--text-caption); overflow-x: auto; }
+  .saved .locked { padding: 0.75rem; color: var(--muted-foreground); font-size: var(--text-label); }
+  .variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1rem; align-items: start; }
+  .variants .sheet { margin: 0; max-width: none; }
+  .vlabel { font-size: var(--text-caption); color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 0.5rem; }
+  .bars .bar i.dup { background: color-mix(in oklab, var(--info) 65%, transparent); }
+  .pend { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .pend:last-child { border-bottom: 0; }
+  .pend .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .table .t-id { white-space: nowrap; }
+  .footnote { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.75rem; }
 </style>
 </head>
 <body>
 <div class="shell">
   <nav class="sidebar">
-    <div class="brand"><span></span>Idempotency Console</div>
-
+    <div class="brand"><span></span>Observability</div>
     <div class="nav-group">
-      <div class="nav-group-title">Investigate</div>
-      <a class="nav-item active" href="#claims">Claims</a>
-      <a class="nav-item" href="#claim-detail">Claim Detail</a>
-      <a class="nav-item" href="#trace">Request / Job Trace</a>
-    </div>
-
-    <div class="nav-group">
-      <div class="nav-group-title">Insight</div>
-      <a class="nav-item" href="#health">Health Summary</a>
+      <div class="nav-group-title">Idempotency</div>
+      <a class="nav-item active" href="#overview">Overview</a>
+      <a class="nav-item" href="#claims">Claims</a>
     </div>
   </nav>
 
@@ -292,244 +167,230 @@
     <div class="page-head">
       <h1 class="page-title">Idempotency Keys — Admin Console</h1>
       <p class="page-sub">
-        Screen mocks for the <code>idempotency-key</code> module's admin surface, each mapped to the
-        endpoint that backs it. Every read is gated <code>@RequiresAction('idempotency.view')</code> —
-        an ops/support persona, not a tenant-scoped one (see the module README).
+        Screen mocks for the <code>idempotency-key</code> module's admin surface. Every read is gated
+        <code>@RequiresAction('idempotency.view')</code> — an ops/support persona, not tenant-scoped (a claim's
+        <code>scope</code> is opaque to the module). A claim's <b>saved response body</b> is a separate grant,
+        <code>idempotency.view-response</code>: it can hold personal data.
       </p>
     </div>
 
     <div class="note warn">
-      <div><b>Why this console exists.</b> Two facts about a claim used to be invisible even querying
-      the table directly: whether a claim was fresh or a <b>reclaim</b> of a possibly-still-running one,
-      and whether a <code>complete()</code> call was <b>silently dropped</b> because its claim had
-      already been reclaimed. The second one is unambiguous — it means a duplicate execution actually
-      happened. Both are now counted per-row and summarized on the Health screen.</div>
+      <div><b>Why this console exists.</b> Idempotency is invisible both when it works and when it quietly fails.
+      This is where you see the duplicates it absorbed (a retry answered with the saved response, a double-click
+      turned away with a <code>409</code>), and the one failure nothing else shows: a request taken over as stale
+      while it was still running — <b>work that ran twice</b>.</div>
     </div>
 
-    <!-- ═══════════════ ENDPOINT COVERAGE MAP ═══════════════ -->
+    <div class="note">
+      <div><b>What a row is.</b> One claim per <code>Idempotency-Key</code> and scope — the first request with that
+      key. Its replays and <code>409</code>s are counted in memory and added to the row every 10 seconds, so counts
+      can trail by up to ~10s. Claims are kept <b>24 hours</b> (the app's cleanup), so every period here is at most
+      the past 24 hours.</div>
+    </div>
+
     <h3 class="sub">Endpoint coverage map</h3>
     <div class="scrollx">
     <table class="cov">
-      <thead>
-        <tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr>
-      </thead>
+      <thead><tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr></thead>
       <tbody>
-        <tr>
-          <td>Claims</td>
-          <td><span class="endpoint"><span class="m">GET</span>/idempotency-keys</span></td>
-          <td><span class="status live">Live</span></td>
-          <td>All <code>ClaimQuery</code> filters exposed as query params. Keyset pagination.</td>
-        </tr>
-        <tr>
-          <td>Claim Detail</td>
-          <td><span class="endpoint"><span class="m">GET</span>/idempotency-keys/:scope/:key</span></td>
-          <td><span class="status live">Live</span></td>
-          <td>The support-ticket lookup — "why did this submission 409 or replay."</td>
-        </tr>
-        <tr>
-          <td>Request / Job Trace</td>
-          <td><span class="endpoint"><span class="m">GET</span>/idempotency-keys/trace/:correlationId</span></td>
-          <td><span class="status live">Live</span></td>
-          <td>Cross-module — joins the same id in <code>audit-logging.api</code> / <code>notification.api</code> / <code>background-jobs.api</code> / <code>domain-events.api</code>.</td>
-        </tr>
-        <tr>
-          <td>Health Summary</td>
-          <td><span class="endpoint"><span class="m">GET</span>/idempotency-keys/health</span></td>
-          <td><span class="status live">Live</span></td>
-          <td>The number to check when <code>staleAfterSeconds</code> is suspected of being too low.</td>
-        </tr>
+        <tr><td>Overview — tiles</td><td><span class="endpoint"><span class="m">GET</span>/idempotency-keys/health?since</span></td><td><span class="status live">Live</span></td><td>Claims, duplicates absorbed (replays + 409s), reclaimed, ran twice; oldest claim kept.</td></tr>
+        <tr><td>Overview — by endpoint</td><td><span class="endpoint"><span class="m">GET</span>/idempotency-keys/routes?since</span></td><td><span class="status live">Live</span></td><td>Per route pattern: claims, replays, 409s, reclaims, ran twice — most duplicates first.</td></tr>
+        <tr><td>Overview — in progress</td><td><span class="endpoint"><span class="m">GET</span>/idempotency-keys?status=pending&amp;limit=10</span></td><td><span class="status live">Live</span></td><td>Claims whose request hasn't finished — a crashed or hung handler shows up here.</td></tr>
+        <tr><td>Claims</td><td><span class="endpoint"><span class="m">GET</span>/idempotency-keys</span></td><td><span class="status live">Live</span></td><td>status, route, scope, correlationId, since/until. <code>{ data, meta: { nextCursor } }</code> — no total count.</td></tr>
+        <tr><td>Claim sheet</td><td><span class="endpoint"><span class="m">GET</span>/idempotency-keys/:scope/:key</span></td><td><span class="status live">Live</span></td><td>Status code and body size — never the body.</td></tr>
+        <tr><td>Claim sheet — saved response</td><td><span class="endpoint"><span class="m">GET</span>/idempotency-keys/:scope/:key/response</span></td><td><span class="status live">Live</span></td><td>On demand, gated <code>idempotency.view-response</code>.</td></tr>
+        <tr><td>Trace sheet</td><td><span class="endpoint"><span class="m">GET</span>/idempotency-keys/trace/:correlationId</span></td><td><span class="status live">Live</span></td><td>Only from a claim that has a correlation id.</td></tr>
       </tbody>
     </table>
     </div>
 
-    <!-- ═══════════════ 1 · CLAIMS ═══════════════ -->
+    <!-- 1 · OVERVIEW -->
+    <section class="screen" id="overview">
+      <div class="screen-head">
+        <h2 class="screen-name">Overview</h2>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">The landing screen — is the pattern doing its job, and is it safe? A segment control picks the period; "Go to Claims" sits in the page header.</p>
+      <p class="gating">Gate: <code>idempotency.view</code>. Calls <code>health</code>, <code>routes</code> (same <code>since</code>) and the pending list.</p>
+
+      <div class="filterbar">
+        <span class="seg"><span>Past hour</span><span class="on">Past 24 hours</span></span>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi"><div class="k-label">Claims</div><div class="k-value"><a class="link" href="#claims">412</a></div><div class="k-sub">406 completed · 6 in progress</div></div>
+        <div class="kpi"><div class="k-label">Duplicates absorbed</div><div class="k-value">58</div><div class="k-sub">49 replayed · 9 turned away (409)</div></div>
+        <div class="kpi warn"><div class="k-label">Reclaimed</div><div class="k-value"><a class="link" href="#claims">3</a></div><div class="k-sub">taken over as stale — possibly ran twice</div></div>
+        <div class="kpi alert"><div class="k-label">Ran twice</div><div class="k-value"><a class="link" href="#claims">1</a></div><div class="k-sub">confirmed — a result was discarded</div></div>
+      </div>
+
+      <div class="panels">
+        <div class="panel">
+          <h4>Duplicates by endpoint</h4>
+          <ul class="bars">
+            <li><a href="#claims"><span><code>/payments</code> <span class="muted">· 212 claims</span></span><span class="n link">41</span><span class="bar"><i class="dup" style="width: 100%"></i></span></a></li>
+            <li><a href="#claims"><span><code>/invoices/:id/send</code> <span class="muted">· 96 claims</span> <span class="badge bad">1 ran twice</span></span><span class="n link">12</span><span class="bar"><i class="dup" style="width: 29%"></i></span></a></li>
+            <li><a href="#claims"><span><code>/refunds</code> <span class="muted">· 61 claims</span></span><span class="n link">4</span><span class="bar"><i class="dup" style="width: 10%"></i></span></a></li>
+            <li><a href="#claims"><span><code>/payouts</code> <span class="muted">· 43 claims</span></span><span class="n link">1</span><span class="bar"><i class="dup" style="width: 2%"></i></span></a></li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h4>In progress</h4>
+          <a class="pend" href="#claim"><span class="mono">idem_4d19…7b</span><span class="muted">2 s</span>
+            <span class="meta"><span class="badge action">/payments</span>· t_kairos · 1 turned away (409)</span></a>
+          <a class="pend" href="#claim"><span class="mono">idem_9e01…3c</span><span class="muted">6 s</span>
+            <span class="meta"><span class="badge action">/refunds</span>· t_meridian</span></a>
+          <a class="pend" href="#claim"><span class="mono">idem_77aa…02</span><span class="badge warn">4 min</span>
+            <span class="meta"><span class="badge action">/payouts</span>· t_kairos · 3 turned away (409)</span></a>
+        </div>
+      </div>
+      <p class="footnote">Oldest claim kept: 20 Oct 09:41 — the 24h cleanup is running.</p>
+
+      <ul class="ann">
+        <li>Each list is a table card with its title in an <code>lg</code> header, scrolling after 5 rows (<code>visibleRows</code>).</li>
+        <li><b>Duplicates absorbed</b> is the pattern working: every one is a request that did <i>not</i> run again. A route's number opens Claims filtered to that route and period.</li>
+        <li><b>Reclaimed</b> is a warning, <b>Ran twice</b> an alarm (red only when &gt; 0). Either opens Claims for the period; if Ran twice moves with real traffic, <code>staleAfterSeconds</code> is too low for that endpoint.</li>
+        <li><b>In progress</b> shows each claim's age. One much older than the app's <code>staleAfterSeconds</code> (amber) is a crashed or hung handler — retries get <code>409</code> until it goes stale. A row opens the Claim sheet.</li>
+        <li>Times are the viewer's local time (<code>formatDateTime</code>).</li>
+      </ul>
+
+      <h3 class="sub">Empty state</h3>
+      <div class="empty"><b>No claims in the past 24 hours</b>No request carried an <code>Idempotency-Key</code> — try a longer period.</div>
+    </section>
+
+    <!-- 2 · CLAIMS -->
     <section class="screen" id="claims">
       <div class="screen-head">
         <h2 class="screen-name">Claims</h2>
         <span class="endpoint"><span class="m">GET</span>/idempotency-keys</span>
         <span class="status live">Live</span>
       </div>
-      <p class="screen-purpose">Every tracked idempotency key, newest first, keyset-paginated.</p>
-      <p class="gating">Gate: <code>idempotency.view</code>. No tenant scoping — grant this only to ops/support personas.</p>
+      <p class="screen-purpose">Every claim, newest first — the support lookup ("was I charged twice?").</p>
+      <p class="gating">Gate: <code>idempotency.view</code>. No tenant scoping.</p>
 
       <div class="filterbar">
         <span class="field"><span class="lbl">Status</span><span class="val">any</span></span>
+        <span class="field"><span class="lbl">Route</span><span class="val">/payments</span></span>
         <span class="field"><span class="lbl">Scope</span><span class="val">any</span></span>
-        <span class="field"><span class="lbl">Correlation id</span><span class="val">—</span></span>
+        <span class="field"><span class="lbl">Correlation ID</span><span class="val">any</span></span>
+        <span class="field"><span class="lbl">Period</span><span class="val">Past 24 hours</span></span>
         <button class="btn-secondary" type="button">Reset</button>
-        <button class="btn" type="button">Apply</button>
       </div>
 
       <div class="scrollx">
       <table class="table">
-        <thead>
-          <tr>
-            <th>Created at</th>
-            <th>Key</th>
-            <th>Scope</th>
-            <th>Status</th>
-            <th>Reclaims</th>
-            <th>Late no-ops</th>
-            <th>Correlation</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Created</th><th>Route</th><th>Key</th><th>Scope</th><th>Status</th><th class="t-num">Replayed</th><th class="t-num">409s</th><th>Safety</th><th>Correlation</th></tr></thead>
         <tbody>
-          <tr>
-            <td class="t-time">2026-09-12 09:41:02</td>
-            <td class="t-id">idem_8f2a…c1</td>
-            <td>t_kairos</td>
-            <td><span class="badge good">completed</span></td>
-            <td class="t-num">0</td>
-            <td class="t-num">0</td>
-            <td class="t-id">c: 5b9e…a1</td>
-          </tr>
-          <tr>
-            <td class="t-time">2026-09-12 09:22:10</td>
-            <td class="t-id">idem_11c0…9d</td>
-            <td>t_meridian</td>
-            <td><span class="badge good">completed</span></td>
-            <td class="t-num"><span class="badge warn">1</span></td>
-            <td class="t-num"><span class="badge bad">1</span></td>
-            <td class="t-id">c: 71a2…9c</td>
-          </tr>
-          <tr>
-            <td class="t-time">2026-09-12 09:05:44</td>
-            <td class="t-id">idem_4d19…7b</td>
-            <td>t_kairos</td>
-            <td><span class="badge info">pending</span></td>
-            <td class="t-num">0</td>
-            <td class="t-num">0</td>
-            <td class="t-id">—</td>
-          </tr>
+          <tr><td class="t-time">21 Oct 09:41</td><td><span class="badge action">/payments</span></td><td class="t-id"><a class="link" href="#claim">idem_8f2a…c1</a></td><td>t_kairos</td><td><span class="badge good">completed · 201</span></td><td class="t-num">3</td><td class="t-num">1</td><td class="muted">—</td><td><a class="t-id link" href="#trace">5b9e…a1</a></td></tr>
+          <tr><td class="t-time">21 Oct 09:40</td><td><span class="badge action">/payments</span></td><td class="t-id"><a class="link" href="#claim">idem_4d19…7b</a></td><td>t_kairos</td><td><span class="badge info">in progress</span></td><td class="t-num muted">0</td><td class="t-num">1</td><td class="muted">—</td><td class="muted">—</td></tr>
+          <tr><td class="t-time">21 Oct 09:22</td><td><span class="badge action">/invoices/:id/send</span></td><td class="t-id"><a class="link" href="#claim">idem_11c0…9d</a></td><td>t_meridian</td><td><span class="badge good">completed · 201</span></td><td class="t-num">2</td><td class="t-num muted">0</td><td><span class="badge warn">reclaimed 1</span> <span class="badge bad">ran twice</span></td><td><a class="t-id link" href="#trace">71a2…9c</a></td></tr>
+          <tr><td class="t-time">21 Oct 09:05</td><td><span class="badge action">/payments</span></td><td class="t-id"><a class="link" href="#claim">idem_c3b0…e4</a></td><td>t_kairos</td><td><span class="badge warn">completed · 422</span></td><td class="t-num">5</td><td class="t-num muted">0</td><td class="muted">—</td><td class="muted">—</td></tr>
         </tbody>
       </table>
       </div>
 
       <div class="pagebar">
-        <span>Showing 3 of ~412 · page size 50</span>
+        <span>50 per page</span>
         <span class="pager"><span>Newer</span><span>Older</span></span>
       </div>
+
+      <ul class="ann">
+        <li><b>Status</b> carries the saved response's status code. A <code>4xx</code> (amber) means every retry within 24h gets that same error back — the case behind "my retry keeps failing".</li>
+        <li><b>Replayed</b> / <b>409s</b> — repeat requests answered with the saved response / turned away while the first was running. Muted at 0.</li>
+        <li><b>Safety</b> only when something went wrong: reclaimed (possible) and ran twice (confirmed).</li>
+        <li>The key opens the Claim sheet; the correlation id opens the Trace sheet (no link when there's none). Route and Period come from the URL, so the Overview's links land here pre-filtered.</li>
+        <li>No "of N" total: the list pages by cursor with no count query. The Overview carries the totals.</li>
+      </ul>
+
+      <h3 class="sub">Empty state</h3>
+      <div class="empty"><b>No claims match</b>Widen the period or clear a filter.</div>
     </section>
 
-    <!-- ═══════════════ 2 · CLAIM DETAIL (drawer) ═══════════════ -->
-    <div class="screen" id="claim-detail">
-      <div class="screen-head" style="margin-bottom:0.5rem">
-        <h2 class="screen-name">Claim detail</h2>
+    <!-- 3 · CLAIM SHEET -->
+    <section class="screen" id="claim">
+      <div class="screen-head">
+        <h2 class="screen-name">Claim sheet</h2>
         <span class="endpoint"><span class="m">GET</span>/idempotency-keys/:scope/:key</span>
         <span class="status live">Live</span>
       </div>
-      <p class="breadcrumb"><b>t_meridian</b> / <b>idem_11c0…9d</b></p>
-      <p class="screen-purpose">Opened from a row in Claims, or a direct support-ticket lookup by key + scope.</p>
+      <p class="screen-purpose">Opened from a key in Claims or the Overview — everything known about one claim. The saved response loads only on request, and only with <code>idempotency.view-response</code>.</p>
 
-      <div class="note warn">
-        <div><b>This one is unambiguous.</b> <code>lateCompleteNoOpCount: 1</code> means a
-        <code>complete()</code> call for this key was dropped because the claim had already been
-        reclaimed by a newer attempt — a duplicate execution actually ran.</div>
-      </div>
-
-      <dl class="kv">
-        <dt>Key</dt><dd class="mono">idem_11c0…9d</dd>
-        <dt>Scope</dt><dd>t_meridian</dd>
-        <dt>Status</dt><dd><span class="badge good">completed</span></dd>
-        <dt>Created at</dt><dd>2026-09-12 09:22:10.402 UTC</dd>
-        <dt>Reclaim count</dt><dd><span class="badge warn">1</span> — possibly reclaimed while still in flight</dd>
-        <dt>Late complete no-ops</dt><dd><span class="badge bad">1</span> — a dropped result, unambiguous duplicate signal</dd>
-        <dt>Correlation</dt><dd class="mono">71a29c04-…-9c</dd>
-      </dl>
-
-      <details class="diff" open>
-        <summary>cached response (statusCode 201)</summary>
-        <pre>{
+      <div class="variants">
+        <div>
+          <p class="vlabel">With idempotency.view-response — after "Show"</p>
+          <div class="sheet">
+            <h4>Claim</h4>
+            <p class="desc"><span class="mono">idem_11c0…9d</span> · scope t_meridian (click to copy)</p>
+            <dl class="kv">
+              <dt>Route</dt><dd><span class="badge action">/invoices/:id/send</span></dd>
+              <dt>Status</dt><dd><span class="badge good">completed · 201</span></dd>
+              <dt>Created</dt><dd>21 Oct 09:22:10</dd>
+              <dt>Duplicates</dt><dd>2 replayed · 0 turned away · last 09:22:41</dd>
+              <dt>Reclaimed</dt><dd><span class="badge warn">1</span> taken over as stale</dd>
+              <dt>Ran twice</dt><dd><span class="badge bad">1</span> a result was discarded</dd>
+              <dt>Correlation</dt><dd><a class="mono link" href="#trace">71a29c04-…-9c</a></dd>
+            </dl>
+            <div class="saved">
+              <div class="head"><span>Saved response · 201 · 84 bytes</span><button class="btn-secondary" type="button" style="height:1.5rem">Hide</button></div>
+              <pre>{
   "id": "inv_8821",
-  "status": "created",
+  "status": "sent",
+  "customer": "Meridian Ltd",
   "amount": 1420.00
 }</pre>
-      </details>
-    </div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <p class="vlabel">Without it — after "Show" (403)</p>
+          <div class="sheet">
+            <h4>Claim</h4>
+            <p class="desc"><span class="mono">idem_8f2a…c1</span> · scope t_kairos (click to copy)</p>
+            <dl class="kv">
+              <dt>Route</dt><dd><span class="badge action">/payments</span></dd>
+              <dt>Status</dt><dd><span class="badge good">completed · 201</span></dd>
+              <dt>Created</dt><dd>21 Oct 09:41:02</dd>
+              <dt>Duplicates</dt><dd>3 replayed · 1 turned away · last 09:41:30</dd>
+              <dt>Correlation</dt><dd><a class="mono link" href="#trace">5b9e…a1</a></dd>
+            </dl>
+            <div class="saved">
+              <div class="head"><span>Saved response · 201 · 312 bytes</span><button class="btn-secondary" type="button" style="height:1.5rem">Show</button></div>
+              <div class="locked">You need <code>idempotency.view-response</code> to see a saved response — it can hold personal data.</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-    <!-- ═══════════════ 3 · REQUEST / JOB TRACE ═══════════════ -->
+      <ul class="ann">
+        <li>The sheet never loads the body by itself: <b>Show</b> calls <code>/response</code>. A 403 replaces the body with the note — the rest of the sheet is unaffected.</li>
+        <li>An in-progress claim has no saved response — the block reads "Still running · started 2 s ago".</li>
+        <li>Reclaimed / Ran twice rows appear only when non-zero. Read-only; the correlation id opens the Trace sheet on top.</li>
+      </ul>
+    </section>
+
+    <!-- 4 · TRACE SHEET -->
     <section class="screen" id="trace">
       <div class="screen-head">
-        <h2 class="screen-name">Request / Job Trace</h2>
+        <h2 class="screen-name">Trace sheet</h2>
         <span class="endpoint"><span class="m">GET</span>/idempotency-keys/trace/:correlationId</span>
         <span class="status live">Live</span>
       </div>
-      <p class="breadcrumb">correlation <b>71a29c04-…-9c</b></p>
-      <p class="screen-purpose">Every idempotency claim raised under one correlation id, alongside what the same id resolves to in the other admin consoles.</p>
-      <p class="gating">Gate: <code>idempotency.view</code>.</p>
+      <p class="screen-purpose">Opened from a correlation id — every claim raised under that one request.</p>
 
-      <ul class="timeline">
-        <li class="tl-item">
-          <div class="tl-time">09:22:10.402</div>
-          <div class="tl-title"><span class="dot violet"></span> &nbsp;idempotency-key &nbsp;·&nbsp; idem_11c0…9d &nbsp;<span class="badge good">completed</span></div>
-          <div class="tl-meta">scope t_meridian · reclaimed once</div>
-        </li>
-        <li class="tl-item">
-          <div class="tl-time">09:22:10.610</div>
-          <div class="tl-title"><span class="dot sky"></span> &nbsp;domain-events &nbsp;·&nbsp; <span class="badge action">invoice.sent</span></div>
-          <div class="tl-meta">see domain-events.api's own trace endpoint</div>
-        </li>
-        <li class="tl-item">
-          <div class="tl-time">09:22:10.812</div>
-          <div class="tl-title"><span class="dot emerald"></span> &nbsp;notification &nbsp;·&nbsp; invoice.sent delivered</div>
-          <div class="tl-meta">see notification.api's own trace endpoint</div>
-        </li>
+      <div class="sheet">
+        <h4>Request trace</h4>
+        <p class="desc">Correlation: <span class="mono">71a29c04-…-9c</span> (click to copy)</p>
+        <ol class="timeline">
+          <li class="tl-item"><div class="tl-time">21 Oct 09:22:10</div>
+            <div class="tl-title"><span class="badge action">/invoices/:id/send</span> <span class="badge good">completed · 201</span></div>
+            <div class="tl-time mono">idem_11c0…9d · t_meridian · 2 replayed · reclaimed 1 · ran twice</div></li>
+        </ol>
+      </div>
+
+      <ul class="ann">
+        <li>Usually one item: one request makes one claim. The same id also resolves in audit-logging, rate-limiting, notification, background-jobs and domain-events — a unified trace is future work, owned by whichever console hosts it.</li>
+        <li>Read-only, no links out, so no sheet opens on top of it. Pages by cursor ("Load older").</li>
       </ul>
-
-      <div class="note">
-        <div><b>Cross-reference.</b> The same correlation id resolves in <code>audit-logging.api</code>,
-        <code>notification.api</code>, <code>background-jobs.api</code>, and <code>domain-events.api</code>.
-        A future unified "trace" screen could stitch all five — noted here, owned by whichever console
-        hosts it.</div>
-      </div>
-    </section>
-
-    <!-- ═══════════════ 4 · HEALTH SUMMARY ═══════════════ -->
-    <section class="screen" id="health">
-      <div class="screen-head">
-        <h2 class="screen-name">Health Summary</h2>
-        <span class="endpoint"><span class="m">GET</span>/idempotency-keys/health</span>
-        <span class="status live">Live</span>
-      </div>
-      <p class="screen-purpose">The landing dashboard — is <code>staleAfterSeconds</code> actually safe in production right now, not just in theory.</p>
-      <p class="gating">Gate: <code>idempotency.view</code>.</p>
-
-      <div class="kpi-row">
-        <div class="kpi"><div class="k-label">Pending</div><div class="k-value">6</div></div>
-        <div class="kpi"><div class="k-label">Completed</div><div class="k-value">406</div></div>
-        <div class="kpi alert"><div class="k-label">Reclaimed (possible dup.)</div><div class="k-value">3</div></div>
-        <div class="kpi alert"><div class="k-label">Late complete no-ops (confirmed dup.)</div><div class="k-value">1</div></div>
-      </div>
-
-      <dl class="kv">
-        <dt>Total claims retained</dt><dd>412</dd>
-        <dt>Oldest retained</dt><dd>2026-09-11 09:41:02 (< 24h — the cleanup job's own window)</dd>
-      </dl>
-
-      <div class="note warn">
-        <div><b>Reading this screen.</b> A non-zero "reclaimed" count is a possible-duplicate signal —
-        worth a look. A non-zero "late complete no-ops" count is a <b>confirmed</b> one: at least one
-        request's result was dropped because it was reclaimed while still running. If this number moves
-        with real traffic, <code>staleAfterSeconds</code> is too low for at least one endpoint using it.</div>
-      </div>
-    </section>
-
-    <!-- ═══════════════ EMPTY STATE (variant) ═══════════════ -->
-    <section class="screen">
-      <div class="screen-head">
-        <h2 class="screen-name">Claims — empty state</h2>
-        <span class="endpoint"><span class="m">GET</span>/idempotency-keys</span>
-        <span class="status live">Live</span>
-      </div>
-      <p class="screen-purpose">Shown when a filter combination matches nothing — distinct from "no claims exist at all".</p>
-      <div class="empty">
-        <div class="ic">🔍</div>
-        <div>
-          <div style="color:var(--foreground);font-weight:500">No claims match these filters</div>
-          <div>Try widening the date range or clearing the scope filter.</div>
-        </div>
-        <button class="btn-secondary" type="button">Clear filters</button>
-      </div>
     </section>
 
   </main>
