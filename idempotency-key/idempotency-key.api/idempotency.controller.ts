@@ -17,7 +17,8 @@ async function toCursorList(page: Promise<ClaimPage>) {
 /**
  * Read endpoints for an idempotency support/ops screen: claim lookup (by
  * `key`+`scope`), a filtered list, a cross-module correlation trace, a
- * health summary and per-route counts. All gated on `idempotency.view`. No tenant scoping — see
+ * health summary and per-route counts — gated on `idempotency.view` — and a claim's saved response body, on its own
+ * `idempotency.view-response` (it can hold personal data). No tenant scoping — see
  * `IdempotencyApiService`'s doc comment for why. Requires `AuthorizationGuard`
  * wired globally as `APP_GUARD` (see `authorization.core`'s README) — and fails
  * closed without it: `AuthorizationEnforcedGuard` turns a missing global guard
@@ -83,5 +84,12 @@ export class IdempotencyController {
   @RequiresAction(IDEMPOTENCY_ACTIONS.VIEW)
   claim(@Param('scope') scope: string, @Param('key') key: string) {
     return this.service.getClaim(key, scope);
+  }
+
+  /** The saved response body — its own action, since it can hold personal data. Null unless the claim is completed. */
+  @Get(':scope/:key/response')
+  @RequiresAction(IDEMPOTENCY_ACTIONS.VIEW_RESPONSE)
+  response(@Param('scope') scope: string, @Param('key') key: string) {
+    return this.service.getClaimResponse(key, scope);
   }
 }

@@ -19,10 +19,13 @@ import { IDEMPOTENCY_SQL_EXECUTOR } from '../tokens';
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
-/** Every column `mapRow` reads. `claim_id`, the owner's token, never leaves the store. */
+/**
+ * Every column `mapRow` reads. Not `response_body` — only its size; the body is `getClaimResponse`'s alone. Not
+ * `claim_id`, the owner's token, which never leaves the store.
+ */
 const CLAIM_COLUMNS = sql.raw(
-  'key, scope, status, status_code, response_body, created_at, reclaim_count, late_complete_no_op_count, ' +
-    'replay_count, conflict_count, last_duplicate_at, route, correlation_id',
+  'key, scope, status, status_code, octet_length(response_body::text) as response_bytes, created_at, reclaim_count, ' +
+    'late_complete_no_op_count, replay_count, conflict_count, last_duplicate_at, route, correlation_id',
 );
 
 /**
@@ -47,6 +50,16 @@ export class PostgresIdempotencyObservabilityService implements IdempotencyObser
       where key = ${key} and scope = ${scope}
     `);
     return rows[0] ? mapRow(rows[0]) : null;
+  }
+
+  async getClaimResponse(key: string, scope: string): Promise<CachedResponse | null> {
+    const { rows } = await this.db.execute(sql`
+      select status_code, response_body
+      from commons_idempotency_key
+      where key = ${key} and scope = ${scope} and status = 'completed'
+    `);
+    const row = rows[0];
+    return row ? { statusCode: Number(row.status_code), body: row.response_body } : null;
   }
 
   async listClaims(query: ClaimQuery = {}): Promise<ClaimPage> {
@@ -153,13 +166,13 @@ function toDateOrNull(value: unknown): Date | null {
 }
 
 function mapRow(row: Record<string, unknown>): IdempotencyClaimRecord {
-  const response: CachedResponse | null =
-    row.status === 'completed' ? { statusCode: row.status_code as number, body: row.response_body } : null;
+  const completed = row.status === 'completed';
   return {
     key: String(row.key),
     scope: String(row.scope),
     status: row.status as IdempotencyClaimRecord['status'],
-    response,
+    statusCode: completed && row.status_code != null ? Number(row.status_code) : null,
+    responseBytes: completed && row.response_bytes != null ? Number(row.response_bytes) : null,
     createdAt: row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at)),
     reclaimCount: Number(row.reclaim_count),
     lateCompleteNoOpCount: Number(row.late_complete_no_op_count),

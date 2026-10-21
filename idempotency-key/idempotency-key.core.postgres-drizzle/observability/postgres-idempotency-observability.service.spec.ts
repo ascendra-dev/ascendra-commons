@@ -25,7 +25,7 @@ function row(over: Partial<Record<string, unknown>> = {}): Record<string, unknow
     scope: 'tenant-1',
     status: 'completed',
     status_code: 201,
-    response_body: { id: 'inv-1' },
+    response_bytes: 15,
     created_at: new Date('2026-06-01T10:00:00Z'),
     reclaim_count: 0,
     late_complete_no_op_count: 0,
@@ -43,7 +43,7 @@ function service(db: SqlExecutor) {
 }
 
 describe('PostgresIdempotencyObservabilityService.getClaim', () => {
-  it('maps a completed row, including the cached response', async () => {
+  it('maps a completed row — the status code and body size, never the body', async () => {
     const db = fakeDb([row()]);
     const claim = await service(db).getClaim('key-1', 'tenant-1');
 
@@ -51,7 +51,8 @@ describe('PostgresIdempotencyObservabilityService.getClaim', () => {
       key: 'key-1',
       scope: 'tenant-1',
       status: 'completed',
-      response: { statusCode: 201, body: { id: 'inv-1' } },
+      statusCode: 201,
+      responseBytes: 15,
       replayCount: 3,
       conflictCount: 1,
       lastDuplicateAt: new Date('2026-06-01T10:00:05Z'),
@@ -62,6 +63,11 @@ describe('PostgresIdempotencyObservabilityService.getClaim', () => {
 
   it('a claim recorded before routes and duplicates were tracked maps to null / zero', async () => {
     const db = fakeDb([row({ route: null, last_duplicate_at: null, replay_count: 0, conflict_count: 0 })]);
+    // (and the select never reads response_body itself — only its size)
+    await service(db).getClaim('key-1', 'tenant-1');
+    const { sql: text } = rendered(db);
+    expect(text).not.toMatch(/response_body,|response_body\s+from/i);
+    expect(text).toMatch(/octet_length\(response_body::text\) as response_bytes/i);
     await expect(service(db).getClaim('key-1', 'tenant-1')).resolves.toMatchObject({
       route: null,
       lastDuplicateAt: null,
@@ -75,12 +81,30 @@ describe('PostgresIdempotencyObservabilityService.getClaim', () => {
     await expect(service(db).getClaim('missing', 'tenant-1')).resolves.toBeNull();
   });
 
-  it('a pending row has a null response', async () => {
-    const db = fakeDb([row({ status: 'pending', status_code: null, response_body: null })]);
+  it('a pending row has no status code or size', async () => {
+    const db = fakeDb([row({ status: 'pending', status_code: null, response_bytes: null })]);
     await expect(service(db).getClaim('key-1', 'tenant-1')).resolves.toMatchObject({
       status: 'pending',
-      response: null,
+      statusCode: null,
+      responseBytes: null,
     });
+  });
+});
+
+describe('PostgresIdempotencyObservabilityService.getClaimResponse', () => {
+  it('returns the saved status code and body of a completed claim', async () => {
+    const db = fakeDb([{ status_code: 201, response_body: { id: 'inv-1' } }]);
+    await expect(service(db).getClaimResponse('key-1', 'tenant-1')).resolves.toEqual({
+      statusCode: 201,
+      body: { id: 'inv-1' },
+    });
+    const { sql: text, params } = rendered(db);
+    expect(text).toMatch(/where key = \$1 and scope = \$2 and status = 'completed'/i);
+    expect(params).toEqual(['key-1', 'tenant-1']);
+  });
+
+  it('null for a pending or missing claim', async () => {
+    await expect(service(fakeDb([])).getClaimResponse('key-1', 'tenant-1')).resolves.toBeNull();
   });
 });
 

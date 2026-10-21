@@ -13,9 +13,16 @@ Opt-in NestJS controller over `IDEMPOTENCY_OBSERVABILITY_PORT`. Stack-agnostic
 | GET | `/idempotency-keys/trace/:correlationId` | every claim raised under one correlation id, as `{ data, meta }` — a cross-module trace, joinable with `audit-logging.api` / `notification.api` / `background-jobs.api` / `domain-events.api`'s own trace endpoints on the same id. |
 | GET | `/idempotency-keys/health` | `claimHealthSummary({ since? })` — pending/completed/reclaimed counts, the duplicates absorbed (`replayTotal`, `conflictTotal`), the unambiguous `lateCompleteNoOpTotal`, and how far back the retained window goes. `?since=` limits it to claims made since then. The number to check when `staleAfterSeconds` is suspected of being too low. |
 | GET | `/idempotency-keys/routes` | `claimsByRoute({ since? })` — claims, replays, conflicts, reclaims and late completes per route pattern, most duplicates first. |
-| GET | `/idempotency-keys/:scope/:key` | one claim — the support-ticket lookup ("why did this submission 409 or replay"). |
+| GET | `/idempotency-keys/:scope/:key` | one claim — the support-ticket lookup ("why did this submission 409 or replay"). The saved response's status code and size, never its body. |
+| GET | `/idempotency-keys/:scope/:key/response` | the saved response — `{ statusCode, body }`, exactly what a retry is replayed — gated on **`idempotency.view-response`**. Null unless the claim is completed. |
 
-All gated on `@RequiresAction('idempotency.view')`. The controller also carries
+All but the last gated on `@RequiresAction('idempotency.view')`.
+
+**The saved body is a separate grant.** It's whatever the endpoint returned —
+a payment's payer, an invoice's customer — so no list, trace or claim record
+carries it (only `statusCode` and `responseBytes`). `idempotency.view-response`
+(`IDEMPOTENCY_ACTIONS.VIEW_RESPONSE`) unlocks it one claim at a time; grant it
+to the few who need to answer "what exactly did they get back?". The controller also carries
 `@UseGuards(AuthorizationEnforcedGuard)`: if the global `AuthorizationGuard`
 isn't wired, every endpoint fails closed with a 500 naming the fix — never
 every signed-in user reading saved responses.

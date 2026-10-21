@@ -2,13 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
-import { AuthorizationEnforcedGuard } from '../../authorization/authorization.core';
+import { ACTION_METADATA_KEY, AuthorizationEnforcedGuard } from '../../authorization/authorization.core';
+import { IDEMPOTENCY_ACTIONS } from './idempotency-api.options';
 import { IDEMPOTENCY_OBSERVABILITY_PORT } from '../idempotency-key.core';
 import { IdempotencyApiModule } from './idempotency-api.module';
 import { IdempotencyController } from './idempotency.controller';
 
 const listClaims = vi.fn().mockResolvedValue({ claims: [] });
 const getClaim = vi.fn().mockResolvedValue(null);
+const getClaimResponse = vi.fn().mockResolvedValue({ statusCode: 201, body: { id: 'inv-1' } });
 const claimHealthSummary = vi.fn().mockResolvedValue({
   pendingCount: 0,
   completedCount: 0,
@@ -20,7 +22,7 @@ const claimHealthSummary = vi.fn().mockResolvedValue({
 const claimsByRoute = vi.fn().mockResolvedValue([]);
 
 @Module({
-  providers: [{ provide: IDEMPOTENCY_OBSERVABILITY_PORT, useValue: { listClaims, getClaim, claimHealthSummary, claimsByRoute } }],
+  providers: [{ provide: IDEMPOTENCY_OBSERVABILITY_PORT, useValue: { listClaims, getClaim, getClaimResponse, claimHealthSummary, claimsByRoute } }],
   exports: [IDEMPOTENCY_OBSERVABILITY_PORT],
 })
 class FakePortModule {}
@@ -64,6 +66,24 @@ describe('IdempotencyApiModule.forRoot — real DI wiring', () => {
     const moduleRef = await build();
     await moduleRef.get(IdempotencyController).routes();
     expect(claimsByRoute).toHaveBeenCalledWith({ since: undefined });
+  });
+
+  it('routes GET /idempotency-keys/:scope/:key/response', async () => {
+    const moduleRef = await build();
+    await expect(moduleRef.get(IdempotencyController).response('scope-1', 'key-1')).resolves.toEqual({
+      statusCode: 201,
+      body: { id: 'inv-1' },
+    });
+    expect(getClaimResponse).toHaveBeenCalledWith('key-1', 'scope-1');
+  });
+
+  it('gates the saved response body on its own action, everything else on view', () => {
+    const action = (method: keyof IdempotencyController) =>
+      Reflect.getMetadata(ACTION_METADATA_KEY, IdempotencyController.prototype[method]);
+    expect(action('response')).toBe(IDEMPOTENCY_ACTIONS.VIEW_RESPONSE);
+    for (const method of ['claims', 'trace', 'health', 'routes', 'claim'] as const) {
+      expect(action(method)).toBe(IDEMPOTENCY_ACTIONS.VIEW);
+    }
   });
 
   it('declares AuthorizationEnforcedGuard on the whole controller', () => {

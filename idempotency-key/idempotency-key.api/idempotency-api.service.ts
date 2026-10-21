@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import {
   IDEMPOTENCY_OBSERVABILITY_PORT,
   InvalidIdempotencyCursorError,
+  type CachedResponse,
   type ClaimHealthSummary,
   type ClaimPage,
   type IdempotencyClaimRecord,
@@ -45,6 +46,10 @@ export class IdempotencyApiService {
 
   getClaim(key: string, scope: string): Promise<IdempotencyClaimRecord | null> {
     return this.observability.getClaim(key, scope);
+  }
+
+  getClaimResponse(key: string, scope: string): Promise<CachedResponse | null> {
+    return this.observability.getClaimResponse(key, scope);
   }
 
   async listClaims(query: ClaimQueryDto): Promise<ClaimPage> {

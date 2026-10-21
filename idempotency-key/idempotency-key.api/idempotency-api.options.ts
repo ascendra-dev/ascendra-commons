@@ -8,8 +8,13 @@ import type { DynamicModule } from '@nestjs/common';
  * does not itself enforce a caller-vs-scope match (see the module README).
  */
 export const IDEMPOTENCY_ACTIONS = {
-  /** Read claims and the health summary. */
+  /** Read claims, the health summary and the per-route counts — never a saved response body. */
   VIEW: 'idempotency.view',
+  /**
+   * Read a claim's saved response body — what a retry is replayed. It can hold personal data (a payment's payer, an
+   * invoice's customer), so it's a separate grant from VIEW: give it to the few who answer "what did they get back?".
+   */
+  VIEW_RESPONSE: 'idempotency.view-response',
 } as const;
 
 export interface IdempotencyApiModuleConfig {

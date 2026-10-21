@@ -6,6 +6,7 @@ import { InvalidIdempotencyCursorError, type IdempotencyObservabilityPort } from
 function service() {
   const observability: IdempotencyObservabilityPort = {
     getClaim: vi.fn().mockResolvedValue(null),
+    getClaimResponse: vi.fn().mockResolvedValue(null),
     listClaims: vi.fn().mockResolvedValue({ claims: [] }),
     claimHealthSummary: vi.fn().mockResolvedValue({
       pendingCount: 0,
@@ -27,6 +28,12 @@ describe('IdempotencyApiService', () => {
     const { svc, observability } = service();
     await svc.getClaim('k1', 's1');
     expect(observability.getClaim).toHaveBeenCalledWith('k1', 's1');
+  });
+
+  it('getClaimResponse delegates key + scope through unchanged', async () => {
+    const { svc, observability } = service();
+    await svc.getClaimResponse('k1', 's1');
+    expect(observability.getClaimResponse).toHaveBeenCalledWith('k1', 's1');
   });
 
   it('listClaims parses since/until into Dates and passes filters through unchanged', async () => {

@@ -6,8 +6,13 @@ export interface IdempotencyClaimRecord {
   /** The acting tenant/actor id (or whatever the app's `IdempotencyScopeResolver` returns). */
   scope: string;
   status: 'pending' | 'completed';
-  /** The cached response, once `status = 'completed'` — exactly what a legitimate retry would be replayed, nothing more exposed. */
-  response: CachedResponse | null;
+  /** The saved response's status code, once `status = 'completed'` — what a retry is replayed. */
+  statusCode: number | null;
+  /**
+   * The saved response body's size in bytes, once completed. The body itself is never part of a claim record — it can
+   * hold personal data, so it is read separately (`getClaimResponse`) behind its own permission.
+   */
+  responseBytes: number | null;
   createdAt: Date;
   /**
    * How many times a request for this `(key, scope)` was reclaimed as stale
@@ -109,6 +114,12 @@ export interface RouteClaimCount {
  */
 export interface IdempotencyObservabilityPort {
   getClaim(key: string, scope: string): Promise<IdempotencyClaimRecord | null>;
+  /**
+   * The saved response — status code and body — exactly as a retry would be replayed; null unless the claim is
+   * completed. Kept apart from `getClaim` because the body can hold personal data: `idempotency-key.api` gates it on
+   * its own action.
+   */
+  getClaimResponse(key: string, scope: string): Promise<CachedResponse | null>;
   /** Claims, newest first, keyset-paginated. */
   listClaims(query?: ClaimQuery): Promise<ClaimPage>;
   claimHealthSummary(query?: ClaimHealthQuery): Promise<ClaimHealthSummary>;

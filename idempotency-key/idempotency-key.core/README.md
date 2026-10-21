@@ -22,7 +22,7 @@ package:
 | `ClaimResult` | The `'claimed'` result carries a `claimId` (an ownership token the interceptor threads back into `complete()`, so a claim reclaimed as stale can't overwrite the new owner's cached response) and a `reclaimedStale` flag — see "Observability" below. |
 | `IdempotencyScopeResolver` + `ActorScopeResolver` | `scope` = the acting tenant/actor id, so one tenant's key can't collide with another's. `ActorScopeResolver` (reads `request.actor`) is the default; an anonymously-reachable endpoint needs its own. |
 | `IdempotencyInterceptor` | Enforcement — reads the `Idempotency-Key` header, claims, caches the handler's real status code (never hardcoded), replays a cached error *as* that error, and only emits the response after `complete()`'s write lands. Also reads `x-correlation-id` (by convention, not a dependency — see "Observability") and logs a warning when `reclaimedStale`. |
-| `IdempotencyObservabilityPort` (`idempotency-observability.port.ts`) | Read-only reporting — `getClaim`, `listClaims`, `claimHealthSummary({ since? })`, `claimsByRoute({ since? })`. Implemented by a stack adapter, consumed by `idempotency-key.api`. |
+| `IdempotencyObservabilityPort` (`idempotency-observability.port.ts`) | Read-only reporting — `getClaim`, `getClaimResponse` (the saved body, kept out of every claim record — it can hold personal data), `listClaims`, `claimHealthSummary({ since? })`, `claimsByRoute({ since? })`. Implemented by a stack adapter, consumed by `idempotency-key.api`. |
 | `IdempotencyModule.forRoot({ storeToken, scopeResolverToken?, imports })` | Pure token wiring. Does **not** apply the interceptor — the consumer opts in per-endpoint with `@UseInterceptors(IdempotencyInterceptor)`. |
 
 ## `applicationId` / `tenantId`
