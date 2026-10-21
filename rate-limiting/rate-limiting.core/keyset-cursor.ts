@@ -4,6 +4,11 @@
  * (not shared) across this library's modules so each stays independently
  * copyable.
  */
+/** A `cursor` this module never issued — a stack adapter throws it, `rate-limiting.api` answers 400. */
+export class InvalidRateLimitCursorError extends Error {
+  override readonly name = 'InvalidRateLimitCursorError';
+}
+
 export function encodeKeysetCursor(timestamp: Date, id: string): string {
   return Buffer.from(`${timestamp.toISOString()}|${id}`).toString('base64url');
 }

@@ -15,7 +15,11 @@ Opt-in NestJS controller over `RATE_LIMIT_OBSERVABILITY_PORT`. Stack-agnostic.
 
 All gated on `@RequiresAction('rate-limit.view')`, and the controller fails
 closed: without the global `AuthorizationGuard`, `AuthorizationEnforcedGuard`
-answers 500 naming the fix instead of serving the log to anyone signed in. No tenant scoping — a
+answers 500 naming the fix instead of serving the log to anyone signed in.
+
+A bad param is the caller's mistake, never a 500: a `since`/`until` that isn't
+an ISO 8601 date, a `limit` that isn't a positive whole number, or a `cursor`
+this API didn't return is a `400` naming the param. No tenant scoping — a
 rejected, unauthenticated request has no tenant.
 
 ## Why this exists

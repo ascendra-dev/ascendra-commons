@@ -27,7 +27,7 @@ export interface RejectionQuery {
   until?: Date;
   /** Default 50, capped at 200. */
   limit?: number;
-  /** Opaque — pass the previous page's `nextCursor`. */
+  /** Opaque — pass the previous page's `nextCursor`. Anything else throws `InvalidRateLimitCursorError`. */
   cursor?: string;
 }
 

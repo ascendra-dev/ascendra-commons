@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { BadRequestException } from '@nestjs/common';
 import { RateLimitingApiService } from './rate-limiting-api.service';
-import type { RateLimitObservabilityPort } from '../rate-limiting.core';
+import { InvalidRateLimitCursorError, type RateLimitObservabilityPort } from '../rate-limiting.core';
 
 function service() {
   const observability: RateLimitObservabilityPort = {
@@ -54,6 +55,33 @@ describe('RateLimitingApiService', () => {
       since: new Date('2026-01-01T00:00:00.000Z'),
       route: '/pay/:token',
       limit: 5,
+    });
+  });
+
+  describe('a bad param is a 400, never a 500', () => {
+    it.each([
+      ['since', { since: 'garbage' }],
+      ['until', { until: '2026-13-45' }],
+      ['limit', { limit: Number('abc') }],
+      ['limit', { limit: 1.5 }],
+      ['limit', { limit: 0 }],
+    ])('listRejections — bad %s', async (_name, dto) => {
+      const { svc, observability } = service();
+      await expect(svc.listRejections(dto)).rejects.toBeInstanceOf(BadRequestException);
+      expect(observability.listRejections).not.toHaveBeenCalled();
+    });
+
+    it('a cursor the adapter rejects', async () => {
+      const { svc, observability } = service();
+      vi.mocked(observability.listRejections).mockRejectedValueOnce(new InvalidRateLimitCursorError('bad'));
+      await expect(svc.listRejections({ cursor: 'garbage' })).rejects.toThrow(/"cursor" is not one this endpoint returned/);
+    });
+
+    it('catalog and top-identifiers dates and limits', async () => {
+      const { svc } = service();
+      expect(() => svc.rejectionCatalog('nope')).toThrow(BadRequestException);
+      expect(() => svc.topIdentifiers({ since: 'nope' })).toThrow(BadRequestException);
+      expect(() => svc.topIdentifiers({ limit: -5 })).toThrow(BadRequestException);
     });
   });
 });

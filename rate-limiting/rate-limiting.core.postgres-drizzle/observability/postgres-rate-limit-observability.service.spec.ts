@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
+import { encodeKeysetCursor, InvalidRateLimitCursorError } from '../../rate-limiting.core';
 import { PostgresRateLimitObservabilityService } from './postgres-rate-limit-observability.service';
 import type { SqlExecutor } from '../persistence/sql-executor';
 
@@ -79,13 +80,25 @@ describe('PostgresRateLimitObservabilityService.listRejections', () => {
     expect(page.nextCursor).toBeTruthy();
   });
 
-  it('caps limit at 200 and ignores a malformed cursor', async () => {
+  it('caps limit at 200', async () => {
     const db = fakeDb([]);
     await service(db).listRejections({ limit: 100_000 });
     expect(rendered(db).params).toContain(201);
+  });
 
-    const db2 = fakeDb([]);
-    await expect(service(db2).listRejections({ cursor: 'garbage' })).resolves.toEqual({ rejections: [] });
+  it('keysets on (window_start, id) from a cursor it issued', async () => {
+    const db = fakeDb([]);
+    await service(db).listRejections({ cursor: encodeKeysetCursor(new Date('2026-09-12T09:40:00Z'), '57') });
+    expect(rendered(db).sql).toMatch(/\(window_start < .* or \(window_start = .* and id < /is);
+  });
+
+  it('rejects a cursor it never issued — garbage, or a non-numeric id — without querying', async () => {
+    const db = fakeDb([]);
+    await expect(service(db).listRejections({ cursor: 'garbage' })).rejects.toBeInstanceOf(InvalidRateLimitCursorError);
+    await expect(
+      service(db).listRejections({ cursor: encodeKeysetCursor(new Date(), 'abc') }),
+    ).rejects.toBeInstanceOf(InvalidRateLimitCursorError);
+    expect(db.execute).not.toHaveBeenCalled();
   });
 });
 

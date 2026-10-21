@@ -3,6 +3,7 @@ import { sql, type SQL } from 'drizzle-orm';
 import {
   decodeKeysetCursor,
   encodeKeysetCursor,
+  InvalidRateLimitCursorError,
   type IdentifierRejectionCount,
   type RateLimitObservabilityPort,
   type RateLimitRejectionRecord,
@@ -43,8 +44,10 @@ export class PostgresRateLimitObservabilityService implements RateLimitObservabi
     if (query.since) conds.push(sql`window_start >= ${query.since}`);
     if (query.until) conds.push(sql`window_start < ${query.until}`);
 
-    const cursor = query.cursor ? decodeKeysetCursor(query.cursor) : null;
-    if (cursor) {
+    if (query.cursor) {
+      const cursor = decodeKeysetCursor(query.cursor);
+      // Row ids are bigserial — anything else would only fail as a cast error inside Postgres.
+      if (!cursor || !/^\d+$/.test(cursor.id)) throw new InvalidRateLimitCursorError('Not a cursor this log returned');
       conds.push(sql`(window_start < ${cursor.timestamp} or (window_start = ${cursor.timestamp} and id < ${cursor.id}))`);
     }
 
