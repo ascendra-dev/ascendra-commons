@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { IdempotencyApiService } from './idempotency-api.service';
-import type { IdempotencyObservabilityPort } from '../idempotency-key.core';
+import { InvalidIdempotencyCursorError, type IdempotencyObservabilityPort } from '../idempotency-key.core';
 
 function service() {
   const observability: IdempotencyObservabilityPort = {
@@ -78,7 +78,21 @@ describe('IdempotencyApiService', () => {
     const { svc, observability } = service();
     expect(() => svc.claimsByRoute('yesterday')).toThrow(BadRequestException);
     expect(() => svc.claimHealthSummary('yesterday')).toThrow(BadRequestException);
-    expect(() => svc.listClaims({ until: 'soon' })).toThrow(BadRequestException);
+    await expect(svc.listClaims({ until: 'soon' })).rejects.toBeInstanceOf(BadRequestException);
     expect(observability.claimsByRoute).not.toHaveBeenCalled();
+  });
+
+  it('a limit that is not a positive whole number is a 400', async () => {
+    const { svc, observability } = service();
+    for (const limit of [Number.NaN, 0, -5, 2.5]) {
+      await expect(svc.listClaims({ limit })).rejects.toBeInstanceOf(BadRequestException);
+    }
+    expect(observability.listClaims).not.toHaveBeenCalled();
+  });
+
+  it('a cursor the adapter never issued is a 400', async () => {
+    const { svc, observability } = service();
+    vi.mocked(observability.listClaims).mockRejectedValueOnce(new InvalidIdempotencyCursorError('nope'));
+    await expect(svc.listClaims({ cursor: 'garbage' })).rejects.toBeInstanceOf(BadRequestException);
   });
 });

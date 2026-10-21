@@ -16,5 +16,5 @@ export type {
   RouteClaimCount,
   IdempotencyObservabilityPort,
 } from './idempotency-observability.port';
-export { encodeKeysetCursor, decodeKeysetCursor } from './keyset-cursor';
+export { encodeKeysetCursor, decodeKeysetCursor, InvalidIdempotencyCursorError } from './keyset-cursor';
 export { IDEMPOTENCY_STORE, IDEMPOTENCY_SCOPE_RESOLVER, IDEMPOTENCY_OBSERVABILITY_PORT } from './tokens';

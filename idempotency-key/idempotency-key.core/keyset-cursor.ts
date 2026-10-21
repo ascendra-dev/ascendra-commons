@@ -6,6 +6,12 @@
  * reasoning every other module's copy of this helper is duplicated for, not
  * shared, so each module stays independently copyable).
  */
+
+/** A `cursor` this module never issued — a stack adapter throws it, `idempotency-key.api` answers 400. */
+export class InvalidIdempotencyCursorError extends Error {
+  override readonly name = 'InvalidIdempotencyCursorError';
+}
+
 export function encodeKeysetCursor(timestamp: Date, key: string, scope: string): string {
   return Buffer.from(`${timestamp.toISOString()}|${key}|${scope}`).toString('base64url');
 }

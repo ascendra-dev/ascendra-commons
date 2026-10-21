@@ -3,6 +3,7 @@ import { sql, type SQL } from 'drizzle-orm';
 import {
   decodeKeysetCursor,
   encodeKeysetCursor,
+  InvalidIdempotencyCursorError,
   type CachedResponse,
   type ClaimHealthQuery,
   type ClaimHealthSummary,
@@ -60,6 +61,8 @@ export class PostgresIdempotencyObservabilityService implements IdempotencyObser
     if (query.until) conds.push(sql`created_at < ${query.until}`);
 
     const cursor = query.cursor ? decodeKeysetCursor(query.cursor) : null;
+    // A cursor that doesn't decode was never issued here — silently starting from the top would repeat page one.
+    if (query.cursor && !cursor) throw new InvalidIdempotencyCursorError(`Unrecognized cursor "${query.cursor}"`);
     if (cursor) {
       conds.push(
         sql`(created_at < ${cursor.timestamp}

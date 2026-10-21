@@ -9,13 +9,16 @@ Opt-in NestJS controller over `IDEMPOTENCY_OBSERVABILITY_PORT`. Stack-agnostic
 
 | Method | Path | → |
 |---|---|---|
-| GET | `/idempotency-keys` | `listClaims(ClaimQuery)` — query params: `status`, `scope`, `route`, `correlationId`, `since`, `until`, `limit`, `cursor`. Returns `ClaimPage` (newest-first + `nextCursor`) unchanged. |
-| GET | `/idempotency-keys/trace/:correlationId` | every claim raised under one correlation id — a cross-module trace, joinable with `audit-logging.api` / `notification.api` / `background-jobs.api` / `domain-events.api`'s own trace endpoints on the same id. |
+| GET | `/idempotency-keys` | `listClaims(ClaimQuery)` — query params: `status`, `scope`, `route`, `correlationId`, `since`, `until`, `limit`, `cursor`. Returns `{ data, meta: { nextCursor } }` (api-contract Rule 4), newest first. A malformed date or `limit`, or a cursor this endpoint never returned, is a `400`. |
+| GET | `/idempotency-keys/trace/:correlationId` | every claim raised under one correlation id, as `{ data, meta }` — a cross-module trace, joinable with `audit-logging.api` / `notification.api` / `background-jobs.api` / `domain-events.api`'s own trace endpoints on the same id. |
 | GET | `/idempotency-keys/health` | `claimHealthSummary({ since? })` — pending/completed/reclaimed counts, the duplicates absorbed (`replayTotal`, `conflictTotal`), the unambiguous `lateCompleteNoOpTotal`, and how far back the retained window goes. `?since=` limits it to claims made since then. The number to check when `staleAfterSeconds` is suspected of being too low. |
 | GET | `/idempotency-keys/routes` | `claimsByRoute({ since? })` — claims, replays, conflicts, reclaims and late completes per route pattern, most duplicates first. |
 | GET | `/idempotency-keys/:scope/:key` | one claim — the support-ticket lookup ("why did this submission 409 or replay"). |
 
-All gated on `@RequiresAction('idempotency.view')`.
+All gated on `@RequiresAction('idempotency.view')`. The controller also carries
+`@UseGuards(AuthorizationEnforcedGuard)`: if the global `AuthorizationGuard`
+isn't wired, every endpoint fails closed with a 500 naming the fix — never
+every signed-in user reading saved responses.
 
 ## No tenant scoping — read this before wiring
 

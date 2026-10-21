@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
+import { InvalidIdempotencyCursorError } from '../../idempotency-key.core';
 import { PostgresIdempotencyObservabilityService } from './postgres-idempotency-observability.service';
 import type { SqlExecutor } from '../persistence/sql-executor';
 
@@ -126,13 +127,16 @@ describe('PostgresIdempotencyObservabilityService.listClaims', () => {
     expect(rendered(db2).sql).toMatch(/created_at < .* or .*created_at = .* and \(key, scope\) < /is);
   });
 
-  it('caps limit at 200 and ignores a malformed cursor', async () => {
+  it('caps limit at 200', async () => {
     const db = fakeDb([]);
     await service(db).listClaims({ limit: 100_000 });
     expect(rendered(db).params).toContain(201);
+  });
 
-    const db2 = fakeDb([]);
-    await expect(service(db2).listClaims({ cursor: 'garbage' })).resolves.toEqual({ claims: [] });
+  it('rejects a cursor it never issued, before querying', async () => {
+    const db = fakeDb([]);
+    await expect(service(db).listClaims({ cursor: 'garbage' })).rejects.toBeInstanceOf(InvalidIdempotencyCursorError);
+    expect(db.execute).not.toHaveBeenCalled();
   });
 });
 

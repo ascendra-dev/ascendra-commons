@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import {
   IDEMPOTENCY_OBSERVABILITY_PORT,
+  InvalidIdempotencyCursorError,
   type ClaimHealthSummary,
   type ClaimPage,
   type IdempotencyClaimRecord,
@@ -20,14 +21,23 @@ function dateParam(name: string, value: string | undefined): Date | undefined {
   return date;
 }
 
+/** `limit` as given — a 400 unless it's a positive whole number (`?limit=abc` arrives as NaN). Adapters cap it. */
+function limitParam(value: number | undefined): number | undefined {
+  if (value !== undefined && (!Number.isInteger(value) || value < 1)) {
+    throw new BadRequestException('"limit" must be a positive whole number');
+  }
+  return value;
+}
+
 /**
  * Thin orchestration over `IdempotencyObservabilityPort`. No tenant scoping —
  * `scope` is opaque to this module (whatever the app's own
  * `IdempotencyScopeResolver` returns), so there is no safe generic way to
  * auto-restrict a caller to "their own" scope the way `audit-logging.api` does
  * for `tenantId`. Gate `idempotency.view` to an ops/support persona instead —
- * see the module README. Date params are parsed here. No mutation surface —
- * claims are written only by `IdempotencyStore`.
+ * see the module README. Params are validated here — a bad date, limit or
+ * cursor is a 400, never a 500. No mutation surface — claims are written only
+ * by `IdempotencyStore`.
  */
 @Injectable()
 export class IdempotencyApiService {
@@ -37,17 +47,24 @@ export class IdempotencyApiService {
     return this.observability.getClaim(key, scope);
   }
 
-  listClaims(query: ClaimQueryDto): Promise<ClaimPage> {
-    return this.observability.listClaims({
-      status: query.status,
-      scope: query.scope,
-      route: query.route,
-      correlationId: query.correlationId,
-      since: dateParam('since', query.since),
-      until: dateParam('until', query.until),
-      limit: query.limit,
-      cursor: query.cursor,
-    });
+  async listClaims(query: ClaimQueryDto): Promise<ClaimPage> {
+    try {
+      return await this.observability.listClaims({
+        status: query.status,
+        scope: query.scope,
+        route: query.route,
+        correlationId: query.correlationId,
+        since: dateParam('since', query.since),
+        until: dateParam('until', query.until),
+        limit: limitParam(query.limit),
+        cursor: query.cursor,
+      });
+    } catch (err) {
+      if (err instanceof InvalidIdempotencyCursorError) {
+        throw new BadRequestException('"cursor" is not one this endpoint returned — start again without it');
+      }
+      throw err;
+    }
   }
 
   getTrace(correlationId: string, query: ClaimQueryDto): Promise<ClaimPage> {
