@@ -8,3 +8,10 @@ export interface RejectionQueryDto {
   limit?: number;
   cursor?: string;
 }
+
+/** Query shape for `GET /rate-limits/rejections/top-identifiers`. */
+export interface TopIdentifiersQueryDto {
+  since?: string;
+  route?: string;
+  limit?: number;
+}

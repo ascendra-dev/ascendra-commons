@@ -36,6 +36,34 @@ Unchanged from `@nestjs/throttler` itself — one line at the endpoint, not
 custom logic per handler. This library adds nothing to that declaration; the
 seam is `@Throttle()`/`ThrottlerStorage` as-is.
 
+## Who the "caller" is — the tracker
+
+`@nestjs/throttler` counts per *tracker*: `req.ip` by default. Two things decide
+whether that is right:
+
+- **Behind a reverse proxy or load balancer, set Express's `trust proxy`.**
+  Without it `req.ip` is the proxy's own address, so every caller shares one
+  counter — one busy user throttles everyone, and the rejection log names the
+  proxy instead of the source. Set it to the number of proxies in front of the
+  app (`app.set('trust proxy', 1)` behind one load balancer) — never `true`,
+  which trusts a client-supplied `X-Forwarded-For` and lets an attacker pick a
+  fresh "IP" per request.
+- **A signed-in route can count per user instead.** Subclass
+  `RecordingThrottlerGuard` and override `getTracker()` (e.g. return the actor
+  id, falling back to the IP) — the rejection log then records that identifier.
+
+The recorded identifier is personal data (an IP, or a user id). It is kept raw
+on purpose — ops need the real address to block it upstream and to match it
+against `payment-link-security`'s log — so bound how long it is kept (below).
+
+## Defense in depth — the gateway in front
+
+This module is not a replacement for edge limiting. A reverse proxy, CDN or
+gateway (nginx `limit_req`, a WAF) should carry coarse per-IP limits that drop a
+volumetric flood before it reaches Node; `@Throttle()` carries the limits only
+the app can express — per route, per user, per payment token — and the rejection
+log shows what got past the edge.
+
 ## Model 1 — in-memory, single instance (current)
 
 `@nestjs/throttler`'s built-in in-memory storage — correct for a single
@@ -79,6 +107,16 @@ couldn't see the limit/tracker detail that method has.
 Cross-reference `rate-limiting.api`'s rejection log against
 `payment-link-security.api`'s resolution log for the same window — a source
 hitting both is a strong enumeration signal, not two unrelated blips.
+
+## Retention
+
+`commons_rate_limit_rejection` grows with the number of distinct sources per
+minute, and is never pruned on its own — retention is the consumer's
+(MODULE-STANDARD dimension 7). `rate-limiting.core.postgres-drizzle` ships
+`PostgresRateLimitRetentionService.pruneRejections(before)`, a batched,
+`application`-scoped delete; call it from the project's own scheduler (a
+`background-jobs` `ScheduledJob` daily, keeping e.g. 90 days). This module
+takes no dependency on `background-jobs` itself.
 
 ## Consuming this module
 

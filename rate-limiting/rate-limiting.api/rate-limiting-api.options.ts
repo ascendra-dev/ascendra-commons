@@ -7,7 +7,7 @@ import type { DynamicModule } from '@nestjs/common';
  * (unauthenticated requests have no tenant).
  */
 export const RATE_LIMIT_ACTIONS = {
-  /** Read the rejection log and per-route counts. */
+  /** Read the rejection log, per-route counts and top identifiers. */
   VIEW: 'rate-limit.view',
 } as const;
 

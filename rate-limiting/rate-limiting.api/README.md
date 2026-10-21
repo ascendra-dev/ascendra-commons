@@ -11,8 +11,11 @@ Opt-in NestJS controller over `RATE_LIMIT_OBSERVABILITY_PORT`. Stack-agnostic.
 | GET | `/rate-limits/rejections` | `listRejections(RejectionQuery)` — query params: `route`, `identifier`, `correlationId`, `since`, `until`, `limit`, `cursor`. Returns `RejectionPage` (newest window first + `nextCursor`) unchanged — each row is one rejection *window*: route, identifier, limit, `windowStart` (minute), `count`, `firstRejectedAt`, `lastRejectedAt`, `correlationId`. `since`/`until` bound `windowStart`. |
 | GET | `/rate-limits/rejections/trace/:correlationId` | every rejection from one request — a cross-module trace. |
 | GET | `/rate-limits/rejections/catalog` | total rejections per route (the windows' counts summed; optional `since`) — a spike on one route is the "being hammered" signal. |
+| GET | `/rate-limits/rejections/top-identifiers` | the identifiers with the most rejections — query params `since`, `route`, `limit` (default 10, max 100). Each: `identifier`, summed `count`, the `routes` it hit, `lastRejectedAt`. `(overflow)` is the sources beyond the recorder's buffer, counted together. |
 
-All gated on `@RequiresAction('rate-limit.view')`. No tenant scoping — a
+All gated on `@RequiresAction('rate-limit.view')`, and the controller fails
+closed: without the global `AuthorizationGuard`, `AuthorizationEnforcedGuard`
+answers 500 naming the fix instead of serving the log to anyone signed in. No tenant scoping — a
 rejected, unauthenticated request has no tenant.
 
 ## Why this exists

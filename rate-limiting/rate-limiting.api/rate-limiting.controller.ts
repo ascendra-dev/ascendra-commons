@@ -1,15 +1,18 @@
-import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
-import { RequiresAction } from '../../authorization/authorization.core';
+import { Controller, Get, Inject, Param, Query, UseGuards } from '@nestjs/common';
+import { AuthorizationEnforcedGuard, RequiresAction } from '../../authorization/authorization.core';
 import { RATE_LIMIT_ACTIONS } from './rate-limiting-api.options';
 import { RateLimitingApiService } from './rate-limiting-api.service';
 
 /**
  * Read endpoints for a rate-limiting security/ops screen: the rejection log,
- * a correlation trace, and per-route counts. All gated on `rate-limit.view`.
- * No tenant scoping. Requires `AuthorizationGuard` wired globally as
- * `APP_GUARD` (see `authorization.core`'s README).
+ * a correlation trace, per-route counts and the top identifiers. All gated on
+ * `rate-limit.view`. No tenant scoping. Requires `AuthorizationGuard` wired
+ * globally as `APP_GUARD` (see `authorization.core`'s README) — and fails closed
+ * without it: `AuthorizationEnforcedGuard` turns a missing global guard into a
+ * 500 naming the fix, rather than every signed-in user reading the log.
  */
 @Controller('rate-limits')
+@UseGuards(AuthorizationEnforcedGuard)
 export class RateLimitingController {
   constructor(@Inject(RateLimitingApiService) private readonly service: RateLimitingApiService) {}
 
@@ -52,5 +55,11 @@ export class RateLimitingController {
   @RequiresAction(RATE_LIMIT_ACTIONS.VIEW)
   catalog(@Query('since') since?: string) {
     return this.service.rejectionCatalog(since);
+  }
+
+  @Get('rejections/top-identifiers')
+  @RequiresAction(RATE_LIMIT_ACTIONS.VIEW)
+  topIdentifiers(@Query('since') since?: string, @Query('route') route?: string, @Query('limit') limit?: string) {
+    return this.service.topIdentifiers({ since, route, limit: limit !== undefined ? Number(limit) : undefined });
   }
 }

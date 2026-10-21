@@ -3,24 +3,28 @@ import { sql, type SQL } from 'drizzle-orm';
 import {
   decodeKeysetCursor,
   encodeKeysetCursor,
+  type IdentifierRejectionCount,
   type RateLimitObservabilityPort,
   type RateLimitRejectionRecord,
   type RejectionPage,
   type RejectionQuery,
   type RouteRejectionCount,
+  type TopIdentifiersQuery,
 } from '../../rate-limiting.core';
 import type { SqlExecutor } from '../persistence/sql-executor';
 import { RATE_LIMIT_APPLICATION_ID, RATE_LIMIT_SQL_EXECUTOR } from '../tokens';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
+const DEFAULT_TOP_IDENTIFIERS = 10;
+const MAX_TOP_IDENTIFIERS = 100;
 
 /**
  * Reference `RateLimitObservabilityPort` for Postgres — one dynamic
  * `SELECT` over the rejection windows, keyset-paginated newest-first on the
  * immutable `window_start` (a window's count and last-seen keep growing, so
  * they can't be the sort key), plus one aggregate query for
- * `rejectionCatalog()`. Read-only. Scoped to one `application`.
+ * `rejectionCatalog()` and one for `topIdentifiers()`. Read-only. Scoped to one `application`.
  */
 @Injectable()
 export class PostgresRateLimitObservabilityService implements RateLimitObservabilityPort {
@@ -76,6 +80,30 @@ export class PostgresRateLimitObservabilityService implements RateLimitObservabi
     `);
 
     return rows.map((row) => ({ route: String(row.route), count: Number(row.count) }));
+  }
+
+  async topIdentifiers(query: TopIdentifiersQuery = {}): Promise<IdentifierRejectionCount[]> {
+    const limit = Math.min(Math.max(1, query.limit ?? DEFAULT_TOP_IDENTIFIERS), MAX_TOP_IDENTIFIERS);
+    const conds: SQL[] = [sql`application = ${this.application}`];
+    if (query.since) conds.push(sql`window_start >= ${query.since}`);
+    if (query.route !== undefined) conds.push(sql`route = ${query.route}`);
+
+    const { rows } = await this.db.execute(sql`
+      select identifier, sum(rejection_count) as count,
+             array_agg(distinct route order by route) as routes, max(last_rejected_at) as last_rejected_at
+      from commons_rate_limit_rejection
+      where ${sql.join(conds, sql` and `)}
+      group by identifier
+      order by count desc, identifier
+      limit ${limit}
+    `);
+
+    return rows.map((row) => ({
+      identifier: String(row.identifier),
+      count: Number(row.count),
+      routes: (row.routes as unknown[]).map(String),
+      lastRejectedAt: toDate(row.last_rejected_at),
+    }));
   }
 }
 

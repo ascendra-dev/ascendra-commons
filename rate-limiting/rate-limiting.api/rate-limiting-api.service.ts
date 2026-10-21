@@ -1,11 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   RATE_LIMIT_OBSERVABILITY_PORT,
+  type IdentifierRejectionCount,
   type RateLimitObservabilityPort,
   type RejectionPage,
   type RouteRejectionCount,
 } from '../rate-limiting.core';
-import type { RejectionQueryDto } from './dto/rate-limiting-api.dto';
+import type { RejectionQueryDto, TopIdentifiersQueryDto } from './dto/rate-limiting-api.dto';
 
 /**
  * Thin orchestration over `RateLimitObservabilityPort`. No tenant scoping —
@@ -36,5 +37,13 @@ export class RateLimitingApiService {
 
   rejectionCatalog(since?: string): Promise<RouteRejectionCount[]> {
     return this.observability.rejectionCatalog(since ? new Date(since) : undefined);
+  }
+
+  topIdentifiers(query: TopIdentifiersQueryDto): Promise<IdentifierRejectionCount[]> {
+    return this.observability.topIdentifiers({
+      since: query.since ? new Date(query.since) : undefined,
+      route: query.route,
+      limit: query.limit,
+    });
   }
 }

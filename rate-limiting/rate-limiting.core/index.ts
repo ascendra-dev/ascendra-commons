@@ -5,6 +5,8 @@ export type {
   RejectionQuery,
   RejectionPage,
   RouteRejectionCount,
+  IdentifierRejectionCount,
+  TopIdentifiersQuery,
   RateLimitObservabilityPort,
 } from './rate-limit-observability.port';
 export { encodeKeysetCursor, decodeKeysetCursor } from './keyset-cursor';

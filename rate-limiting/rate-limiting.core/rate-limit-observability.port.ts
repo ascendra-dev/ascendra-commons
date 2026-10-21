@@ -45,6 +45,26 @@ export interface RouteRejectionCount {
   count: number;
 }
 
+/** One row of the "who is hitting our limits" panel — one identifier's rejections across routes. */
+export interface IdentifierRejectionCount {
+  /** An IP, most commonly — or `(overflow)`: sources beyond the recorder's buffer, counted together. */
+  identifier: string;
+  /** Total rejections — the windows' counts summed. */
+  count: number;
+  /** Every route it was rejected on, alphabetical. */
+  routes: string[];
+  lastRejectedAt: Date;
+}
+
+export interface TopIdentifiersQuery {
+  /** Inclusive lower bound on `windowStart`. */
+  since?: Date;
+  /** Only rejections on this route. */
+  route?: string;
+  /** Default 10, capped at 100. */
+  limit?: number;
+}
+
 /**
  * Read-only reporting over the rejection log for a security/ops screen.
  * Bound under `RATE_LIMIT_OBSERVABILITY_PORT` by a stack adapter; consumed by
@@ -55,4 +75,6 @@ export interface RateLimitObservabilityPort {
   listRejections(query?: RejectionQuery): Promise<RejectionPage>;
   /** Counts per route within an optional window — a spike on one route (e.g. `pay/:token`) is the "being hammered" signal. */
   rejectionCatalog(since?: Date): Promise<RouteRejectionCount[]>;
+  /** The identifiers with the most rejections, most first — one source hitting many routes, or one route from many sources. */
+  topIdentifiers(query?: TopIdentifiersQuery): Promise<IdentifierRejectionCount[]>;
 }

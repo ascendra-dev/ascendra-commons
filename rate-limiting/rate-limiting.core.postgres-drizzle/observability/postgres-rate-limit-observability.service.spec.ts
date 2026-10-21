@@ -110,3 +110,33 @@ describe('PostgresRateLimitObservabilityService.rejectionCatalog', () => {
     expect(rendered(db).sql).toMatch(/window_start >=/i);
   });
 });
+
+describe('PostgresRateLimitObservabilityService.topIdentifiers', () => {
+  it('sums per identifier with its routes and last-seen, most first, default 10', async () => {
+    const db = fakeDb([
+      { identifier: '203.0.113.7', count: '318', routes: ['/invoices', '/pay/:token'], last_rejected_at: '2026-09-12T09:41:02Z' },
+    ]);
+
+    await expect(service(db).topIdentifiers()).resolves.toEqual([
+      {
+        identifier: '203.0.113.7',
+        count: 318,
+        routes: ['/invoices', '/pay/:token'],
+        lastRejectedAt: new Date('2026-09-12T09:41:02Z'),
+      },
+    ]);
+    const { sql: text, params } = rendered(db);
+    expect(text).toMatch(/group by identifier\s+order by count desc, identifier/i);
+    expect(params).toEqual(['ascendra-pay', 10]);
+  });
+
+  it('applies since and route, and caps limit at 100', async () => {
+    const db = fakeDb([]);
+    const since = new Date('2026-09-12T00:00:00Z');
+    await service(db).topIdentifiers({ since, route: '/pay/:token', limit: 5_000 });
+
+    const { sql: text, params } = rendered(db);
+    expect(text).toMatch(/window_start >= .* and route =/is);
+    expect(params).toEqual(['ascendra-pay', since, '/pay/:token', 100]);
+  });
+});

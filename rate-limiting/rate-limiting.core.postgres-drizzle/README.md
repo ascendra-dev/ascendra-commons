@@ -5,7 +5,8 @@ One table, one write path, one read path.
 | Sub-folder | Implements | Bound under | Wired via |
 |---|---|---|---|
 | `recorder/` | `RateLimitEventRecorder` — counts in memory, upserts one row per rejection window every `flushIntervalMs` | `RATE_LIMIT_EVENT_RECORDER` (core token) | `RateLimitingThrottlerModule.forRoot({ recorderToken })` |
-| `observability/` | `RateLimitObservabilityPort` — `listRejections()` / `rejectionCatalog()`, read-only | `RATE_LIMIT_OBSERVABILITY_PORT` (core token) | `PostgresRateLimitObservabilityModule.forRoot(...)` |
+| `observability/` | `RateLimitObservabilityPort` — `listRejections()` / `rejectionCatalog()` / `topIdentifiers()`, read-only | `RATE_LIMIT_OBSERVABILITY_PORT` (core token) | `PostgresRateLimitObservabilityModule.forRoot(...)` |
+| `retention/` | `PostgresRateLimitRetentionService.pruneRejections(before)` — batched delete, for the project's own scheduler | (class — inject it) | `PostgresRateLimitRetentionModule.forRoot(...)` |
 | `persistence/rate-limit-rejection.schema.ts` | the table's current shape — change it with the `INSERT` | | |
 | `migrations/` | the DDL, numbered — **never edited once released**; a schema change is the next file | | |
 
@@ -63,9 +64,19 @@ Stamped on every row, filtered on by every read.
 
 ## Retention
 
-Not addressed here — this is an operational/security trace. A consumer that
-wants a retention window prunes `commons_rate_limit_rejection` with its own
-scheduled job, the same shape `background-jobs`' own pruner uses elsewhere.
+Never pruned on its own — the consumer owns retention (MODULE-STANDARD
+dimension 7). `PostgresRateLimitRetentionModule` provides
+`PostgresRateLimitRetentionService`; call `pruneRejections(before)` from the
+project's scheduler. It deletes this `application`'s windows that started before
+the cutoff, 5,000 rows per statement so a backlog never holds one long lock on a
+table the throttler writes to, and returns the count.
+
+```typescript
+PostgresRateLimitRetentionModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', imports: [DatabaseModule] }),
+
+// e.g. inside a background-jobs ScheduledJob, run daily:
+await retention.pruneRejections(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000));
+```
 
 ## Depends on
 

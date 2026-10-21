@@ -6,6 +6,7 @@ function service() {
   const observability: RateLimitObservabilityPort = {
     listRejections: vi.fn().mockResolvedValue({ rejections: [] }),
     rejectionCatalog: vi.fn().mockResolvedValue([]),
+    topIdentifiers: vi.fn().mockResolvedValue([]),
   };
   return { svc: new RateLimitingApiService(observability), observability };
 }
@@ -44,5 +45,15 @@ describe('RateLimitingApiService', () => {
     const { svc, observability } = service();
     await svc.rejectionCatalog('2026-01-01T00:00:00.000Z');
     expect(observability.rejectionCatalog).toHaveBeenCalledWith(new Date('2026-01-01T00:00:00.000Z'));
+  });
+
+  it('topIdentifiers parses since into a Date and passes route/limit through', async () => {
+    const { svc, observability } = service();
+    await svc.topIdentifiers({ since: '2026-01-01T00:00:00.000Z', route: '/pay/:token', limit: 5 });
+    expect(observability.topIdentifiers).toHaveBeenCalledWith({
+      since: new Date('2026-01-01T00:00:00.000Z'),
+      route: '/pay/:token',
+      limit: 5,
+    });
   });
 });
