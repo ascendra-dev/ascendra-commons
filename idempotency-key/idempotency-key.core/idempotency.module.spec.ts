@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Module } from '@nestjs/common';
+import { Controller, Module, Post, UseInterceptors } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { IdempotencyModule } from './idempotency.module';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
@@ -46,5 +46,25 @@ describe('IdempotencyModule.forRoot — token wiring', () => {
 
     // interceptor resolves — its scope resolver dep came from FAKE_RESOLVER
     expect(moduleRef.get(IdempotencyInterceptor)).toBeInstanceOf(IdempotencyInterceptor);
+  });
+
+  it('@UseInterceptors(IdempotencyInterceptor) works in a feature module that only imports it — the README\'s usage', async () => {
+    // Nest builds a class-referenced interceptor inside the module that declares the controller, so every one of its
+    // dependencies must be exported — not just the interceptor itself.
+    @Controller('invoices')
+    @UseInterceptors(IdempotencyInterceptor)
+    class InvoicesController {
+      @Post()
+      create() {
+        return { id: 'inv-1' };
+      }
+    }
+    const idempotency = IdempotencyModule.forRoot({ storeToken: FAKE_STORE, imports: [FakeInfraModule] });
+    @Module({ imports: [idempotency], exports: [idempotency] })
+    class CommonsModule {}
+    @Module({ imports: [CommonsModule], controllers: [InvoicesController] })
+    class InvoicesModule {}
+
+    await expect(Test.createTestingModule({ imports: [InvoicesModule] }).compile()).resolves.toBeDefined();
   });
 });
