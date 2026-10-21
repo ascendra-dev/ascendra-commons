@@ -136,6 +136,7 @@
     <div class="nav-group">
       <div class="nav-group-title">Rate limiting</div>
       <a class="nav-item active" href="#overview">Overview</a>
+      <a class="nav-item" href="#retention">Volume &amp; Retention</a>
       <a class="nav-item" href="#rejections">Rejections</a>
     </div>
   </nav>
@@ -169,7 +170,7 @@
       <tbody>
         <tr><td>Overview — by route</td><td><span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/catalog?since</span></td><td><span class="status live">Live</span></td><td>Total rejections per route — the "being hammered" number.</td></tr>
         <tr><td>Overview — top sources</td><td><span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/top-identifiers?since&amp;limit=10</span></td><td><span class="status live">Live</span></td><td>Per source: total, routes hit, last seen.</td></tr>
-        <tr><td>Overview — volume &amp; retention</td><td><span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/volume?tz</span></td><td><span class="status live">Live</span></td><td>Per day for 30 days (viewer's zone), oldest window, rows, table size.</td></tr>
+        <tr><td>Volume &amp; Retention</td><td><span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/volume?tz</span></td><td><span class="status live">Live</span></td><td>Per day for 30 days (viewer's zone), oldest window, rows, table size.</td></tr>
         <tr><td>Rejections</td><td><span class="endpoint"><span class="m">GET</span>/rate-limits/rejections</span></td><td><span class="status live">Live</span></td><td>route, identifier, since/until filters. Keyset pagination — no total count.</td></tr>
         <tr><td>Trace sheet</td><td><span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/trace/:correlationId</span></td><td><span class="status live">Live</span></td><td>Only from a row that has a correlation id.</td></tr>
       </tbody>
@@ -182,7 +183,7 @@
         <h2 class="screen-name">Overview</h2>
         <span class="status live">Live</span>
       </div>
-      <p class="screen-purpose">The landing screen — which routes are absorbing rejections, and who is causing them.</p>
+      <p class="screen-purpose">The landing screen — which routes are absorbing rejections, and who is causing them. The period picker is a segmented control; Volume &amp; Retention is a button beside "Go to Rejections".</p>
       <p class="gating">Gate: <code>rate-limit.view</code>. Calls <code>catalog</code> and <code>top-identifiers</code> with the same <code>since</code>.</p>
 
       <div class="filterbar">
@@ -226,7 +227,26 @@
       </ul>
 
 
-      <h3 class="sub">Volume &amp; retention</h3>
+      <div class="note warn">
+        <div><b>Reading this screen.</b> <code>/pay/:token</code> absorbing most rejections — from one source, or
+        from an <code>(overflow)</code> of many — is worth investigating. Cross-reference
+        <code>payment-link-security</code>'s resolutions for the same period: a matching spike in
+        <code>not_found</code> is a strong enumeration signal.</div>
+      </div>
+
+      <h3 class="sub">Empty state</h3>
+      <div class="empty"><b>No rejections in the past 24 hours</b>Nothing has hit a rate limit — try a longer period.</div>
+    </section>
+
+
+    <!-- 2 · VOLUME & RETENTION -->
+    <section class="screen" id="retention">
+      <div class="screen-head">
+        <h2 class="screen-name">Volume &amp; Retention</h2>
+        <span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/volume?tz</span>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">Its own screen, reached by a button on the Overview — like audit's Retention &amp; Volume. The trend behind the rejections, and the health of the log itself.</p>
       <div class="panel">
         <div class="screen-head" style="justify-content: space-between"><h4 style="margin:0">Rejections per day · past 30 days</h4>
           <span class="endpoint"><span class="m">GET</span>/rate-limits/rejections/volume?tz</span></div>
@@ -239,23 +259,14 @@
         </div>
       </div>
       <ul class="ann">
-        <li>Not tied to the period picker — always the past 30 calendar days in the viewer's time zone (<code>tz</code>), zero-filled. A bar opens the list filtered to that day.</li>
+        <li>Always the past 30 calendar days in the viewer's time zone (<code>tz</code>), zero-filled. A bar opens the list filtered to that day.</li>
         <li>Answers "is this getting worse, or one spike?" — the period tiles above can't.</li>
         <li>Retention is the app's: it prunes with its own cutoff (the sandbox keeps 90 days). The API reports what's left — the oldest window shows the prune is running, not the policy.</li>
       </ul>
 
-      <div class="note warn">
-        <div><b>Reading this screen.</b> <code>/pay/:token</code> absorbing most rejections — from one source, or
-        from an <code>(overflow)</code> of many — is worth investigating. Cross-reference
-        <code>payment-link-security</code>'s resolutions for the same period: a matching spike in
-        <code>not_found</code> is a strong enumeration signal.</div>
-      </div>
-
-      <h3 class="sub">Empty state</h3>
-      <div class="empty"><b>No rejections in the past 24 hours</b>Nothing has hit a rate limit — try a longer period.</div>
     </section>
 
-    <!-- 2 · REJECTIONS -->
+    <!-- 3 · REJECTIONS -->
     <section class="screen" id="rejections">
       <div class="screen-head">
         <h2 class="screen-name">Rejections</h2>
@@ -268,6 +279,7 @@
       <div class="filterbar">
         <span class="field"><span class="lbl">Route</span><span class="val">/pay/:token</span></span>
         <span class="field"><span class="lbl">Source</span><span class="val">any</span></span>
+        <span class="field"><span class="lbl">Correlation ID</span><span class="val">any</span></span>
         <span class="field"><span class="lbl">Period</span><span class="val">Past 24 hours</span></span>
         <button class="btn-secondary" type="button">Reset</button>
       </div>
@@ -302,7 +314,7 @@
       <div class="empty"><b>No rejections match</b>Nothing was rate-limited for these filters — widen the period or clear a filter.</div>
     </section>
 
-    <!-- 3 · TRACE SHEET -->
+    <!-- 4 · TRACE SHEET -->
     <section class="screen" id="trace">
       <div class="screen-head">
         <h2 class="screen-name">Trace sheet</h2>
