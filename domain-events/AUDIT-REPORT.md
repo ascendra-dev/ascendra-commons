@@ -17,8 +17,8 @@ awaited database insert inside the producer's request; the screens counted by wr
 on "now"; nothing pruned the table; and the API trusted its input. All fixed — and the new buffered write path was
 itself caught losing a whole batch to one malformed event, now fixed too. The module's real value is the **Wiring**
 screen: it is the only place the README's warning ("if an event has any critical listener, every producer must use
-`emitCritical()`") is actually checked. The gaps: audit's events don't trace (no correlation id), the checks don't
-alert anyone, and the catalog / storage reads scan the retained window.
+`emitCritical()`") is actually checked. The gaps: the checks don't alert anyone, and the catalog / storage reads scan
+the retained window.
 
 ## What's in place
 
@@ -59,6 +59,7 @@ sometimes throws), one listener whose event never fires.
 | **Backend review:** one malformed delivery (an `occurredAt` that went through JSON, or none) failed the whole buffered `INSERT` — reproduced on the sandbox: 5 good + 2 bad → **0 rows**. Each delivery is now normalized as it's buffered — 7 of 7. | commons `e254a1b` |
 | Sandbox: vendored and wired (recorder, read API sharing the emitter's catalogue, platform-only action, daily 90-day prune), demo events and history; re-vendored with the fix. | sandbox `457abec`, `54156c7`, `bc14464` |
 | The UI: Overview, Deliveries + trace, Wiring, Volume & Retention. | commons-ui `74b8427` |
+| **Audit's events didn't trace:** audit-logging keeps its correlation id in `AsyncLocalStorage` and producers raise `AuditRecordRaised` without `emit()`'s third argument — 3,810 of the sandbox's 5,998 deliveries had none. Now `correlationIdResolver` on `InProcessDomainEventEmitterModule.forRoot()` supplies the ambient id when none is passed (an explicit one wins; a failing resolver changes nothing); the sandbox wires audit's `getCurrentCorrelationId`. No dependency on audit-logging. | commons `03d8fe7`, sandbox |
 | **ascendra-ui**, found while building this module: two tables with the same query id (`recent`) shared one React Query cache entry — opening Claims after Rejections rendered the wrong rows and crashed. The key is now scoped by `tableId`. | ascendra-ui `55ac3a1` |
 
 ## Gaps
@@ -67,7 +68,6 @@ sometimes throws), one listener whose event never fires.
 
 | Gap | Why it matters | Direction |
 |---|---|---|
-| **Audit's events don't trace** | audit-logging carries its correlation id in `AsyncLocalStorage` and the app raises `AuditRecordRaised` without `emit()`'s third argument — so 3,810 of the sandbox's 5,998 deliveries have no correlation id, and a request's audit events can't be found from its trace. The same will be true of any producer that relies on ambient context. | An optional `correlationIdResolver` on `InProcessDomainEventEmitterModule.forRoot()` — a function the app wires to its own context (`() => getCorrelationId()`), used when the third argument is absent. No dependency on audit-logging. |
 | **The catalog and storage figures scan the retained window** | `deliveryCatalog()` without `since` (the Wiring default, never-fires) and `volume()`'s `min` / `count(*)` read every retained row — index-served, but all of them; fine at 6,000, slow at tens of millions. | A daily rollup table (event × day × method × status counts) the catalog and volume read; `pg_class.reltuples` for the row-count tile. |
 | **Losing deliveries is silent** | A failed flush or a full buffer drops rows (logged only) — and the screens then under-count with nothing to say so. Same gap as rate-limiting and idempotency. | Count dropped deliveries; show it on Volume & Retention. |
 
@@ -93,10 +93,9 @@ sometimes throws), one listener whose event never fires.
 
 ## Suggested order
 
-1. The `correlationIdResolver` — small, and it makes audit's 60% of deliveries traceable.
-2. Alerting on wiring problems, once `notification` is in the sandbox.
-3. The rollup table, when a deployment's log passes a few million rows.
-4. `background-jobs`, the next module.
+1. Alerting on wiring problems, once `notification` is in the sandbox.
+2. The rollup table, when a deployment's log passes a few million rows.
+3. `background-jobs`, the next module.
 
 ## Standards this review set for future modules
 

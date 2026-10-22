@@ -205,6 +205,7 @@ The sandbox is the reference consumer:
 // ascendra-commons-sandbox/src/modules/commons/domain-events.ts (trimmed)
 const inProcessEmitter = InProcessDomainEventEmitterModule.forRoot({
   recorderToken: POSTGRES_EVENT_DELIVERY_RECORDER,
+  correlationIdResolver: getCurrentCorrelationId, // audit-logging's request / job context
   imports: [PostgresEventDeliveryRecorderModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application, imports: [DatabaseModule] })],
 });
 
@@ -227,7 +228,8 @@ export const domainEventsApi = DomainEventsApiModule.forRoot({
 4. Event classes: one per fact, a `.spec.ts` calling `assertDomainEventSerializable()`. If an event has any
    `@OnCriticalEvent()` listener, **every** producer raises it with `emitCritical()` — the Wiring screen flags the ones
    that don't.
-5. Pass the request / job's correlation id as `emit()`'s third argument, so its events trace.
+5. Give the emitter the app's correlation context — `correlationIdResolver: getCurrentCorrelationId` (audit-logging's,
+   or your own) — so every event raised in a request or job traces with it; a producer can still pass one explicitly.
 6. Optional read API: `DomainEventsApiModule.forRoot({ imports: [PostgresEventDeliveryObservabilityModule.forRoot(…), <the same InProcessDomainEventEmitterModule instance>] })`;
    grant `domain-events.view` to a platform persona.
 7. Retention: `PostgresEventDeliveryRetentionModule.forRoot(…)` and call `pruneDeliveries(cutoff)` from your scheduler.
@@ -487,6 +489,7 @@ npm run db:migrate && npx nest build       # restart dist/main, probe with curl 
 | One `INSERT` per event, awaited by `emitCritical()` — a database round trip inside every critical producer's request | Buffered in memory, written every 10 s in multi-row inserts; bounded; flushed on shutdown; correlation-id rule | `6c68525` |
 | Reads on `delivered_at` (a seed or replay lands on "now"); stats via a `?window=` silently defaulted; no retention; the catalog scanned all history; no index for the unfiltered log or a trace; the list in the domain shape; a garbage cursor restarted at page one; bad dates → 500; no `AuthorizationEnforcedGuard` | Reads on `occurred_at`; summary / period catalog / volume (tz); `pruneDeliveries()`; migration 0002; Rule 4; every bad param a 400 (**breaking**) | `b1b3d39` |
 | One malformed delivery failed the whole buffered `INSERT` — reproduced: 5 good + 2 bad → 0 rows | Each delivery normalized as it's buffered — 7 of 7 written | `e254a1b` |
+| Audit's events carried no correlation id (audit keeps it in `AsyncLocalStorage`, producers don't pass it) — ~60% of deliveries couldn't trace | `correlationIdResolver` on `InProcessDomainEventEmitterModule.forRoot()` — the ambient id when none is passed | `03d8fe7` |
 
 **Probed on the sandbox after the fixes** — none is a 500: `since=yesterday`, `until=2026-13-45`, `limit=abc|0`,
 `limit=99999` (capped), a garbage cursor, a cursor with a non-numeric id, `status=lost`, `method=shout`, `order=up`, NUL
