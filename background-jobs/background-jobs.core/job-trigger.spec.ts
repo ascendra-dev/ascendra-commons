@@ -95,3 +95,50 @@ describe('JobTrigger — correlation id', () => {
     expect(recordRun).toHaveBeenCalledWith(expect.objectContaining({ trigger: 'manual', correlationId: 'trace-abc' }));
   });
 });
+
+describe('JobTrigger.start — answers once the lock is taken, not when the run ends', () => {
+  it('resolves started before findDueItems resolves, and the run goes on to be recorded', async () => {
+    let release!: (items: number[]) => void;
+    const findDueItems = vi.fn(() => new Promise<number[]>((r) => (release = r)));
+    const recordRun = vi.fn().mockResolvedValue(undefined);
+    const runner = new IdempotentJobRunner(lock(true), { recordRun });
+    const job: ScheduledJob<number> = { name: 'slow', findDueItems, processItem: vi.fn() };
+
+    const result = await new JobTrigger(new ScheduledJobRegistry([job]), runner).start('slow', 'trace-1');
+
+    expect(result).toEqual({ status: 'started' });
+    expect(recordRun).not.toHaveBeenCalled(); // still running
+    release([1, 2]);
+    await vi.waitFor(() =>
+      expect(recordRun).toHaveBeenCalledWith(
+        expect.objectContaining({ trigger: 'manual', correlationId: 'trace-1', outcome: 'completed', itemsProcessed: 2 }),
+      ),
+    );
+  });
+
+  it('answers unknown_job and already_running without running anything', async () => {
+    const job: ScheduledJob<unknown> = { name: 'j', findDueItems: vi.fn(), processItem: vi.fn() };
+    expect(await triggerWith(job).start('nope')).toEqual({ status: 'unknown_job' });
+    expect(await triggerWith(job, false).start('j')).toEqual({ status: 'already_running' });
+    expect(job.findDueItems).not.toHaveBeenCalled();
+  });
+
+  it('a findDueItems failure after the start is recorded as job_failed, logged, never an unhandled rejection', async () => {
+    vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const recordRun = vi.fn().mockResolvedValue(undefined);
+    const runner = new IdempotentJobRunner(lock(true), { recordRun });
+    const job: ScheduledJob<unknown> = { name: 'j', findDueItems: vi.fn().mockRejectedValue(new Error('pool exhausted')), processItem: vi.fn() };
+
+    expect(await new JobTrigger(new ScheduledJobRegistry([job]), runner).start('j', 'trace-2')).toEqual({ status: 'started' });
+    await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(recordRun).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'job_failed', correlationId: 'trace-2' }));
+  });
+
+  it('rejects when the lock itself could not be asked for', async () => {
+    const broken: AdvisoryLock = { tryAcquire: vi.fn().mockRejectedValue(new Error('db down')), release: vi.fn() };
+    const job: ScheduledJob<unknown> = { name: 'j', findDueItems: vi.fn(), processItem: vi.fn() };
+    const t = new JobTrigger(new ScheduledJobRegistry([job]), new IdempotentJobRunner(broken));
+    await expect(t.start('j')).rejects.toThrow('db down');
+  });
+});

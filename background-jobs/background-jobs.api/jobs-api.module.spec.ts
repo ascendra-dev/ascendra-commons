@@ -12,14 +12,14 @@ const listJobStatus = vi.fn().mockResolvedValue([]);
 const getRunHistory = vi.fn().mockResolvedValue({ runs: [] });
 const getRun = vi.fn().mockResolvedValue({ id: '1', jobName: 'invoice-reminder' });
 const getFailedItems = vi.fn().mockResolvedValue([]);
-const trigger = vi.fn().mockResolvedValue({ status: 'completed', itemsDue: 0, itemsProcessed: 0, itemsFailed: 0, failedItemRefs: [] });
+const start = vi.fn().mockResolvedValue({ status: 'started' });
 const availableJobs = vi.fn().mockReturnValue([]);
 const auditRecord = vi.fn();
 
 @Module({
   providers: [
     { provide: JOB_OBSERVABILITY_PORT, useValue: { listJobStatus, getRunHistory, getRun, getFailedItems } },
-    { provide: JobTrigger, useValue: { trigger, availableJobs } },
+    { provide: JobTrigger, useValue: { start, availableJobs } },
     { provide: 'MY_AUDIT', useValue: { record: auditRecord } },
   ],
   exports: [JOB_OBSERVABILITY_PORT, JobTrigger, 'MY_AUDIT'],
@@ -50,20 +50,20 @@ describe('JobsApiModule.forRoot — real DI wiring', () => {
   it('the trigger routes to JobTrigger (with a generated correlation id) and audits via the bound emitter', async () => {
     const ref = await build();
     await ref.get(JobsController).run(actor, 'invoice-reminder');
-    expect(trigger).toHaveBeenCalledWith('invoice-reminder', expect.any(String));
+    expect(start).toHaveBeenCalledWith('invoice-reminder', expect.any(String));
     expect(auditRecord).toHaveBeenCalledWith(expect.objectContaining({ action: 'job.triggered' }));
   });
 
   it('the trigger forwards an explicit correlation id straight through instead of generating one', async () => {
     const ref = await build();
     await ref.get(JobsController).run(actor, 'invoice-reminder', 'trace-from-header');
-    expect(trigger).toHaveBeenCalledWith('invoice-reminder', 'trace-from-header');
+    expect(start).toHaveBeenCalledWith('invoice-reminder', 'trace-from-header');
   });
 
   it('the trigger replaces a malformed correlation header with a fresh id', async () => {
     const ref = await build();
     await ref.get(JobsController).run(actor, 'invoice-reminder', '<script>alert(1)</script>');
-    const forwarded = trigger.mock.calls[trigger.mock.calls.length - 1][1] as string;
+    const forwarded = start.mock.calls[start.mock.calls.length - 1][1] as string;
     expect(forwarded).not.toContain('<');
     expect(forwarded).toMatch(/^[0-9a-f-]{36}$/);
   });
@@ -108,9 +108,9 @@ describe('JobsApiModule.forRoot — real DI wiring', () => {
       imports: [JobsApiModule.forRoot({ correlationIdResolver: () => 'ambient-req-7', imports: [FakePortsModule] })],
     }).compile();
     await ref.get(JobsController).run(actor, 'invoice-reminder');
-    expect(trigger).toHaveBeenLastCalledWith('invoice-reminder', 'ambient-req-7');
+    expect(start).toHaveBeenLastCalledWith('invoice-reminder', 'ambient-req-7');
     await ref.get(JobsController).run(actor, 'invoice-reminder', 'from-header');
-    expect(trigger).toHaveBeenLastCalledWith('invoice-reminder', 'from-header');
+    expect(start).toHaveBeenLastCalledWith('invoice-reminder', 'from-header');
   });
 
   it('falls back to the no-op audit emitter when auditEmitterToken is omitted', async () => {

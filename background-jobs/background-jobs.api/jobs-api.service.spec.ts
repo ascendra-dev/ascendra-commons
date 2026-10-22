@@ -24,7 +24,7 @@ function deps() {
     volume: vi.fn().mockResolvedValue({}),
   };
   const jobTrigger = {
-    trigger: vi.fn().mockResolvedValue({ status: 'completed', itemsDue: 1, itemsProcessed: 1, itemsFailed: 0, failedItemRefs: [] }),
+    start: vi.fn().mockResolvedValue({ status: 'started' }),
     availableJobs: vi.fn().mockReturnValue([]),
   } as unknown as JobTrigger;
   const audit: JobAuditEmitter = { record: vi.fn() };
@@ -111,20 +111,20 @@ describe('JobsApiService', () => {
     expect(rows[0]).toMatchObject({ lastRun: null, cadence: null, overdue: false });
   });
 
-  it('trigger calls JobTrigger and emits an audit event', async () => {
+  it('trigger starts the job, answers with the correlation id to follow it by, and audits', async () => {
     const { svc, jobTrigger, audit } = deps();
     const result = await svc.trigger(actor, 'invoice-reminder');
-    expect(jobTrigger.trigger).toHaveBeenCalledWith('invoice-reminder', expect.stringMatching(/^[0-9a-f-]{36}$/));
-    expect(result).toMatchObject({ status: 'completed' });
+    expect(jobTrigger.start).toHaveBeenCalledWith('invoice-reminder', expect.stringMatching(/^[0-9a-f-]{36}$/));
+    expect(result).toEqual({ status: 'started', correlationId: vi.mocked(jobTrigger.start).mock.calls[0][1] });
     expect(audit.record).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'job.triggered', actorId: 'ops-1', jobName: 'invoice-reminder', result: 'completed' }),
+      expect.objectContaining({ action: 'job.triggered', actorId: 'ops-1', jobName: 'invoice-reminder', result: 'started' }),
     );
   });
 
   it('trigger forwards a supplied correlationId straight through to JobTrigger', async () => {
     const { svc, jobTrigger } = deps();
     await svc.trigger(actor, 'invoice-reminder', 'trace-abc');
-    expect(jobTrigger.trigger).toHaveBeenCalledWith('invoice-reminder', 'trace-abc');
+    expect(jobTrigger.start).toHaveBeenCalledWith('invoice-reminder', 'trace-abc');
   });
 
   it('getRun returns the port row', async () => {
@@ -168,17 +168,11 @@ describe('JobsApiService', () => {
 
   it('an unknown job is a 404 and a running one a 409 — both still audited', async () => {
     const { svc, jobTrigger, audit } = deps();
-    (jobTrigger.trigger as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ status: 'unknown_job' });
+    vi.mocked(jobTrigger.start).mockResolvedValueOnce({ status: 'unknown_job' });
     await expect(svc.trigger(actor, 'nope')).rejects.toBeInstanceOf(NotFoundException);
-    (jobTrigger.trigger as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ status: 'already_running' });
+    vi.mocked(jobTrigger.start).mockResolvedValueOnce({ status: 'already_running' });
     await expect(svc.trigger(actor, 'busy')).rejects.toBeInstanceOf(ConflictException);
     expect(audit.record).toHaveBeenCalledTimes(2);
-  });
-
-  it('a job_failed run is returned, not thrown — it ran and is in the history', async () => {
-    const { svc, jobTrigger } = deps();
-    (jobTrigger.trigger as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ status: 'job_failed', error: 'boom' });
-    await expect(svc.trigger(actor, 'x')).resolves.toEqual({ status: 'job_failed', error: 'boom' });
   });
 
   it('getAlerts filters the dashboard to overdue and/or repeatedly-failing jobs', async () => {
@@ -198,7 +192,7 @@ describe('JobsApiService', () => {
 describe('JobsApiService.trigger — correlation id', () => {
   it('header, else the resolver, else fresh — a malformed or throwing source is skipped', async () => {
     const { observability, jobTrigger, audit } = deps();
-    const calls = () => (jobTrigger.trigger as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[1]);
+    const calls = () => vi.mocked(jobTrigger.start).mock.calls.map((c) => c[1]);
     await new JobsApiService(observability, jobTrigger, audit, undefined, () => 'ambient-1').trigger(actor, 'x', 'bad header!');
     await new JobsApiService(observability, jobTrigger, audit, undefined, () => 'bad ambient!').trigger(actor, 'x');
     await new JobsApiService(observability, jobTrigger, audit, undefined, () => { throw new Error('no ALS'); }).trigger(actor, 'x');
@@ -264,7 +258,12 @@ describe('JobsApiService — correlation id round-trip', () => {
     const audit: JobAuditEmitter = { record: vi.fn() };
     const svc = new JobsApiService(observability, jobTrigger, audit);
 
-    await svc.trigger(actor, 'invoice-reminder', 'trace-xyz-789');
+    await expect(svc.trigger(actor, 'invoice-reminder', 'trace-xyz-789')).resolves.toEqual({
+      status: 'started',
+      correlationId: 'trace-xyz-789',
+    });
+    // The run finishes after the answer — the screen follows it in the history, as this does.
+    await vi.waitFor(() => expect(recorded).toHaveLength(1));
     const trace = await svc.getTrace('trace-xyz-789', {});
 
     expect(trace.runs).toHaveLength(1);
