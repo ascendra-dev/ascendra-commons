@@ -139,16 +139,41 @@ describe('PostgresIdempotencyObservabilityService.listClaims', () => {
   });
 
   it('returns a nextCursor when more rows exist and keys the next page off it', async () => {
-    const many = Array.from({ length: 51 }, (_, i) => row({ key: `key-${100 + i}` }));
+    const many = Array.from({ length: 51 }, (_, i) =>
+      row({ key: `key-${100 + i}`, cursor_at: `2026-06-01T10:00:00.${String(999_999 - i).padStart(6, '0')}Z` }),
+    );
     const db = fakeDb(many);
     const page = await service(db).listClaims({ limit: 50 });
 
     expect(page.claims).toHaveLength(50);
+    expect(page.claims[0]).not.toHaveProperty('cursor_at');
     expect(page.nextCursor).toBeTruthy();
 
     const db2 = fakeDb([]);
     await service(db2).listClaims({ cursor: page.nextCursor, limit: 50 });
-    expect(rendered(db2).sql).toMatch(/created_at < .* or .*created_at = .* and \(key, scope\) < /is);
+    const { sql: text, params } = rendered(db2);
+    // `<=` first, so the scan starts at the boundary instead of filtering from the newest row.
+    expect(text).toMatch(/created_at <= \$\d+::timestamptz\s+and \(created_at < \$\d+::timestamptz or \(key, scope\) < /i);
+    expect(params).toEqual(expect.arrayContaining(['2026-06-01T10:00:00.999950Z', 'key-149', 'tenant-1']));
+  });
+
+  it('keeps the boundary to the microsecond — a Date would drop the rows older than it in the same millisecond', async () => {
+    const rows = [
+      row({ key: 'newer', cursor_at: '2026-10-22T10:00:00.123800Z' }),
+      row({ key: 'older', cursor_at: '2026-10-22T10:00:00.123400Z' }),
+    ];
+    const page = await service(fakeDb(rows)).listClaims({ limit: 1 });
+
+    const db2 = fakeDb([]);
+    await service(db2).listClaims({ cursor: page.nextCursor, limit: 1 });
+    expect(rendered(db2).params).toContain('2026-10-22T10:00:00.123800Z');
+    expect(rendered(db2).params).not.toContain('2026-10-22T10:00:00.123Z');
+  });
+
+  it('selects the cursor timestamp in UTC with a fixed format', async () => {
+    const db = fakeDb([]);
+    await service(db).listClaims();
+    expect(rendered(db).sql).toContain(`to_char(created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_at`);
   });
 
   it('caps limit at 200', async () => {
