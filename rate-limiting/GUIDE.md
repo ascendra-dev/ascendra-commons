@@ -437,7 +437,7 @@ All under `@RequiresAction('rate-limit.view')`. No tenant scoping (§8).
 | **What's stored** | `RecordingThrottlerGuard` | The route **pattern**, never the URL (a `/pay/<token>` URL is a secret); the correlation id only if 1–128 of `[A-Za-z0-9._:-]`. |
 | **Personal data** | — | The identifier is an IP (or user id) — kept raw on purpose (blocking upstream, cross-referencing `payment-link-security`); bounded by retention (§4). |
 | **Injection** | Every SQL value is a bound parameter — dates, the time zone, the cursor's parts included. | — |
-| **Bad input** | Service + reader | Bad date / number / cursor / zone → 400. No 500 for a caller's mistake (§12 probes). |
+| **Bad input** | Service + reader | Bad date / number / cursor / zone, or a NUL byte in any text → 400. No 500 for a caller's mistake (§12 probes). |
 | **Write amplification** | The buffered recorder | A flood costs one row per source per minute; past `maxBufferedKeys` sources, one `(overflow)` row per route. |
 
 ---
@@ -558,7 +558,8 @@ npm run db:migrate && npx nest build       # then restart, and probe with curl a
 | The list sorted every row (no `id` in the time index); a trace scanned the application | Migration 0003: `list_idx`, partial `correlation_idx` | `8e80c07` |
 
 **Probed on the sandbox after the fixes** — none is a 500: `since=garbage`, `until=2026-13-45`, `limit=abc|0|1.5`, a
-garbage cursor, a cursor naming a non-numeric id, `tz=Mars/X`, `tz=`, a 5,000-character trace id or route (200, empty).
+garbage cursor, a cursor naming a non-numeric id, `tz=Mars/X`, `tz=`, a 5,000-character trace id or route (200, empty),
+and — since `12fdd3f` — a NUL byte in a trace id or route (400).
 Every screen read uses an index (`EXPLAIN`, `enable_seqscan = off`). Every drill-down's number equals the sum of the list
 it opens — each period, route, source, and the day bar in a non-UTC zone.
 

@@ -123,7 +123,7 @@ replays, 14 conflicts, 3 pending, 2 reclaimed, 1 ran twice.
 - **A header that becomes a key is validated before it's used** — length and charset, with a 400 that says what's
   allowed. A primary-key column has a hard size limit; past it the request itself is a 500.
 - **A NUL byte in any text param is a 400.** Postgres `text` can't hold one and fails with an encoding error.
-  `rate-limiting` still answers 500 for `GET /rate-limits/rejections/trace/%00` and `?route=%00` — fix it there next.
+  `rate-limiting` answered 500 for `GET /rate-limits/rejections/trace/%00` and `?route=%00` — fixed there too (`12fdd3f`).
 - **A record that isn't there is a 404, never a 200 with an empty body** — and an unknown enum value is a 400, never an
   empty list that reads as "none".
 - **A sheet never opens a sheet** — an id inside a sheet copies; drill-downs start from a page.
