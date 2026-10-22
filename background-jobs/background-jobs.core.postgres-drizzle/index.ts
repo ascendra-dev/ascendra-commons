@@ -10,6 +10,10 @@ export type { PostgresAdvisoryLockModuleConfig } from './lock/postgres-advisory-
 export { PostgresLeaseLock } from './lock/postgres-lease-lock';
 export { PostgresLeaseLockModule } from './lock/postgres-lease-lock.module';
 export type { PostgresLeaseLockModuleConfig } from './lock/postgres-lease-lock.module';
+// Lock Inspector (implements JobLockInspectorPort) — lease lock only
+export { PostgresLeaseLockInspector } from './lock/postgres-lease-lock-inspector';
+export { PostgresLeaseLockInspectorModule } from './lock/postgres-lease-lock-inspector.module';
+export type { PostgresLeaseLockInspectorModuleConfig } from './lock/postgres-lease-lock-inspector.module';
 
 // Run recorder
 export { PostgresJobRunRecorder } from './run-recorder/postgres-job-run-recorder';

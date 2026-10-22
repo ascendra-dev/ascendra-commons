@@ -22,3 +22,9 @@ export const JOB_RUN_RECORDER = Symbol('JOB_RUN_RECORDER');
  * Never touched by the runner or feature code.
  */
 export const JOB_OBSERVABILITY_PORT = Symbol('JOB_OBSERVABILITY_PORT');
+
+/**
+ * A `JobLockInspectorPort` — the Lock Inspector's read. Bound only by a lock adapter that can list its locks
+ * (`PostgresLeaseLockInspectorModule`); `background-jobs.api` injects it optionally.
+ */
+export const JOB_LOCK_INSPECTOR_PORT = Symbol('JOB_LOCK_INSPECTOR_PORT');

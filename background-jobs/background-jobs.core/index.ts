@@ -34,4 +34,5 @@ export { calendarDays, isValidTimeZone } from './calendar-days';
 
 export { BackgroundJobsModule } from './background-jobs.module';
 export type { BackgroundJobsModuleConfig } from './background-jobs.module';
-export { ADVISORY_LOCK, JOB_RUN_RECORDER, JOB_OBSERVABILITY_PORT } from './tokens';
+export type { JobLockInspectorPort, JobLockView } from './job-lock-inspector.port';
+export { ADVISORY_LOCK, JOB_RUN_RECORDER, JOB_OBSERVABILITY_PORT, JOB_LOCK_INSPECTOR_PORT } from './tokens';

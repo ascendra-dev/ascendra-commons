@@ -14,7 +14,7 @@ const CORRELATION_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 /**
  * api-contract.md Rule 4's cursor-based list shape. The core port's `{ runs, nextCursor }` stays a domain type — the
  * wire shape is this controller's concern. An absent `nextCursor` serializes as `meta: {}`. The dashboard, alerts,
- * summary, volume and failed items are bounded, so they stay bare (Rule 4's bounded case).
+ * summary, volume, failed items and locks are bounded, so they stay bare (Rule 4's bounded case).
  */
 async function toCursorList(page: Promise<RunHistoryPage>) {
   const { runs, nextCursor } = await page;
@@ -48,6 +48,16 @@ export class JobsController {
   @RequiresAction(JOB_ACTIONS.VIEW)
   alerts() {
     return this.service.getAlerts();
+  }
+
+  /**
+   * The Lock Inspector — the lease lock's rows, `held` or `expired` (a holder that died mid-run). `supported: false`
+   * when no `JOB_LOCK_INSPECTOR_PORT` is bound (the session-level advisory lock can't be listed).
+   */
+  @Get('locks')
+  @RequiresAction(JOB_ACTIONS.VIEW)
+  locks() {
+    return this.service.listLocks();
   }
 
   /** Every job's runs, newest first — `jobName` narrows it to one. */

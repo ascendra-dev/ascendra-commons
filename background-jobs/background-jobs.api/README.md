@@ -10,6 +10,7 @@ Opt-in NestJS controller over `JOB_OBSERVABILITY_PORT` (reads) and `JobTrigger`
 |---|---|---|---|
 | GET | `/jobs` | `job.view` | `listJobStatus()` — one row per job (ran, declared a cadence, or registered for triggering): last run, last success, consecutive failures, cadence, `overdue`, `triggerable` |
 | GET | `/jobs/alerts` | `job.view` | the dashboard filtered to jobs that are `overdue` and/or have `consecutiveFailures >= 2` — read-only, no ack state, no webhook |
+| GET | `/jobs/locks` | `job.view` | the Lock Inspector — `{ supported, locks: [{ lockKey, jobName, holder, acquiredAt, lockedUntil, state: 'held' \| 'expired' }] }`. Lease lock only: put `PostgresLeaseLockInspectorModule` in `imports`; without it `supported: false`. Read-only — no force-release |
 | GET | `/jobs/runs` | `job.view` | `getRunHistory({ jobName?, outcome?, trigger?, hasFailedItems?, correlationId?, since?, until?, limit?, cursor?, order? })` — every job's runs, newest first, keyset-paginated, `error` truncated (~500 chars). `{ data, meta: { nextCursor } }` |
 | GET | `/jobs/runs/summary?since=` | `job.view` | `runSummary()` — runs, clean / with failed items / job failed, manual, items processed / failed, distinct jobs, counted by `startedAt` |
 | GET | `/jobs/runs/volume?tz=` | `job.view` | `volume()` — per-day runs for 30 calendar days in `tz` (IANA, default UTC), oldest run, row count, table size |
@@ -72,9 +73,9 @@ section), not implied by this endpoint.
 
 ## What's deliberately not here
 
-`GET /jobs/locks` (Lock Inspector) and `POST /jobs/:name/pause` (Pause /
-Disable) are documented as proposed in `mocks.html` and intentionally not
-implemented — see that file's coverage map for why.
+`POST /jobs/:name/pause` (Pause / Disable), an alert acknowledge state and an
+outbound alert webhook, and a lock force-release — see `mocks.html`'s coverage
+map and the module's `AUDIT-REPORT.md`.
 
 ## Wiring
 

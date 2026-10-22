@@ -185,6 +185,17 @@ describe('JobsApiService', () => {
   });
 });
 
+describe('JobsApiService.listLocks', () => {
+  it('is unsupported without a lock inspector, and lists its locks with one', async () => {
+    const { observability, jobTrigger, audit, svc } = deps();
+    await expect(svc.listLocks()).resolves.toEqual({ supported: false, locks: [] });
+
+    const lock = { lockKey: 'scheduler:x', jobName: 'x', holder: 'h', acquiredAt: new Date(), lockedUntil: new Date(), state: 'held' as const };
+    const withInspector = new JobsApiService(observability, jobTrigger, audit, { listLocks: vi.fn().mockResolvedValue([lock]) });
+    await expect(withInspector.listLocks()).resolves.toEqual({ supported: true, locks: [lock] });
+  });
+});
+
 describe('JobsApiService — correlation id round-trip', () => {
   it("a manual trigger's correlation id shows up in getTrace()", async () => {
     // A small in-memory JobObservabilityPort standing in for a real stack adapter — just

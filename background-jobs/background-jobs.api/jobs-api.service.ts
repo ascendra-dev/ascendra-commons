@@ -1,11 +1,14 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type { Actor } from '../../authorization/authorization.core';
 import {
   InvalidJobRunCursorError,
   isValidTimeZone,
+  JOB_LOCK_INSPECTOR_PORT,
   JOB_OBSERVABILITY_PORT,
   JobTrigger,
   type FailedItemSummary,
+  type JobLockInspectorPort,
+  type JobLockView,
   type JobObservabilityPort,
   type JobRunRecord,
   type JobStatus,
@@ -30,6 +33,12 @@ const OUTCOMES = ['completed', 'job_failed'] as const;
 const TRIGGERS = ['scheduled', 'bootstrap', 'manual'] as const;
 const ORDERS = ['asc', 'desc'] as const;
 const BOOLEANS = ['true', 'false'] as const;
+
+/** The Lock Inspector — `supported: false` when the app's lock can't be listed (the session-level advisory lock). */
+export interface JobLocksView {
+  supported: boolean;
+  locks: JobLockView[];
+}
 
 /** One dashboard row, plus whether `POST /jobs/:name/run` can run it (it's in `BackgroundJobsModule.forRoot({ jobs })`). */
 export type JobStatusView = JobStatus & { triggerable: boolean };
@@ -83,6 +92,7 @@ export class JobsApiService {
     @Inject(JOB_OBSERVABILITY_PORT) private readonly observability: JobObservabilityPort,
     @Inject(JobTrigger) private readonly jobTrigger: JobTrigger,
     @Inject(JOB_AUDIT_EMITTER) private readonly audit: JobAuditEmitter,
+    @Optional() @Inject(JOB_LOCK_INSPECTOR_PORT) private readonly lockInspector?: JobLockInspectorPort,
   ) {}
 
   /**
@@ -166,6 +176,12 @@ export class JobsApiService {
   getFailedItems(jobName: string, minRuns?: number): Promise<FailedItemSummary[]> {
     textParam('name', jobName);
     return this.observability.getFailedItems(jobName, positiveIntParam('minRuns', minRuns));
+  }
+
+  /** Which job locks are held now, and which a dead holder left behind. Read-only — no force-release. */
+  async listLocks(): Promise<JobLocksView> {
+    if (!this.lockInspector) return { supported: false, locks: [] };
+    return { supported: true, locks: await this.lockInspector.listLocks() };
   }
 
   /** The dashboard, filtered to jobs that need an operator's attention. Read-only — no ack state, no webhook (deferred). */

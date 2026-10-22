@@ -16,7 +16,7 @@ delivery seams.
 |---|---|---|
 | **`background-jobs.core`** | `ScheduledJob` / `AdvisoryLock` / `JobRunRecorder` / `JobObservabilityPort` ports, `IdempotentJobRunner`, `ScheduledJobRegistry` + `JobTrigger`, `NoopJobRunRecorder`, the stack-agnostic helpers (`parseCadence`, `encodeKeysetCursor`) + observability DTOs, `BackgroundJobsModule.forRoot()`. **No lock implementation.** | `@nestjs/common` |
 | **`background-jobs.core.postgres-drizzle`** | `lock/` (`PostgresAdvisoryLock` **and** `PostgresLeaseLock` — pick one), `run-recorder/` (`PostgresJobRunRecorder`), `observability/` (implements `JobObservabilityPort`), `pruner/` (`JobRunPrunerJob`). Schemas + migrations. | `background-jobs.core` |
-| **`background-jobs.api`** | Opt-in HTTP: jobs dashboard, run history + single-run detail, cross-module trace, failed-item "chronic offender" view, a read-only alerts listing, and a `POST /jobs/:name/run` trigger (correlation id forwarded from `X-Correlation-Id`, or generated). | `background-jobs.core`, `authorization.core` |
+| **`background-jobs.api`** | Opt-in HTTP: jobs dashboard, run history + single-run detail, cross-module trace, failed-item "chronic offender" view, a read-only alerts listing, a Lock Inspector (lease lock), the Overview summary and volume, and a `POST /jobs/:name/run` trigger (correlation id forwarded from `X-Correlation-Id`, or generated). | `background-jobs.core`, `authorization.core` |
 
 No "family" package — both ports and all DTOs are stack-agnostic `.core`
 contracts (`PostgresAdvisoryLock` moved *out* of `.core` in the split — it's

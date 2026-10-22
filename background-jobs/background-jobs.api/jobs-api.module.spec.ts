@@ -97,6 +97,11 @@ describe('JobsApiModule.forRoot — real DI wiring', () => {
     expect((alerts as Array<{ name: string }>).map((a) => a.name)).toEqual(['overdue-job']);
   });
 
+  it('GET /jobs/locks answers supported: false when no lock inspector is bound', async () => {
+    const ref = await build();
+    await expect(ref.get(JobsController).locks()).resolves.toEqual({ supported: false, locks: [] });
+  });
+
   it('falls back to the no-op audit emitter when auditEmitterToken is omitted', async () => {
     const ref = await Test.createTestingModule({
       imports: [JobsApiModule.forRoot({ imports: [FakePortsModule] })],

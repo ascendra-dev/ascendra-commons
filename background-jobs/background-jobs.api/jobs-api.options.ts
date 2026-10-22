@@ -14,7 +14,11 @@ export const JOB_ACTIONS = {
 } as const;
 
 export interface JobsApiModuleConfig {
-  /** Modules exporting `JOB_OBSERVABILITY_PORT` and `JobTrigger` (from `PostgresJobObservabilityModule` and `BackgroundJobsModule`). */
+  /**
+   * Modules exporting `JOB_OBSERVABILITY_PORT` and `JobTrigger` (from `PostgresJobObservabilityModule` and
+   * `BackgroundJobsModule`) — and, optionally, `JOB_LOCK_INSPECTOR_PORT` (`PostgresLeaseLockInspectorModule`) for
+   * `GET /jobs/locks`.
+   */
   imports?: DynamicModule['imports'];
   /** Optional token a `JobAuditEmitter` is provided under (bound in `imports`). Omit → manual triggers are not audited. */
   auditEmitterToken?: string | symbol | (new (...args: never[]) => unknown);
