@@ -101,3 +101,9 @@ endpoint's **route pattern** (`/payments/:id`, never the URL), so the health
 numbers break down per endpoint (`GET /idempotency-keys/routes`) and take a
 period (`?since=`). History reaches back as far as claims are retained (24h by
 default) — this is a short-lived safety store, not a log.
+
+## Guide and review
+
+How it works end to end, and how to change it safely: [`GUIDE.md`](./GUIDE.md). The 2026-10 review — what was fixed,
+and what's not built yet (redacting the saved body, batched cleanup, filters behind every tile, alerting on "ran
+twice"): [`AUDIT-REPORT.md`](./AUDIT-REPORT.md).

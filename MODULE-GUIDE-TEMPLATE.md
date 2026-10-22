@@ -3,7 +3,9 @@
 What every module in this repo documents beside its `README.md`, and the conventions a module's review checks.
 Set by the `audit-logging` review (2026-10) — [`audit-logging/GUIDE.md`](./audit-logging/GUIDE.md) and
 [`audit-logging/AUDIT-REPORT.md`](./audit-logging/AUDIT-REPORT.md) are the worked example; `rate-limiting`
-([`GUIDE.md`](./rate-limiting/GUIDE.md), [`AUDIT-REPORT.md`](./rate-limiting/AUDIT-REPORT.md)) the second. Complements
+([`GUIDE.md`](./rate-limiting/GUIDE.md), [`AUDIT-REPORT.md`](./rate-limiting/AUDIT-REPORT.md)) the second;
+`idempotency-key` ([`GUIDE.md`](./idempotency-key/GUIDE.md), [`AUDIT-REPORT.md`](./idempotency-key/AUDIT-REPORT.md))
+the third. Complements
 [`MODULE-STANDARD.md`](./MODULE-STANDARD.md) (how a module is structured), which this doesn't repeat.
 
 ## The three documents
@@ -70,8 +72,14 @@ standards the review set.
 - [ ] A caller's mistake is a 400 / 404 with a message saying what to fix — **never a 500**. Probe: a bad date, a bad
       number, a garbage cursor, a malformed id.
 - [ ] A cursor the reader didn't issue is rejected (400) — never silently ignored (that restarts at page 1).
+- [ ] A cursor is JSON (base64url), not a delimited string — a caller-chosen part can hold the delimiter.
+- [ ] A cursor carries the sort key at the column's precision: a `timestamptz` from `now()` is microseconds, a JS
+      `Date` milliseconds — serialize the boundary in SQL (`to_char(… 'US')`), or page 2 skips rows.
+- [ ] A NUL byte in any text param or path id is a 400 (Postgres `text` rejects it — otherwise a 500).
+- [ ] A record that isn't there is a 404, not a 200 with an empty body; an unknown enum value is a 400, not an empty list.
 - [ ] Exported CSV neutralizes cells starting with `= + - @`, tab or CR.
-- [ ] Inbound headers that end up stored (e.g. `x-correlation-id`) are validated.
+- [ ] Inbound headers that end up stored (e.g. `x-correlation-id`) are validated — and one that becomes a key
+      (`Idempotency-Key`) is bounded below the index row limit, or the request it protects is a 500.
 - [ ] Nothing stores a resolved URL — record the route *pattern*: a URL can carry a secret (a token) and splits one
       route into a row per id. Check the fallback when the HTTP adapter doesn't populate the pattern.
 
@@ -82,7 +90,8 @@ standards the review set.
       `CREATE INDEX CONCURRENTLY` for large tables.
 - [ ] Per-day statistics are bucketed in the viewer's time zone, whole days only.
 - [ ] Keyset pagination with a stable tie-break (`occurred_at, id`) — and an index carrying the tie-break, or the list
-      sorts every row; default and max page size.
+      sorts every row; default and max page size. The condition leads with the indexed column
+      (`ts <= b and (ts < b or id < i)`) — the `OR` alone is a Filter, scanned from the top on every page.
 - [ ] A write path that records the attack itself (rejections, failed lookups) does no I/O per event — count in
       memory, upsert on an interval, bound the buffer (an overflow bucket keeps totals exact).
 
@@ -99,6 +108,7 @@ standards the review set.
       (`dataUpdatedAt`, never render time — that breaks hydration). Verify: the number clicked equals the list's total
       — or its *sum*, when the number counts something the rows aggregate (rejections in rejection windows).
 - [ ] Row drill-downs use `DataTableRunQueryAction`.
+- [ ] A sheet never opens another sheet — an id inside a sheet copies; drill-downs start from a page.
 - [ ] A distinct-count number doesn't link to a list of records — it needs its own breakdown.
 - [ ] Test URL triggers with a stored last run in the browser, not only a fresh one.
 - [ ] Pixel diffs in dark mode use a zero threshold — dark-on-dark changes hide under a tolerance.
