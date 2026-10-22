@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CallHandler, ConflictException, ExecutionContext, HttpException, Logger } from '@nestjs/common';
+import { BadRequestException, CallHandler, ConflictException, ExecutionContext, HttpException, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable, firstValueFrom, of, throwError } from 'rxjs';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
@@ -34,6 +34,31 @@ describe('IdempotencyInterceptor', () => {
 
     expect(await firstValueFrom(result)).toEqual({ ok: true });
     expect(store.claim).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['longer than 255 characters', 'k'.repeat(256)],
+    ['non-ASCII', 'order-✓'],
+    ['a control character', 'order\t1'],
+  ])('rejects a key %s with a 400, before resolving a scope or claiming', async (_label, key) => {
+    const store: IdempotencyStore = { claim: vi.fn(), complete: vi.fn() };
+    const resolver: IdempotencyScopeResolver = { resolveScope: vi.fn() };
+    const interceptor = new IdempotencyInterceptor(store, resolver, fakeReflector());
+    const handler: CallHandler = { handle: vi.fn() };
+
+    await expect(interceptor.intercept(fakeContext({ 'idempotency-key': key }), handler)).rejects.toBeInstanceOf(BadRequestException);
+    expect(resolver.resolveScope).not.toHaveBeenCalled();
+    expect(store.claim).not.toHaveBeenCalled();
+    expect(handler.handle).not.toHaveBeenCalled();
+  });
+
+  it('accepts a 255-character key and one with spaces or punctuation', async () => {
+    for (const key of ['k'.repeat(255), 'order 42 | retry #1']) {
+      const store: IdempotencyStore = { claim: vi.fn().mockResolvedValue(CLAIMED), complete: vi.fn().mockResolvedValue(undefined) };
+      const interceptor = new IdempotencyInterceptor(store, scopeResolver, fakeReflector());
+      await firstValueFrom(await interceptor.intercept(fakeContext({ 'idempotency-key': key }), fakeHandler(of({}))));
+      expect(store.claim).toHaveBeenCalledWith(key, 'scope-1', expect.anything());
+    }
   });
 
   it('claims, runs the handler, and completes with the claimId + the real status code', async () => {
