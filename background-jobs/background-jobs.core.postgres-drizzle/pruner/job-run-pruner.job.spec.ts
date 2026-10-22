@@ -39,6 +39,16 @@ describe('JobRunPrunerJob', () => {
     expect(params).toContain(cutoff);
   });
 
+  it('deletes in batches until a short batch', async () => {
+    const db = fakeDb();
+    const ids = (n: number) => ({ rows: Array.from({ length: n }, (_, i) => ({ id: i })) });
+    db.execute.mockResolvedValueOnce(ids(2)).mockResolvedValueOnce(ids(2)).mockResolvedValueOnce(ids(1));
+    await new JobRunPrunerJob(db, 'ascendra-pay', 90).processItem(new Date('2026-01-01T00:00:00Z'), 2);
+
+    expect(db.execute).toHaveBeenCalledTimes(3);
+    expect(dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).params).toContain(2);
+  });
+
   it('describeItem names the application and cutoff', () => {
     const job = new JobRunPrunerJob(fakeDb(), 'ascendra-pay', 90);
     expect(job.describeItem(new Date('2026-01-01T00:00:00Z'))).toContain('ascendra-pay');
