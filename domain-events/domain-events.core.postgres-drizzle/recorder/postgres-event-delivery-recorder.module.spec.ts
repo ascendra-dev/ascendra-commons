@@ -3,8 +3,8 @@ import { Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
-import type { EventDeliveryRecorder } from '../../domain-events.core';
 import { EVENT_DELIVERY_RECORDER } from '../../domain-events.core';
+import type { PostgresEventDeliveryRecorder } from './postgres-event-delivery-recorder';
 import { PostgresEventDeliveryRecorderModule } from './postgres-event-delivery-recorder.module';
 import { POSTGRES_EVENT_DELIVERY_RECORDER } from '../tokens';
 
@@ -24,11 +24,16 @@ describe('PostgresEventDeliveryRecorderModule', () => {
 
     const moduleRef = await Test.createTestingModule({
       imports: [
-        PostgresEventDeliveryRecorderModule.forRoot({ sqlExecutorToken: DB, application: 'ascendra-erp', imports: [DbModule] }),
+        PostgresEventDeliveryRecorderModule.forRoot({
+          sqlExecutorToken: DB,
+          application: 'ascendra-erp',
+          maxBufferedRows: 1,
+          imports: [DbModule],
+        }),
       ],
     }).compile();
 
-    const recorder = moduleRef.get<EventDeliveryRecorder>(POSTGRES_EVENT_DELIVERY_RECORDER);
+    const recorder = moduleRef.get<PostgresEventDeliveryRecorder>(POSTGRES_EVENT_DELIVERY_RECORDER);
     await recorder.recordDelivery({
       eventName: 'invoice.sent',
       method: 'emit',
@@ -37,6 +42,8 @@ describe('PostgresEventDeliveryRecorderModule', () => {
       listenerCount: 1,
       status: 'delivered',
     });
+    expect(execute).not.toHaveBeenCalled(); // buffered — written on flush
+    await moduleRef.close(); // onModuleDestroy flushes
 
     expect(execute).toHaveBeenCalledTimes(1);
     const { sql: text, params } = dialect.sqlToQuery(execute.mock.calls[0][0] as SQL);

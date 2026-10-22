@@ -1,4 +1,5 @@
 export { PostgresEventDeliveryRecorder } from './recorder/postgres-event-delivery-recorder';
+export type { PostgresEventDeliveryRecorderOptions } from './recorder/postgres-event-delivery-recorder';
 export { PostgresEventDeliveryRecorderModule } from './recorder/postgres-event-delivery-recorder.module';
 export type { PostgresEventDeliveryRecorderModuleConfig } from './recorder/postgres-event-delivery-recorder.module';
 export { PostgresEventDeliveryObservabilityService } from './observability/postgres-event-delivery-observability.service';
@@ -10,4 +11,5 @@ export {
   EVENT_DELIVERY_SQL_EXECUTOR,
   EVENT_DELIVERY_APPLICATION_ID,
   POSTGRES_EVENT_DELIVERY_RECORDER,
+  EVENT_DELIVERY_RECORDER_OPTIONS,
 } from './tokens';

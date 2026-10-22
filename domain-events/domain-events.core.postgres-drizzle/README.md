@@ -4,7 +4,7 @@ Two library-owned statements over `commons_domain_events_delivery`:
 
 | Sub-folder | Implements | Bound under | Wired via |
 |---|---|---|---|
-| `recorder/` | `EventDeliveryRecorder` — one `INSERT` per `emit()`/`emitCritical()` call, `application` stamped | `EVENT_DELIVERY_RECORDER` (core token) | `InProcessDomainEventEmitterModule.forRoot({ recorderToken })` |
+| `recorder/` | `EventDeliveryRecorder` — buffered in memory (no I/O on the emit), written every `flushIntervalMs` (10s) as multi-row `INSERT`s, one row per delivery, `application` stamped; flushed on shutdown | `EVENT_DELIVERY_RECORDER` (core token) | `InProcessDomainEventEmitterModule.forRoot({ recorderToken })` |
 | `observability/` | `EventDeliveryObservabilityPort` — one dynamic `SELECT`, keyset-paginated, plus one aggregate query, both `application`-scoped | `EVENT_DELIVERY_OBSERVABILITY_PORT` (core token) | `PostgresEventDeliveryObservabilityModule.forRoot(...)` |
 | `persistence/domain-event-delivery.schema.ts` | the table's current shape — change it with the `INSERT`/`SELECT` | | |
 | `migrations/` | the DDL, numbered — **never edited once released**; a schema change is the next file | | |
@@ -40,6 +40,14 @@ DomainEventsModule.forRoot({
 // for an event-delivery admin screen (independent — import either or both):
 PostgresEventDeliveryObservabilityModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', imports: [DatabaseModule] }),
 ```
+
+## The recorder buffers
+
+`emitCritical()` awaits the recorder, inside every producer's own request — so the recorder never does I/O there.
+Deliveries go into an in-memory buffer and are written every `flushIntervalMs` (default 10s); `maxBufferedRows`
+(default 10,000) caps it between flushes, and anything past it is dropped and counted in the next flush's log. A failed
+flush is logged with how many deliveries it lost and never retried; a crash loses up to one interval. Call
+`app.enableShutdownHooks()` so the buffer is written on deploy. Rows appear up to one interval late.
 
 ## `application`
 

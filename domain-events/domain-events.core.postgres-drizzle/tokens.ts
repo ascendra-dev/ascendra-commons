@@ -21,3 +21,6 @@ export const EVENT_DELIVERY_APPLICATION_ID = Symbol('EVENT_DELIVERY_APPLICATION_
 
 /** What `PostgresEventDeliveryRecorderModule` exports — pass this as `InProcessDomainEventEmitterModule.forRoot({ recorderToken })`. */
 export const POSTGRES_EVENT_DELIVERY_RECORDER = Symbol('POSTGRES_EVENT_DELIVERY_RECORDER');
+
+/** `PostgresEventDeliveryRecorderOptions` — the flush interval and buffer size, from `PostgresEventDeliveryRecorderModule.forRoot()`. */
+export const EVENT_DELIVERY_RECORDER_OPTIONS = Symbol('EVENT_DELIVERY_RECORDER_OPTIONS');
