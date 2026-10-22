@@ -4,13 +4,6 @@
 <meta charset="utf-8" />
 <title>Domain Events — Admin Console Mocks</title>
 <style>
-  /* ──────────────────────────────────────────────────────────────────────────
-     Tokens transcribed from ../ascendra-ui/app/globals.css (:root and .dark),
-     same block used by the other five ascendra-commons .api mocks.html files —
-     kept byte-identical so every module's mock reads as one console. Light mode
-     is the base; the dark block mirrors globals.css's .dark overrides and is
-     applied by the OS setting only (no toggle — these mocks carry zero JS).
-     ────────────────────────────────────────────────────────────────────────── */
   :root {
     --background: oklch(1 0 0);
     --foreground: oklch(0.2928 0.0163 285.35);
@@ -19,279 +12,159 @@
     --secondary-foreground: oklch(0.147 0.004 49.25);
     --border: oklch(0.9437 0.0027 286.35);
     --card: oklch(1 0 0);
-    --primary: oklch(0.5573 0.2543 283.67);   /* #6c47ff */
+    --primary: oklch(0.5573 0.2543 283.67);
     --radius: 0.625rem;
-
-    --positive: #15892b;
-    --negative: #e02e2e;
-    --warning: #fd7224;
-    --info: #236dd7;
-    --dimmed: #adadb7;
-    --gray-50: #fafafb;
+    --positive: #15892b; --negative: #e02e2e; --warning: #fd7224; --info: #236dd7;
     --gray-700: #767684;
-
-    --shadow-xs: 0px 0px 2px 0px #00000014, 0px 1px 2px 0px #0000000f, 0px 0px 0px 1px #0000000a;
-
-    --text-caption: 0.6875rem;
-    --text-label: 0.75rem;
-    --text-body-sm: 0.875rem;
-    --text-body: 1rem;
-    --text-heading-sm: 1.125rem;
-    --text-heading: 1.25rem;
-    --text-heading-lg: 1.5rem;
-
+    --text-caption: 0.6875rem; --text-label: 0.75rem; --text-body-sm: 0.875rem; --text-body: 1rem;
+    --text-heading-sm: 1.125rem; --text-heading: 1.25rem; --text-heading-lg: 1.5rem;
     --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --background: oklch(0.2238 0.0077 285.76);
-      --foreground: oklch(0.9734 0.0013 286.37);
-      --muted: oklch(0.1785 0.0041 285.98);
-      --muted-foreground: oklch(0.7507 0.0142 286.05);
-      --secondary-foreground: oklch(0.985 0.001 106.423);
-      --border: oklch(0.2582 0.0093 285.73);
-      --card: oklch(0.216 0.006 285.76);
-      --primary: oklch(0.5573 0.2543 283.67);
-      --positive: #31c854;
-      --negative: #f73d3d;
-      --warning: #fd7224;
-      --info: #307ff6;
-      --dimmed: #5f5f6f;
-      --gray-50: #232328;
-      --gray-700: #adadb7;
-      --shadow-xs: 0px 1.5px 2px 0px #00000052, 0px -1px 0px 0px #ffffff0a, 0px 0px 0px 1px #ffffff1f;
+      --background: oklch(0.2238 0.0077 285.76); --foreground: oklch(0.9734 0.0013 286.37);
+      --muted: oklch(0.1785 0.0041 285.98); --muted-foreground: oklch(0.7507 0.0142 286.05);
+      --secondary-foreground: oklch(0.985 0.001 106.423); --border: oklch(0.2582 0.0093 285.73);
+      --card: oklch(0.216 0.006 285.76); --primary: oklch(0.5573 0.2543 283.67);
+      --positive: #31c854; --negative: #f73d3d; --warning: #fd7224; --info: #307ff6; --gray-700: #adadb7;
     }
   }
-
   * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--background);
-    color: var(--foreground);
-    font-family: var(--font-sans);
-    font-size: var(--text-body-sm);
-    line-height: 1.5;
-  }
+  body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); font-size: var(--text-body-sm); line-height: 1.5; }
   code, pre, .mono { font-family: var(--font-mono); }
-
-  /* shell ──────────────────────────────────────────────────────────────── */
   .shell { display: flex; min-height: 100vh; }
-  .sidebar {
-    width: 248px; flex-shrink: 0; border-right: 1px solid var(--border);
-    padding: 1.25rem 0.75rem; background: var(--background);
-  }
-  .brand {
-    display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem;
-    font-weight: 600; font-size: var(--text-body-sm);
-  }
+  .sidebar { width: 248px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.25rem 0.75rem; background: var(--background); }
+  .brand { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem; font-weight: 600; font-size: var(--text-body-sm); }
   .brand span { width: 18px; height: 18px; border-radius: 5px; background: var(--primary); display: inline-block; }
   .nav-group { margin-bottom: 1rem; }
-  .nav-group-title {
-    color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase;
-    letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem;
-  }
-  .nav-item {
-    display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem;
-    border-radius: 0.375rem; color: var(--muted-foreground); font-size: var(--text-body-sm);
-    text-decoration: none; position: relative;
-  }
+  .nav-group-title { color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase; letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem; }
+  .nav-item { display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem; border-radius: 0.375rem; color: var(--muted-foreground); font-size: var(--text-body-sm); text-decoration: none; position: relative; }
   .nav-item.active { background: color-mix(in oklab, var(--foreground) 8%, transparent); color: var(--foreground); }
-  .nav-item.active::before {
-    content: ""; position: absolute; left: 2px; top: 6px; bottom: 6px; width: 1px; background: var(--foreground);
-  }
-  .nav-item .pill {
-    margin-left: auto; font-size: 9px; line-height: 11px; padding: 1px 4px; border-radius: 4px;
-    background: color-mix(in oklab, var(--warning) 12%, transparent); color: var(--warning);
-    text-transform: uppercase; letter-spacing: 0.02em;
-  }
-
-  /* main ───────────────────────────────────────────────────────────────── */
+  .nav-item.active::before { content: ""; position: absolute; left: 2px; top: 6px; bottom: 6px; width: 1px; background: var(--foreground); }
   .main { flex: 1; min-width: 0; padding: 1.75rem 2rem 4rem; max-width: 1180px; }
   .page-head { margin-bottom: 0.375rem; }
   .page-title { font-size: var(--text-heading-lg); font-weight: 600; margin: 0; }
   .page-sub { color: var(--muted-foreground); margin: 0.25rem 0 0; max-width: 70ch; }
-
-  .note {
-    display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem;
-    background: color-mix(in oklab, var(--info) 6%, transparent);
-    border: 1px solid color-mix(in oklab, var(--info) 22%, transparent);
-    color: var(--foreground); font-size: var(--text-body-sm); margin: 1.25rem 0;
-  }
+  .note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; background: color-mix(in oklab, var(--info) 6%, transparent); border: 1px solid color-mix(in oklab, var(--info) 22%, transparent); color: var(--foreground); font-size: var(--text-body-sm); margin: 1.25rem 0; }
   .note b { color: var(--info); }
-
-  /* coverage map ───────────────────────────────────────────────────────── */
+  .note.warn { background: color-mix(in oklab, var(--warning) 7%, transparent); border-color: color-mix(in oklab, var(--warning) 26%, transparent); }
+  .note.warn b { color: var(--warning); }
   .cov { width: 100%; border-collapse: collapse; margin: 0.75rem 0 0.5rem; font-size: var(--text-body-sm); }
-  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
-            padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
   .cov td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
   .cov td:first-child { font-weight: 500; white-space: nowrap; }
-
-  /* screen container ───────────────────────────────────────────────────── */
-  .screen {
-    border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem;
-    margin: 1.5rem 0; background: var(--background);
-  }
+  .screen { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin: 1.5rem 0; background: var(--background); }
   .screen-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-bottom: 0.25rem; }
   .screen-name { font-size: var(--text-heading); font-weight: 600; margin: 0; }
   .screen-purpose { color: var(--muted-foreground); margin: 0.25rem 0 1rem; }
-  .endpoint {
-    display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono);
-    font-size: var(--text-caption); padding: 0.15rem 0.45rem; border-radius: 4px;
-    background: var(--muted); border: 1px solid var(--border); color: var(--foreground);
-  }
+  .endpoint { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--text-caption); padding: 0.15rem 0.45rem; border-radius: 4px; background: var(--muted); border: 1px solid var(--border); color: var(--foreground); }
   .endpoint .m { font-weight: 700; color: var(--info); }
-  .status {
-    display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500;
-    letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px;
-    background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent);
-  }
-  .status.live { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent);
-                 box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 22%, transparent); }
-  .status.partial { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 6%, transparent);
-                    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 24%, transparent); }
-  .status.proposed { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 5%, transparent);
-                     box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent); }
-  .gating {
-    font-size: var(--text-caption); color: var(--muted-foreground); margin: 0 0 1rem;
-    padding-left: 0.75rem; border-left: 2px solid var(--border);
-  }
+  .status { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .status.live { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 22%, transparent); }
+  .gating { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0 0 1rem; padding-left: 0.75rem; border-left: 2px solid var(--border); }
   .gating code { color: var(--foreground); }
-
-  .proposed-note {
-    display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; margin: 0 0 1rem;
-    background: color-mix(in oklab, var(--primary) 5%, transparent);
-    border: 1px dashed color-mix(in oklab, var(--primary) 35%, transparent);
-    font-size: var(--text-body-sm);
-  }
-  .proposed-note b { color: var(--primary); }
-  .proposed-note .sig { font-family: var(--font-mono); font-size: var(--text-caption); }
-
-  /* filter bar ─────────────────────────────────────────────────────────── */
   .filterbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
-  .field {
-    height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem;
-    background: var(--background); color: var(--foreground); font-size: var(--text-body-sm);
-    display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0;
-  }
+  .field { height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--background); color: var(--foreground); font-size: var(--text-body-sm); display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; }
   .field .lbl { color: var(--muted-foreground); }
   .field .val { color: var(--foreground); }
-
-  .btn {
-    height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
-    font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary);
-    position: relative; overflow: hidden;
-    box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16),
-                0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255);
-  }
+  .btn { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer; font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary); position: relative; overflow: hidden; box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16), 0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255); }
   .btn::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(255,255,255,0.2), transparent); }
-  .btn-secondary {
-    height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
-    font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card);
-    box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06),
-                0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1);
-  }
-
-  /* data table ─────────────────────────────────────────────────────────── */
+  .btn-secondary { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer; font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card); box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06), 0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1); }
   .table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--text-body-sm); }
-  .table th {
-    text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
-    padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap;
-  }
+  .table th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
   .table td { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); vertical-align: top; }
   .table tbody tr:hover { background: color-mix(in oklab, var(--gray-700) 4%, transparent); }
   .table .t-time { color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .table .t-id { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted-foreground); }
   .table .t-num { text-align: right; font-variant-numeric: tabular-nums; }
-
-  .badge {
-    display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500;
-    letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap;
-    background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent);
-  }
-  .badge.action  { color: var(--primary);  background-color: color-mix(in oklab, var(--primary) 4%, transparent);  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent); }
-  .badge.entity  { color: var(--muted-foreground); background-color: color-mix(in oklab, var(--gray-700) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gray-700) 16%, transparent); }
-  .badge.warn    { color: var(--warning);  background-color: color-mix(in oklab, var(--warning) 4%, transparent);  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 16%, transparent); }
-  .badge.info    { color: var(--info);     background-color: color-mix(in oklab, var(--info) 4%, transparent);     box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 16%, transparent); }
-  .badge.good    { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 16%, transparent); }
-  .badge.bad     { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 16%, transparent); }
-
-  .dot { width: 6px; height: 6px; border-radius: 999px; display: inline-block; flex-shrink: 0; }
-  .dot.violet { background: #9280ff; box-shadow: 0 0 0 3px color-mix(in oklab, #9280ff 25%, transparent); }
-  .dot.sky    { background: #6694f8; box-shadow: 0 0 0 3px color-mix(in oklab, #6694f8 25%, transparent); }
-  .dot.emerald{ background: #31c854; box-shadow: 0 0 0 3px color-mix(in oklab, #31c854 25%, transparent); }
-  .dot.rose   { background: #f86969; box-shadow: 0 0 0 3px color-mix(in oklab, #f86969 25%, transparent); }
-  .dot.amber  { background: #f59e0b; box-shadow: 0 0 0 3px color-mix(in oklab, #f59e0b 25%, transparent); }
-
-  .pagebar {
-    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-    padding: 0.75rem 0.25rem 0; color: var(--muted-foreground); font-size: var(--text-body-sm);
-  }
+  .badge { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .badge.action { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent); }
+  .badge.bad { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 16%, transparent); }
+  .pagebar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.25rem 0; color: var(--muted-foreground); font-size: var(--text-body-sm); }
   .pagebar .pager { display: flex; gap: 0.25rem; }
-  .pagebar .pager span {
-    display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem;
-    padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption);
-  }
-
-  /* empty state ────────────────────────────────────────────────────────── */
-  .empty {
-    display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1rem;
-    padding: 2.5rem; border: 1px dashed var(--border); border-radius: 0.75rem; color: var(--muted-foreground);
-  }
-  .empty .ic {
-    width: 3rem; height: 3rem; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;
-    background: color-mix(in oklab, var(--gray-700) 4%, transparent);
-    box-shadow: inset 0 0 0 1px var(--border); font-size: 1.1rem;
-  }
-
-  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 0.4rem 1rem; margin: 0; font-size: var(--text-body-sm); }
-  .kv dt { color: var(--muted-foreground); }
-  .kv dd { margin: 0; word-break: break-word; }
-
-  /* dashboard ──────────────────────────────────────────────────────────── */
+  .pagebar .pager span { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem; padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption); }
   .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
   .kpi { background: var(--muted); border-radius: 0.75rem; padding: 0.875rem 1rem; }
+  .kpi.alert { background: color-mix(in oklab, var(--negative) 6%, var(--muted)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 20%, transparent); }
   .kpi .k-label { color: var(--muted-foreground); font-size: var(--text-label); }
   .kpi .k-value { font-size: var(--text-heading); font-weight: 600; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
-  .kpi .k-delta { font-size: var(--text-caption); color: var(--positive); }
-  .kpi .k-delta.bad { color: var(--negative); }
-
-  .bars { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding: 0.5rem 0; }
-  .bars .bar { flex: 1; background: color-mix(in oklab, var(--primary) 55%, transparent); border-radius: 3px 3px 0 0; }
-
-  /* timeline ───────────────────────────────────────────────────────────── */
+  .kpi.alert .k-value { color: var(--negative); }
   .timeline { position: relative; margin: 0; padding: 0 0 0 1.25rem; list-style: none; }
   .timeline::before { content: ""; position: absolute; left: 3px; top: 4px; bottom: 4px; width: 1px; background: var(--border); }
   .tl-item { position: relative; padding: 0 0 1.1rem; }
   .tl-item::before { content: ""; position: absolute; left: -1.25rem; top: 5px; width: 7px; height: 7px; border-radius: 999px; background: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent); }
   .tl-time { color: var(--muted-foreground); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
   .tl-title { font-size: var(--text-body-sm); margin-top: 0.1rem; }
-  .tl-meta { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.15rem; }
-
   .breadcrumb { color: var(--muted-foreground); font-size: var(--text-body-sm); margin-bottom: 0.75rem; }
   .breadcrumb b { color: var(--foreground); font-weight: 500; }
-
   .scrollx { overflow-x: auto; }
   h3.sub { font-size: var(--text-heading-sm); font-weight: 600; margin: 1.5rem 0 0.5rem; }
+  .seg { display: inline-flex; padding: 2px; border-radius: 0.5rem; background: var(--muted); border: 1px solid var(--border); gap: 2px; }
+  .seg span { padding: 0.2rem 0.65rem; border-radius: 0.375rem; font-size: var(--text-label); color: var(--muted-foreground); }
+  .seg span.on { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+  .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+  .panel { border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.125rem; }
+  .panel h4 { margin: 0 0 0.75rem; font-size: var(--text-body-sm); font-weight: 600; }
+  .bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.625rem; }
+  .bars a { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.75rem; color: inherit; text-decoration: none; }
+  .bars .bar { grid-column: 1 / -1; height: 6px; border-radius: 999px; background: var(--muted); overflow: hidden; }
+  .bars .bar i { display: block; height: 100%; background: color-mix(in oklab, var(--negative) 70%, transparent); border-radius: 999px; }
+  .bars .n { font-variant-numeric: tabular-nums; font-weight: 500; }
+  .src { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .src:last-child { border-bottom: 0; }
+  .src .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .muted { color: var(--muted-foreground); }
+  .link { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: color-mix(in oklab, var(--primary) 40%, transparent); }
+  .empty { text-align: center; padding: 2.5rem 1rem; color: var(--muted-foreground); border: 1px dashed var(--border); border-radius: var(--radius); }
+  .empty b { display: block; color: var(--foreground); font-size: var(--text-body); margin-bottom: 0.25rem; }
+  .sheet { margin-left: auto; max-width: 420px; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; box-shadow: 0 12px 32px -12px rgba(0,0,0,0.25); }
+  .sheet h4 { margin: 0; font-size: var(--text-heading-sm); }
+  .sheet .desc { color: var(--muted-foreground); font-size: var(--text-label); margin: 0.25rem 0 1.25rem; }
+  .ann { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0.5rem 0 0; }
+  .ann li { margin: 0.2rem 0; }
+  .vchart { display: flex; align-items: flex-end; gap: 3px; height: 96px; padding: 0.5rem 0 0; border-bottom: 1px solid var(--border); }
+  .vchart a { flex: 1; background: color-mix(in oklab, var(--negative) 65%, transparent); border-radius: 2px 2px 0 0; min-height: 1px; }
+  .vchart a.zero { background: var(--border); }
+  .vaxis { display: flex; justify-content: space-between; color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.25rem; }
+
+  .badge.good { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 16%, transparent); }
+  .badge.warn { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 16%, transparent); }
+  .badge.info { color: var(--info); background-color: color-mix(in oklab, var(--info) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 16%, transparent); }
+  .kpi.warn { background: color-mix(in oklab, var(--warning) 6%, var(--muted)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 22%, transparent); }
+  .kpi.warn .k-value { color: var(--warning); }
+  .kpi .k-sub { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.1rem; }
+  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 0.4rem 1rem; margin: 0; font-size: var(--text-body-sm); }
+  .kv dt { color: var(--muted-foreground); }
+  .kv dd { margin: 0; word-break: break-word; }
+  .saved { margin-top: 1.25rem; border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; }
+  .saved .head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.75rem; background: var(--muted); font-size: var(--text-label); color: var(--secondary-foreground); }
+  .saved pre { margin: 0; padding: 0.75rem; font-size: var(--text-caption); overflow-x: auto; }
+  .saved .locked { padding: 0.75rem; color: var(--muted-foreground); font-size: var(--text-label); }
+  .variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1rem; align-items: start; }
+  .variants .sheet { margin: 0; max-width: none; }
+  .vlabel { font-size: var(--text-caption); color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 0.5rem; }
+  .bars .bar i.dup { background: color-mix(in oklab, var(--info) 65%, transparent); }
+  .pend { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .pend:last-child { border-bottom: 0; }
+  .pend .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .table .t-id { white-space: nowrap; }
+  .footnote { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.75rem; }
+  .wire td .lst { display: flex; flex-direction: column; gap: 0.15rem; }
+  .wire td .lst span { white-space: nowrap; }
+  .check { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 </style>
 </head>
 <body>
 <div class="shell">
   <nav class="sidebar">
-    <div class="brand"><span></span>Domain Events Console</div>
-
+    <div class="brand"><span></span>Observability</div>
     <div class="nav-group">
-      <div class="nav-group-title">Investigate</div>
-      <a class="nav-item active" href="#delivery-log">Delivery Log</a>
-      <a class="nav-item" href="#trace">Request / Job Trace</a>
-    </div>
-
-    <div class="nav-group">
-      <div class="nav-group-title">Insight</div>
-      <a class="nav-item" href="#event-catalog">Event Catalog</a>
-      <a class="nav-item" href="#listener-catalog">Listener Catalogue</a>
-      <a class="nav-item" href="#wiring-health">Wiring Health</a>
-      <a class="nav-item" href="#overview">Overview</a>
+      <div class="nav-group-title">Domain Events</div>
+      <a class="nav-item active" href="#overview">Overview</a>
+      <a class="nav-item" href="#deliveries">Deliveries</a>
+      <a class="nav-item" href="#wiring">Wiring</a>
+      <a class="nav-item" href="#volume">Volume &amp; Retention</a>
     </div>
   </nav>
 
@@ -299,383 +172,255 @@
     <div class="page-head">
       <h1 class="page-title">Domain Events — Admin Console</h1>
       <p class="page-sub">
-        Screen mocks for the <code>domain-events</code> module's admin surface, each mapped to the
-        endpoint that backs it. Every read is gated <code>@RequiresAction('domain-events.view')</code>;
-        there is no tenant scoping — <code>domain-events</code> has no <code>tenantId</code>.
+        Screen mocks for the <code>domain-events</code> module's admin surface. Every read is gated
+        <code>@RequiresAction('domain-events.view')</code> — a platform persona, not tenant-scoped: a delivery row has no
+        tenant (the payload isn't stored), and the wiring it shows is the whole app's.
       </p>
     </div>
 
-    <div class="note">
-      <div><b>Scope — delivery only, never a listener outcome.</b> Every screen here answers "did the
-      event fire, and was anyone listening" — never "what happened after." Whether a listener's own
-      handling then succeeded (the audit record actually wrote, the notification actually sent) is
-      that listener's own module's concern, surfaced in <code>audit-logging</code>'s and
-      <code>notification</code>'s own admin screens, not here.</div>
+    <div class="note warn">
+      <div><b>Why this console exists.</b> A domain event is invisible both when it works and when it's miswired. This is
+      where you see what fired and who was listening — and the three wiring bugs nothing else catches: an event
+      <b>firing into nothing</b>, a <b>critical listener raised with <code>emit()</code></b> (its failure silently
+      swallowed), and a <b>listener whose event never fires</b>.</div>
     </div>
 
-    <!-- ═══════════════ ENDPOINT COVERAGE MAP ═══════════════ -->
+    <div class="note">
+      <div><b>What a row is.</b> One <code>emit()</code> / <code>emitCritical()</code> call — <b>delivery only</b>: was
+      anyone subscribed, did the hand-off happen. Never what a listener then did (that's audit's or notification's own
+      log), and never the payload. Rows are buffered and written every 10 seconds. Every period is on when the event
+      <b>occurred</b>; the app keeps deliveries <b>90 days</b> (its prune).</div>
+    </div>
+
     <h3 class="sub">Endpoint coverage map</h3>
     <div class="scrollx">
     <table class="cov">
-      <thead>
-        <tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr>
-      </thead>
+      <thead><tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr></thead>
       <tbody>
-        <tr>
-          <td>Delivery Log</td>
-          <td><span class="endpoint"><span class="m">GET</span>/domain-events/deliveries</span></td>
-          <td><span class="status live">Live</span></td>
-          <td>All <code>DeliveryQuery</code> filters exposed as query params. Keyset pagination.</td>
-        </tr>
-        <tr>
-          <td>Request / Job Trace</td>
-          <td><span class="endpoint"><span class="m">GET</span>/domain-events/deliveries/trace/:correlationId</span></td>
-          <td><span class="status live">Live</span></td>
-          <td>Cross-module — joins the same id in <code>audit-logging.api</code> / <code>notification.api</code> / <code>background-jobs.api</code>. Requests <code>order: 'asc'</code> so the timeline below reads chronologically without a client-side reversal.</td>
-        </tr>
-        <tr>
-          <td>Event Catalog</td>
-          <td><span class="endpoint"><span class="m">GET</span>/domain-events/deliveries/catalog</span></td>
-          <td><span class="status live">Live</span></td>
-          <td>Per-event totals aggregated from the delivery log.</td>
-        </tr>
-        <tr>
-          <td>Listener Catalogue</td>
-          <td><span class="endpoint"><span class="m">GET</span>/domain-events/listener-catalog</span></td>
-          <td><span class="status live">Live</span></td>
-          <td>Live read of <code>@OnEvent()</code>/<code>@OnCriticalEvent()</code> decorator metadata — no database.</td>
-        </tr>
-        <tr>
-          <td>Wiring Health</td>
-          <td><span class="mono" style="color:var(--muted-foreground)">client-side join of the two above</span></td>
-          <td><span class="status live">Live</span></td>
-          <td>No new API — cross-references Event Catalog against Listener Catalogue in the browser.</td>
-        </tr>
-        <tr>
-          <td>Overview</td>
-          <td><span class="endpoint"><span class="m">GET</span>/domain-events/stats</span></td>
-          <td><span class="status live">Live</span></td>
-          <td>Aggregates: deliveries by day, top events, no-listener rate, dispatch-failed rate — over <code>?window=</code> (e.g. <code>7d</code>, <code>24h</code>; defaults to <code>7d</code>).</td>
-        </tr>
+        <tr><td>Overview — tiles</td><td><span class="endpoint"><span class="m">GET</span>/domain-events/deliveries/summary?since</span></td><td><span class="status live">Live</span></td><td>Deliveries, no listeners, dispatch failed, critical, event names.</td></tr>
+        <tr><td>Overview — busiest events</td><td><span class="endpoint"><span class="m">GET</span>/domain-events/deliveries/catalog?since</span></td><td><span class="status live">Live</span></td><td>Per event: total, emit vs emitCritical, no-listener / failed, last occurrence and its listener count.</td></tr>
+        <tr><td>Overview — wiring problems</td><td><span class="endpoint"><span class="m">GET</span>…/catalog</span> + <span class="endpoint"><span class="m">GET</span>/domain-events/listener-catalog</span></td><td><span class="status live">Live</span></td><td>The Wiring screen's three checks, counted.</td></tr>
+        <tr><td>Deliveries</td><td><span class="endpoint"><span class="m">GET</span>/domain-events/deliveries</span></td><td><span class="status live">Live</span></td><td>eventName, method, status, correlationId, since/until (≤ 90 days). <code>{ data, meta: { nextCursor } }</code> — no total count.</td></tr>
+        <tr><td>Trace sheet</td><td><span class="endpoint"><span class="m">GET</span>/domain-events/deliveries/trace/:correlationId</span></td><td><span class="status live">Live</span></td><td>Oldest first. Only from a delivery that has a correlation id.</td></tr>
+        <tr><td>Wiring</td><td><span class="endpoint"><span class="m">GET</span>…/catalog?since</span> + <span class="endpoint"><span class="m">GET</span>…/listener-catalog</span></td><td><span class="status live">Live</span></td><td>Joined in the browser: what fired × what the code says listens.</td></tr>
+        <tr><td>Volume &amp; Retention</td><td><span class="endpoint"><span class="m">GET</span>/domain-events/deliveries/volume?tz</span></td><td><span class="status live">Live</span></td><td>30 calendar days in the viewer's zone; oldest delivery, stored rows, table size.</td></tr>
       </tbody>
     </table>
     </div>
 
-    <!-- ═══════════════ 1 · DELIVERY LOG ═══════════════ -->
-    <section class="screen" id="delivery-log">
+    <!-- 1 · OVERVIEW -->
+    <section class="screen" id="overview">
       <div class="screen-head">
-        <h2 class="screen-name">Delivery Log</h2>
+        <h2 class="screen-name">Overview</h2>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">The landing screen — is anything firing into nothing, and is the wiring sound? A segment control picks the period; "Go to Deliveries", "Wiring" and "Volume &amp; Retention" sit in the page header.</p>
+      <p class="gating">Gate: <code>domain-events.view</code>. Calls <code>summary</code>, <code>catalog</code> (same <code>since</code>) and <code>listener-catalog</code>.</p>
+
+      <div class="filterbar">
+        <span class="seg"><span>Past 24 hours</span><span class="on">Past 7 days</span><span>Past 30 days</span></span>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi"><div class="k-label">Deliveries</div><div class="k-value"><a class="link" href="#deliveries">484</a></div><div class="k-sub">6 event names</div></div>
+        <div class="kpi warn"><div class="k-label">No listeners</div><div class="k-value"><a class="link" href="#deliveries">14</a></div><div class="k-sub">fired into nothing — a wiring gap</div></div>
+        <div class="kpi"><div class="k-label">Dispatch failed</div><div class="k-value"><a class="link" href="#deliveries">0</a></div><div class="k-sub">the transport itself broke</div></div>
+        <div class="kpi"><div class="k-label">Critical</div><div class="k-value"><a class="link" href="#deliveries">351</a></div><div class="k-sub">raised with emitCritical()</div></div>
+      </div>
+
+      <div class="panels">
+        <div class="panel">
+          <h4>Busiest events</h4>
+          <ul class="bars">
+            <li><a href="#deliveries"><span><code>audit.record_raised</code> <span class="muted">· critical · 1 listener</span></span><span class="n link">306</span><span class="bar"><i class="dup" style="width: 100%"></i></span></a></li>
+            <li><a href="#deliveries"><span><code>invoice.issued</code> <span class="muted">· 2 listeners</span></span><span class="n link">67</span><span class="bar"><i class="dup" style="width: 22%"></i></span></a></li>
+            <li><a href="#deliveries"><span><code>payment.captured</code> <span class="muted">· critical · 2 listeners</span></span><span class="n link">45</span><span class="bar"><i class="dup" style="width: 15%"></i></span></a></li>
+            <li><a href="#deliveries"><span><code>invoice.paid</code> <span class="muted">· 1 listener</span></span><span class="n link">45</span><span class="bar"><i class="dup" style="width: 15%"></i></span></a></li>
+            <li><a href="#deliveries"><span><code>customer.updated</code> <span class="badge warn">no listeners</span></span><span class="n link">14</span><span class="bar"><i class="dup" style="width: 5%"></i></span></a></li>
+            <li><a href="#deliveries"><span><code>payout.requested</code> <span class="muted">· 1 listener</span></span><span class="n link">7</span><span class="bar"><i class="dup" style="width: 2%"></i></span></a></li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h4>Wiring problems</h4>
+          <a class="pend" href="#wiring"><span>Fired into nothing</span><span class="badge warn">1 event</span>
+            <span class="meta"><code>customer.updated</code> · 14 times in the period</span></a>
+          <a class="pend" href="#wiring"><span>Critical listener, raised with <code>emit()</code></span><span class="badge bad">1 event</span>
+            <span class="meta"><code>payout.requested</code> → Treasury.approvePayout — its failures are swallowed</span></a>
+          <a class="pend" href="#wiring"><span>Listener never fires</span><span class="badge info">1 listener</span>
+            <span class="meta"><code>refund.issued</code> → Ledger.postRefund — nothing raised it in 90 days</span></a>
+        </div>
+      </div>
+      <p class="footnote">Oldest delivery kept: 24 Jul 14:39 — the 90-day prune is running.</p>
+
+      <ul class="ann">
+        <li>Every tile opens Deliveries filtered to exactly what it counted — the period plus <code>status</code> (No listeners, Dispatch failed) or <code>method=emitCritical</code> (Critical). An event row opens it filtered to that event.</li>
+        <li><b>No listeners</b> is amber when &gt; 0; <b>Dispatch failed</b> red when &gt; 0. A listener that throws is <i>not</i> a dispatch failure — the hand-off happened; that failure is the listener's own module's to report.</li>
+        <li><b>Wiring problems</b> counts the Wiring screen's three checks for the period (never-fires looks at everything retained); each row opens Wiring. "Critical listener, raised with emit()" is red: a failure the producer meant to hear about goes nowhere.</li>
+        <li>Lists are table cards with their title in an <code>lg</code> header, scrolling after 5 rows (<code>visibleRows</code>). Times are the viewer's local time.</li>
+      </ul>
+
+      <h3 class="sub">Empty state</h3>
+      <div class="empty"><b>No events in the past 7 days</b>Nothing was emitted — try a longer period.</div>
+    </section>
+
+    <!-- 2 · DELIVERIES -->
+    <section class="screen" id="deliveries">
+      <div class="screen-head">
+        <h2 class="screen-name">Deliveries</h2>
         <span class="endpoint"><span class="m">GET</span>/domain-events/deliveries</span>
         <span class="status live">Live</span>
       </div>
-      <p class="screen-purpose">The primary filterable feed — every <code>emit()</code>/<code>emitCritical()</code> call, newest first, keyset-paginated. One row per emission, not per listener.</p>
+      <p class="screen-purpose">Every emit, newest first — "did <code>payment.captured</code> fire for this checkout, and was anyone listening?"</p>
       <p class="gating">Gate: <code>domain-events.view</code>. No tenant scoping.</p>
 
       <div class="filterbar">
         <span class="field"><span class="lbl">Event</span><span class="val">any</span></span>
-        <span class="field"><span class="lbl">Method</span><span class="val">any</span></span>
-        <span class="field"><span class="lbl">Status</span><span class="val">any</span></span>
-        <span class="field"><span class="lbl">Correlation id</span><span class="val">—</span></span>
+        <span class="field"><span class="lbl">Raised with</span><span class="val">any</span></span>
+        <span class="field"><span class="lbl">Status</span><span class="val">no listeners</span></span>
+        <span class="field"><span class="lbl">Correlation ID</span><span class="val">any</span></span>
+        <span class="field"><span class="lbl">Occurred</span><span class="val">Past 7 days</span></span>
         <button class="btn-secondary" type="button">Reset</button>
-        <button class="btn" type="button">Apply</button>
       </div>
 
       <div class="scrollx">
       <table class="table">
-        <thead>
-          <tr>
-            <th>Delivered at</th>
-            <th>Event</th>
-            <th>Method</th>
-            <th>Transport</th>
-            <th>Listeners</th>
-            <th>Status</th>
-            <th>Correlation</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Occurred</th><th>Event</th><th>Raised with</th><th class="t-num">Listeners</th><th>Status</th><th>Correlation</th></tr></thead>
         <tbody>
-          <tr>
-            <td class="t-time">2026-09-12 09:41:02.481</td>
-            <td><span class="badge action">invoice.sent</span></td>
-            <td>emit</td>
-            <td>in-process</td>
-            <td class="t-num">2</td>
-            <td><span class="badge good">delivered</span></td>
-            <td class="t-id">c: 5b9e…a1</td>
-          </tr>
-          <tr>
-            <td class="t-time">2026-09-12 09:40:58.110</td>
-            <td><span class="badge action">audit.record_raised</span></td>
-            <td>emitCritical</td>
-            <td>in-process</td>
-            <td class="t-num">1</td>
-            <td><span class="badge good">delivered</span></td>
-            <td class="t-id">c: 5b9e…a1</td>
-          </tr>
-          <tr>
-            <td class="t-time">2026-09-12 09:22:14.902</td>
-            <td><span class="badge action">payout.reversed</span></td>
-            <td>emit</td>
-            <td>in-process</td>
-            <td class="t-num">0</td>
-            <td><span class="badge warn">no_listeners</span></td>
-            <td class="t-id">—</td>
-          </tr>
-          <tr>
-            <td class="t-time">2026-09-12 08:55:03.220</td>
-            <td><span class="badge action">invoice.voided</span></td>
-            <td>emitCritical</td>
-            <td>in-process</td>
-            <td class="t-num">1</td>
-            <td><span class="badge bad">dispatch_failed</span></td>
-            <td class="t-id">c: 71a2…9c</td>
-          </tr>
+          <tr><td class="t-time">22 Oct 17:24</td><td><span class="badge action">payment.captured</span></td><td><span class="badge info">critical</span></td><td class="t-num">2</td><td><span class="badge good">delivered</span></td><td><a class="t-id link" href="#trace">c0f1…7e</a></td></tr>
+          <tr><td class="t-time">22 Oct 17:24</td><td><span class="badge action">invoice.paid</span></td><td class="muted">emit</td><td class="t-num">1</td><td><span class="badge good">delivered</span></td><td><a class="t-id link" href="#trace">c0f1…7e</a></td></tr>
+          <tr><td class="t-time">22 Oct 16:02</td><td><span class="badge action">customer.updated</span></td><td class="muted">emit</td><td class="t-num muted">0</td><td><span class="badge warn">no listeners</span></td><td><a class="t-id link" href="#trace">9a3d…11</a></td></tr>
+          <tr><td class="t-time">22 Oct 15:48</td><td><span class="badge action">audit.record_raised</span></td><td><span class="badge info">critical</span></td><td class="t-num">1</td><td><span class="badge good">delivered</span></td><td class="muted">—</td></tr>
+          <tr><td class="t-time">22 Oct 11:30</td><td><span class="badge action">payout.requested</span></td><td class="muted">emit</td><td class="t-num">1</td><td><span class="badge good">delivered</span></td><td><a class="t-id link" href="#trace">4be2…0d</a></td></tr>
         </tbody>
       </table>
       </div>
 
       <div class="pagebar">
-        <span>Showing 4 of ~9,840 · page size 50</span>
+        <span>50 per page</span>
         <span class="pager"><span>Newer</span><span>Older</span></span>
       </div>
 
-      <div class="note">
-        <div><b>Reading "dispatch_failed."</b> This means the transport itself broke before reaching
-        any listener — genuinely rare. A listener rejecting (e.g. an <code>@OnCriticalEvent()</code>
-        audit listener throwing) is <em>not</em> shown as a failure here — that row still reads
-        <span class="badge good">delivered</span>, because the hand-off did happen. The listener's own
-        outcome is tracked in that listener's own module.</div>
-      </div>
+      <ul class="ann">
+        <li><b>Raised with</b> — <code>emitCritical()</code> as a "critical" badge (the producer waited on its listeners), <code>emit()</code> muted. <b>Listeners</b> is how many were subscribed at that moment; muted at 0.</li>
+        <li><b>Status</b>: delivered (green), no listeners (amber), dispatch failed (red, with its reason on hover).</li>
+        <li>An event name filters to it; the correlation id opens the Trace sheet (no link when there's none — audit's own deliveries carry none: audit passes its id through AsyncLocalStorage, not <code>emit()</code>'s third argument).</li>
+        <li>Recent (no filters) and Advanced Filter — event (a select fed by the catalog), raised with, status, correlation id, and a required range up to 90 days. The Overview's links land here pre-filtered. No "of N" total: the list pages by cursor.</li>
+      </ul>
+
+      <h3 class="sub">Empty state</h3>
+      <div class="empty"><b>No deliveries match</b>Widen the range or clear a filter.</div>
     </section>
 
-    <!-- ═══════════════ 2 · REQUEST / JOB TRACE ═══════════════ -->
+    <!-- 3 · TRACE SHEET -->
     <section class="screen" id="trace">
       <div class="screen-head">
-        <h2 class="screen-name">Request / Job Trace</h2>
+        <h2 class="screen-name">Trace sheet</h2>
         <span class="endpoint"><span class="m">GET</span>/domain-events/deliveries/trace/:correlationId</span>
         <span class="status live">Live</span>
       </div>
-      <p class="breadcrumb">correlation <b>5b9e1c04-…-a1</b></p>
-      <p class="screen-purpose">Every event delivery raised under one correlation id — one HTTP request or one background job run. Cross-references the same id in <code>audit-logging.api</code>'s and <code>notification.api</code>'s own trace endpoints.</p>
-      <p class="gating">Gate: <code>domain-events.view</code>.</p>
+      <p class="screen-purpose">Opened from a correlation id in Deliveries — every event one request or job raised, in order.</p>
 
-      <ul class="timeline">
-        <li class="tl-item">
-          <div class="tl-time">09:41:02.201</div>
-          <div class="tl-title"><span class="dot sky"></span> &nbsp;<span class="badge action">payment.settled</span> &nbsp;emitCritical &nbsp;·&nbsp; 1 listener</div>
-          <div class="tl-meta">delivered</div>
-        </li>
-        <li class="tl-item">
-          <div class="tl-time">09:41:02.481</div>
-          <div class="tl-title"><span class="dot violet"></span> &nbsp;<span class="badge action">invoice.status_changed</span> &nbsp;emit &nbsp;·&nbsp; 2 listeners</div>
-          <div class="tl-meta">delivered</div>
-        </li>
-        <li class="tl-item">
-          <div class="tl-time">09:41:02.630</div>
-          <div class="tl-title"><span class="dot emerald"></span> &nbsp;<span class="badge action">notification.queued</span> &nbsp;emit &nbsp;·&nbsp; 1 listener</div>
-          <div class="tl-meta">delivered</div>
-        </li>
+      <div class="sheet">
+        <h4>Request trace</h4>
+        <p class="desc">Correlation: <span class="mono">c0f1a2b9-…-7e</span> (click to copy)</p>
+        <ol class="timeline">
+          <li class="tl-item"><div class="tl-time">22 Oct 17:24:08</div>
+            <div class="tl-title"><span class="badge action">payment.captured</span> <span class="badge info">critical</span> <span class="badge good">delivered</span></div>
+            <div class="tl-time">2 listeners</div></li>
+          <li class="tl-item"><div class="tl-time">22 Oct 17:24:08</div>
+            <div class="tl-title"><span class="badge action">invoice.paid</span> <span class="badge good">delivered</span></div>
+            <div class="tl-time">1 listener</div></li>
+        </ol>
+      </div>
+
+      <ul class="ann">
+        <li>Oldest first — a request reads top to bottom. A checkout shows its two events; most traces are one.</li>
+        <li>Read-only, no links out — the id only copies, so no sheet opens on top of it. Pages by cursor ("Load more").</li>
       </ul>
-
-      <div class="note">
-        <div><b>Cross-reference.</b> The same correlation id resolves in <code>audit-logging.api</code>
-        (audit trail), <code>notification.api</code> (delivery log), and <code>background-jobs.api</code>
-        (job runs). A future unified "trace" screen could stitch all four — noted here, owned by
-        whichever console hosts it.</div>
-      </div>
     </section>
 
-    <!-- ═══════════════ 3 · EVENT CATALOG ═══════════════ -->
-    <section class="screen" id="event-catalog">
+    <!-- 4 · WIRING -->
+    <section class="screen" id="wiring">
       <div class="screen-head">
-        <h2 class="screen-name">Event Catalog</h2>
-        <span class="endpoint"><span class="m">GET</span>/domain-events/deliveries/catalog</span>
+        <h2 class="screen-name">Wiring</h2>
+        <span class="endpoint"><span class="m">GET</span>…/catalog</span>
+        <span class="endpoint"><span class="m">GET</span>…/listener-catalog</span>
         <span class="status live">Live</span>
       </div>
-      <p class="screen-purpose">"What events actually fire" — one row per event name that has ever been delivered, aggregated from the delivery log. The direct answer to "what's generated."</p>
-      <p class="gating">Gate: <code>domain-events.view</code>.</p>
+      <p class="screen-purpose">What fired, against what the code says should listen — one row per event name in either. Replaces the old Event Catalog, Listener Catalogue and Wiring Health screens.</p>
+      <p class="gating">Gate: <code>domain-events.view</code>. The listener catalogue is a live read of this process's <code>@OnEvent()</code> / <code>@OnCriticalEvent()</code> decorators.</p>
+
+      <div class="filterbar">
+        <span class="seg"><span>Past 7 days</span><span>Past 30 days</span><span class="on">All retained</span></span>
+        <span class="seg"><span class="on">All events</span><span>Problems only</span></span>
+      </div>
 
       <div class="scrollx">
-      <table class="table">
-        <thead>
-          <tr><th>Event</th><th>Total deliveries</th><th>No-listener</th><th>Dispatch failed</th><th>Last delivered</th></tr>
-        </thead>
+      <table class="table wire">
+        <thead><tr><th>Event</th><th class="t-num">Fired</th><th>Raised with</th><th>Listeners</th><th>Check</th><th>Last</th></tr></thead>
         <tbody>
-          <tr>
-            <td><span class="badge action">invoice.sent</span></td>
-            <td class="t-num">4,102</td>
-            <td class="t-num">0</td>
-            <td class="t-num">0</td>
-            <td class="t-time">2026-09-12 09:41:02</td>
-          </tr>
-          <tr>
-            <td><span class="badge action">audit.record_raised</span></td>
-            <td class="t-num">9,840</td>
-            <td class="t-num">0</td>
-            <td class="t-num">1</td>
-            <td class="t-time">2026-09-12 09:40:58</td>
-          </tr>
-          <tr>
-            <td><span class="badge action">payout.reversed</span></td>
-            <td class="t-num">18</td>
-            <td class="t-num"><span class="badge warn">18</span></td>
-            <td class="t-num">0</td>
-            <td class="t-time">2026-09-12 09:22:14</td>
-          </tr>
+          <tr><td><a class="badge action" href="#deliveries">payout.requested</a></td><td class="t-num">81</td><td>emit 81</td>
+            <td><div class="lst"><span>Treasury.approvePayout <span class="badge info">critical</span></span></div></td>
+            <td><div class="check"><span class="badge bad">critical listener, raised with emit()</span></div></td><td class="t-time">22 Oct 11:30</td></tr>
+          <tr><td><a class="badge action" href="#deliveries">customer.updated</a></td><td class="t-num">168</td><td>emit 168</td>
+            <td class="muted">none</td>
+            <td><div class="check"><span class="badge warn">fires into nothing</span></div></td><td class="t-time">22 Oct 16:02</td></tr>
+          <tr><td><span class="badge action">refund.issued</span></td><td class="t-num muted">0</td><td class="muted">—</td>
+            <td><div class="lst"><span>Ledger.postRefund <span class="badge info">critical</span></span></div></td>
+            <td><div class="check"><span class="badge info">never fires</span></div></td><td class="muted">—</td></tr>
+          <tr><td><a class="badge action" href="#deliveries">audit.record_raised</a></td><td class="t-num">3,810</td><td>critical 3,810</td>
+            <td><div class="lst"><span>AuditListener.handle <span class="badge info">critical</span></span></div></td>
+            <td><span class="badge good">ok</span></td><td class="t-time">22 Oct 15:48</td></tr>
+          <tr><td><a class="badge action" href="#deliveries">payment.captured</a></td><td class="t-num">554</td><td>critical 554</td>
+            <td><div class="lst"><span>Ledger.postPayment <span class="badge info">critical</span></span><span>ReceiptMailer.sendReceipt</span></div></td>
+            <td><span class="badge good">ok</span></td><td class="t-time">22 Oct 17:24</td></tr>
+          <tr><td><a class="badge action" href="#deliveries">invoice.issued</a></td><td class="t-num">831</td><td>emit 831</td>
+            <td><div class="lst"><span>InvoiceMailer.sendInvoice</span><span>CustomerPortal.publishInvoice</span></div></td>
+            <td><span class="badge good">ok</span></td><td class="t-time">22 Oct 17:10</td></tr>
         </tbody>
       </table>
       </div>
+
+      <ul class="ann">
+        <li><b>Critical listener, raised with emit()</b> (red) — the event has an <code>@OnCriticalEvent()</code> listener but some producer raised it with <code>emit()</code> in the period: that listener's failure is swallowed. Fix the producer (use <code>emitCritical()</code>).</li>
+        <li><b>Fires into nothing</b> (amber) — fired, and no listener is wired in the code (its deliveries are <code>no_listeners</code>). A typo in a listener's event name, or a subscriber never built.</li>
+        <li><b>Never fires</b> (blue) — a listener is wired, but nothing raised the event in the period. Dead code, or a producer-side typo. Judged on everything retained by default — a shorter period can be a quiet week.</li>
+        <li>Problems sort first. An event name with deliveries opens Deliveries filtered to it. The listener catalogue only sees this process: listeners in another service (a future broker transport) don't appear.</li>
+      </ul>
     </section>
 
-    <!-- ═══════════════ 4 · LISTENER CATALOGUE ═══════════════ -->
-    <section class="screen" id="listener-catalog">
+    <!-- 5 · VOLUME & RETENTION -->
+    <section class="screen" id="volume">
       <div class="screen-head">
-        <h2 class="screen-name">Listener Catalogue</h2>
-        <span class="endpoint"><span class="m">GET</span>/domain-events/listener-catalog</span>
+        <h2 class="screen-name">Volume &amp; Retention</h2>
+        <span class="endpoint"><span class="m">GET</span>/domain-events/deliveries/volume?tz</span>
         <span class="status live">Live</span>
       </div>
-      <p class="screen-purpose">"What the code says should be listening" — every <code>@OnEvent()</code>/<code>@OnCriticalEvent()</code> binding discovered live in the running app, independent of whether the event has ever actually fired. No database behind this read.</p>
-      <p class="gating">Gate: <code>domain-events.view</code>. In-process transport only — a broker's listeners live in other services and aren't discoverable this way.</p>
-
-      <div class="scrollx">
-      <table class="table">
-        <thead>
-          <tr><th>Event</th><th>Listener class</th><th>Method</th><th>Critical</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><span class="badge action">invoice.sent</span></td>
-            <td class="mono">InvoiceNotificationListener</td>
-            <td class="mono">onInvoiceSent</td>
-            <td><span class="badge">no</span></td>
-          </tr>
-          <tr>
-            <td><span class="badge action">invoice.sent</span></td>
-            <td class="mono">InvoiceAuditListener</td>
-            <td class="mono">onInvoiceSent</td>
-            <td><span class="badge warn">yes</span></td>
-          </tr>
-          <tr>
-            <td><span class="badge action">audit.record_raised</span></td>
-            <td class="mono">AuditListener</td>
-            <td class="mono">onAuditRecordRaised</td>
-            <td><span class="badge warn">yes</span></td>
-          </tr>
-          <tr>
-            <td><span class="badge action">invoice.voided</span></td>
-            <td class="mono">InvoiceAuditListener</td>
-            <td class="mono">onInvoiceReversed</td>
-            <td><span class="badge">no</span></td>
-          </tr>
-        </tbody>
-      </table>
-      </div>
-    </section>
-
-    <!-- ═══════════════ 5 · WIRING HEALTH (client-side join) ═══════════════ -->
-    <section class="screen" id="wiring-health">
-      <div class="screen-head">
-        <h2 class="screen-name">Wiring Health</h2>
-        <span class="mono" style="color:var(--muted-foreground);font-size:var(--text-caption)">client-side join of Event Catalog + Listener Catalogue</span>
-        <span class="status live">Live</span>
-      </div>
-      <p class="screen-purpose">Cross-references what the code says should listen against what has actually fired, catching two different bugs neither endpoint surfaces alone.</p>
-      <p class="gating">Gate: <code>domain-events.view</code> (both underlying reads). No new API — a browser-side join of two already-Live endpoints.</p>
-
-      <div class="scrollx">
-      <table class="table">
-        <thead>
-          <tr><th>Event</th><th>Registered listeners</th><th>Ever delivered</th><th>Assessment</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><span class="badge action">invoice.sent</span></td>
-            <td class="t-num">2</td>
-            <td class="t-num">4,102</td>
-            <td><span class="badge good">healthy</span></td>
-          </tr>
-          <tr>
-            <td><span class="badge action">payout.reversed</span></td>
-            <td class="t-num">0</td>
-            <td class="t-num">18</td>
-            <td><span class="badge warn">no listener registered</span> — matches the delivery log's own <code>no_listeners</code> rows</td>
-          </tr>
-          <tr>
-            <td><span class="badge action">invoice.refunded</span></td>
-            <td class="t-num">1</td>
-            <td class="t-num">0</td>
-            <td><span class="badge warn">never fired</span> — a listener exists for an event nobody raises (dead code, or a producer-side typo)</td>
-          </tr>
-        </tbody>
-      </table>
-      </div>
-    </section>
-
-    <!-- ═══════════════ 6 · OVERVIEW ═══════════════ -->
-    <section class="screen" id="overview">
-      <div class="screen-head">
-        <h2 class="screen-name">Overview</h2>
-        <span class="endpoint"><span class="m">GET</span>/domain-events/stats</span>
-        <span class="status live">Live</span>
-      </div>
-      <p class="screen-purpose">The landing dashboard — delivery volume and shape at a glance, so an operator notices "an event stopped firing" or "no-listener rate spiked" without running a query.</p>
-      <p class="gating">Gate: <code>domain-events.view</code>.</p>
-
-      <div class="note">
-        <div><b><span class="sig">GET /domain-events/stats?window=7d</span></b> →
-        <code>{ perDay[], topEvents[], noListenerRate, dispatchFailedRate }</code>, computed with
-        <code>GROUP BY date_trunc('day', delivered_at)</code> over <code>commons_domain_events_delivery</code>.
-        <code>window</code> accepts <code>Nd</code> / <code>Nh</code> (e.g. <code>30d</code>, <code>24h</code>) and defaults to <code>7d</code> when omitted or malformed.</div>
-      </div>
+      <p class="screen-purpose">How much the log holds and how far back — opened from the Overview's header, like rate-limiting's.</p>
 
       <div class="kpi-row">
-        <div class="kpi"><div class="k-label">Deliveries today</div><div class="k-value">2,240</div><div class="k-delta">+4% vs. yest.</div></div>
-        <div class="kpi"><div class="k-label">Deliveries (7d)</div><div class="k-value">15,608</div></div>
-        <div class="kpi"><div class="k-label">No-listener rate (7d)</div><div class="k-value">0.4%</div></div>
-        <div class="kpi"><div class="k-label">Dispatch failures (7d)</div><div class="k-value">1</div><div class="k-delta bad">watch</div></div>
+        <div class="kpi"><div class="k-label">Oldest delivery</div><div class="k-value">24 Jul</div><div class="k-sub">what the last prune left</div></div>
+        <div class="kpi"><div class="k-label">Stored deliveries</div><div class="k-value">5,998</div><div class="k-sub">this application</div></div>
+        <div class="kpi"><div class="k-label">Table size</div><div class="k-value">3.1 MB</div><div class="k-sub">every application sharing it</div></div>
+        <div class="kpi"><div class="k-label">Retention</div><div class="k-value">Set by the app</div><div class="k-sub">it calls <code>pruneDeliveries()</code></div></div>
       </div>
 
-      <h3 class="sub">Deliveries by day (14d)</h3>
-      <div class="bars">
-        <div class="bar" style="height:40%"></div><div class="bar" style="height:55%"></div>
-        <div class="bar" style="height:48%"></div><div class="bar" style="height:70%"></div>
-        <div class="bar" style="height:62%"></div><div class="bar" style="height:38%"></div>
-        <div class="bar" style="height:20%"></div><div class="bar" style="height:52%"></div>
-        <div class="bar" style="height:66%"></div><div class="bar" style="height:80%"></div>
-        <div class="bar" style="height:74%"></div><div class="bar" style="height:58%"></div>
-        <div class="bar" style="height:44%"></div><div class="bar" style="height:90%"></div>
-      </div>
-
-      <h3 class="sub">Top events (7d)</h3>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Event</th><th>Deliveries</th><th>No-listener</th></tr></thead>
-        <tbody>
-          <tr><td><span class="badge action">audit.record_raised</span></td><td class="t-num">9,840</td><td class="t-num">0</td></tr>
-          <tr><td><span class="badge action">invoice.sent</span></td><td class="t-num">4,102</td><td class="t-num">0</td></tr>
-          <tr><td><span class="badge action">notification.queued</span></td><td class="t-num">1,648</td><td class="t-num">0</td></tr>
-          <tr><td><span class="badge action">payout.reversed</span></td><td class="t-num">18</td><td class="t-num">18</td></tr>
-        </tbody>
-      </table>
-      </div>
-    </section>
-
-    <!-- ═══════════════ EMPTY STATE (variant) ═══════════════ -->
-    <section class="screen">
-      <div class="screen-head">
-        <h2 class="screen-name">Delivery Log — empty state</h2>
-        <span class="endpoint"><span class="m">GET</span>/domain-events/deliveries</span>
-        <span class="status live">Live</span>
-      </div>
-      <p class="screen-purpose">Shown when a filter combination matches nothing — distinct from "no events have ever fired".</p>
-      <div class="empty">
-        <div class="ic">🔍</div>
-        <div>
-          <div style="color:var(--foreground);font-weight:500">No deliveries match these filters</div>
-          <div>Try widening the date range or clearing the event filter.</div>
+      <div class="panel">
+        <h4>Deliveries per day — past 30 days</h4>
+        <div class="vchart">
+          <a style="height:62%"></a><a style="height:70%"></a><a style="height:22%"></a><a style="height:18%"></a><a style="height:66%"></a><a style="height:74%"></a><a style="height:69%"></a>
+          <a style="height:64%"></a><a style="height:71%"></a><a style="height:20%"></a><a style="height:17%"></a><a style="height:68%"></a><a style="height:80%"></a><a style="height:72%"></a>
+          <a style="height:66%"></a><a style="height:75%"></a><a style="height:21%"></a><a style="height:19%"></a><a style="height:63%"></a><a style="height:77%"></a><a style="height:70%"></a>
+          <a style="height:67%"></a><a style="height:73%"></a><a style="height:23%"></a><a style="height:16%"></a><a style="height:69%"></a><a style="height:76%"></a><a style="height:71%"></a>
+          <a style="height:65%"></a><a style="height:55%"></a>
         </div>
-        <button class="btn-secondary" type="button">Clear filters</button>
+        <div class="vaxis"><span>23 Sep</span><span>22 Oct</span></div>
       </div>
+
+      <ul class="ann">
+        <li>Whole calendar days in the viewer's zone (<code>?tz</code>), zero-filled. A bar opens Deliveries for that day; its tooltip carries the no-listener and failed counts.</li>
+        <li>Retention is the app's: the module never prunes on its own. The oldest delivery shows the prune is running; the sandbox keeps 90 days.</li>
+      </ul>
     </section>
 
   </main>
