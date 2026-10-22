@@ -132,6 +132,32 @@ describe('PostgresEventDeliveryRecorder', () => {
     expect(params).not.toContain('x'.repeat(129));
   });
 
+  it('a malformed delivery costs only itself — never the batch it lands in', async () => {
+    const db = fakeDb();
+    const r = recorder(db);
+    const recordedFrom = Date.now();
+    await r.recordDelivery(attempt({ eventName: 'good' }));
+    // Through JSON, occurredAt is a string; a hand-built event may have none; an error message may carry a NUL.
+    await r.recordDelivery(attempt({ eventName: 'json', occurredAt: '2026-01-03T10:00:00.000Z' as unknown as Date }));
+    await r.recordDelivery(attempt({ eventName: 'none', occurredAt: undefined as unknown as Date }));
+    await r.recordDelivery(attempt({ eventName: 'invalid', occurredAt: new Date('nope') }));
+    await r.recordDelivery(attempt({ eventName: 'nul\u0000name', status: 'dispatch_failed', reason: 'boom\u0000' }));
+    await r.flush();
+
+    const { params } = rendered(db);
+    expect(params).not.toContain(undefined);
+    for (const p of params) {
+      if (p instanceof Date) expect(Number.isNaN(p.getTime())).toBe(false);
+      if (typeof p === 'string') expect(p).not.toContain('\u0000');
+    }
+    expect(params).toContainEqual(new Date('2026-01-03T10:00:00.000Z'));
+    expect(params).toEqual(expect.arrayContaining(['good', 'json', 'none', 'invalid', 'nulname', 'boom']));
+    // A missing or invalid occurredAt falls back to when it was recorded.
+    const dates = params.filter((p): p is Date => p instanceof Date);
+    expect(dates.every((d) => d.getTime() >= new Date('2026-01-03T10:00:00.000Z').getTime())).toBe(true);
+    expect(dates.filter((d) => d.getTime() >= recordedFrom).length).toBeGreaterThanOrEqual(7);
+  });
+
   it('writes in chunks of 1,000 rows — under the 65,535-parameter cap', async () => {
     const db = fakeDb();
     const r = recorder(db, 'ascendra-pay', { maxBufferedRows: 5_000 });
