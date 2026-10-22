@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { JobsApiService } from './jobs-api.service';
 import {
+  InvalidJobRunCursorError,
   IdempotentJobRunner,
   JobTrigger,
   ScheduledJobRegistry,
@@ -18,8 +20,13 @@ function deps() {
     getRunHistory: vi.fn().mockResolvedValue({ runs: [] }),
     getRun: vi.fn().mockResolvedValue(null),
     getFailedItems: vi.fn().mockResolvedValue([]),
+    runSummary: vi.fn().mockResolvedValue({}),
+    volume: vi.fn().mockResolvedValue({}),
   };
-  const jobTrigger = { trigger: vi.fn().mockResolvedValue({ status: 'completed', itemsDue: 1, itemsProcessed: 1, itemsFailed: 0, failedItemRefs: [] }) } as unknown as JobTrigger;
+  const jobTrigger = {
+    trigger: vi.fn().mockResolvedValue({ status: 'completed', itemsDue: 1, itemsProcessed: 1, itemsFailed: 0, failedItemRefs: [] }),
+    availableJobs: vi.fn().mockReturnValue([]),
+  } as unknown as JobTrigger;
   const audit: JobAuditEmitter = { record: vi.fn() };
   return { observability, jobTrigger, audit, svc: new JobsApiService(observability, jobTrigger, audit) };
 }
@@ -41,10 +48,67 @@ describe('JobsApiService', () => {
     );
   });
 
-  it('getTrace folds correlationId into the query', async () => {
+  it('getTrace folds correlationId into the query and reads oldest first', async () => {
     const { svc, observability } = deps();
-    await svc.getTrace('trace-9', {});
-    expect(observability.getRunHistory).toHaveBeenCalledWith(expect.objectContaining({ correlationId: 'trace-9' }));
+    await svc.getTrace('trace-9', { order: 'desc' });
+    expect(observability.getRunHistory).toHaveBeenCalledWith(expect.objectContaining({ correlationId: 'trace-9', order: 'asc' }));
+  });
+
+  it('parses hasFailedItems and passes the enums through', async () => {
+    const { svc, observability } = deps();
+    await svc.getRunHistory({ outcome: 'job_failed', trigger: 'manual', hasFailedItems: 'false', order: 'asc' });
+    expect(observability.getRunHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'job_failed', trigger: 'manual', hasFailedItems: false, order: 'asc' }),
+    );
+  });
+
+  it.each([
+    ['since', { since: 'yesterday' }],
+    ['until', { until: 'nope' }],
+    ['limit', { limit: Number.NaN }],
+    ['limit', { limit: 0 }],
+    ['outcome', { outcome: 'failed' }],
+    ['trigger', { trigger: 'cron' }],
+    ['order', { order: 'up' }],
+    ['hasFailedItems', { hasFailedItems: 'yes' }],
+    ['jobName', { jobName: 'a\u0000b' }],
+    ['correlationId', { correlationId: 'a\u0000b' }],
+  ])('a bad %s is a 400, before any query', async (_name, query) => {
+    const { svc, observability } = deps();
+    await expect(svc.getRunHistory(query)).rejects.toBeInstanceOf(BadRequestException);
+    expect(observability.getRunHistory).not.toHaveBeenCalled();
+  });
+
+  it('a cursor the reader rejects is a 400', async () => {
+    const { svc, observability } = deps();
+    (observability.getRunHistory as ReturnType<typeof vi.fn>).mockRejectedValue(new InvalidJobRunCursorError('x'));
+    await expect(svc.getRunHistory({ cursor: 'junk' })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('summary parses since; volume checks the time zone', async () => {
+    const { svc, observability } = deps();
+    await svc.runSummary('2026-06-01T00:00:00Z');
+    expect(observability.runSummary).toHaveBeenCalledWith({ since: new Date('2026-06-01T00:00:00Z') });
+    await expect(() => svc.runSummary('soon')).toThrow(BadRequestException);
+    await svc.volume('Asia/Dubai');
+    expect(observability.volume).toHaveBeenCalledWith('Asia/Dubai');
+    expect(() => svc.volume('Mars/Olympus')).toThrow(BadRequestException);
+  });
+
+  it('the dashboard adds registered jobs that never ran, and flags which can be triggered', async () => {
+    const { svc, observability, jobTrigger } = deps();
+    (observability.listJobStatus as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { name: 'b-ran', lastRun: {}, overdue: false, consecutiveFailures: 0 },
+      { name: 'c-declared', lastRun: null, overdue: true, consecutiveFailures: 0 },
+    ]);
+    (jobTrigger.availableJobs as ReturnType<typeof vi.fn>).mockReturnValue(['b-ran', 'a-new']);
+    const rows = await svc.listJobStatus();
+    expect(rows.map((r) => [r.name, r.triggerable])).toEqual([
+      ['a-new', true],
+      ['b-ran', true],
+      ['c-declared', false],
+    ]);
+    expect(rows[0]).toMatchObject({ lastRun: null, cadence: null, overdue: false });
   });
 
   it('trigger calls JobTrigger and emits an audit event', async () => {
@@ -72,13 +136,39 @@ describe('JobsApiService', () => {
 
   it('getRun throws NotFoundException when the port returns null', async () => {
     const { svc } = deps();
-    await expect(svc.getRun('missing')).rejects.toThrow('Not Found');
+    await expect(svc.getRun('missing')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('getRun with a NUL in the id is a 400', async () => {
+    const { svc } = deps();
+    await expect(svc.getRun('1\u0000')).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('getFailedItems passes jobName and minRuns straight through', async () => {
     const { svc, observability } = deps();
     await svc.getFailedItems('payout-sweep', 3);
     expect(observability.getFailedItems).toHaveBeenCalledWith('payout-sweep', 3);
+  });
+
+  it('getFailedItems with a bad minRuns is a 400', async () => {
+    const { svc } = deps();
+    expect(() => svc.getFailedItems('payout-sweep', Number.NaN)).toThrow(BadRequestException);
+    expect(() => svc.getFailedItems('payout-sweep', -1)).toThrow(BadRequestException);
+  });
+
+  it('an unknown job is a 404 and a running one a 409 — both still audited', async () => {
+    const { svc, jobTrigger, audit } = deps();
+    (jobTrigger.trigger as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ status: 'unknown_job' });
+    await expect(svc.trigger(actor, 'nope')).rejects.toBeInstanceOf(NotFoundException);
+    (jobTrigger.trigger as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ status: 'already_running' });
+    await expect(svc.trigger(actor, 'busy')).rejects.toBeInstanceOf(ConflictException);
+    expect(audit.record).toHaveBeenCalledTimes(2);
+  });
+
+  it('a job_failed run is returned, not thrown — it ran and is in the history', async () => {
+    const { svc, jobTrigger } = deps();
+    (jobTrigger.trigger as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ status: 'job_failed', error: 'boom' });
+    await expect(svc.trigger(actor, 'x')).resolves.toEqual({ status: 'job_failed', error: 'boom' });
   });
 
   it('getAlerts filters the dashboard to overdue and/or repeatedly-failing jobs', async () => {
@@ -91,7 +181,7 @@ describe('JobsApiService', () => {
     ]);
 
     const alerts = await svc.getAlerts();
-    expect(alerts.map((a) => a.name)).toEqual(['overdue-job', 'flaky-job']);
+    expect(alerts.map((a) => a.name)).toEqual(['flaky-job', 'overdue-job']); // sorted by name
   });
 });
 
@@ -130,6 +220,8 @@ describe('JobsApiService — correlation id round-trip', () => {
       listJobStatus: vi.fn(),
       getRun: vi.fn(),
       getFailedItems: vi.fn(),
+      runSummary: vi.fn(),
+      volume: vi.fn(),
       getRunHistory: async (query = {}) => ({
         runs: recorded.filter((r) => !query.correlationId || r.correlationId === query.correlationId),
       }),

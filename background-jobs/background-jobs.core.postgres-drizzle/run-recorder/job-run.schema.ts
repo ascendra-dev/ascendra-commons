@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { bigserial, index, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 /**
@@ -47,7 +48,15 @@ export const jobRunTable = pgTable(
     correlationId: text('correlation_id'),
   },
   (t) => [
-    /** "this application's runs of this job" — the run-history admin screen's main query, and the pruner's scan. */
-    index('commons_jobs_job_run_application_job_time_idx').on(t.application, t.jobName, t.startedAt),
+    /** The runs list newest-first, the summary / volume periods, and the pruner's scan. */
+    index('commons_jobs_job_run_list_idx').on(t.application, t.startedAt.desc(), t.id.desc()),
+    /** One job's runs, the dashboard's latest runs per job, and the failed-items window. */
+    index('commons_jobs_job_run_job_idx').on(t.application, t.jobName, t.startedAt.desc(), t.id.desc()),
+    /** The runs list filtered to failures — partial: most runs are clean. */
+    index('commons_jobs_job_run_failing_idx')
+      .on(t.application, t.startedAt.desc(), t.id.desc())
+      .where(sql`${t.outcome} = 'job_failed' or ${t.itemsFailed} > 0`),
+    /** A trace — partial: only manual runs carry a correlation id. */
+    index('commons_jobs_job_run_correlation_idx').on(t.correlationId).where(sql`${t.correlationId} is not null`),
   ],
 );

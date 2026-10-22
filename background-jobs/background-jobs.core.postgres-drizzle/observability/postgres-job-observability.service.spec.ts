@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
+import { InvalidJobRunCursorError } from '../../background-jobs.core';
 import { PostgresJobObservabilityService } from './postgres-job-observability.service';
 import type { SqlExecutor } from '../persistence/sql-executor';
 
@@ -51,29 +52,64 @@ describe('PostgresJobObservabilityService.getRunHistory', () => {
     expect(renderedParams(db)).toContain('ascendra-pay');
   });
 
-  it('returns a nextCursor when more rows exist, and the next page keys off it', async () => {
-    const many = Array.from({ length: 51 }, (_, i) => row({ id: String(100 + i) }));
+  it('returns a nextCursor at microsecond precision when more rows exist, and the next page keys off it', async () => {
+    const many = Array.from({ length: 51 }, (_, i) =>
+      row({ id: String(100 + i), started_at_key: '2026-06-01T08:00:00.123456Z' }),
+    );
     const db = fakeDb(many);
     const page = await svc(db).getRunHistory({ limit: 50 });
 
     expect(page.runs).toHaveLength(50);
     expect(page.nextCursor).toBeTruthy();
+    expect(page.runs[0]).not.toHaveProperty('started_at_key');
 
     const db2 = fakeDb([]);
     await svc(db2).getRunHistory({ cursor: page.nextCursor, limit: 50 });
-    const params = renderedParams(db2).map(String);
-    expect(params).toContain('149'); // the 50th row's id — keyset boundary
+    const { sql: text, params } = dialect.sqlToQuery(db2.execute.mock.calls[0][0] as SQL);
+    expect(params).toEqual(expect.arrayContaining(['149', '2026-06-01T08:00:00.123456Z'])); // the 50th row — keyset boundary
+    // Led by the indexed column, so the boundary is an Index Cond, not a Filter.
+    expect(text).toMatch(/started_at <= .*::timestamptz and \(started_at < .* or id < .*::bigint\)/is);
+    expect(text).toMatch(/order by started_at desc, id desc/i);
   });
 
-  it('applies jobName / outcome / since filters as bound params', async () => {
+  it('reads oldest first for order asc, with the cursor bound flipped', async () => {
     const db = fakeDb([]);
-    await svc(db).getRunHistory({ jobName: 'cleanup', outcome: 'job_failed', since: new Date('2026-05-01T00:00:00Z') });
+    const cursor = Buffer.from(JSON.stringify(['2026-06-01T08:00:00.000000Z', '7'])).toString('base64url');
+    await svc(db).getRunHistory({ order: 'asc', cursor });
+    const { sql: text } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(text).toMatch(/started_at >= .* and \(started_at > .* or id > .*\)/is);
+    expect(text).toMatch(/order by started_at asc, id asc/i);
+  });
+
+  it('applies jobName / outcome / trigger / correlation / since / until filters as bound params', async () => {
+    const db = fakeDb([]);
+    await svc(db).getRunHistory({
+      jobName: 'cleanup',
+      outcome: 'job_failed',
+      trigger: 'manual',
+      correlationId: 'req-1',
+      since: new Date('2026-05-01T00:00:00Z'),
+      until: new Date('2026-05-02T00:00:00Z'),
+    });
 
     const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
     expect(text).toMatch(/job_name =/i);
     expect(text).toMatch(/outcome =/i);
+    expect(text).toMatch(/trigger =/i);
+    expect(text).toMatch(/correlation_id =/i);
     expect(text).toMatch(/started_at >=/i);
-    expect(params).toEqual(expect.arrayContaining(['cleanup', 'job_failed']));
+    expect(text).toMatch(/started_at </i);
+    expect(params).toEqual(expect.arrayContaining(['cleanup', 'job_failed', 'manual', 'req-1']));
+  });
+
+  it('hasFailedItems filters on items_failed both ways', async () => {
+    const yes = fakeDb([]);
+    await svc(yes).getRunHistory({ hasFailedItems: true });
+    expect(dialect.sqlToQuery(yes.execute.mock.calls[0][0] as SQL).sql).toMatch(/items_failed > 0/i);
+
+    const no = fakeDb([]);
+    await svc(no).getRunHistory({ hasFailedItems: false });
+    expect(dialect.sqlToQuery(no.execute.mock.calls[0][0] as SQL).sql).toMatch(/items_failed = 0/i);
   });
 
   it('caps limit at 200', async () => {
@@ -82,9 +118,10 @@ describe('PostgresJobObservabilityService.getRunHistory', () => {
     expect(renderedParams(db)).toContain(201); // limit + 1
   });
 
-  it('ignores a malformed cursor rather than throwing', async () => {
+  it('rejects a cursor it never issued — restarting at page one would repeat it', async () => {
     const db = fakeDb([]);
-    await expect(svc(db).getRunHistory({ cursor: 'not-a-real-cursor' })).resolves.toEqual({ runs: [] });
+    await expect(svc(db).getRunHistory({ cursor: 'not-a-real-cursor' })).rejects.toBeInstanceOf(InvalidJobRunCursorError);
+    expect(db.execute).not.toHaveBeenCalled();
   });
 
   it('truncates a long error to keep the full stack off list rows', async () => {
@@ -118,6 +155,13 @@ describe('PostgresJobObservabilityService.getRun', () => {
   it('returns null when no row matches', async () => {
     const db = fakeDb([]);
     await expect(svc(db).getRun('999')).resolves.toBeNull();
+  });
+
+  it('returns null without a query for an id that is not a bigint — never a failed cast', async () => {
+    const db = fakeDb([]);
+    await expect(svc(db).getRun('abc')).resolves.toBeNull();
+    await expect(svc(db).getRun('99999999999999999999')).resolves.toBeNull();
+    expect(db.execute).not.toHaveBeenCalled();
   });
 
   it('returns the full, untruncated error stack — unlike list rows', async () => {
@@ -159,12 +203,64 @@ describe('PostgresJobObservabilityService.getFailedItems', () => {
   });
 });
 
+describe('PostgresJobObservabilityService.runSummary', () => {
+  it('counts each kind of run over the period, scoped to the application', async () => {
+    const db = fakeDb([
+      { runs: '10', clean: '6', with_failed_items: '3', job_failed: '1', manual: '2', items_processed: '120', items_failed: '7', jobs: '4' },
+    ]);
+    const since = new Date('2026-06-01T00:00:00Z');
+    await expect(svc(db).runSummary({ since })).resolves.toEqual({
+      runs: 10,
+      clean: 6,
+      withFailedItems: 3,
+      jobFailed: 1,
+      manual: 2,
+      itemsProcessed: 120,
+      itemsFailed: 7,
+      jobs: 4,
+    });
+    const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(text).toMatch(/started_at >=/i);
+    expect(params).toEqual(['ascendra-pay', since]);
+  });
+
+  it('reads zeros from an empty table', async () => {
+    await expect(svc(fakeDb([{}])).runSummary()).resolves.toMatchObject({ runs: 0, jobs: 0 });
+  });
+});
+
+describe('PostgresJobObservabilityService.volume', () => {
+  it('fills 30 calendar days in the zone, with the table extent', async () => {
+    const db = fakeDb();
+    db.execute
+      .mockResolvedValueOnce({ rows: [{ day: '2026-06-09', runs: '5', with_failed_items: '1', job_failed: '1' }] })
+      .mockResolvedValueOnce({ rows: [{ oldest: new Date('2026-03-12T00:00:00Z'), total: '812' }] })
+      .mockResolvedValueOnce({ rows: [{ bytes: '81920' }] });
+
+    const volume = await svc(db).volume('Asia/Dubai', new Date('2026-06-09T12:00:00Z'));
+    expect(volume.perDay).toHaveLength(30);
+    expect(volume.perDay[29]).toEqual({ day: '2026-06-09', runs: 5, withFailedItems: 1, jobFailed: 1 });
+    expect(volume.perDay[0]).toMatchObject({ runs: 0 });
+    expect(volume).toMatchObject({ rowCount: 812, tableSizeBytes: 81920, oldestStartedAt: new Date('2026-03-12T00:00:00Z') });
+    expect(renderedParams(db)).toContain('Asia/Dubai');
+  });
+});
+
 describe('PostgresJobObservabilityService.listJobStatus', () => {
   beforeEach(() => {
     vi.useFakeTimers({ now: NOW });
   });
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('walks job names by a skip scan and reads each job\'s latest runs — no window over the whole history', async () => {
+    const db = fakeDb([]);
+    await svc(db).listJobStatus();
+    const { sql: text } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(text).toMatch(/with recursive names/i);
+    expect(text).toMatch(/cross join lateral/i);
+    expect(text).not.toMatch(/row_number/i);
   });
 
   it('groups by job and derives last run, last success, and consecutive failures', async () => {
@@ -223,6 +319,13 @@ describe('PostgresJobObservabilityService.listJobStatus', () => {
     const [status] = await svc(db).listJobStatus();
 
     expect(status.cadence).toMatchObject({ source: 'inferred', label: '1 day' });
+  });
+
+  it('infers no cadence from runs that started together — a 0s cadence would be overdue forever', async () => {
+    const at = new Date(NOW - 3600_000);
+    const db = fakeDb([1, 2, 3, 4].map(() => row({ job_name: 'burst', trigger: 'scheduled', started_at: at })));
+    const [status] = await svc(db).listJobStatus();
+    expect(status).toMatchObject({ cadence: null, overdue: false });
   });
 
   it('leaves cadence null (and overdue false) when nothing is declared and too few runs to infer', async () => {

@@ -8,13 +8,19 @@ Opt-in NestJS controller over `JOB_OBSERVABILITY_PORT` (reads) and `JobTrigger`
 
 | Method | Path | Gate | → |
 |---|---|---|---|
-| GET | `/jobs` | `job.view` | `listJobStatus()` — one row per job: last run, last success, consecutive failures, cadence, `overdue` flag |
-| GET | `/jobs/:name/runs` | `job.view` | `getRunHistory({ jobName, outcome?, since?, until?, limit?, cursor? })` — keyset-paginated, `error` truncated (~500 chars) |
-| GET | `/jobs/runs/trace/:correlationId` | `job.view` | `getRunHistory({ correlationId })` — every run from one request/job chain |
-| GET | `/jobs/runs/:id` | `job.view` | `getRun(id)` — one run, full untruncated `error`. 404 if not found |
+| GET | `/jobs` | `job.view` | `listJobStatus()` — one row per job (ran, declared a cadence, or registered for triggering): last run, last success, consecutive failures, cadence, `overdue`, `triggerable` |
+| GET | `/jobs/alerts` | `job.view` | the dashboard filtered to jobs that are `overdue` and/or have `consecutiveFailures >= 2` — read-only, no ack state, no webhook |
+| GET | `/jobs/runs` | `job.view` | `getRunHistory({ jobName?, outcome?, trigger?, hasFailedItems?, correlationId?, since?, until?, limit?, cursor?, order? })` — every job's runs, newest first, keyset-paginated, `error` truncated (~500 chars). `{ data, meta: { nextCursor } }` |
+| GET | `/jobs/runs/summary?since=` | `job.view` | `runSummary()` — runs, clean / with failed items / job failed, manual, items processed / failed, distinct jobs, counted by `startedAt` |
+| GET | `/jobs/runs/volume?tz=` | `job.view` | `volume()` — per-day runs for 30 calendar days in `tz` (IANA, default UTC), oldest run, row count, table size |
+| GET | `/jobs/runs/trace/:correlationId` | `job.view` | `getRunHistory({ correlationId, order: 'asc' })` — every run from one request/job chain, oldest first. `{ data, meta }` |
+| GET | `/jobs/runs/:id` | `job.view` | `getRun(id)` — one run, full untruncated `error`. 404 if not found (or not a run id) |
 | GET | `/jobs/:name/failed-items?minRuns=` | `job.view` | `getFailedItems(name, minRuns?)` — items recurring as a failed ref across at least `minRuns` (default 2) of the job's last 50 runs. Best-effort — see doc comment |
-| GET | `/jobs/alerts` | `job.view` | `listJobStatus()` filtered to jobs that are `overdue` and/or have `consecutiveFailures >= 2` — read-only, no ack state, no webhook |
-| POST | `/jobs/:name/run` | `job.run` | `JobTrigger.trigger(name, correlationId)` — "run now" / "retry". Returns `JobTriggerResult` (`unknown_job` / `already_running` / `completed` / `job_failed`) |
+| POST | `/jobs/:name/run` | `job.run` | `JobTrigger.trigger(name, correlationId)` — "run now" / "retry". 200 with `completed` / `job_failed`; **404** for a job not registered for triggering; **409** while it's already running |
+
+Every bad param — a date, `limit` / `minRuns`, an enum (`outcome`, `trigger`, `hasFailedItems`, `order`), a time
+zone, a cursor this API didn't issue, a NUL byte — is a 400 naming the param; never a 500. The controller declares
+`@UseGuards(AuthorizationEnforcedGuard)`, so it fails closed when the app forgot the global `AuthorizationGuard`.
 
 Gate names are fixed. A vertical whose catalog uses different names grants its
 ops role these too.
@@ -22,17 +28,18 @@ ops role these too.
 ## The trigger
 
 `POST /jobs/:name/run` is the one mutating endpoint — a manual, privileged job
-run. If the vertical binds `auditEmitterToken`, each trigger emits a
-`{ action: 'job.triggered', actorId, jobName, result }` event (no-op if unbound;
-no hard dep on `audit-logging`).
+run. If the vertical binds `auditEmitterToken`, each attempt — refused ones
+included — emits a `{ action: 'job.triggered', actorId, jobName, result }` event
+(no-op if unbound; no hard dep on `audit-logging`).
 
 The correlation id that ends up on the run (and therefore in `getTrace()`) is
 read from an inbound `X-Correlation-Id` header — the same header
 `audit-logging`'s `CorrelationIdMiddleware` reads, reused by convention, not by
 dependency: this module still has no import from `audit-logging`, but the two
 naturally agree when both are wired in the same app. If the caller didn't send
-one, the controller generates a fresh id via `crypto.randomUUID()` so every
-manual run is still traceable.
+a well-formed one (`[A-Za-z0-9._:-]{1,128}`, the rule every module stores
+correlation ids by), the controller generates a fresh id via
+`crypto.randomUUID()` so every manual run is still traceable.
 
 `trigger()` awaits the whole run. For a long job, the vertical's own controller
 can fire-and-forget instead; this endpoint always awaits (the advisory lock
@@ -41,7 +48,7 @@ still stops a double-click starting a second run).
 ## Truncated `error` on list rows
 
 `getRunHistory()` and `listJobStatus()` truncate a run's `error` stack to
-roughly 500 characters — shipping an unbounded stack trace on every row of a
+roughly 500 characters (the recorder stores at most 16,000) — shipping an unbounded stack trace on every row of a
 list payload was an unintended info-leak risk, not just a size concern. The
 full stack is always available via `GET /jobs/runs/:id`.
 

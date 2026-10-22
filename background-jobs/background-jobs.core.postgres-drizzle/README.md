@@ -4,9 +4,9 @@
 |---|---|---|---|
 | `lock/postgres-advisory-lock` | `AdvisoryLock` — `pg_try_advisory_lock` (session-level) | `POSTGRES_ADVISORY_LOCK` | `PostgresAdvisoryLockModule.forRoot({ sqlExecutorToken })` — **must be a dedicated single connection** |
 | `lock/postgres-lease-lock` | `AdvisoryLock` — a `commons_jobs_lock` row + lease | `POSTGRES_LEASE_LOCK` | `PostgresLeaseLockModule.forRoot({ sqlExecutorToken, application, leaseSeconds? })` — any pooled connection |
-| `run-recorder/postgres-job-run-recorder` | `JobRunRecorder` — one `INSERT` per run | `POSTGRES_JOB_RUN_RECORDER` | `PostgresJobRunRecorderModule.forRoot({ sqlExecutorToken, application })` — normal pool |
-| `observability/postgres-job-observability.service` | `JobObservabilityPort` — `getRunHistory` + `listJobStatus` (overdue detection) | `JOB_OBSERVABILITY_PORT` (core token) | `PostgresJobObservabilityModule.forRoot({ sqlExecutorToken, application, cadences? })` — normal pool |
-| `pruner/job-run-pruner.job` | a reference `ScheduledJob` that trims `commons_jobs_job_run` | (a normal job) | `JobRunPrunerModule.forRoot({ sqlExecutorToken, application, retentionDays? })` |
+| `run-recorder/postgres-job-run-recorder` | `JobRunRecorder` — one `INSERT` per run, each summary normalized first (NULs stripped, refs and error capped) | `POSTGRES_JOB_RUN_RECORDER` | `PostgresJobRunRecorderModule.forRoot({ sqlExecutorToken, application })` — normal pool |
+| `observability/postgres-job-observability.service` | `JobObservabilityPort` — `getRunHistory`, `listJobStatus` (overdue detection), `getRun`, `getFailedItems`, `runSummary`, `volume` — each on an index (`0003`) | `JOB_OBSERVABILITY_PORT` (core token) | `PostgresJobObservabilityModule.forRoot({ sqlExecutorToken, application, cadences? })` — normal pool |
+| `pruner/job-run-pruner.job` | a reference `ScheduledJob` that trims `commons_jobs_job_run`, in batches of 5,000 | (a normal job) | `JobRunPrunerModule.forRoot({ sqlExecutorToken, application, retentionDays? })` |
 
 `.core` ships **no** lock implementation and no `SqlExecutor` of its own — pick a
 lock here explicitly and pass its token to `BackgroundJobsModule.forRoot({ advisoryLockToken })`.
@@ -26,7 +26,7 @@ pooler") or want forgiving wiring, use `PostgresLeaseLock`.
 
 ## Wiring (lease lock)
 
-Tables: apply `migrations/` (`0001_job_run`; `0002_lease_lock` is unused with the advisory lock, and harmless) (`ascendra-commons.js` delivers them into your migrations) with your own migration tool — never re-export the schema tables to `drizzle-kit` too, or it generates them a second time (MODULE-STANDARD dimension 7).
+Tables: apply `migrations/` (`0001_job_run`, `0003_job_run_read_indexes`; `0002_lease_lock` is unused with the advisory lock, and harmless) (`ascendra-commons.js` delivers them into your migrations) with your own migration tool — never re-export the schema tables to `drizzle-kit` too, or it generates them a second time (MODULE-STANDARD dimension 7).
 
 ```typescript
 BackgroundJobsModule.forRoot({

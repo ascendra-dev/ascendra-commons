@@ -1,23 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Module } from '@nestjs/common';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { JOB_OBSERVABILITY_PORT, JobTrigger } from '../background-jobs.core';
 import { JobsApiModule } from './jobs-api.module';
 import { JobsController } from './jobs.controller';
 import { JOB_AUDIT_EMITTER } from './tokens';
-import type { Actor } from '../../authorization/authorization.core';
+import { AuthorizationEnforcedGuard, type Actor } from '../../authorization/authorization.core';
 
 const listJobStatus = vi.fn().mockResolvedValue([]);
 const getRunHistory = vi.fn().mockResolvedValue({ runs: [] });
 const getRun = vi.fn().mockResolvedValue({ id: '1', jobName: 'invoice-reminder' });
 const getFailedItems = vi.fn().mockResolvedValue([]);
 const trigger = vi.fn().mockResolvedValue({ status: 'completed', itemsDue: 0, itemsProcessed: 0, itemsFailed: 0, failedItemRefs: [] });
+const availableJobs = vi.fn().mockReturnValue([]);
 const auditRecord = vi.fn();
 
 @Module({
   providers: [
     { provide: JOB_OBSERVABILITY_PORT, useValue: { listJobStatus, getRunHistory, getRun, getFailedItems } },
-    { provide: JobTrigger, useValue: { trigger } },
+    { provide: JobTrigger, useValue: { trigger, availableJobs } },
     { provide: 'MY_AUDIT', useValue: { record: auditRecord } },
   ],
   exports: [JOB_OBSERVABILITY_PORT, JobTrigger, 'MY_AUDIT'],
@@ -40,7 +42,7 @@ describe('JobsApiModule.forRoot — real DI wiring', () => {
   it('dashboard + runs route through to the port', async () => {
     const ref = await build();
     await ref.get(JobsController).dashboard();
-    await ref.get(JobsController).runs('invoice-reminder');
+    await expect(ref.get(JobsController).runs('invoice-reminder')).resolves.toEqual({ data: [], meta: {} });
     expect(listJobStatus).toHaveBeenCalled();
     expect(getRunHistory).toHaveBeenCalledWith(expect.objectContaining({ jobName: 'invoice-reminder' }));
   });
@@ -56,6 +58,18 @@ describe('JobsApiModule.forRoot — real DI wiring', () => {
     const ref = await build();
     await ref.get(JobsController).run(actor, 'invoice-reminder', 'trace-from-header');
     expect(trigger).toHaveBeenCalledWith('invoice-reminder', 'trace-from-header');
+  });
+
+  it('the trigger replaces a malformed correlation header with a fresh id', async () => {
+    const ref = await build();
+    await ref.get(JobsController).run(actor, 'invoice-reminder', '<script>alert(1)</script>');
+    const forwarded = trigger.mock.calls[trigger.mock.calls.length - 1][1] as string;
+    expect(forwarded).not.toContain('<');
+    expect(forwarded).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('declares AuthorizationEnforcedGuard — fails closed without the global guard', () => {
+    expect(Reflect.getMetadata(GUARDS_METADATA, JobsController)).toContain(AuthorizationEnforcedGuard);
   });
 
   it('run detail routes to the port and 404s when not found', async () => {

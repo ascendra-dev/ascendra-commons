@@ -1,4 +1,13 @@
-import type { FailedItemSummary, JobRunRecord, JobStatus, RunHistoryPage, RunHistoryQuery } from './job-observability.types';
+import type {
+  FailedItemSummary,
+  JobRunRecord,
+  JobStatus,
+  RunHistoryPage,
+  RunHistoryQuery,
+  RunPeriodQuery,
+  RunSummary,
+  RunVolume,
+} from './job-observability.types';
 
 /**
  * Read-only reporting over job-run history for an admin screen — the run
@@ -41,4 +50,8 @@ export interface JobObservabilityPort {
    * per-item retry state is a Model 2 concern.
    */
   getFailedItems(jobName: string, minRuns?: number): Promise<FailedItemSummary[]>;
+  /** The Overview's totals over a period, counted by `startedAt`. */
+  runSummary(query?: RunPeriodQuery): Promise<RunSummary>;
+  /** Per-day runs for 30 calendar days in `timeZone` (IANA, default UTC), and the table's extent. */
+  volume(timeZone?: string, now?: Date): Promise<RunVolume>;
 }

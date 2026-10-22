@@ -22,10 +22,15 @@ export type {
   RunHistoryQuery,
   RunHistoryPage,
   FailedItemSummary,
+  RunPeriodQuery,
+  RunSummary,
+  RunVolume,
+  RunVolumeDay,
 } from './job-observability.types';
 export { parseCadence, humanizeDuration } from './cadence';
 export type { ParsedCadence } from './cadence';
-export { encodeKeysetCursor, decodeKeysetCursor } from './keyset-cursor';
+export { encodeKeysetCursor, decodeKeysetCursor, isRunId, InvalidJobRunCursorError } from './keyset-cursor';
+export { calendarDays, isValidTimeZone } from './calendar-days';
 
 export { BackgroundJobsModule } from './background-jobs.module';
 export type { BackgroundJobsModuleConfig } from './background-jobs.module';
