@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type { Actor } from '../../authorization/authorization.core';
 import {
@@ -17,7 +18,7 @@ import {
   type RunSummary,
   type RunVolume,
 } from '../background-jobs.core';
-import { JOB_AUDIT_EMITTER } from './tokens';
+import { JOB_AUDIT_EMITTER, JOB_CORRELATION_ID_RESOLVER } from './tokens';
 import type { JobAuditEmitter } from './job-audit.port';
 import type { RunHistoryQueryDto } from './dto/jobs-api.dto';
 
@@ -28,6 +29,13 @@ import type { RunHistoryQueryDto } from './dto/jobs-api.dto';
  * `mocks.html`).
  */
 const ALERT_CONSECUTIVE_FAILURES_THRESHOLD = 2;
+
+/**
+ * A correlation id worth storing on a run — a header is the caller's text. Same rule as `audit-logging`,
+ * `rate-limiting` and `domain-events`, duplicated so each module stays copyable.
+ */
+const CORRELATION_ID = /^[A-Za-z0-9._:-]{1,128}$/;
+const wellFormed = (id: unknown): id is string => typeof id === 'string' && CORRELATION_ID.test(id);
 
 const OUTCOMES = ['completed', 'job_failed'] as const;
 const TRIGGERS = ['scheduled', 'bootstrap', 'manual'] as const;
@@ -93,6 +101,7 @@ export class JobsApiService {
     @Inject(JobTrigger) private readonly jobTrigger: JobTrigger,
     @Inject(JOB_AUDIT_EMITTER) private readonly audit: JobAuditEmitter,
     @Optional() @Inject(JOB_LOCK_INSPECTOR_PORT) private readonly lockInspector?: JobLockInspectorPort,
+    @Optional() @Inject(JOB_CORRELATION_ID_RESOLVER) private readonly correlationIdResolver?: () => string | undefined,
   ) {}
 
   /**
@@ -153,17 +162,27 @@ export class JobsApiService {
    * neither is recorded; a `job_failed` result is a 200 (the run happened, and is in the history). Every attempt is
    * audited, refused ones included.
    *
-   * @param correlationId  forwarded to `JobTrigger.trigger()` so the run lands
-   *   tagged for `getTrace()` — the controller supplies this (from an inbound
-   *   `X-Correlation-Id` header, or a freshly generated one).
+   * @param headerCorrelationId  the inbound `X-Correlation-Id`, as sent. The run is tagged for `getTrace()` with it
+   *   when well-formed, else with the app's ambient id (`correlationIdResolver`), else a fresh one — every manual run
+   *   is traceable.
    */
-  async trigger(actor: Actor, jobName: string, correlationId?: string): Promise<JobTriggerResult> {
+  async trigger(actor: Actor, jobName: string, headerCorrelationId?: string): Promise<JobTriggerResult> {
     textParam('name', jobName);
+    const correlationId = wellFormed(headerCorrelationId) ? headerCorrelationId : (this.ambientCorrelationId() ?? randomUUID());
     const result = await this.jobTrigger.trigger(jobName, correlationId);
     await this.audit.record({ action: 'job.triggered', actorId: actor.id, jobName, result: result.status });
     if (result.status === 'unknown_job') throw new NotFoundException(`No job "${jobName}" can be run — it isn't registered for triggering`);
     if (result.status === 'already_running') throw new ConflictException(`Job "${jobName}" is already running — try again when it finishes`);
     return result;
+  }
+
+  private ambientCorrelationId(): string | undefined {
+    try {
+      const id = this.correlationIdResolver?.();
+      return wellFormed(id) ? id : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   async getRun(id: string): Promise<JobRunRecord> {

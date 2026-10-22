@@ -114,7 +114,7 @@ describe('JobsApiService', () => {
   it('trigger calls JobTrigger and emits an audit event', async () => {
     const { svc, jobTrigger, audit } = deps();
     const result = await svc.trigger(actor, 'invoice-reminder');
-    expect(jobTrigger.trigger).toHaveBeenCalledWith('invoice-reminder', undefined);
+    expect(jobTrigger.trigger).toHaveBeenCalledWith('invoice-reminder', expect.stringMatching(/^[0-9a-f-]{36}$/));
     expect(result).toMatchObject({ status: 'completed' });
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'job.triggered', actorId: 'ops-1', jobName: 'invoice-reminder', result: 'completed' }),
@@ -182,6 +182,20 @@ describe('JobsApiService', () => {
 
     const alerts = await svc.getAlerts();
     expect(alerts.map((a) => a.name)).toEqual(['flaky-job', 'overdue-job']); // sorted by name
+  });
+});
+
+describe('JobsApiService.trigger — correlation id', () => {
+  it('header, else the resolver, else fresh — a malformed or throwing source is skipped', async () => {
+    const { observability, jobTrigger, audit } = deps();
+    const calls = () => (jobTrigger.trigger as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[1]);
+    await new JobsApiService(observability, jobTrigger, audit, undefined, () => 'ambient-1').trigger(actor, 'x', 'bad header!');
+    await new JobsApiService(observability, jobTrigger, audit, undefined, () => 'bad ambient!').trigger(actor, 'x');
+    await new JobsApiService(observability, jobTrigger, audit, undefined, () => { throw new Error('no ALS'); }).trigger(actor, 'x');
+    const [ambient, freshA, freshB] = calls();
+    expect(ambient).toBe('ambient-1');
+    expect(freshA).toMatch(/^[0-9a-f-]{36}$/);
+    expect(freshB).toMatch(/^[0-9a-f-]{36}$/);
   });
 });
 

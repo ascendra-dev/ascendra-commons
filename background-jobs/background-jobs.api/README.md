@@ -39,8 +39,11 @@ read from an inbound `X-Correlation-Id` header — the same header
 dependency: this module still has no import from `audit-logging`, but the two
 naturally agree when both are wired in the same app. If the caller didn't send
 a well-formed one (`[A-Za-z0-9._:-]{1,128}`, the rule every module stores
-correlation ids by), the controller generates a fresh id via
-`crypto.randomUUID()` so every manual run is still traceable.
+correlation ids by), the run takes the app's ambient id from
+`forRoot({ correlationIdResolver })` — pass audit-logging's
+`getCurrentCorrelationId`, and a "Run now" from the admin screen shares one trace
+with its own `job.triggered` audit record — else a fresh `crypto.randomUUID()`,
+so every manual run is still traceable.
 
 `trigger()` awaits the whole run. For a long job, the vertical's own controller
 can fire-and-forget instead; this endpoint always awaits (the advisory lock

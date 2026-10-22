@@ -102,6 +102,16 @@ describe('JobsApiModule.forRoot — real DI wiring', () => {
     await expect(ref.get(JobsController).locks()).resolves.toEqual({ supported: false, locks: [] });
   });
 
+  it('a run sent without a header takes the app\'s ambient correlation id when a resolver is configured', async () => {
+    const ref = await Test.createTestingModule({
+      imports: [JobsApiModule.forRoot({ correlationIdResolver: () => 'ambient-req-7', imports: [FakePortsModule] })],
+    }).compile();
+    await ref.get(JobsController).run(actor, 'invoice-reminder');
+    expect(trigger).toHaveBeenLastCalledWith('invoice-reminder', 'ambient-req-7');
+    await ref.get(JobsController).run(actor, 'invoice-reminder', 'from-header');
+    expect(trigger).toHaveBeenLastCalledWith('invoice-reminder', 'from-header');
+  });
+
   it('falls back to the no-op audit emitter when auditEmitterToken is omitted', async () => {
     const ref = await Test.createTestingModule({
       imports: [JobsApiModule.forRoot({ imports: [FakePortsModule] })],

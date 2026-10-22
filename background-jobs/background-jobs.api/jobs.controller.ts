@@ -1,15 +1,8 @@
 import { Controller, Get, Headers, HttpCode, Inject, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { AuthorizationEnforcedGuard, CurrentActor, RequiresAction, type Actor } from '../../authorization/authorization.core';
 import type { RunHistoryPage } from '../background-jobs.core';
 import { JOB_ACTIONS } from './jobs-api.options';
 import { JobsApiService } from './jobs-api.service';
-
-/**
- * A correlation id worth forwarding — the header is the caller's, and it ends up stored on the run. Anything else is
- * replaced by a fresh id (the recorder would drop it, leaving a manual run untraceable). Same rule as `audit-logging`.
- */
-const CORRELATION_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 
 /**
  * api-contract.md Rule 4's cursor-based list shape. The core port's `{ runs, nextCursor }` stays a domain type — the
@@ -134,10 +127,9 @@ export class JobsController {
     @Param('name') name: string,
     // Same header (`x-correlation-id`) audit-logging's own CorrelationIdMiddleware reads —
     // reused by convention, not by dependency: this module stays self-contained (no import
-    // from audit-logging), but the two naturally agree when both are wired in the same app.
-    // Generated fresh when the caller didn't supply a well-formed one, so every manual run is traceable.
+    // from audit-logging). The service validates it, and falls back to the app's ambient id.
     @Headers('x-correlation-id') correlationId?: string,
   ) {
-    return this.service.trigger(actor, name, correlationId && CORRELATION_ID.test(correlationId) ? correlationId : randomUUID());
+    return this.service.trigger(actor, name, correlationId);
   }
 }

@@ -1,5 +1,5 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { JOB_AUDIT_EMITTER } from './tokens';
+import { JOB_AUDIT_EMITTER, JOB_CORRELATION_ID_RESOLVER } from './tokens';
 import type { JobsApiModuleConfig } from './jobs-api.options';
 import { NoopJobAuditEmitter } from './job-audit.port';
 import { JobsApiService } from './jobs-api.service';
@@ -17,6 +17,7 @@ import { JobsController } from './jobs.controller';
  * ```typescript
  * JobsApiModule.forRoot({
  *   auditEmitterToken: MY_AUDIT_EMITTER,        // optional
+ *   correlationIdResolver: getCurrentCorrelationId, // optional — audit-logging's, so a run traces with its request
  *   imports: [
  *     PostgresJobObservabilityModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, application: 'ascendra-pay', imports: [DatabaseModule] }),
  *     // BackgroundJobsModule.forRoot(...) exports JobTrigger — import it here too if it isn't otherwise visible.
@@ -35,6 +36,9 @@ export class JobsApiModule {
         config.auditEmitterToken
           ? { provide: JOB_AUDIT_EMITTER, useExisting: config.auditEmitterToken }
           : { provide: JOB_AUDIT_EMITTER, useClass: NoopJobAuditEmitter },
+        ...(config.correlationIdResolver
+          ? [{ provide: JOB_CORRELATION_ID_RESOLVER, useValue: config.correlationIdResolver }]
+          : []),
         JobsApiService,
       ],
     };

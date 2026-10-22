@@ -22,4 +22,12 @@ export interface JobsApiModuleConfig {
   imports?: DynamicModule['imports'];
   /** Optional token a `JobAuditEmitter` is provided under (bound in `imports`). Omit → manual triggers are not audited. */
   auditEmitterToken?: string | symbol | (new (...args: never[]) => unknown);
+  /**
+   * Optional. The app's ambient correlation id — e.g. `getCurrentCorrelationId` from `audit-logging.core`, which its
+   * `CorrelationIdMiddleware` sets for every request. A manual run sent without a well-formed `X-Correlation-Id` then
+   * takes the request's own id, so the run and the request's audit record (`job.triggered` among them) share one
+   * trace; without it, such a run gets a fresh id of its own. A resolver that throws or returns nothing well-formed
+   * falls through to the fresh id.
+   */
+  correlationIdResolver?: () => string | undefined;
 }
