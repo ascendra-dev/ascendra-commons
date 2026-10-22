@@ -103,6 +103,45 @@ describe('PostgresJobRunRecorder', () => {
     }
   });
 
+  it('strips NUL bytes and caps each ref and the error — one odd label must not lose the run', async () => {
+    const db = fakeDb();
+    const refs = ['invoice\u0000a1', 'x'.repeat(2_000), ...Array.from({ length: 60 }, (_, i) => `ref ${i}`)];
+    await new PostgresJobRunRecorder(db, 'ascendra-pay').recordRun(
+      summary({ jobName: 'nul\u0000job', failedItemRefs: refs, error: `Error: bad\u0000\n${'at frame\n'.repeat(5_000)}` }),
+    );
+
+    const params = rendered(db).params as unknown[];
+    expect(params.some((p) => typeof p === 'string' && p.includes('\u0000'))).toBe(false);
+    expect(params).toContain('nuljob');
+    expect(params).toContain('invoicea1');
+    expect(params).not.toContain('ref 50');
+    const longest = Math.max(...params.filter((p): p is string => typeof p === 'string').map((p) => p.length));
+    expect(longest).toBeLessThanOrEqual(16_000 + 20);
+  });
+
+  it('falls back on an Invalid Date and a bad count instead of failing the INSERT', async () => {
+    const db = fakeDb();
+    await new PostgresJobRunRecorder(db, 'ascendra-pay').recordRun(
+      summary({ startedAt: new Date('nope'), finishedAt: '2026-01-03T08:00:04Z' as unknown as Date, itemsDue: Number.NaN }),
+    );
+
+    const params = rendered(db).params as unknown[];
+    const dates = params.filter((p): p is Date => p instanceof Date);
+    expect(dates).toHaveLength(2);
+    expect(dates.every((d) => !Number.isNaN(d.getTime()))).toBe(true);
+    expect(params).toContain(0);
+  });
+
+  it('keeps a well-formed correlation id and drops anything else', async () => {
+    const good = fakeDb();
+    await new PostgresJobRunRecorder(good, 'ascendra-pay').recordRun(summary({ correlationId: 'req-8a2f:31' }));
+    expect(rendered(good).params).toContain('req-8a2f:31');
+
+    const bad = fakeDb();
+    await new PostgresJobRunRecorder(bad, 'ascendra-pay').recordRun(summary({ correlationId: '<script>' }));
+    expect(rendered(bad).params).not.toContain('<script>');
+  });
+
   it('never propagates a database failure — best-effort by contract', async () => {
     const errorLog = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     const db = fakeDb();
