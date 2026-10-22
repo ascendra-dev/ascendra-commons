@@ -74,3 +74,9 @@ into `NotificationRequest.tenantId`.
 `node ascendra-commons.js add domain-events.core.in-process` (brings
 `domain-events.core` with it) — the transport is your choice, so name it. `audit-logging` and any other module
 that depends on domain events depends on **`domain-events.core` only**.
+
+## Guide and review
+
+How it works end to end, and how to change it safely: [`GUIDE.md`](./GUIDE.md). The 2026-10 review — what was fixed,
+and what's not built yet (a correlation-id resolver so audit's events trace, alerting on wiring problems, a rollup for
+the catalog at scale): [`AUDIT-REPORT.md`](./AUDIT-REPORT.md).

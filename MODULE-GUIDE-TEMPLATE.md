@@ -5,7 +5,8 @@ Set by the `audit-logging` review (2026-10) — [`audit-logging/GUIDE.md`](./aud
 [`audit-logging/AUDIT-REPORT.md`](./audit-logging/AUDIT-REPORT.md) are the worked example; `rate-limiting`
 ([`GUIDE.md`](./rate-limiting/GUIDE.md), [`AUDIT-REPORT.md`](./rate-limiting/AUDIT-REPORT.md)) the second;
 `idempotency-key` ([`GUIDE.md`](./idempotency-key/GUIDE.md), [`AUDIT-REPORT.md`](./idempotency-key/AUDIT-REPORT.md))
-the third. Complements
+the third; `domain-events` ([`GUIDE.md`](./domain-events/GUIDE.md), [`AUDIT-REPORT.md`](./domain-events/AUDIT-REPORT.md))
+the fourth. Complements
 [`MODULE-STANDARD.md`](./MODULE-STANDARD.md) (how a module is structured), which this doesn't repeat.
 
 ## The three documents
@@ -93,7 +94,11 @@ standards the review set.
       sorts every row; default and max page size. The condition leads with the indexed column
       (`ts <= b and (ts < b or id < i)`) — the `OR` alone is a Filter, scanned from the top on every page.
 - [ ] A write path that records the attack itself (rejections, failed lookups) does no I/O per event — count in
-      memory, upsert on an interval, bound the buffer (an overflow bucket keeps totals exact).
+      memory, upsert on an interval, bound the buffer (an overflow bucket keeps totals exact). The same for any log
+      written on a producer's own path (domain-event deliveries).
+- [ ] A buffered writer normalizes each item as it buffers it — a multi-row `INSERT` fails as a whole, so one malformed
+      item (a date that went through JSON, a NUL in an error message) must not reach it.
+- [ ] Screens count by the fact's own time (`occurred_at`), not the row's write time.
 
 **Quality**
 - [ ] Specs per layer: reader (rendered SQL + bound params), service (rules, validation), module (wiring / routing).
