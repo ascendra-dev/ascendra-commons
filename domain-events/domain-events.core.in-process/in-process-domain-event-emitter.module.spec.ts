@@ -166,4 +166,35 @@ describe('InProcessDomainEventEmitterModule wired into DomainEventsModule — re
       expect.objectContaining({ eventName: 'test.happened', status: 'delivered', correlationId: 'corr-1' }),
     ]);
   });
+
+  it('forRoot({ correlationIdResolver }) gives the emitter the app\'s ambient correlation id', async () => {
+    class FakeRecorder implements EventDeliveryRecorder {
+      readonly attempts: EventDeliveryAttempt[] = [];
+      async recordDelivery(attempt: EventDeliveryAttempt): Promise<void> {
+        this.attempts.push(attempt);
+      }
+    }
+    const FAKE_RECORDER_TOKEN = Symbol('FAKE_RECORDER_TOKEN');
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        DomainEventsModule.forRoot({
+          emitterToken: IN_PROCESS_DOMAIN_EVENT_EMITTER,
+          imports: [
+            InProcessDomainEventEmitterModule.forRoot({
+              recorderToken: FAKE_RECORDER_TOKEN,
+              correlationIdResolver: () => 'from-context',
+              imports: [{ module: class FakeRecorderModule {}, providers: [{ provide: FAKE_RECORDER_TOKEN, useClass: FakeRecorder }], exports: [FAKE_RECORDER_TOKEN] }],
+            }),
+          ],
+        }),
+      ],
+      providers: [TestListener],
+    }).compile();
+    await moduleRef.init();
+
+    moduleRef.get<DomainEventEmitter>(DOMAIN_EVENT_EMITTER).emit('test.happened', new TestEvent('hello'));
+    await wait(0);
+
+    expect(moduleRef.get<FakeRecorder>(FAKE_RECORDER_TOKEN).attempts[0].correlationId).toBe('from-context');
+  });
 });

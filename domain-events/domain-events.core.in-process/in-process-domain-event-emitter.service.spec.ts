@@ -332,4 +332,49 @@ describe('InProcessDomainEventEmitter', () => {
       await expect(emitter.emitCritical('test.ok', new TestEvent())).resolves.toBeUndefined();
     });
   });
+
+  describe('correlationIdResolver — the app\'s ambient id when the producer passes none', () => {
+    it('records the resolver\'s id for emit() and emitCritical() called without one', async () => {
+      const recorder = new FakeRecorder();
+      const emitter = new InProcessDomainEventEmitter(new EventEmitter2(), recorder, () => 'ambient-1');
+
+      emitter.emit('test.happened', new TestEvent());
+      await emitter.emitCritical('test.happened', new TestEvent());
+      await wait(0);
+
+      expect(recorder.attempts.map((a) => a.correlationId)).toEqual(['ambient-1', 'ambient-1']);
+    });
+
+    it('an explicit third argument wins over the resolver', async () => {
+      const recorder = new FakeRecorder();
+      const resolver = vi.fn(() => 'ambient-1');
+      const emitter = new InProcessDomainEventEmitter(new EventEmitter2(), recorder, resolver);
+
+      await emitter.emitCritical('test.happened', new TestEvent(), 'explicit-1');
+
+      expect(recorder.attempts[0].correlationId).toBe('explicit-1');
+      expect(resolver).not.toHaveBeenCalled();
+    });
+
+    it('a resolver that throws or returns nothing leaves the delivery without one — the emit is unaffected', async () => {
+      vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      const recorder = new FakeRecorder();
+      const throwing = new InProcessDomainEventEmitter(new EventEmitter2(), recorder, () => {
+        throw new Error('no context');
+      });
+      const empty = new InProcessDomainEventEmitter(new EventEmitter2(), recorder, () => '');
+
+      await expect(throwing.emitCritical('test.happened', new TestEvent())).resolves.toBeUndefined();
+      empty.emit('test.happened', new TestEvent());
+      await wait(0);
+
+      expect(recorder.attempts.map((a) => a.correlationId)).toEqual([undefined, undefined]);
+    });
+
+    it('without a resolver, a call made without an id records none (unchanged)', async () => {
+      const recorder = new FakeRecorder();
+      await new InProcessDomainEventEmitter(new EventEmitter2(), recorder).emitCritical('test.happened', new TestEvent());
+      expect(recorder.attempts[0].correlationId).toBeUndefined();
+    });
+  });
 });
