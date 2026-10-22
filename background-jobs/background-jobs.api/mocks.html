@@ -4,10 +4,6 @@
 <meta charset="utf-8" />
 <title>Background Jobs — Admin Console Mocks</title>
 <style>
-  /* Tokens transcribed from ../ascendra-ui/app/globals.css (:root and .dark). Component
-     shadow/radius/gradient values transcribed from the real component source under
-     ../ascendra-ui/ascendra-ui/components/. Light mode is the base; the dark block mirrors
-     globals.css's .dark overrides and is applied by the OS setting only (no toggle — zero JS). */
   :root {
     --background: oklch(1 0 0);
     --foreground: oklch(0.2928 0.0163 285.35);
@@ -18,9 +14,8 @@
     --card: oklch(1 0 0);
     --primary: oklch(0.5573 0.2543 283.67);
     --radius: 0.625rem;
-    --positive: #15892b; --negative: #e02e2e; --warning: #fd7224; --info: #236dd7; --dimmed: #adadb7;
-    --gray-50: #fafafb; --gray-700: #767684;
-    --shadow-xs: 0px 0px 2px 0px #00000014, 0px 1px 2px 0px #0000000f, 0px 0px 0px 1px #0000000a;
+    --positive: #15892b; --negative: #e02e2e; --warning: #fd7224; --info: #236dd7;
+    --gray-700: #767684;
     --text-caption: 0.6875rem; --text-label: 0.75rem; --text-body-sm: 0.875rem; --text-body: 1rem;
     --text-heading-sm: 1.125rem; --text-heading: 1.25rem; --text-heading-lg: 1.5rem;
     --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -28,361 +23,522 @@
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --background: oklch(0.2238 0.0077 285.76);
-      --foreground: oklch(0.9734 0.0013 286.37);
-      --muted: oklch(0.1785 0.0041 285.98);
-      --muted-foreground: oklch(0.7507 0.0142 286.05);
-      --secondary-foreground: oklch(0.985 0.001 106.423);
-      --border: oklch(0.2582 0.0093 285.73);
-      --card: oklch(0.216 0.006 285.76);
-      --primary: oklch(0.5573 0.2543 283.67);
-      --positive: #31c854; --negative: #f73d3d; --warning: #fd7224; --info: #307ff6; --dimmed: #5f5f6f;
-      --gray-50: #232328; --gray-700: #adadb7;
-      --shadow-xs: 0px 1.5px 2px 0px #00000052, 0px -1px 0px 0px #ffffff0a, 0px 0px 0px 1px #ffffff1f;
+      --background: oklch(0.2238 0.0077 285.76); --foreground: oklch(0.9734 0.0013 286.37);
+      --muted: oklch(0.1785 0.0041 285.98); --muted-foreground: oklch(0.7507 0.0142 286.05);
+      --secondary-foreground: oklch(0.985 0.001 106.423); --border: oklch(0.2582 0.0093 285.73);
+      --card: oklch(0.216 0.006 285.76); --primary: oklch(0.5573 0.2543 283.67);
+      --positive: #31c854; --negative: #f73d3d; --warning: #fd7224; --info: #307ff6; --gray-700: #adadb7;
     }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans);
-         font-size: var(--text-body-sm); line-height: 1.5; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); font-size: var(--text-body-sm); line-height: 1.5; }
   code, pre, .mono { font-family: var(--font-mono); }
-
   .shell { display: flex; min-height: 100vh; }
-  .sidebar { width: 248px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.25rem 0.75rem; }
-  .brand { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem; font-weight: 600; }
+  .sidebar { width: 248px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.25rem 0.75rem; background: var(--background); }
+  .brand { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem; font-weight: 600; font-size: var(--text-body-sm); }
   .brand span { width: 18px; height: 18px; border-radius: 5px; background: var(--primary); display: inline-block; }
   .nav-group { margin-bottom: 1rem; }
-  .nav-group-title { color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase;
-                     letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem; }
-  .nav-item { display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem; border-radius: 0.375rem;
-              color: var(--muted-foreground); font-size: var(--text-body-sm); text-decoration: none; position: relative; }
+  .nav-group-title { color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase; letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem; }
+  .nav-item { display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem; border-radius: 0.375rem; color: var(--muted-foreground); font-size: var(--text-body-sm); text-decoration: none; position: relative; }
   .nav-item.active { background: color-mix(in oklab, var(--foreground) 8%, transparent); color: var(--foreground); }
   .nav-item.active::before { content: ""; position: absolute; left: 2px; top: 6px; bottom: 6px; width: 1px; background: var(--foreground); }
-  .nav-item .pill { margin-left: auto; font-size: 9px; line-height: 11px; padding: 1px 4px; border-radius: 4px;
-                    background: color-mix(in oklab, var(--warning) 12%, transparent); color: var(--warning);
-                    text-transform: uppercase; letter-spacing: 0.02em; }
-
   .main { flex: 1; min-width: 0; padding: 1.75rem 2rem 4rem; max-width: 1180px; }
+  .page-head { margin-bottom: 0.375rem; }
   .page-title { font-size: var(--text-heading-lg); font-weight: 600; margin: 0; }
-  .page-sub { color: var(--muted-foreground); margin: 0.25rem 0 0; max-width: 74ch; }
-
-  .note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem;
-          background: color-mix(in oklab, var(--info) 6%, transparent);
-          border: 1px solid color-mix(in oklab, var(--info) 22%, transparent); margin: 1.25rem 0; }
+  .page-sub { color: var(--muted-foreground); margin: 0.25rem 0 0; max-width: 70ch; }
+  .note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; background: color-mix(in oklab, var(--info) 6%, transparent); border: 1px solid color-mix(in oklab, var(--info) 22%, transparent); color: var(--foreground); font-size: var(--text-body-sm); margin: 1.25rem 0; }
   .note b { color: var(--info); }
-
-  .cov { width: 100%; border-collapse: collapse; margin: 0.75rem 0 0.5rem; }
-  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
-            padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  .note.warn { background: color-mix(in oklab, var(--warning) 7%, transparent); border-color: color-mix(in oklab, var(--warning) 26%, transparent); }
+  .note.warn b { color: var(--warning); }
+  .cov { width: 100%; border-collapse: collapse; margin: 0.75rem 0 0.5rem; font-size: var(--text-body-sm); }
+  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
   .cov td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
   .cov td:first-child { font-weight: 500; white-space: nowrap; }
-
-  .screen { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin: 1.5rem 0; }
+  .screen { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin: 1.5rem 0; background: var(--background); }
   .screen-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-bottom: 0.25rem; }
   .screen-name { font-size: var(--text-heading); font-weight: 600; margin: 0; }
   .screen-purpose { color: var(--muted-foreground); margin: 0.25rem 0 1rem; }
-  .endpoint { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--text-caption);
-              padding: 0.15rem 0.45rem; border-radius: 4px; background: var(--muted); border: 1px solid var(--border); }
+  .endpoint { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--text-caption); padding: 0.15rem 0.45rem; border-radius: 4px; background: var(--muted); border: 1px solid var(--border); color: var(--foreground); }
   .endpoint .m { font-weight: 700; color: var(--info); }
-  .status { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em;
-            padding: 0.1rem 0.35rem; border-radius: 4px; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .status { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
   .status.live { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 22%, transparent); }
-  .status.partial { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 24%, transparent); }
-  .status.proposed { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent); }
   .gating { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0 0 1rem; padding-left: 0.75rem; border-left: 2px solid var(--border); }
   .gating code { color: var(--foreground); }
-  .proposed-note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; margin: 0 0 1rem;
-                   background: color-mix(in oklab, var(--primary) 5%, transparent);
-                   border: 1px dashed color-mix(in oklab, var(--primary) 35%, transparent); }
-  .proposed-note b { color: var(--primary); }
-  .proposed-note .sig { font-family: var(--font-mono); font-size: var(--text-caption); }
-
   .filterbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
-  .field { height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--background);
-           font-size: var(--text-body-sm); display: inline-flex; align-items: center; gap: 0.35rem; }
+  .field { height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--background); color: var(--foreground); font-size: var(--text-body-sm); display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; }
   .field .lbl { color: var(--muted-foreground); }
-  .btn { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
-         font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary); position: relative; overflow: hidden;
-         box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16), 0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255); }
+  .field .val { color: var(--foreground); }
+  .btn { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer; font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary); position: relative; overflow: hidden; box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16), 0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255); }
   .btn::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(255,255,255,0.2), transparent); }
-  .btn-secondary { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
-                   font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card);
-                   box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06), 0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1); }
-
-  .table { width: 100%; border-collapse: separate; border-spacing: 0; }
-  .table th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
-              padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .btn-secondary { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer; font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card); box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06), 0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1); }
+  .table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--text-body-sm); }
+  .table th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
   .table td { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); vertical-align: top; }
   .table tbody tr:hover { background: color-mix(in oklab, var(--gray-700) 4%, transparent); }
   .table .t-time { color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .table .t-id { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted-foreground); }
-
-  .badge { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em;
-           padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
-  .badge.ok    { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 20%, transparent); }
-  .badge.fail  { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 20%, transparent); }
-  .badge.warn  { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 20%, transparent); }
-  .badge.info  { color: var(--info); background-color: color-mix(in oklab, var(--info) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 16%, transparent); }
-  .badge.neutral { color: var(--muted-foreground); background-color: color-mix(in oklab, var(--gray-700) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gray-700) 16%, transparent); }
-
-  .dot { width: 6px; height: 6px; border-radius: 999px; display: inline-block; flex-shrink: 0; }
-  .dot.emerald { background: #31c854; box-shadow: 0 0 0 3px color-mix(in oklab, #31c854 25%, transparent); }
-  .dot.rose { background: #f86969; box-shadow: 0 0 0 3px color-mix(in oklab, #f86969 25%, transparent); }
-  .dot.amber { background: #f59e0b; box-shadow: 0 0 0 3px color-mix(in oklab, #f59e0b 25%, transparent); }
-  .dot.violet { background: #9280ff; box-shadow: 0 0 0 3px color-mix(in oklab, #9280ff 25%, transparent); }
-  .dot.sky { background: #6694f8; box-shadow: 0 0 0 3px color-mix(in oklab, #6694f8 25%, transparent); }
-
-  .pagebar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.25rem 0;
-             color: var(--muted-foreground); }
+  .table .t-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .badge { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .badge.action { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent); }
+  .badge.bad { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 16%, transparent); }
+  .pagebar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.25rem 0; color: var(--muted-foreground); font-size: var(--text-body-sm); }
   .pagebar .pager { display: flex; gap: 0.25rem; }
-  .pagebar .pager span { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem;
-                         padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption); }
-
-  .empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1rem; padding: 2.5rem;
-           border: 1px dashed var(--border); border-radius: 0.75rem; color: var(--muted-foreground); }
-  .empty .ic { width: 3rem; height: 3rem; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;
-               background: color-mix(in oklab, var(--gray-700) 4%, transparent); box-shadow: inset 0 0 0 1px var(--border); font-size: 1.1rem; }
-
-  .drawer { position: relative; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
-            padding: 1.5rem; margin: 1.5rem 0 1.5rem 2rem; max-width: 580px; box-shadow: var(--shadow-xs); }
-  .drawer::before { content: attr(data-label); display: block; font-size: var(--text-caption); color: var(--muted-foreground);
-                    text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.875rem; }
-  .drawer > .x { position: absolute; top: 1.25rem; right: 1.25rem; color: var(--muted-foreground); font-size: 0.9rem; }
-
-  .kv { display: grid; grid-template-columns: 140px 1fr; gap: 0.4rem 1rem; margin: 0; }
-  .kv dt { color: var(--muted-foreground); }
-  .kv dd { margin: 0; word-break: break-word; }
-
-  .diff { margin: 1rem 0 0; border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; }
-  .diff > summary { cursor: pointer; padding: 0.5rem 0.75rem; font-size: var(--text-label); color: var(--secondary-foreground);
-                    background: var(--muted); list-style: none; }
-  .diff > summary::-webkit-details-marker { display: none; }
-  .diff pre { margin: 0; padding: 0.75rem; font-size: var(--text-caption); overflow-x: auto; }
-
+  .pagebar .pager span { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem; padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption); }
   .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
   .kpi { background: var(--muted); border-radius: 0.75rem; padding: 0.875rem 1rem; }
+  .kpi.alert { background: color-mix(in oklab, var(--negative) 6%, var(--muted)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 20%, transparent); }
   .kpi .k-label { color: var(--muted-foreground); font-size: var(--text-label); }
   .kpi .k-value { font-size: var(--text-heading); font-weight: 600; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
-
-  .bars { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding: 0.5rem 0; }
-  .bars .bar { flex: 1; background: color-mix(in oklab, var(--primary) 55%, transparent); border-radius: 3px 3px 0 0; }
-
+  .kpi.alert .k-value { color: var(--negative); }
   .timeline { position: relative; margin: 0; padding: 0 0 0 1.25rem; list-style: none; }
   .timeline::before { content: ""; position: absolute; left: 3px; top: 4px; bottom: 4px; width: 1px; background: var(--border); }
   .tl-item { position: relative; padding: 0 0 1.1rem; }
-  .tl-item::before { content: ""; position: absolute; left: -1.25rem; top: 5px; width: 7px; height: 7px; border-radius: 999px;
-                     background: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent); }
+  .tl-item::before { content: ""; position: absolute; left: -1.25rem; top: 5px; width: 7px; height: 7px; border-radius: 999px; background: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent); }
   .tl-time { color: var(--muted-foreground); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
   .tl-title { font-size: var(--text-body-sm); margin-top: 0.1rem; }
-  .tl-meta { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.15rem; }
-
-  .breadcrumb { color: var(--muted-foreground); margin-bottom: 0.75rem; }
+  .breadcrumb { color: var(--muted-foreground); font-size: var(--text-body-sm); margin-bottom: 0.75rem; }
   .breadcrumb b { color: var(--foreground); font-weight: 500; }
   .scrollx { overflow-x: auto; }
   h3.sub { font-size: var(--text-heading-sm); font-weight: 600; margin: 1.5rem 0 0.5rem; }
+  .seg { display: inline-flex; padding: 2px; border-radius: 0.5rem; background: var(--muted); border: 1px solid var(--border); gap: 2px; }
+  .seg span { padding: 0.2rem 0.65rem; border-radius: 0.375rem; font-size: var(--text-label); color: var(--muted-foreground); }
+  .seg span.on { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+  .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+  .panel { border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.125rem; }
+  .panel h4 { margin: 0 0 0.75rem; font-size: var(--text-body-sm); font-weight: 600; }
+  .bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.625rem; }
+  .bars a { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.75rem; color: inherit; text-decoration: none; }
+  .bars .bar { grid-column: 1 / -1; height: 6px; border-radius: 999px; background: var(--muted); overflow: hidden; }
+  .bars .bar i { display: block; height: 100%; background: color-mix(in oklab, var(--negative) 70%, transparent); border-radius: 999px; }
+  .bars .n { font-variant-numeric: tabular-nums; font-weight: 500; }
+  .src { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .src:last-child { border-bottom: 0; }
+  .src .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .muted { color: var(--muted-foreground); }
+  .link { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: color-mix(in oklab, var(--primary) 40%, transparent); }
+  .empty { text-align: center; padding: 2.5rem 1rem; color: var(--muted-foreground); border: 1px dashed var(--border); border-radius: var(--radius); }
+  .empty b { display: block; color: var(--foreground); font-size: var(--text-body); margin-bottom: 0.25rem; }
+  .sheet { margin-left: auto; max-width: 420px; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; box-shadow: 0 12px 32px -12px rgba(0,0,0,0.25); }
+  .sheet h4 { margin: 0; font-size: var(--text-heading-sm); }
+  .sheet .desc { color: var(--muted-foreground); font-size: var(--text-label); margin: 0.25rem 0 1.25rem; }
+  .ann { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0.5rem 0 0; }
+  .ann li { margin: 0.2rem 0; }
+  .vchart { display: flex; align-items: flex-end; gap: 3px; height: 96px; padding: 0.5rem 0 0; border-bottom: 1px solid var(--border); }
+  .vchart a { flex: 1; background: color-mix(in oklab, var(--negative) 65%, transparent); border-radius: 2px 2px 0 0; min-height: 1px; }
+  .vchart a.zero { background: var(--border); }
+  .vaxis { display: flex; justify-content: space-between; color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.25rem; }
+
+  .badge.good { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 16%, transparent); }
+  .badge.warn { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 16%, transparent); }
+  .badge.info { color: var(--info); background-color: color-mix(in oklab, var(--info) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 16%, transparent); }
+  .kpi.warn { background: color-mix(in oklab, var(--warning) 6%, var(--muted)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 22%, transparent); }
+  .kpi.warn .k-value { color: var(--warning); }
+  .kpi .k-sub { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.1rem; }
+  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 0.4rem 1rem; margin: 0; font-size: var(--text-body-sm); }
+  .kv dt { color: var(--muted-foreground); }
+  .kv dd { margin: 0; word-break: break-word; }
+  .saved { margin-top: 1.25rem; border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; }
+  .saved .head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.75rem; background: var(--muted); font-size: var(--text-label); color: var(--secondary-foreground); }
+  .saved pre { margin: 0; padding: 0.75rem; font-size: var(--text-caption); overflow-x: auto; }
+  .saved .locked { padding: 0.75rem; color: var(--muted-foreground); font-size: var(--text-label); }
+  .variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1rem; align-items: start; }
+  .variants .sheet { margin: 0; max-width: none; }
+  .vlabel { font-size: var(--text-caption); color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 0.5rem; }
+  .bars .bar i.dup { background: color-mix(in oklab, var(--info) 65%, transparent); }
+  .pend { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .pend:last-child { border-bottom: 0; }
+  .pend .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .table .t-id { white-space: nowrap; }
+  .footnote { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.75rem; }
+  .wire td .lst { display: flex; flex-direction: column; gap: 0.15rem; }
+  .wire td .lst span { white-space: nowrap; }
+  .check { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+  .kv pre, .err { margin: 0; padding: 0.75rem; font-size: var(--text-caption); background: var(--muted); border: 1px solid var(--border); border-radius: 0.5rem; overflow-x: auto; white-space: pre; }
+  .refs { list-style: none; margin: 0; padding: 0; font-family: var(--font-mono); font-size: var(--text-caption); }
+  .refs li { padding: 0.3rem 0; border-bottom: 1px solid var(--border); }
+  .refs li:last-child { border-bottom: 0; }
+  .jobrow { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.55rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .jobrow:last-child { border-bottom: 0; }
+  .jobrow .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .header-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1rem; }
+  .toast { display: inline-flex; gap: 0.5rem; align-items: center; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 0.5rem; box-shadow: 0 8px 24px -12px rgba(0,0,0,0.25); font-size: var(--text-label); margin: 0.25rem 0.5rem 0.25rem 0; }
+  .vchart a { display: flex; flex-direction: column-reverse; background: color-mix(in oklab, var(--info) 55%, transparent); }
+  .vchart a i { display: block; background: color-mix(in oklab, var(--negative) 70%, transparent); }
+  .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
 </style>
 </head>
 <body>
 <div class="shell">
   <nav class="sidebar">
-    <div class="brand"><span></span>Jobs Console</div>
+    <div class="brand"><span></span>Observability</div>
     <div class="nav-group">
-      <div class="nav-group-title">Operate</div>
-      <a class="nav-item active" href="#dashboard">Dashboard</a>
-      <a class="nav-item" href="#job-detail">Job Detail &amp; Runs</a>
-      <a class="nav-item" href="#trace">Cross-module Trace</a>
-    </div>
-    <div class="nav-group">
-      <div class="nav-group-title">Diagnose</div>
-      <a class="nav-item" href="#failed-items">Failed Items</a>
-      <a class="nav-item" href="#locks">Lock Inspector <span class="pill">new API</span></a>
-      <a class="nav-item" href="#alerts">Alerts &amp; Overdue <span class="pill">new API</span></a>
-    </div>
-    <div class="nav-group">
-      <div class="nav-group-title">Control</div>
-      <a class="nav-item" href="#pause">Pause / Disable <span class="pill">new API</span></a>
+      <div class="nav-group-title">Background Jobs</div>
+      <a class="nav-item active" href="#overview">Overview</a>
+      <a class="nav-item" href="#runs">Runs</a>
+      <a class="nav-item" href="#job">Job</a>
+      <a class="nav-item" href="#locks">Locks</a>
+      <a class="nav-item" href="#volume">Volume &amp; Retention</a>
     </div>
   </nav>
 
   <main class="main">
-    <h1 class="page-title">Background Jobs — Admin Console</h1>
-    <p class="page-sub">Screen mocks for the <code>background-jobs</code> module's admin surface, each mapped to its
-    endpoint. <b>No tenant scoping</b> — jobs have no <code>tenantId</code>. Reads gated
-    <code>@RequiresAction('job.view')</code>; the manual trigger gated <code>'job.run'</code>. Screens marked
-    <b>Proposed</b> are legitimate parts of a jobs console the API doesn't serve yet.</p>
+    <div class="page-head">
+      <h1 class="page-title">Background Jobs — Admin Console</h1>
+      <p class="page-sub">
+        Screen mocks for the <code>background-jobs</code> module's admin surface. Reads are gated
+        <code>@RequiresAction('job.view')</code>, Run now <code>'job.run'</code> — a platform persona, not tenant-scoped:
+        jobs have no tenant (one run covers every tenant's due items).
+      </p>
+    </div>
 
-    <div class="note"><div><b>By design.</b> "Missed schedule" is never a stored row — it's <em>derived</em> in the
-    dashboard from a per-job cadence hint. Scheduling itself lives in the vertical (a <code>@Cron</code> wrapper),
-    so "Pause / Disable" below is proposed with a caveat, not assumed.</div></div>
+    <div class="note warn">
+      <div><b>Why this console exists.</b> A scheduled job fails quietly — nobody is waiting on it. This is where you see
+      the four ways it goes wrong: a job that <b>fails outright</b> every run, one that <b>keeps failing on the same
+      item</b>, one that <b>stopped running</b> (overdue — a missed schedule leaves no row, so it's derived from a
+      cadence), and a <b>lock left by a dead process</b> blocking it.</div>
+    </div>
+
+    <div class="note">
+      <div><b>What a row is.</b> One run that took the job's lock — <code>findDueItems()</code>, then each item, failures
+      isolated per item. Three kinds: <b>clean</b>, <b>with failed items</b> (they stay due and retry next run), and
+      <b>job failed</b> (<code>findDueItems()</code> threw — nothing processed). A run that found the lock taken isn't a
+      run and isn't recorded. Every period is on when the run <b>started</b>; the app keeps runs <b>90 days</b> (its own
+      <code>job-run-pruner</code> job).</div>
+    </div>
 
     <h3 class="sub">Endpoint coverage map</h3>
     <div class="scrollx">
     <table class="cov">
       <thead><tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr></thead>
       <tbody>
-        <tr><td>Dashboard</td><td><span class="endpoint"><span class="m">GET</span>/jobs</span></td><td><span class="status live">Live</span></td><td><code>listJobStatus()</code> — last run, last success, consecutive failures, cadence, overdue.</td></tr>
-        <tr><td>Job Detail &amp; Runs</td><td><span class="endpoint"><span class="m">GET</span>/jobs/:name/runs</span> · <span class="endpoint"><span class="m">POST</span>/jobs/:name/run</span></td><td><span class="status live">Live</span></td><td>Run history (filter outcome / date) + "Run now" (<code>job.run</code>).</td></tr>
-        <tr><td>Run Detail</td><td><span class="endpoint"><span class="m">GET</span>/jobs/runs/:id</span></td><td><span class="status live">Live</span></td><td>Single-run permalink, 404 if not found. Carries the full, untruncated <code>error</code> stack — list rows (dashboard + run history) truncate it to ~500 chars.</td></tr>
-        <tr><td>Cross-module Trace</td><td><span class="endpoint"><span class="m">GET</span>/jobs/runs/trace/:correlationId</span></td><td><span class="status live">Live</span></td><td>Same id resolves in <code>audit-logging</code> and <code>notification</code>.</td></tr>
-        <tr><td>Failed Items</td><td><span class="endpoint"><span class="m">GET</span>/jobs/:name/failed-items</span></td><td><span class="status live">Live</span></td><td><code>?minRuns=</code> — items recurring across at least that many of the job's last 50 runs. Best-effort: matching relies on <code>describeItem()</code> being a stable ref, which isn't guaranteed.</td></tr>
-        <tr><td>Lock Inspector</td><td><span class="endpoint"><span class="m">GET</span>/jobs/locks</span></td><td><span class="status proposed">Proposed</span></td><td>Which advisory locks are held, since when. A stuck lock from a crashed instance is a real incident with no visibility.</td></tr>
-        <tr><td>Alerts &amp; Overdue</td><td><span class="endpoint"><span class="m">GET</span>/jobs/alerts</span></td><td><span class="status partial">Partial</span></td><td>The listing works — <code>overdue</code> / <code>consecutiveFailures</code> filtered from <code>listJobStatus</code> — but there's no "acknowledge" state and no outbound webhook, so nothing pages anyone without the screen open.</td></tr>
-        <tr><td>Pause / Disable</td><td><span class="endpoint"><span class="m">POST</span>/jobs/:name/pause</span></td><td><span class="status proposed">Proposed</span></td><td>A job failing every run and paging people — today the only lever is a deploy. Caveat: scheduling is the vertical's, so this may stay a vertical concern.</td></tr>
+        <tr><td>Overview — tiles</td><td><span class="endpoint"><span class="m">GET</span>/jobs/runs/summary?since</span></td><td><span class="status live">Live</span></td><td>Runs, clean / with failed items / job failed, manual, items processed / failed, jobs that ran.</td></tr>
+        <tr><td>Overview — jobs, needs attention</td><td><span class="endpoint"><span class="m">GET</span>/jobs</span></td><td><span class="status live">Live</span></td><td>One row per job: last run, last clean success, failures in a row, cadence (declared / inferred), overdue, triggerable. "Needs attention" is <code>GET /jobs/alerts</code>'s rule, applied in the browser.</td></tr>
+        <tr><td>Runs</td><td><span class="endpoint"><span class="m">GET</span>/jobs/runs</span></td><td><span class="status live">Live</span></td><td>jobName, outcome, trigger, hasFailedItems, correlationId, since/until (≤ 90 days). <code>{ data, meta: { nextCursor } }</code> — no total count. <code>error</code> truncated.</td></tr>
+        <tr><td>Run sheet</td><td><span class="endpoint"><span class="m">GET</span>/jobs/runs/:id</span></td><td><span class="status live">Live</span></td><td>The full error stack and every failed item ref (≤ 50). 404 if gone (pruned).</td></tr>
+        <tr><td>Trace sheet</td><td><span class="endpoint"><span class="m">GET</span>/jobs/runs/trace/:correlationId</span></td><td><span class="status live">Live</span></td><td>Oldest first. Only manual runs carry an id; the same id is the Run now request's audit record.</td></tr>
+        <tr><td>Job</td><td><span class="endpoint"><span class="m">GET</span>/jobs</span> + <span class="endpoint"><span class="m">GET</span>/jobs/:name/failed-items</span> + <span class="endpoint"><span class="m">POST</span>/jobs/:name/run</span></td><td><span class="status live">Live</span></td><td>One job's status, its chronic failed items (refs recurring across its last 50 runs), its recent runs, and Run now (200 / 404 / 409).</td></tr>
+        <tr><td>Locks</td><td><span class="endpoint"><span class="m">GET</span>/jobs/locks</span></td><td><span class="status live">Live</span></td><td>The lease lock's rows: held (a run in progress) or expired (its holder died). <code>supported: false</code> on the session-level advisory lock.</td></tr>
+        <tr><td>Volume &amp; Retention</td><td><span class="endpoint"><span class="m">GET</span>/jobs/runs/volume?tz</span></td><td><span class="status live">Live</span></td><td>30 calendar days in the viewer's zone; oldest run, stored runs, table size.</td></tr>
+        <tr><td class="muted">Deferred</td><td class="muted">—</td><td class="muted">Not built</td><td class="muted">Pause / disable a job, an alert acknowledge state and outbound alert webhook, force-releasing a lock — see the module's AUDIT-REPORT.</td></tr>
       </tbody>
     </table>
     </div>
 
-    <!-- 1 · DASHBOARD -->
-    <section class="screen" id="dashboard">
-      <div class="screen-head"><h2 class="screen-name">Dashboard</h2><span class="endpoint"><span class="m">GET</span>/jobs</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">One row per job — everything that has run, plus every job with a declared cadence. The at-a-glance "is anything broken or stalled" view.</p>
-      <p class="gating">Gate: <code>job.view</code>. No tenant scoping.</p>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Job</th><th>Last run</th><th>Outcome</th><th>Last clean success</th><th>Consec. failures</th><th>Cadence</th><th>Overdue</th></tr></thead>
-        <tbody>
-          <tr><td>invoice-reminders</td><td class="t-time">2026-09-07 08:00:04</td><td><span class="badge ok">completed</span></td><td class="t-time">2026-09-07 08:00</td><td>0</td><td>1 hour <span class="badge neutral">declared</span></td><td>—</td></tr>
-          <tr><td>payout-sweep</td><td class="t-time">2026-09-07 06:12:41</td><td><span class="badge warn">completed · 3 failed</span></td><td class="t-time">2026-09-05 06:10</td><td>2</td><td>1 day <span class="badge neutral">declared</span></td><td>—</td></tr>
-          <tr><td>kyc-expiry-scan</td><td class="t-time">2026-09-04 02:00:11</td><td><span class="badge fail">job_failed</span></td><td class="t-time">2026-09-03 02:00</td><td>3</td><td>1 day <span class="badge neutral">declared</span></td><td><span class="badge fail">by 2 days</span></td></tr>
-          <tr><td>ledger-recon</td><td class="t-time">—</td><td>—</td><td>—</td><td>0</td><td>6 hours <span class="badge neutral">declared</span></td><td><span class="badge fail">never run</span></td></tr>
-          <tr><td>webhook-retry</td><td class="t-time">2026-09-07 09:40:55</td><td><span class="badge ok">completed</span></td><td class="t-time">2026-09-07 09:40</td><td>0</td><td>~5 min <span class="badge info">inferred</span></td><td>—</td></tr>
-        </tbody>
-      </table>
+    <!-- 1 · OVERVIEW -->
+    <section class="screen" id="overview">
+      <div class="screen-head">
+        <h2 class="screen-name">Overview</h2>
+        <span class="status live">Live</span>
       </div>
-    </section>
+      <p class="screen-purpose">The landing screen — is any job broken, stuck or stalled? A segment control picks the period for the tiles; the jobs list is always "now". "Go to Runs", "Locks" and "Volume &amp; Retention" sit in the page header.</p>
+      <p class="gating">Gate: <code>job.view</code>. Calls <code>runs/summary</code> (with <code>since</code>) and <code>/jobs</code>.</p>
 
-    <!-- 2 · JOB DETAIL + RUNS -->
-    <section class="screen" id="job-detail">
-      <div class="screen-head"><h2 class="screen-name">Job Detail &amp; Runs</h2>
-        <span class="endpoint"><span class="m">GET</span>/jobs/:name/runs</span>
-        <span class="endpoint"><span class="m">POST</span>/jobs/:name/run</span><span class="status live">Live</span></div>
-      <p class="breadcrumb"><b>payout-sweep</b> / runs</p>
-      <p class="screen-purpose">One job's run history with a drill-down, and the out-of-schedule trigger.</p>
-      <p class="gating">Reads: <code>job.view</code>. Trigger: <code>job.run</code>. The manual run's <code>correlationId</code> is forwarded so it shows in the cross-module trace — read from an inbound <code>X-Correlation-Id</code> header, or generated fresh if the caller didn't send one; an optional audit-emitter records who triggered it.</p>
       <div class="filterbar">
-        <span class="field"><span class="lbl">Outcome</span>any</span>
-        <span class="field"><span class="lbl">Since</span>2026-09-01</span>
-        <span class="field"><span class="lbl">Until</span>2026-09-07</span>
-        <button class="btn-secondary" type="button">Apply</button>
-        <button class="btn" type="button" style="margin-left:auto">Run now</button>
+        <span class="seg"><span class="on">Past 24 hours</span><span>Past 7 days</span><span>Past 30 days</span></span>
       </div>
+
+      <div class="kpi-row">
+        <div class="kpi"><div class="k-label">Runs</div><div class="k-value"><a class="link" href="#runs">187</a></div><div class="k-sub">8 jobs · 4 run by hand</div></div>
+        <div class="kpi warn"><div class="k-label">With failed items</div><div class="k-value"><a class="link" href="#runs">12</a></div><div class="k-sub">15 items failed — they retry next run</div></div>
+        <div class="kpi alert"><div class="k-label">Job failures</div><div class="k-value"><a class="link" href="#runs">25</a></div><div class="k-sub">couldn't even find its work</div></div>
+        <div class="kpi alert"><div class="k-label">Needs attention</div><div class="k-value">4</div><div class="k-sub">jobs failing or overdue — now</div></div>
+      </div>
+
+      <div class="panels">
+        <div class="panel">
+          <h4>Needs attention</h4>
+          <a class="jobrow" href="#job"><span><code>kyc-expiry-scan</code></span><span class="badge bad">failed 50+ runs in a row</span>
+            <span class="meta">last run 22 Oct 19:30 · connection pool exhausted — timeout acquiring a client…</span></a>
+          <a class="jobrow" href="#job"><span><code>payout-sweep</code></span><span class="badge bad">failed items 50+ runs in a row</span>
+            <span class="meta">1 item keeps failing · payout p_9c04 — insufficient float in settlement account</span></a>
+          <a class="jobrow" href="#job"><span><code>statement-export</code></span><span class="badge warn">overdue by 2 days</span>
+            <span class="meta">declared daily · last run 19 Oct 06:00 · <a class="link" href="#locks">a dead holder's lock</a></span></a>
+          <a class="jobrow" href="#job"><span><code>ledger-recon</code></span><span class="badge warn">never run</span>
+            <span class="meta">declared every 6 hours · nothing schedules it, and it can't be run from here</span></a>
+        </div>
+        <div class="panel">
+          <h4>Jobs</h4>
+          <a class="jobrow" href="#job"><span><code>invoice-reminders</code></span><span class="badge good">healthy</span>
+            <span class="meta">every 1 hour · last 22 Oct 19:00 · clean</span></a>
+          <a class="jobrow" href="#job"><span><code>webhook-retry</code></span><span class="badge good">healthy</span>
+            <span class="meta">~15 minutes (inferred) · last 22 Oct 19:45 · clean</span></a>
+          <a class="jobrow" href="#job"><span><code>idempotency-cleanup</code></span><span class="badge good">healthy</span>
+            <span class="meta">every 1 hour · last 22 Oct 19:45 · clean</span></a>
+          <a class="jobrow" href="#job"><span><code>job-run-pruner</code></span><span class="badge good">healthy</span>
+            <span class="meta">every 1 day · last 22 Oct 07:10 · clean</span></a>
+          <a class="jobrow" href="#job"><span><code>search-reindex</code></span><span class="badge info">manual only</span>
+            <span class="meta">no cadence · never run</span></a>
+        </div>
+      </div>
+      <p class="footnote">Oldest run kept: 24 Jul 20:00 — the 90-day prune is running. 11 jobs: every job that ran, declares a cadence, or can be run now.</p>
+
+      <ul class="ann">
+        <li>Each run tile opens Runs filtered to exactly what it counted — the period plus <code>hasFailedItems=true</code> (With failed items) or <code>outcome=job_failed</code> (Job failures). <b>Needs attention</b> isn't a count of runs, so it doesn't link to the list — its panel is the breakdown.</li>
+        <li><b>Needs attention</b> = <code>GET /jobs/alerts</code>'s rule: overdue, or 2+ failing runs in a row (a run with failed items counts as failing). Red for failing, amber for overdue / never run. "50+" — the streak is read from a job's last 50 runs.</li>
+        <li><b>Jobs</b> lists the rest, healthy first by name; a row opens the Job screen. A job's cadence is the declared hint, or "~ (inferred)" from the gap between its scheduled runs.</li>
+        <li>Lists are table cards with their title in an <code>lg</code> header, scrolling after 5 rows (<code>visibleRows</code>). Times are the viewer's local time.</li>
+      </ul>
+
+      <h3 class="sub">Empty state</h3>
+      <div class="empty"><b>No job runs recorded</b>No job has run and none declares a cadence — or the run recorder isn't wired (<code>jobRunRecorderToken</code>).</div>
+    </section>
+
+    <!-- 2 · RUNS -->
+    <section class="screen" id="runs">
+      <div class="screen-head">
+        <h2 class="screen-name">Runs</h2>
+        <span class="endpoint"><span class="m">GET</span>/jobs/runs</span>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">Every run of every job, newest first — "did last night's payout sweep run, and what failed?"</p>
+      <p class="gating">Gate: <code>job.view</code>. No tenant scoping.</p>
+
+      <div class="filterbar">
+        <span class="field"><span class="lbl">Job</span><span class="val">any</span></span>
+        <span class="field"><span class="lbl">Outcome</span><span class="val">any</span></span>
+        <span class="field"><span class="lbl">Trigger</span><span class="val">any</span></span>
+        <span class="field"><span class="lbl">Failed items</span><span class="val">yes</span></span>
+        <span class="field"><span class="lbl">Correlation ID</span><span class="val">any</span></span>
+        <span class="field"><span class="lbl">Started</span><span class="val">Past 24 hours</span></span>
+        <button class="btn-secondary" type="button">Reset</button>
+      </div>
+
       <div class="scrollx">
       <table class="table">
-        <thead><tr><th>Started</th><th>Trigger</th><th>Outcome</th><th>Due</th><th>Processed</th><th>Failed</th><th>Correlation</th></tr></thead>
+        <thead><tr><th>Started</th><th>Job</th><th>Trigger</th><th>Outcome</th><th class="t-num">Due</th><th class="t-num">Processed</th><th class="t-num">Failed</th><th class="t-num">Took</th><th>Correlation</th></tr></thead>
         <tbody>
-          <tr><td class="t-time">2026-09-07 06:12:41</td><td><span class="badge neutral">scheduled</span></td><td><span class="badge warn">completed</span></td><td>128</td><td>125</td><td>3</td><td class="t-id">—</td></tr>
-          <tr><td class="t-time">2026-09-06 06:11:58</td><td><span class="badge neutral">scheduled</span></td><td><span class="badge ok">completed</span></td><td>96</td><td>96</td><td>0</td><td class="t-id">—</td></tr>
-          <tr><td class="t-time">2026-09-05 14:30:02</td><td><span class="badge info">manual</span></td><td><span class="badge ok">completed</span></td><td>12</td><td>12</td><td>0</td><td class="t-id">c: 8a2f…31</td></tr>
+          <tr><td class="t-time">22 Oct 19:57</td><td><span class="badge action">payout-sweep</span></td><td><span class="badge info">manual</span></td><td><span class="badge warn">items failed</span></td><td class="t-num">9</td><td class="t-num">8</td><td class="t-num">1</td><td class="t-num muted">0.1s</td><td><a class="t-id link" href="#trace">a41c…9e</a></td></tr>
+          <tr><td class="t-time">22 Oct 19:57</td><td><span class="badge action">kyc-expiry-scan</span></td><td><span class="badge info">manual</span></td><td><span class="badge bad">job failed</span></td><td class="t-num muted">0</td><td class="t-num muted">0</td><td class="t-num muted">0</td><td class="t-num muted">0.1s</td><td><a class="t-id link" href="#trace">e2b7…04</a></td></tr>
+          <tr><td class="t-time">22 Oct 19:45</td><td><span class="badge action">webhook-retry</span></td><td class="muted">scheduled</td><td><span class="badge good">clean</span></td><td class="t-num">3</td><td class="t-num">3</td><td class="t-num muted">0</td><td class="t-num muted">1.2s</td><td class="muted">—</td></tr>
+          <tr><td class="t-time">22 Oct 19:30</td><td><span class="badge action">kyc-expiry-scan</span></td><td class="muted">scheduled</td><td><span class="badge bad">job failed</span></td><td class="t-num muted">0</td><td class="t-num muted">0</td><td class="t-num muted">0</td><td class="t-num muted">5.0s</td><td class="muted">—</td></tr>
+          <tr><td class="t-time">22 Oct 16:05</td><td><span class="badge action">payout-sweep</span></td><td class="muted">scheduled</td><td><span class="badge warn">items failed</span></td><td class="t-num">13</td><td class="t-num">11</td><td class="t-num">2</td><td class="t-num muted">28.1s</td><td class="muted">—</td></tr>
+          <tr><td class="t-time">22 Oct 07:10</td><td><span class="badge action">job-run-pruner</span></td><td class="muted">bootstrap</td><td><span class="badge good">clean</span></td><td class="t-num">1</td><td class="t-num">1</td><td class="t-num muted">0</td><td class="t-num muted">0.3s</td><td class="muted">—</td></tr>
         </tbody>
       </table>
       </div>
-      <div class="pagebar"><span>3 of 61 runs</span><span class="pager"><span>Newer</span><span>Older</span></span></div>
+
+      <div class="pagebar">
+        <span>50 per page</span>
+        <span class="pager"><span>Newer</span><span>Older</span></span>
+      </div>
+
+      <ul class="ann">
+        <li><b>Outcome</b>: clean (green), items failed (amber — <code>completed</code> with <code>itemsFailed &gt; 0</code>), job failed (red). <b>Trigger</b>: scheduled muted, bootstrap muted (a boot's catch-up run), manual as a badge.</li>
+        <li>A row opens the Run sheet; the correlation id opens the Trace sheet (only manual runs carry one). Row actions filter by the row's job, or its outcome — no filter links in cells.</li>
+        <li>Recent (no filters) and Advanced Filter — job (a select fed by <code>/jobs</code>), outcome, trigger, failed items yes/no, correlation id, and a required range up to 90 days. The Overview's tiles and the Job screen land here pre-filtered. No "of N" total: the list pages by cursor.</li>
+      </ul>
+
+      <h3 class="sub">Empty state</h3>
+      <div class="empty"><b>No runs match</b>Widen the range or clear a filter.</div>
     </section>
 
-    <!-- 3 · RUN DETAIL (drawer) -->
-    <div class="drawer" data-label="Drawer — Run detail" id="run-detail">
-      <span class="x">✕</span>
-      <div class="screen-head" style="margin-bottom:0.5rem">
-        <h2 class="screen-name" style="font-size:var(--text-heading-sm)">Run detail</h2>
-        <span class="endpoint"><span class="m">GET</span>/jobs/runs/:id</span><span class="status live">Live</span>
+    <!-- 3 · RUN SHEET -->
+    <section class="screen" id="run">
+      <div class="screen-head">
+        <h2 class="screen-name">Run sheet</h2>
+        <span class="endpoint"><span class="m">GET</span>/jobs/runs/:id</span>
+        <span class="status live">Live</span>
       </div>
-      <p class="gating">Gate: <code>job.view</code>. 404 if the id doesn't exist for this application. Returns the full, untruncated <code>error</code> stack — the dashboard and run-history <em>list</em> rows truncate it to ~500 chars so a large stack trace doesn't ship on every row.</p>
-      <dl class="kv">
-        <dt>Run id</dt><dd class="mono">jr_44210</dd>
-        <dt>Job</dt><dd>payout-sweep</dd>
-        <dt>Trigger</dt><dd><span class="badge neutral">scheduled</span></dd>
-        <dt>Window</dt><dd>2026-09-07 06:12:41 → 06:13:09 (28s)</dd>
-        <dt>Outcome</dt><dd><span class="badge warn">completed · 3 items failed</span></dd>
-        <dt>Items</dt><dd>128 due · 125 processed · 3 failed</dd>
-      </dl>
-      <details class="diff" open>
-        <summary>failedItemRefs (capped at 50)</summary>
-        <pre>payout p_88a1 — provider timeout
-payout p_9c04 — insufficient float in settlement account
-payout p_9c19 — provider timeout</pre>
-      </details>
-      <p class="tl-meta" style="margin-top:0.75rem">These 3 stay due and retry on the next scheduled run — the runner never blocks a batch on one item.</p>
-    </div>
+      <p class="screen-purpose">Opened from a row in Runs (or the Job screen) — one run in full: what it found, what failed, and why.</p>
 
-    <!-- 4 · CROSS-MODULE TRACE -->
+      <div class="variants">
+        <div>
+          <p class="vlabel">A run with failed items</p>
+          <div class="sheet">
+            <h4>payout-sweep</h4>
+            <p class="desc">Run 15,903 · <span class="badge warn">items failed</span></p>
+            <dl class="kv">
+              <dt>Trigger</dt><dd>scheduled</dd>
+              <dt>Started</dt><dd>22 Oct 16:05:01 → 16:05:29 (28.1s)</dd>
+              <dt>Items</dt><dd>13 due · 11 processed · 2 failed</dd>
+              <dt>Correlation</dt><dd class="muted">—</dd>
+            </dl>
+            <div class="saved">
+              <div class="head"><span>Failed items (up to 50)</span><span>they stay due — retried next run</span></div>
+              <ul class="refs" style="padding: 0 0.75rem">
+                <li>payout p_9c04 — insufficient float in settlement account</li>
+                <li>payout p_3e7a — provider timeout</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div>
+          <p class="vlabel">A job failure</p>
+          <div class="sheet">
+            <h4>kyc-expiry-scan</h4>
+            <p class="desc">Run 15,906 · <span class="badge bad">job failed</span></p>
+            <dl class="kv">
+              <dt>Trigger</dt><dd>manual</dd>
+              <dt>Started</dt><dd>22 Oct 19:57:59 → 19:57:59 (0.1s)</dd>
+              <dt>Items</dt><dd class="muted">none — the due-items query failed</dd>
+              <dt>Correlation</dt><dd><span class="mono">e2b7c1d0-…-04</span> (click to copy)</dd>
+            </dl>
+            <div class="saved">
+              <div class="head"><span>Error</span><span>the full stack</span></div>
+              <pre>Error: connection pool exhausted — timeout acquiring a client after 5000ms
+    at Pool.connect (node_modules/pg-pool/index.js:45:11)
+    at KycExpiryScanJob.findDueItems (src/demo/demo-jobs.ts:88:5)
+    at IdempotentJobRunner.run (…/idempotent-job-runner.service.ts:79:23)</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ul class="ann">
+        <li>The sheet fetches the run by id — the list row's <code>error</code> is cut at ~500 characters; this is the whole stack (stored up to 16,000).</li>
+        <li>A failed item ref is the job's own <code>describeItem()</code> label — the same item failing again shows on the Job screen's Failed items.</li>
+        <li>Read-only, no links out — the correlation id only copies (no sheet on a sheet). A run pruned since the list loaded is a 404: "This run is no longer kept".</li>
+      </ul>
+    </section>
+
+    <!-- 4 · TRACE SHEET -->
     <section class="screen" id="trace">
-      <div class="screen-head"><h2 class="screen-name">Cross-module Trace</h2><span class="endpoint"><span class="m">GET</span>/jobs/runs/trace/:correlationId</span><span class="status live">Live</span></div>
-      <p class="breadcrumb">correlation <b>8a2f…31</b></p>
-      <p class="screen-purpose">Every job run tied to one correlation id — normally a manual run fired from an HTTP request. Joins to the same id in audit and notification.</p>
-      <ul class="timeline">
-        <li class="tl-item"><div class="tl-time">14:30:02</div><div class="tl-title"><span class="dot violet"></span> run started — <span class="badge info">manual</span> payout-sweep · by u_1c07</div><div class="tl-meta">module: background-jobs</div></li>
-        <li class="tl-item"><div class="tl-time">14:30:30</div><div class="tl-title"><span class="dot emerald"></span> run completed — 12/12 processed</div><div class="tl-meta">module: background-jobs</div></li>
-      </ul>
-      <div class="note"><div><b>Cross-reference.</b> This id also resolves in <code>audit-logging.api</code> (<code>/audit/trace/8a2f…31</code>) and <code>notification.api</code> (delivery log filtered by correlation).</div></div>
-    </section>
-
-    <!-- 5 · FAILED ITEMS -->
-    <section class="screen" id="failed-items">
-      <div class="screen-head"><h2 class="screen-name">Failed Items</h2><span class="endpoint"><span class="m">GET</span>/jobs/:name/failed-items</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Which items a job keeps failing on, across runs — the "chronic offender" view for triage.</p>
-      <p class="gating">Gate: <code>job.view</code>. <code>?minRuns=</code> (default 2) — an item must appear as a failed ref in at least that many of the job's last 50 runs to show up here, via <code>unnest(failed_item_refs)</code> + <code>GROUP BY</code>. Not a dead-letter queue — per-item retry is Model 2.</p>
-      <div class="note"><div><b>Best-effort matching.</b> An item ref is whatever the job's own <code>describeItem()</code> returns — a logging aid, not a stable identifier by contract. A job whose ref embeds something that varies run to run (an index, a timestamp) will never show a recurrence here even if the same underlying item keeps failing.</div></div>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Item</th><th>Times failed (last 50 runs)</th><th>Last failed</th></tr></thead>
-        <tbody>
-          <tr><td class="mono">payout p_9c04</td><td><span class="badge fail">6</span></td><td class="t-time">2026-09-07 06:12</td></tr>
-          <tr><td class="mono">payout p_88a1</td><td><span class="badge warn">2</span></td><td class="t-time">2026-09-06 06:11</td></tr>
-        </tbody>
-      </table>
+      <div class="screen-head">
+        <h2 class="screen-name">Trace sheet</h2>
+        <span class="endpoint"><span class="m">GET</span>/jobs/runs/trace/:correlationId</span>
+        <span class="status live">Live</span>
       </div>
+      <p class="screen-purpose">Opened from a correlation id in Runs — every run one request started, in order. Normally one: a Run now.</p>
+
+      <div class="sheet">
+        <h4>Request trace</h4>
+        <p class="desc">Correlation: <span class="mono">a41c03f2-…-9e</span> (click to copy)</p>
+        <ol class="timeline">
+          <li class="tl-item"><div class="tl-time">22 Oct 19:57:59</div>
+            <div class="tl-title"><span class="badge action">payout-sweep</span> <span class="badge info">manual</span> <span class="badge warn">items failed</span></div>
+            <div class="tl-time">9 due · 8 processed · 1 failed · 0.1s</div></li>
+        </ol>
+        <p class="footnote">The same id is this request's audit record — <code>job · triggered</code> by platform.admin@ascendra.test — in Audit's trace.</p>
+      </div>
+
+      <ul class="ann">
+        <li>Oldest first. Read-only, no links out — the id only copies. Pages by cursor ("Load more").</li>
+      </ul>
     </section>
 
-    <!-- 6 · LOCK INSPECTOR (proposed) -->
+    <!-- 5 · JOB -->
+    <section class="screen" id="job">
+      <div class="screen-head">
+        <h2 class="screen-name">Job</h2>
+        <span class="endpoint"><span class="m">GET</span>/jobs</span>
+        <span class="endpoint"><span class="m">GET</span>/jobs/:name/failed-items</span>
+        <span class="endpoint"><span class="m">POST</span>/jobs/:name/run</span>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">One job — is it healthy, what keeps failing, and run it now. Opened from either Overview list.</p>
+      <p class="gating">Reads: <code>job.view</code>. Run now: <code>job.run</code> — shown disabled, with "You don't have permission to run jobs", when the viewer lacks it.</p>
+
+      <div class="breadcrumb">Background Jobs / <b>payout-sweep</b></div>
+      <div class="header-actions">
+        <button class="btn" type="button">Run now</button>
+        <button class="btn-secondary" type="button">All runs of this job</button>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi"><div class="k-label">Last run</div><div class="k-value">19:57</div><div class="k-sub">manual · items failed</div></div>
+        <div class="kpi"><div class="k-label">Last clean run</div><div class="k-value">10 Oct</div><div class="k-sub">12 days ago</div></div>
+        <div class="kpi alert"><div class="k-label">Failing in a row</div><div class="k-value">50+</div><div class="k-sub">every one of its last 50 runs</div></div>
+        <div class="kpi"><div class="k-label">Cadence</div><div class="k-value">6 hours</div><div class="k-sub">declared · on time</div></div>
+      </div>
+
+      <div class="panels">
+        <div class="panel">
+          <h4>Failed items — across its last 50 runs</h4>
+          <table class="table">
+            <thead><tr><th>Item</th><th class="t-num">Runs failed in</th><th>Last failed</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">payout p_9c04 — insufficient float in settlement account</td><td class="t-num">50</td><td class="t-time">22 Oct 19:57</td></tr>
+            </tbody>
+          </table>
+          <p class="footnote">Items failing in 2 or more of the runs. Matched by the job's <code>describeItem()</code> label — best-effort: a label that changes run to run never matches.</p>
+        </div>
+        <div class="panel">
+          <h4>Recent runs</h4>
+          <a class="jobrow" href="#run"><span>22 Oct 19:57 <span class="muted">· manual</span></span><span class="badge warn">1 failed</span><span class="meta">9 due · 0.1s</span></a>
+          <a class="jobrow" href="#run"><span>22 Oct 16:05 <span class="muted">· scheduled</span></span><span class="badge warn">2 failed</span><span class="meta">13 due · 28.1s</span></a>
+          <a class="jobrow" href="#run"><span>22 Oct 10:05 <span class="muted">· scheduled</span></span><span class="badge warn">1 failed</span><span class="meta">7 due · 15.6s</span></a>
+        </div>
+      </div>
+
+      <h3 class="sub">Run now — the result</h3>
+      <div>
+        <span class="toast"><span class="badge good">done</span> payout-sweep ran — 9 due, 8 processed, 1 failed</span>
+        <span class="toast"><span class="badge bad">job failed</span> kyc-expiry-scan couldn't find its work — see the run</span>
+        <span class="toast"><span class="badge warn">already running</span> search-reindex is running now — try again when it finishes</span>
+      </div>
+
+      <ul class="ann">
+        <li><b>Run now</b> waits for the run (the button shows a spinner), then toasts the result and refreshes the screen. "Retry" and "run now" are the same thing: the job looks for its due items afresh, so the failed ones are retried. A 409 (already running) is the lock doing its job.</li>
+        <li>Hidden for a job that can't be triggered (not in the app's <code>jobs: […]</code>) — e.g. <code>ledger-recon</code>, which only declares a cadence: "Nothing in the app can run this job".</li>
+        <li>An overdue job shows "Overdue by 2 days" in the Cadence tile (amber); a job with a lock left behind links to Locks.</li>
+        <li>"All runs of this job" opens Runs filtered to it; a recent run opens the Run sheet.</li>
+      </ul>
+    </section>
+
+    <!-- 6 · LOCKS -->
     <section class="screen" id="locks">
-      <div class="screen-head"><h2 class="screen-name">Lock Inspector</h2><span class="endpoint"><span class="m">GET</span>/jobs/locks</span><span class="status proposed">Proposed</span></div>
-      <p class="screen-purpose">Which advisory locks are currently held and since when — so a lock stuck by a crashed instance is visible before it silently blocks a job for hours.</p>
-      <p class="gating">Gate: <code>job.view</code>. Read-only — a force-release action would be a separate, dangerous, audited endpoint (not proposed here).</p>
-      <div class="proposed-note"><div><b>Missing API.</b> <span class="sig">GET /jobs/locks</span> → held <code>commons_jobs_lock</code> rows: <code>{ lockKey, holder, acquiredAt, lockedUntil }</code>. A row whose <code>lockedUntil</code> is in the past but still present is the smoking gun.</div></div>
+      <div class="screen-head">
+        <h2 class="screen-name">Locks</h2>
+        <span class="endpoint"><span class="m">GET</span>/jobs/locks</span>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">Which job locks are taken right now — a run in progress, or one a crashed process left behind. Opened from the Overview's header.</p>
+      <p class="gating">Gate: <code>job.view</code>. Read-only — no force-release.</p>
+
       <div class="scrollx">
       <table class="table">
-        <thead><tr><th>Lock key</th><th>Holder</th><th>Acquired</th><th>Locked until</th><th>State</th></tr></thead>
+        <thead><tr><th>Job</th><th>Holder</th><th>Taken</th><th>Lease until</th><th>State</th></tr></thead>
         <tbody>
-          <tr><td class="mono">scheduler:invoice-reminders</td><td class="mono">pod-7f2a</td><td class="t-time">2026-09-07 08:00:04</td><td class="t-time">2026-09-07 08:05:04</td><td><span class="badge ok">active</span></td></tr>
-          <tr><td class="mono">scheduler:kyc-expiry-scan</td><td class="mono">pod-3b91 (terminated)</td><td class="t-time">2026-09-04 02:00:11</td><td class="t-time">2026-09-04 02:05:11</td><td><span class="badge fail">stale — past lockedUntil</span></td></tr>
+          <tr><td><span class="badge action">statement-export</span></td><td class="t-id">sandbox-api-7f2a#4242#d1ed0b4c</td><td class="t-time">20 Oct 06:00</td><td class="t-time">20 Oct 06:15</td><td><span class="badge bad">expired — holder died</span></td></tr>
+          <tr><td><span class="badge action">search-reindex</span></td><td class="t-id">Zakas-MacBook-Air.local#43820#ac584b15</td><td class="t-time">22 Oct 19:56</td><td class="t-time">22 Oct 20:11</td><td><span class="badge info">held — running</span></td></tr>
         </tbody>
       </table>
       </div>
+
+      <ul class="ann">
+        <li>A released lock's row is deleted, so every row is either a run in progress (<b>held</b>, blue — its holder keeps extending the lease) or a holder that died mid-run (<b>expired</b>, red). An expired lock blocks nothing new — the next run takes it over — but it marks a run that never finished and was never recorded.</li>
+        <li>The holder is <code>host#pid#nonce</code> — which process. A job name opens its Job screen.</li>
+        <li>On the session-level advisory lock (<code>supported: false</code>): "This app's lock can't be listed — it uses Postgres advisory locks, which leave nothing to read. Switch to the lease lock to see locks here."</li>
+      </ul>
+
+      <h3 class="sub">Empty state</h3>
+      <div class="empty"><b>No locks taken</b>No job is running right now, and none was left behind.</div>
     </section>
 
-    <!-- 7 · ALERTS & OVERDUE (partial) -->
-    <section class="screen" id="alerts">
-      <div class="screen-head"><h2 class="screen-name">Alerts &amp; Overdue</h2><span class="endpoint"><span class="m">GET</span>/jobs/alerts</span><span class="status partial">Partial</span></div>
-      <p class="screen-purpose">The subset of the dashboard that needs attention — overdue jobs, failure streaks — as a feed an operator can work through and acknowledge.</p>
-      <p class="gating">Gate: <code>job.view</code>. A pure filter over the existing <code>listJobStatus()</code> — no new persistence.</p>
-      <div class="proposed-note"><div><b>Partial.</b> The listing works: jobs that are <code>overdue</code> and/or have <code>consecutiveFailures</code> ≥ 2 are surfaced here. What's still missing — deliberately deferred, not attempted this pass: an "acknowledge" state (the badges below are illustrative only, nothing is actually recorded), and an outbound webhook so a failure pages someone without a human watching the screen.</div></div>
-      <ul class="timeline">
-        <li class="tl-item"><div class="tl-time">now</div><div class="tl-title"><span class="dot rose"></span> <b>kyc-expiry-scan</b> — 3 consecutive failures, overdue by 2 days</div><div class="tl-meta">last error: connection pool exhausted · <span class="badge neutral">unacknowledged (not a real state yet)</span></div></li>
-        <li class="tl-item"><div class="tl-time">now</div><div class="tl-title"><span class="dot amber"></span> <b>ledger-recon</b> — declared cadence 6h, never run</div><div class="tl-meta">likely a missing <code>@Cron</code> registration in the vertical</div></li>
+    <!-- 7 · VOLUME & RETENTION -->
+    <section class="screen" id="volume">
+      <div class="screen-head">
+        <h2 class="screen-name">Volume &amp; Retention</h2>
+        <span class="endpoint"><span class="m">GET</span>/jobs/runs/volume?tz</span>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">How much run history the table holds and how far back — opened from the Overview's header, like the other modules'.</p>
+
+      <div class="kpi-row">
+        <div class="kpi"><div class="k-label">Oldest run</div><div class="k-value">24 Jul</div><div class="k-sub">what the last prune left</div></div>
+        <div class="kpi"><div class="k-label">Stored runs</div><div class="k-value">15,907</div><div class="k-sub">this application</div></div>
+        <div class="kpi"><div class="k-label">Table size</div><div class="k-value">6.8 MB</div><div class="k-sub">every application sharing it</div></div>
+        <div class="kpi"><div class="k-label">Retention</div><div class="k-value">90 days</div><div class="k-sub"><a class="link" href="#job">job-run-pruner</a> — a job like any other</div></div>
+      </div>
+
+      <div class="panel">
+        <h4>Runs per day — past 30 days</h4>
+        <div class="vchart">
+          <a style="height:72%"><i style="height:4%"></i></a><a style="height:72%"><i style="height:4%"></i></a><a style="height:72%"><i style="height:5%"></i></a><a style="height:72%"><i style="height:3%"></i></a><a style="height:72%"><i style="height:4%"></i></a><a style="height:72%"><i style="height:4%"></i></a><a style="height:74%"><i style="height:5%"></i></a>
+          <a style="height:72%"><i style="height:4%"></i></a><a style="height:72%"><i style="height:4%"></i></a><a style="height:72%"><i style="height:3%"></i></a><a style="height:72%"><i style="height:4%"></i></a><a style="height:72%"><i style="height:4%"></i></a><a style="height:72%"><i style="height:4%"></i></a><a style="height:72%"><i style="height:5%"></i></a>
+          <a style="height:72%"><i style="height:4%"></i></a><a style="height:72%"><i style="height:4%"></i></a><a style="height:72%"><i style="height:4%"></i></a><a style="height:72%"><i style="height:6%"></i></a><a style="height:72%"><i style="height:6%"></i></a><a style="height:72%"><i style="height:6%"></i></a><a style="height:72%"><i style="height:6%"></i></a>
+          <a style="height:72%"><i style="height:6%"></i></a><a style="height:72%"><i style="height:6%"></i></a><a style="height:72%"><i style="height:6%"></i></a><a style="height:72%"><i style="height:6%"></i></a><a style="height:72%"><i style="height:22%"></i></a><a style="height:72%"><i style="height:22%"></i></a><a style="height:71%"><i style="height:21%"></i></a>
+          <a style="height:70%"><i style="height:21%"></i></a><a style="height:58%"><i style="height:20%"></i></a>
+        </div>
+        <div class="vaxis"><span>23 Sep</span><span>22 Oct</span></div>
+      </div>
+
+      <ul class="ann">
+        <li>Whole calendar days in the viewer's zone (<code>?tz</code>), zero-filled. Each bar is a day's runs, its red part the failing ones (job failed + with failed items) — the step up 5 days ago is <code>kyc-expiry-scan</code> breaking. A bar opens Runs for that day.</li>
+        <li>Retention is the app's: <code>JobRunPrunerJob</code> ships with the module, but it runs only if the app schedules it — the sandbox does, daily, keeping 90 days.</li>
       </ul>
     </section>
 
-    <!-- 8 · PAUSE / DISABLE (proposed) -->
-    <section class="screen" id="pause">
-      <div class="screen-head"><h2 class="screen-name">Pause / Disable</h2><span class="endpoint"><span class="m">POST</span>/jobs/:name/pause</span><span class="status proposed">Proposed</span></div>
-      <p class="screen-purpose">Stop a misbehaving job from running without a deploy — e.g. a payout sweep hitting a broken provider and failing every 6 hours at 3am.</p>
-      <div class="proposed-note"><div><b>Missing API — with a caveat.</b> Scheduling lives in the vertical (a <code>@Cron</code> wrapper calling <code>IdempotentJobRunner.run</code>), so a true pause needs a shared "is this job paused" flag the wrapper checks. Proposed: a <code>commons_jobs_pause</code> row + <span class="sig">POST /jobs/:name/pause</span> / <span class="sig">DELETE /jobs/:name/pause</span> (audited, <code>job.run</code>-gated), and <code>listJobStatus</code> gains a <code>paused</code> field. If the team decides scheduling stays entirely the vertical's, this is documented as out of scope instead.</div></div>
-      <dl class="kv">
-        <dt>Job</dt><dd>payout-sweep</dd>
-        <dt>State</dt><dd><span class="badge ok">running</span></dd>
-        <dt>Action</dt><dd><button class="btn-secondary" type="button">Pause job</button> &nbsp; requires a reason; auto-expires after 24h unless extended</dd>
-      </dl>
-    </section>
-
-    <!-- EMPTY STATE -->
-    <section class="screen">
-      <div class="screen-head"><h2 class="screen-name">Dashboard — empty state</h2><span class="endpoint"><span class="m">GET</span>/jobs</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">No job has ever run and none declares a cadence — a fresh deployment, or the observability recorder isn't wired.</p>
-      <div class="empty">
-        <div class="ic">⏱</div>
-        <div><div style="color:var(--foreground);font-weight:500">No job runs recorded</div>
-        <div>Wire <code>PostgresJobObservabilityModule</code> and declare cadences in <code>BackgroundJobsModule.forRoot({ cadences })</code>.</div></div>
-      </div>
-    </section>
   </main>
 </div>
 </body>
