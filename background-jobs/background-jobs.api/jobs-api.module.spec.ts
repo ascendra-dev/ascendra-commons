@@ -83,6 +83,7 @@ describe('JobsApiModule.forRoot — real DI wiring', () => {
 
   it('failed-items routes to the port, parsing minRuns', async () => {
     const ref = await build();
+    listJobStatus.mockResolvedValueOnce([{ name: 'payout-sweep', overdue: false, consecutiveFailures: 0 }]);
     await ref.get(JobsController).failedItems('payout-sweep', '3');
     expect(getFailedItems).toHaveBeenCalledWith('payout-sweep', 3);
   });

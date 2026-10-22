@@ -146,14 +146,24 @@ describe('JobsApiService', () => {
 
   it('getFailedItems passes jobName and minRuns straight through', async () => {
     const { svc, observability } = deps();
+    vi.mocked(observability.getFailedItems).mockResolvedValue([{ itemRef: 'p_1', failureCount: 3, lastFailedAt: new Date() }]);
     await svc.getFailedItems('payout-sweep', 3);
     expect(observability.getFailedItems).toHaveBeenCalledWith('payout-sweep', 3);
   });
 
   it('getFailedItems with a bad minRuns is a 400', async () => {
     const { svc } = deps();
-    expect(() => svc.getFailedItems('payout-sweep', Number.NaN)).toThrow(BadRequestException);
-    expect(() => svc.getFailedItems('payout-sweep', -1)).toThrow(BadRequestException);
+    await expect(svc.getFailedItems('payout-sweep', Number.NaN)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.getFailedItems('payout-sweep', -1)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('getFailedItems for a job no one knows is a 404 — for a known job, an empty list', async () => {
+    const { svc, observability, jobTrigger } = deps();
+    await expect(svc.getFailedItems('nope')).rejects.toBeInstanceOf(NotFoundException);
+    vi.mocked(jobTrigger.availableJobs).mockReturnValue(['search-reindex']);
+    await expect(svc.getFailedItems('search-reindex')).resolves.toEqual([]);
+    vi.mocked(observability.getFailedItems).mockResolvedValue([{ itemRef: 'p_1', failureCount: 2, lastFailedAt: new Date() }]);
+    await expect(svc.getFailedItems('anything')).resolves.toHaveLength(1);
   });
 
   it('an unknown job is a 404 and a running one a 409 — both still audited', async () => {

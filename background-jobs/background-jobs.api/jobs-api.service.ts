@@ -192,9 +192,17 @@ export class JobsApiService {
     return run;
   }
 
-  getFailedItems(jobName: string, minRuns?: number): Promise<FailedItemSummary[]> {
+  /**
+   * A job no one has heard of is a 404, not an empty list — "nothing keeps failing" and "no such job" read the same
+   * otherwise. Only an empty answer pays for the check (the dashboard read), so the common case stays one query.
+   */
+  async getFailedItems(jobName: string, minRuns?: number): Promise<FailedItemSummary[]> {
     textParam('name', jobName);
-    return this.observability.getFailedItems(jobName, positiveIntParam('minRuns', minRuns));
+    const items = await this.observability.getFailedItems(jobName, positiveIntParam('minRuns', minRuns));
+    if (items.length === 0 && !(await this.listJobStatus()).some((job) => job.name === jobName)) {
+      throw new NotFoundException(`No job "${jobName}" — it hasn't run, declares no cadence and can't be run now`);
+    }
+    return items;
   }
 
   /** Which job locks are held now, and which a dead holder left behind. Read-only — no force-release. */
