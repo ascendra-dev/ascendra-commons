@@ -15,8 +15,10 @@ broker — so the module is a container of dot-named packages, the same shape as
 | **`domain-events.core.in-process`** (Model 1) | `InProcessDomainEventEmitter` + module (owns `EventEmitterModule.forRoot({ global: false })`). Listeners in the same process; `emitCritical()` runs inside the caller's transaction. | `domain-events.core`, `@nestjs/event-emitter` |
 | **`domain-events.core.broker`** (Model 2) | `BrokerDomainEventEmitter` — a deliberate stub that throws `BrokerTransportNotImplementedError`. The seam is real (selector, interface, token); the transport is genuinely not built. Owns `DOMAIN_EVENTS_APPLICATION_ID` (a broker-only concern — topic naming). | `domain-events.core` |
 
-Dependency direction is one-way toward `.core`. No `.api` — nothing to
-administer or observe.
+| **`domain-events.core.postgres-drizzle`** | The delivery log: a buffered `EventDeliveryRecorder` (no I/O on the emit), the read port over it, and `pruneDeliveries()`. | `domain-events.core`, `drizzle-orm` |
+| **`domain-events.api`** | Read-only HTTP over the delivery log and the listener catalogue — the admin screens' API. | `domain-events.core`, `authorization.core` |
+
+Dependency direction is one-way toward `.core`.
 
 ## Wiring
 

@@ -5,6 +5,9 @@ export type { PostgresEventDeliveryRecorderModuleConfig } from './recorder/postg
 export { PostgresEventDeliveryObservabilityService } from './observability/postgres-event-delivery-observability.service';
 export { PostgresEventDeliveryObservabilityModule } from './observability/postgres-event-delivery-observability.module';
 export type { PostgresEventDeliveryObservabilityModuleConfig } from './observability/postgres-event-delivery-observability.module';
+export { PostgresEventDeliveryRetentionService } from './retention/postgres-event-delivery-retention.service';
+export { PostgresEventDeliveryRetentionModule } from './retention/postgres-event-delivery-retention.module';
+export type { PostgresEventDeliveryRetentionModuleConfig } from './retention/postgres-event-delivery-retention.module';
 export type { SqlExecutor } from './persistence/sql-executor';
 export { domainEventDeliveryTable } from './persistence/domain-event-delivery.schema';
 export {

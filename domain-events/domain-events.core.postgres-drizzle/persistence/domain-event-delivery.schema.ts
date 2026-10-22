@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { bigserial, index, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 /**
@@ -23,7 +24,7 @@ export const domainEventDeliveryTable = pgTable(
     method: text('method').notNull(),
     /** `'in-process'` today — free once a broker transport records too. */
     transport: text('transport').notNull(),
-    /** The business fact's own time (`event.occurredAt`), not when this row was written. */
+    /** The business fact's own time (`event.occurredAt`), not when this row was written — what every read is on. */
     occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'date' }).notNull(),
     deliveredAt: timestamp('delivered_at', { withTimezone: true, mode: 'date' }).notNull(),
     /** `EventEmitter2.listenerCount(eventName)`, read before dispatch. */
@@ -36,9 +37,13 @@ export const domainEventDeliveryTable = pgTable(
     correlationId: text('correlation_id'),
   },
   (t) => [
-    /** "this event's history, recent first" — `DeliveryQuery` by `eventName`, and `deliveryCatalog()`'s per-event aggregation. */
-    index('commons_domain_events_delivery_event_time_idx').on(t.application, t.eventName, t.deliveredAt),
-    /** "deliveries that need attention" — `DeliveryQuery` by `status`. */
-    index('commons_domain_events_delivery_status_idx').on(t.application, t.status, t.deliveredAt),
+    /** The log newest-first (keyset on occurred_at, id), the summary / catalog / volume periods, and the pruner. */
+    index('commons_domain_events_delivery_list_idx').on(t.application, t.occurredAt.desc(), t.id.desc()),
+    /** The log filtered by event name, newest first. */
+    index('commons_domain_events_delivery_event_idx').on(t.application, t.eventName, t.occurredAt.desc(), t.id.desc()),
+    /** "deliveries that need attention" — the log filtered by status. */
+    index('commons_domain_events_delivery_status_occurred_idx').on(t.application, t.status, t.occurredAt.desc(), t.id.desc()),
+    /** A request / job trace, and the log's correlation-id filter — partial: not every emit carries one. */
+    index('commons_domain_events_delivery_correlation_idx').on(t.correlationId).where(sql`${t.correlationId} is not null`),
   ],
 );

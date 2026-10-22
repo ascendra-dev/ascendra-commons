@@ -1,11 +1,12 @@
 # `domain-events.core.postgres-drizzle` — the delivery-log Postgres/Drizzle adapter
 
-Two library-owned statements over `commons_domain_events_delivery`:
+Library-owned statements over `commons_domain_events_delivery`:
 
 | Sub-folder | Implements | Bound under | Wired via |
 |---|---|---|---|
 | `recorder/` | `EventDeliveryRecorder` — buffered in memory (no I/O on the emit), written every `flushIntervalMs` (10s) as multi-row `INSERT`s, one row per delivery, `application` stamped; flushed on shutdown | `EVENT_DELIVERY_RECORDER` (core token) | `InProcessDomainEventEmitterModule.forRoot({ recorderToken })` |
-| `observability/` | `EventDeliveryObservabilityPort` — one dynamic `SELECT`, keyset-paginated, plus one aggregate query, both `application`-scoped | `EVENT_DELIVERY_OBSERVABILITY_PORT` (core token) | `PostgresEventDeliveryObservabilityModule.forRoot(...)` |
+| `observability/` | `EventDeliveryObservabilityPort` — the log (keyset-paginated on `occurred_at, id`), the summary, the per-event catalog and the volume, all `application`-scoped and on `occurred_at` | `EVENT_DELIVERY_OBSERVABILITY_PORT` (core token) | `PostgresEventDeliveryObservabilityModule.forRoot(...)` |
+| `retention/` | `PostgresEventDeliveryRetentionService.pruneDeliveries(before)` — batched deletes, `application`-scoped | itself | `PostgresEventDeliveryRetentionModule.forRoot(...)` |
 | `persistence/domain-event-delivery.schema.ts` | the table's current shape — change it with the `INSERT`/`SELECT` | | |
 | `migrations/` | the DDL, numbered — **never edited once released**; a schema change is the next file | | |
 
@@ -54,13 +55,19 @@ flush is logged with how many deliveries it lost and never retried; a crash lose
 Stamped on insert and filtered on every read (`application = $1`), so an app's
 own delivery-log screen sees only its own rows.
 
+## Every read is on `occurred_at`
+
+The business fact's own time, not when the row was written. In-process the two are the same moment; a backdated or
+replayed event (a migration, a seed, a broker's late delivery) is counted on the day it happened. Migration `0002`
+indexes the log, its event / status filters and the trace on it.
+
 ## Retention
 
-Not addressed here — this is an operational trace, not a compliance record
-(contrast `audit-logging`'s indefinite retention). A consumer that wants a
-retention window prunes `commons_domain_events_delivery` with its own
-`ScheduledJob`, the same shape `background-jobs`' own `job-run-pruner.job.ts`
-uses for `commons_jobs_job_run`.
+The table gets a row per emit, forever, unless the app prunes it — this is an operational trace, not a compliance
+record (contrast `audit-logging`'s indefinite retention). `PostgresEventDeliveryRetentionModule` provides
+`PostgresEventDeliveryRetentionService`; call `pruneDeliveries(cutoff)` from the project's own scheduler (a
+`background-jobs` `ScheduledJob`, a cron). It deletes in batches of 5,000, so a large backlog never holds one long lock
+on a table the recorder is writing to. The adapter never prunes on its own.
 
 ## Depends on
 

@@ -1,16 +1,20 @@
+import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { DomainEventsApiService, parseStatsWindow } from './domain-events-api.service';
-import type { EventDeliveryObservabilityPort, EventListenerCatalogPort } from '../domain-events.core';
+import { DomainEventsApiService } from './domain-events-api.service';
+import {
+  InvalidDeliveryCursorError,
+  type EventDeliveryObservabilityPort,
+  type EventListenerCatalogPort,
+} from '../domain-events.core';
 
 function service() {
   const deliveries: EventDeliveryObservabilityPort = {
     listDeliveries: vi.fn().mockResolvedValue({ deliveries: [] }),
+    deliverySummary: vi.fn().mockResolvedValue({}),
     deliveryCatalog: vi.fn().mockResolvedValue([]),
-    deliveryStats: vi.fn().mockResolvedValue({ perDay: [], topEvents: [], noListenerRate: 0, dispatchFailedRate: 0 }),
+    volume: vi.fn().mockResolvedValue({ perDay: [] }),
   };
-  const listenerCatalog: EventListenerCatalogPort = {
-    list: vi.fn().mockResolvedValue([]),
-  };
+  const listenerCatalog: EventListenerCatalogPort = { list: vi.fn().mockResolvedValue([]) };
   return { svc: new DomainEventsApiService(deliveries, listenerCatalog), deliveries, listenerCatalog };
 }
 
@@ -26,6 +30,7 @@ describe('DomainEventsApiService', () => {
       until: '2026-02-01T00:00:00.000Z',
       limit: 10,
       cursor: 'cur-1',
+      order: 'asc',
     });
 
     expect(deliveries.listDeliveries).toHaveBeenCalledWith({
@@ -37,46 +42,30 @@ describe('DomainEventsApiService', () => {
       until: new Date('2026-02-01T00:00:00.000Z'),
       limit: 10,
       cursor: 'cur-1',
+      order: 'asc',
     });
   });
 
-  it('getTrace overrides correlationId onto the base query and always requests ascending order', async () => {
+  it("getTrace forces order: 'asc' and the correlation id, whatever the caller asked", async () => {
     const { svc, deliveries } = service();
-    await svc.getTrace('corr-9', { limit: 5 });
-
+    await svc.getTrace('corr-9', { order: 'desc', limit: 5 });
     expect(deliveries.listDeliveries).toHaveBeenCalledWith(
-      expect.objectContaining({ correlationId: 'corr-9', limit: 5, order: 'asc' }),
+      expect.objectContaining({ correlationId: 'corr-9', order: 'asc', limit: 5 }),
     );
   });
 
-  it("getTrace forces order: 'asc' even if the caller's query asked for desc", async () => {
+  it('summary and catalog take since as a Date, or none', async () => {
     const { svc, deliveries } = service();
-    await svc.getTrace('corr-9', { order: 'desc' } as never);
-
-    expect(deliveries.listDeliveries).toHaveBeenCalledWith(expect.objectContaining({ order: 'asc' }));
+    await svc.deliverySummary();
+    await svc.deliveryCatalog('2026-10-21T00:00:00.000Z');
+    expect(deliveries.deliverySummary).toHaveBeenCalledWith({ since: undefined });
+    expect(deliveries.deliveryCatalog).toHaveBeenCalledWith({ since: new Date('2026-10-21T00:00:00.000Z') });
   });
 
-  it('listDeliveries defaults to no explicit order (the port defaults to desc) but forwards an explicit one', async () => {
+  it('volume passes the time zone through', async () => {
     const { svc, deliveries } = service();
-    await svc.listDeliveries({});
-    expect(deliveries.listDeliveries).toHaveBeenCalledWith(expect.objectContaining({ order: undefined }));
-
-    await svc.listDeliveries({ order: 'asc' });
-    expect(deliveries.listDeliveries).toHaveBeenLastCalledWith(expect.objectContaining({ order: 'asc' }));
-  });
-
-  it('deliveryCatalog delegates to the observability port', async () => {
-    const { svc, deliveries } = service();
-    await svc.deliveryCatalog();
-    expect(deliveries.deliveryCatalog).toHaveBeenCalledTimes(1);
-  });
-
-  it('deliveryStats parses the window and delegates to the observability port', async () => {
-    const { svc, deliveries } = service();
-    await svc.deliveryStats('30d');
-
-    expect(deliveries.deliveryStats).toHaveBeenCalledTimes(1);
-    expect((deliveries.deliveryStats as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBeInstanceOf(Date);
+    await svc.volume('Asia/Karachi');
+    expect(deliveries.volume).toHaveBeenCalledWith('Asia/Karachi');
   });
 
   it('listListenerBindings delegates to the listener-catalog port', async () => {
@@ -84,24 +73,35 @@ describe('DomainEventsApiService', () => {
     await svc.listListenerBindings();
     expect(listenerCatalog.list).toHaveBeenCalledTimes(1);
   });
-});
 
-describe('parseStatsWindow', () => {
-  const now = new Date('2026-06-08T00:00:00.000Z');
+  describe('a caller mistake is a 400, never a 500', () => {
+    it.each([
+      ['since', { since: 'yesterday' }],
+      ['until', { until: '2026-13-45' }],
+      ['limit', { limit: Number.NaN }],
+      ['limit', { limit: 0 }],
+      ['method', { method: 'shout' }],
+      ['status', { status: 'lost' }],
+      ['order', { order: 'sideways' }],
+      ['eventName', { eventName: 'a\u0000b' }],
+      ['correlationId', { correlationId: '\u0000' }],
+    ])('listDeliveries — bad %s', async (_name, dto) => {
+      const { svc, deliveries } = service();
+      await expect(svc.listDeliveries(dto)).rejects.toBeInstanceOf(BadRequestException);
+      expect(deliveries.listDeliveries).not.toHaveBeenCalled();
+    });
 
-  it('defaults to a 7-day window when no value is given', () => {
-    expect(parseStatsWindow(undefined, now)).toEqual(new Date('2026-06-01T00:00:00.000Z'));
-  });
+    it('a cursor the adapter never issued', async () => {
+      const { svc, deliveries } = service();
+      vi.mocked(deliveries.listDeliveries).mockRejectedValueOnce(new InvalidDeliveryCursorError('nope'));
+      await expect(svc.listDeliveries({ cursor: 'garbage' })).rejects.toThrow(/"cursor" is not one this endpoint returned/);
+    });
 
-  it('parses a day window', () => {
-    expect(parseStatsWindow('30d', now)).toEqual(new Date('2026-05-09T00:00:00.000Z'));
-  });
-
-  it('parses an hour window', () => {
-    expect(parseStatsWindow('24h', now)).toEqual(new Date('2026-06-07T00:00:00.000Z'));
-  });
-
-  it('falls back to the 7-day default for a malformed value', () => {
-    expect(parseStatsWindow('garbage', now)).toEqual(new Date('2026-06-01T00:00:00.000Z'));
+    it('summary / catalog dates and an unknown time zone', () => {
+      const { svc } = service();
+      expect(() => svc.deliverySummary('nope')).toThrow(BadRequestException);
+      expect(() => svc.deliveryCatalog('nope')).toThrow(BadRequestException);
+      expect(() => svc.volume('Mars/Olympus')).toThrow(/Unknown time zone/);
+    });
   });
 });
