@@ -24,7 +24,9 @@ export function encodeKeysetCursor(timestamp: string, key: string, scope: string
 export function decodeKeysetCursor(cursor: string): { timestamp: string; key: string; scope: string } | null {
   try {
     const parsed: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
-    if (!Array.isArray(parsed) || parsed.length !== 3 || !parsed.every((part) => typeof part === 'string' && part)) {
+    // A NUL can't reach Postgres `text` (an encoding error, a 500) — and no cursor issued here holds one.
+    const isPart = (part: unknown) => typeof part === 'string' && part !== '' && !part.includes('\u0000');
+    if (!Array.isArray(parsed) || parsed.length !== 3 || !parsed.every(isPart)) {
       return null;
     }
     const [timestamp, key, scope] = parsed as [string, string, string];

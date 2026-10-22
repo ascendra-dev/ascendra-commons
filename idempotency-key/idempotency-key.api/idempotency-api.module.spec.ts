@@ -9,7 +9,7 @@ import { IdempotencyApiModule } from './idempotency-api.module';
 import { IdempotencyController } from './idempotency.controller';
 
 const listClaims = vi.fn().mockResolvedValue({ claims: [] });
-const getClaim = vi.fn().mockResolvedValue(null);
+const getClaim = vi.fn().mockResolvedValue({ key: 'key-1', scope: 'scope-1' });
 const getClaimResponse = vi.fn().mockResolvedValue({ statusCode: 201, body: { id: 'inv-1' } });
 const claimHealthSummary = vi.fn().mockResolvedValue({
   pendingCount: 0,

@@ -1,7 +1,11 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { IdempotencyApiService } from './idempotency-api.service';
-import { InvalidIdempotencyCursorError, type IdempotencyObservabilityPort } from '../idempotency-key.core';
+import {
+  InvalidIdempotencyCursorError,
+  type IdempotencyClaimRecord,
+  type IdempotencyObservabilityPort,
+} from '../idempotency-key.core';
 
 function service() {
   const observability: IdempotencyObservabilityPort = {
@@ -26,14 +30,45 @@ function service() {
 describe('IdempotencyApiService', () => {
   it('getClaim delegates key + scope through unchanged', async () => {
     const { svc, observability } = service();
-    await svc.getClaim('k1', 's1');
+    const claim = { key: 'k1', scope: 's1' } as IdempotencyClaimRecord;
+    vi.mocked(observability.getClaim).mockResolvedValueOnce(claim);
+    await expect(svc.getClaim('k1', 's1')).resolves.toBe(claim);
     expect(observability.getClaim).toHaveBeenCalledWith('k1', 's1');
+  });
+
+  it('getClaim is a 404 for a claim that isn\'t there — never a 200 with an empty body', async () => {
+    const { svc } = service();
+    await expect(svc.getClaim('k1', 's1')).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('getClaimResponse delegates key + scope through unchanged', async () => {
     const { svc, observability } = service();
-    await svc.getClaimResponse('k1', 's1');
+    vi.mocked(observability.getClaimResponse).mockResolvedValueOnce({ statusCode: 201, body: { id: 'pay_1' } });
+    await expect(svc.getClaimResponse('k1', 's1')).resolves.toEqual({ statusCode: 201, body: { id: 'pay_1' } });
     expect(observability.getClaimResponse).toHaveBeenCalledWith('k1', 's1');
+  });
+
+  it('getClaimResponse is a 404 when nothing is saved — unknown, cleaned up, or still in progress', async () => {
+    const { svc } = service();
+    await expect(svc.getClaimResponse('k1', 's1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('a NUL byte in any text is a 400, not an encoding error at the driver', async () => {
+    const { svc, observability } = service();
+    await expect(svc.getClaim('k\u0000', 's1')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.getClaimResponse('k1', '\u0000')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.getTrace('\u0000', {})).rejects.toBeInstanceOf(BadRequestException);
+    for (const field of ['scope', 'route', 'correlationId'] as const) {
+      await expect(svc.listClaims({ [field]: 'a\u0000b' })).rejects.toBeInstanceOf(BadRequestException);
+    }
+    expect(observability.getClaim).not.toHaveBeenCalled();
+    expect(observability.listClaims).not.toHaveBeenCalled();
+  });
+
+  it('an unknown status is a 400 — it would match nothing and read as "none"', async () => {
+    const { svc, observability } = service();
+    await expect(svc.listClaims({ status: 'bogus' as 'pending' })).rejects.toBeInstanceOf(BadRequestException);
+    expect(observability.listClaims).not.toHaveBeenCalled();
   });
 
   it('listClaims parses since/until into Dates and passes filters through unchanged', async () => {

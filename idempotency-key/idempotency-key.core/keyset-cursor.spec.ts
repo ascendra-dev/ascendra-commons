@@ -18,6 +18,7 @@ describe('keyset cursor', () => {
     ['too short', Buffer.from(JSON.stringify(['2026-10-22T10:00:00Z', 'k'])).toString('base64url')],
     ['a non-string part', Buffer.from(JSON.stringify(['2026-10-22T10:00:00Z', 1, 's'])).toString('base64url')],
     ['an empty part', Buffer.from(JSON.stringify(['2026-10-22T10:00:00Z', '', 's'])).toString('base64url')],
+    ['a NUL byte', Buffer.from(JSON.stringify(['2026-10-22T10:00:00Z', 'k\u0000', 's'])).toString('base64url')],
     ['a bad timestamp', Buffer.from(JSON.stringify(['yesterday', 'k', 's'])).toString('base64url')],
   ])('rejects %s', (_label, cursor) => {
     expect(decodeKeysetCursor(cursor)).toBeNull();
