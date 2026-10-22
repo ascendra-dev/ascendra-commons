@@ -86,6 +86,17 @@ describe('RateLimitingApiService', () => {
       await expect(svc.listRejections({ cursor: 'garbage' })).rejects.toThrow(/"cursor" is not one this endpoint returned/);
     });
 
+    it('a NUL byte in any text — not an encoding error at the driver', async () => {
+      const { svc, observability } = service();
+      for (const field of ['route', 'identifier', 'correlationId'] as const) {
+        await expect(svc.listRejections({ [field]: 'a\u0000b' })).rejects.toThrow(/must not contain a NUL byte/);
+      }
+      await expect(svc.getTrace('\u0000', {})).rejects.toBeInstanceOf(BadRequestException);
+      expect(() => svc.topIdentifiers({ route: '/pay/\u0000' })).toThrow(BadRequestException);
+      expect(observability.listRejections).not.toHaveBeenCalled();
+      expect(observability.topIdentifiers).not.toHaveBeenCalled();
+    });
+
     it('catalog and top-identifiers dates and limits', async () => {
       const { svc } = service();
       expect(() => svc.rejectionCatalog('nope')).toThrow(BadRequestException);
