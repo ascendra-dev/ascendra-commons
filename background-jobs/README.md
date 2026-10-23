@@ -83,3 +83,6 @@ has no tenant scoping as a result.
   the Model 2 trigger.
 - No admin **UI** — `background-jobs.api` ships the endpoints; the frontend is
   `ascendra-commons-ui`.
+
+The review's open gaps — a run that dies mid-run leaves no run, nothing alerts, a chronic item retries forever — are
+in [`AUDIT-REPORT.md`](./AUDIT-REPORT.md); how it all works, end to end, in [`GUIDE.md`](./GUIDE.md).

@@ -6,7 +6,8 @@ Set by the `audit-logging` review (2026-10) — [`audit-logging/GUIDE.md`](./aud
 ([`GUIDE.md`](./rate-limiting/GUIDE.md), [`AUDIT-REPORT.md`](./rate-limiting/AUDIT-REPORT.md)) the second;
 `idempotency-key` ([`GUIDE.md`](./idempotency-key/GUIDE.md), [`AUDIT-REPORT.md`](./idempotency-key/AUDIT-REPORT.md))
 the third; `domain-events` ([`GUIDE.md`](./domain-events/GUIDE.md), [`AUDIT-REPORT.md`](./domain-events/AUDIT-REPORT.md))
-the fourth. Complements
+the fourth; `background-jobs` ([`GUIDE.md`](./background-jobs/GUIDE.md),
+[`AUDIT-REPORT.md`](./background-jobs/AUDIT-REPORT.md)) the fifth. Complements
 [`MODULE-STANDARD.md`](./MODULE-STANDARD.md) (how a module is structured), which this doesn't repeat.
 
 ## The three documents
@@ -78,6 +79,9 @@ standards the review set.
       `Date` milliseconds — serialize the boundary in SQL (`to_char(… 'US')`), or page 2 skips rows.
 - [ ] A NUL byte in any text param or path id is a 400 (Postgres `text` rejects it — otherwise a 500).
 - [ ] A record that isn't there is a 404, not a 200 with an empty body; an unknown enum value is a 400, not an empty list.
+      A list under a parent that doesn't exist (an unknown job's failed items) is a 404, not `[]`.
+- [ ] An action that can outlast a proxy's timeout (30–60 s) answers once it has started — 202 with an id the caller
+      follows (a correlation id + a trace read) — never after it finishes.
 - [ ] Exported CSV neutralizes cells starting with `= + - @`, tab or CR.
 - [ ] Inbound headers that end up stored (e.g. `x-correlation-id`) are validated — and one that becomes a key
       (`Idempotency-Key`) is bounded below the index row limit, or the request it protects is a 500.
@@ -86,7 +90,7 @@ standards the review set.
 
 **Data**
 - [ ] Every read a screen makes has an index — check with `EXPLAIN` on the sandbox (with `enable_seqscan = off` on
-      a small table). List the index → read mapping in the guide.
+      a small table). List the index → read mapping in the guide. A filter on a rare value gets a partial index.
 - [ ] Migrations: `NNNN_<snake_case>.sql`, never edit a released one; mirror in the Drizzle schema; note
       `CREATE INDEX CONCURRENTLY` for large tables.
 - [ ] Per-day statistics are bucketed in the viewer's time zone, whole days only.
@@ -99,6 +103,10 @@ standards the review set.
 - [ ] A buffered writer normalizes each item as it buffers it — a multi-row `INSERT` fails as a whole, so one malformed
       item (a date that went through JSON, a NUL in an error message) must not reach it.
 - [ ] Screens count by the fact's own time (`occurred_at`), not the row's write time.
+- [ ] A best-effort writer (one that must not throw) still normalizes what it writes — its swallowed failure makes the
+      record vanish without a trace.
+- [ ] A record written only when work finishes loses the work that died — write at the start and close at the end,
+      or name what a dead worker leaves behind (a lapsed lock) and show it.
 
 **Quality**
 - [ ] Specs per layer: reader (rendered SQL + bound params), service (rules, validation), module (wiring / routing).
@@ -119,3 +127,8 @@ standards the review set.
 - [ ] Pixel diffs in dark mode use a zero threshold — dark-on-dark changes hide under a tolerance.
 - [ ] A control the mock shows but ascendra-ui lacks is built in ascendra-ui (as `SegmentedControl` was), not replaced
       by the nearest existing component.
+- [ ] Anything that opens another page is a real link, so the browser shows where it goes: a row → `TableRowLink`, a
+      chart day → `<Bar shape={<ChartBarLink … />}>`, a button → `<Button asChild><Link …/></Button>`. A row that
+      opens a sheet keeps `onClick`.
+- [ ] A long action's progress is one toast that turns into the result, survives leaving the page, and stays until
+      closed.
