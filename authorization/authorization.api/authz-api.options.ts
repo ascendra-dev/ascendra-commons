@@ -28,6 +28,11 @@ export interface AuthzApiModuleConfig {
    * `AUTHZ_USER_DIRECTORY`.
    */
   imports?: DynamicModule['imports'];
+  /**
+   * Optional token an `AuthzUserDirectory` is provided under (bound in `imports`) — who the users are. Without it the
+   * people endpoints (`/authz/users*`) answer 501; everything else works on ids.
+   */
+  userDirectoryToken?: string | symbol | (new (...args: never[]) => unknown);
   /** Optional token a `AuthzAuditEmitter` is provided under (bound in `imports`). Omit → changes are not audited. */
   auditEmitterToken?: string | symbol | (new (...args: never[]) => unknown);
   /** The app's action catalog — what `GET /authz/action-catalog/health` compares the table against. */

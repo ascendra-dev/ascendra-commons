@@ -51,6 +51,8 @@ export interface UserRoleAssignment {
 
 export interface AssignmentQuery {
   userId?: string;
+  /** Any of these users — e.g. one page of a user list. */
+  userIds?: readonly string[];
   /** `null` = global assignments only; omitted = every tenant's and the global ones. */
   tenantId?: string | null;
   roleId?: string;
@@ -177,6 +179,25 @@ export interface ActionCatalogHealth {
   grantedButUndescribed: string[];
   describedCount: number;
   totalCount: number;
+}
+
+/**
+ * Access posture for the Overview (`GET /authz/stats`) — one tenant's own assignments and delegations when given, else
+ * every tenant's. Active assignments only.
+ */
+export interface AccessStats {
+  tenantId: string | null;
+  /** Distinct users holding at least one active role in the tenant (anywhere, when none is given). */
+  usersWithRole: number;
+  /** Per role: distinct active holders. Roles nobody holds are left out. */
+  roleHolders: Array<{ roleId: string; holders: number }>;
+  /** Distinct users holding a role that grants every action or a platform-scope one — globally assigned, so they reach every tenant. */
+  platformHolders: number;
+  activeDelegations: number;
+  /** Active delegations that lend at least one action their granter no longer holds. */
+  lapsedDelegations: number;
+  delegationsExpiring7d: number;
+  assignmentsExpiring7d: number;
 }
 
 /** An active assignment of a role that grants a given action — `exactTenantHolders`. */

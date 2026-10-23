@@ -3,6 +3,7 @@ import { sql, type SQL } from 'drizzle-orm';
 import {
   InvalidAuthzCursorError,
   type AccessExplanation,
+  type AccessStats,
   type ActionCatalogHealth,
   type ActionHolder,
   type ActionScope,
@@ -17,7 +18,7 @@ import {
   type UserRoleAssignment,
   type WhoCanResult,
 } from '../../authorization.core.permission-table';
-import { activeAssignment, decodeCursor, encodeCursor, granterStillHolds, isoMicros } from '../persistence/sql-helpers';
+import { activeAssignment, decodeCursor, encodeCursor, granterStillHolds, isoMicros, textArray } from '../persistence/sql-helpers';
 import type { SqlExecutor } from '../persistence/sql-executor';
 import { AUTHZ_SQL_EXECUTOR } from '../tokens';
 
@@ -112,6 +113,7 @@ export class PostgresAuthzObservabilityService implements AuthzObservabilityPort
     const limit = Math.min(Math.max(1, query.limit ?? DEFAULT_ASSIGNMENT_LIMIT), MAX_ASSIGNMENT_LIMIT);
     const conds: SQL[] = [];
     if (query.userId !== undefined) conds.push(sql`ur.user_id = ${query.userId}`);
+    if (query.userIds !== undefined) conds.push(sql`ur.user_id = any(${textArray(query.userIds)})`);
     if ('tenantId' in query && query.tenantId !== undefined) {
       conds.push(query.tenantId === null ? sql`ur.tenant_id is null` : sql`ur.tenant_id = ${query.tenantId}`);
     }
@@ -376,6 +378,51 @@ export class PostgresAuthzObservabilityService implements AuthzObservabilityPort
         ))
     `);
     return rows.map((r) => ({ userId: r.user_id, roleId: r.role_id }));
+  }
+  async accessStats(tenantId?: string): Promise<AccessStats> {
+    // A tenant's own assignments (its people); everything when no tenant is given. Platform holders are counted
+    // globally either way — a global role reaches every tenant.
+    const reach = tenantId === undefined ? sql`true` : sql`ur.tenant_id = ${tenantId}`;
+    const platformReach = tenantId === undefined ? sql`true` : sql`ur.tenant_id is null`;
+    const delegationScope = tenantId === undefined ? sql`true` : sql`d.tenant_id = ${tenantId}`;
+    const { rows: roleRows } = await this.db.execute<{ role_id: string; holders: string | number }>(sql`
+      select ur.role_id, count(distinct ur.user_id) as holders
+      from commons_authz_user_role ur
+      where ${reach} and ${activeAssignment('ur')}
+      group by ur.role_id
+      order by ur.role_id
+    `);
+    const { rows: [totals] } = await this.db.execute<Record<string, string | number>>(sql`
+      select
+        (select count(distinct ur.user_id) from commons_authz_user_role ur where ${reach} and ${activeAssignment('ur')}) as users_with_role,
+        (select count(distinct ur.user_id) from commons_authz_user_role ur
+           join commons_authz_role r on r.id = ur.role_id
+          where ${platformReach} and ${activeAssignment('ur')}
+            and (r.grants_all or exists (
+              select 1 from commons_authz_role_permission rp
+              join commons_authz_action a on a.name = rp.action
+              where rp.role_id = r.id and a.scope = 'platform'))) as platform_holders,
+        (select count(*) from commons_authz_user_role ur
+          where ${reach} and ur.expires_at > now() and ur.expires_at <= now() + interval '7 days') as assignments_expiring,
+        (select count(*) from commons_authz_delegation d
+          where ${delegationScope} and d.revoked_at is null and d.expires_at > now()) as active_delegations,
+        (select count(*) from commons_authz_delegation d
+          where ${delegationScope} and d.revoked_at is null and d.expires_at > now()
+            and d.expires_at <= now() + interval '7 days') as delegations_expiring,
+        (select count(*) from commons_authz_delegation d
+          where ${delegationScope} and d.revoked_at is null and d.expires_at > now()
+            and exists (select 1 from unnest(d.actions) as la(action) where not ${granterStillHolds('d', sql`la.action`)})) as lapsed_delegations
+    `);
+    return {
+      tenantId: tenantId ?? null,
+      usersWithRole: Number(totals?.users_with_role ?? 0),
+      roleHolders: roleRows.map((r) => ({ roleId: r.role_id, holders: Number(r.holders) })),
+      platformHolders: Number(totals?.platform_holders ?? 0),
+      activeDelegations: Number(totals?.active_delegations ?? 0),
+      lapsedDelegations: Number(totals?.lapsed_delegations ?? 0),
+      delegationsExpiring7d: Number(totals?.delegations_expiring ?? 0),
+      assignmentsExpiring7d: Number(totals?.assignments_expiring ?? 0),
+    };
   }
 }
 

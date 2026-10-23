@@ -308,6 +308,22 @@ describe('PostgresAuthzObservabilityService', () => {
     expect(textOf(global).sql).toMatch(/ur\.tenant_id is null/i);
   });
 
+  it('accessStats counts one tenant’s own assignments, global platform holders, and delegations to watch', async () => {
+    const db = fakeDb();
+    db.execute.mockImplementation(async (q: SQL) => {
+      const text = dialect.sqlToQuery(q).sql;
+      if (/group by ur\.role_id/i.test(text)) return { rows: [{ role_id: 'member', holders: '12' }] };
+      return { rows: [{ users_with_role: '14', platform_holders: '2', assignments_expiring: '1', active_delegations: '5', delegations_expiring: '3', lapsed_delegations: '1' }] };
+    });
+    await expect(svc(db).accessStats('t1')).resolves.toEqual({
+      tenantId: 't1', usersWithRole: 14, roleHolders: [{ roleId: 'member', holders: 12 }], platformHolders: 2,
+      activeDelegations: 5, lapsedDelegations: 1, delegationsExpiring7d: 3, assignmentsExpiring7d: 1,
+    });
+    const totals = dialect.sqlToQuery(db.execute.mock.calls[1][0] as SQL);
+    expect(totals.sql).toMatch(/ur\.tenant_id = .*ur\.tenant_id is null/s); // tenant's own; platform holders global
+    expect(totals.params).toContain('t1');
+  });
+
   it('actionCatalogHealth reports code/db drift and undescribed granted actions', async () => {
     const db = fakeDb({
       actions: [

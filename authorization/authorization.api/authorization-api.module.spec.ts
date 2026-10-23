@@ -38,6 +38,7 @@ const auditRecord = vi.fn();
         actionCatalogHealth: vi.fn(),
         whoCan: vi.fn().mockResolvedValue({ action: 'invoice.void', tenantId: null, roles: [], delegations: [] }),
         exactTenantHolders: vi.fn().mockResolvedValue([]),
+    accessStats: vi.fn(),
       },
     },
     { provide: AUTHZ_ADMIN_PORT, useValue: { assignRole, revokeRole: vi.fn(), setActionDescription: vi.fn() } },

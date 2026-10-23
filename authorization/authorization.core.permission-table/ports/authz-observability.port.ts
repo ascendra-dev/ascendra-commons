@@ -1,5 +1,6 @@
 import type {
   AccessExplanation,
+  AccessStats,
   ActionCatalogHealth,
   ActionHolder,
   ActionView,
@@ -48,4 +49,6 @@ export interface AuthzObservabilityPort {
    * granting all. What the lockout rule counts: who else could still administer this tenant.
    */
   exactTenantHolders(action: string, tenantId: string | null): Promise<ActionHolder[]>;
+  /** Access posture — for one tenant when given, else every tenant. */
+  accessStats(tenantId?: string): Promise<AccessStats>;
 }

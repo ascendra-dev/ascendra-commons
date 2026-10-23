@@ -7,6 +7,7 @@ export type { AuthzObservabilityPort } from './ports/authz-observability.port';
 // Answer-shapes — what the ports return, what authorization.api serves
 export type {
   ActionScope,
+  AccessStats,
   ActionView,
   ActionHolder,
   RoleView,

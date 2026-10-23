@@ -18,6 +18,7 @@ function fakePort(): AuthzObservabilityPort {
     actionCatalogHealth: vi.fn().mockResolvedValue({ inCodeNotInDb: [], inDbNotInCode: [], grantedButUndescribed: [], describedCount: 0, totalCount: 0 }),
     whoCan: vi.fn().mockResolvedValue({ action: 'invoice.void', tenantId: 't1', roles: [], delegations: [] }),
     exactTenantHolders: vi.fn().mockResolvedValue([]),
+    accessStats: vi.fn(),
   };
 }
 
