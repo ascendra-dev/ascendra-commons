@@ -8,6 +8,7 @@ import { AuthzAdminApiService } from './admin/authz-admin-api.service';
 import { AuthzAdminController } from './admin/authz-admin.controller';
 import { AuthzDelegationApiService } from './delegation/authz-delegation-api.service';
 import { AuthzDelegationController } from './delegation/authz-delegation.controller';
+import { AuthzAccessScope } from './shared/access-scope';
 
 /**
  * HTTP endpoints for a role-management / access-audit UI, over the
@@ -39,12 +40,14 @@ export class AuthorizationApiModule {
     return {
       module: AuthorizationApiModule,
       imports: config.imports ?? [],
-      controllers: [AuthzObservabilityController, AuthzAdminController, AuthzDelegationController],
+      // Admin first: its static `roles/assignable` must be matched before the observability controller's `roles/:id`.
+      controllers: [AuthzAdminController, AuthzDelegationController, AuthzObservabilityController],
       providers: [
         { provide: AUTHZ_API_OPTIONS, useValue: resolveAuthzApiOptions(config) },
         config.auditEmitterToken
           ? { provide: AUTHZ_AUDIT_EMITTER, useExisting: config.auditEmitterToken }
           : { provide: AUTHZ_AUDIT_EMITTER, useClass: NoopAuthzAuditEmitter },
+        AuthzAccessScope,
         AuthzObservabilityApiService,
         AuthzAdminApiService,
         AuthzDelegationApiService,

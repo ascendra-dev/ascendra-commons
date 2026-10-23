@@ -1,26 +1,26 @@
-import { BadRequestException, Controller, Get, Inject, Param, Query } from '@nestjs/common';
-import { RequiresAction } from '../../authorization.core';
+import { Controller, Get, Inject, Param, Query, UseGuards } from '@nestjs/common';
+import { AuthorizationEnforcedGuard, CurrentActor, NoActionRequired, RequiresAction, type Actor } from '../../authorization.core';
 import { AUTHZ_ACTIONS } from '../authz-api.options';
+import type { AssignmentListQuery, ExplainAccessQuery, WhoCanQuery } from '../dto/authz-api.dto';
 import { AuthzObservabilityApiService } from './authz-observability-api.service';
-import type { DelegationStatus } from '../../authorization.core.permission-table';
-
-/** Parses `?within=7d` (or a bare `7`) into a day count. Defaults to 7 when omitted. */
-function parseWithinDays(within: string | undefined): number {
-  if (within === undefined) return 7;
-  const match = /^(\d+)\s*d?$/i.exec(within.trim());
-  if (!match) throw new BadRequestException("within must look like '7d'");
-  return Number(match[1]);
-}
 
 /**
- * Read endpoints for a role-management / access-audit screen. All gated on
- * `authz.view` via `@RequiresAction` — `authorization.api` requires
- * `AuthorizationGuard` wired as a global `APP_GUARD` (the intended setup; see
- * `authorization.core`'s README).
+ * The console's reads — roles, the action catalog, assignments, explain, who-can, catalog health — and every signed-in
+ * user's own access. Tenant-scoped for anyone but a platform admin. Fails closed without the global
+ * `AuthorizationGuard`. (`roles/assignable` lives on the admin controller, gated on `authz.assign_roles`, and is
+ * registered first — before `roles/:id`.)
  */
 @Controller('authz')
+@UseGuards(AuthorizationEnforcedGuard)
 export class AuthzObservabilityController {
   constructor(@Inject(AuthzObservabilityApiService) private readonly service: AuthzObservabilityApiService) {}
+
+  /** Your roles, delegations and effective actions in your tenant — no action needed beyond being signed in. */
+  @Get('me/access')
+  @NoActionRequired()
+  me(@CurrentActor() actor: Actor) {
+    return this.service.myAccess(actor);
+  }
 
   @Get('roles')
   @RequiresAction(AUTHZ_ACTIONS.VIEW)
@@ -30,63 +30,33 @@ export class AuthzObservabilityController {
 
   @Get('roles/:id')
   @RequiresAction(AUTHZ_ACTIONS.VIEW)
-  role(@Param('id') id: string) {
-    return this.service.getRole(id);
+  role(@CurrentActor() actor: Actor, @Param('id') id: string) {
+    return this.service.getRole(actor, id);
   }
 
-  @Get('delegations/expiring')
+  @Get('actions')
   @RequiresAction(AUTHZ_ACTIONS.VIEW)
-  expiringDelegations(@Query('within') within?: string, @Query('tenantId') tenantId?: string) {
-    return this.service.listDelegations({
-      expiringWithinDays: parseWithinDays(within),
-      ...(tenantId !== undefined ? { tenantId } : {}),
-    });
+  actions() {
+    return this.service.listActions();
   }
 
-  @Get('who-can')
-  @RequiresAction(AUTHZ_ACTIONS.VIEW)
-  whoCan(@Query('action') action: string, @Query('tenantId') tenantId?: string) {
-    return this.service.whoCan({ action, tenantId });
-  }
-
+  /** `{ data, meta: { nextCursor } }`; filters userId, roleId, tenantId (or `global=true`), status, `expiring=7d`. */
   @Get('assignments')
   @RequiresAction(AUTHZ_ACTIONS.VIEW)
-  assignments(
-    @Query('userId') userId?: string,
-    @Query('roleId') roleId?: string,
-    @Query('tenantId') tenantId?: string,
-  ) {
-    return this.service.listAssignments({ userId, roleId, ...(tenantId !== undefined ? { tenantId } : {}) });
-  }
-
-  @Get('delegations')
-  @RequiresAction(AUTHZ_ACTIONS.VIEW)
-  delegations(
-    @Query('granterId') granterId?: string,
-    @Query('granteeId') granteeId?: string,
-    @Query('tenantId') tenantId?: string,
-    @Query('status') status?: DelegationStatus,
-    @Query('limit') limit?: string,
-    @Query('cursor') cursor?: string,
-  ) {
-    return this.service.listDelegations({
-      granterId,
-      granteeId,
-      tenantId,
-      status,
-      limit: limit !== undefined ? Number(limit) : undefined,
-      cursor,
-    });
+  assignments(@CurrentActor() actor: Actor, @Query() query: AssignmentListQuery) {
+    return this.service.listAssignments(actor, query);
   }
 
   @Get('explain')
   @RequiresAction(AUTHZ_ACTIONS.VIEW)
-  explain(
-    @Query('userId') userId: string,
-    @Query('tenantId') tenantId?: string,
-    @Query('action') action?: string,
-  ) {
-    return this.service.explainAccess({ userId, tenantId: tenantId ?? null, action });
+  explain(@CurrentActor() actor: Actor, @Query() query: ExplainAccessQuery) {
+    return this.service.explainAccess(actor, query);
+  }
+
+  @Get('who-can')
+  @RequiresAction(AUTHZ_ACTIONS.VIEW)
+  whoCan(@CurrentActor() actor: Actor, @Query() query: WhoCanQuery) {
+    return this.service.whoCan(actor, query);
   }
 
   @Get('action-catalog/health')
