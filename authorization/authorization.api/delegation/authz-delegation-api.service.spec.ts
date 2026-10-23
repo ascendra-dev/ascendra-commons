@@ -113,3 +113,16 @@ describe('AuthzDelegationApiService.revoke', () => {
     expect(audit.record).not.toHaveBeenCalled();
   });
 });
+
+describe('AuthzDelegationApiService.listMine', () => {
+  it('answers from the ledger — lapsed actions included — split into lent and received', async () => {
+    const { svc, observability } = deps();
+    (observability as unknown as { listDelegations: ReturnType<typeof vi.fn> }).listDelegations = vi.fn().mockResolvedValue({
+      delegations: [view(), view({ id: 'd8', granterId: 'u9', granteeId: 'granter-1', lapsedActions: ['invoice.void'] })],
+    });
+    const mine = await svc.listMine(granter);
+    expect(mine.granted.map((d) => d.id)).toEqual(['d7']);
+    expect(mine.received[0].lapsedActions).toEqual(['invoice.void']);
+    await expect(svc.listMine(platformAdmin)).resolves.toEqual({ granted: [], received: [] });
+  });
+});
