@@ -276,7 +276,7 @@
         <tr><td>Access checker</td><td><span class="endpoint"><span class="m">GET</span>/authz/explain?userId&amp;action</span> + <span class="endpoint"><span class="m">GET</span>/authz/who-can?action</span></td><td><span class="status live">Live</span></td><td>"Can she approve payouts, and why?" and "who can approve payouts here?" — one screen, two questions.</td></tr>
         <tr><td>Denied requests</td><td><span class="endpoint"><span class="m">GET</span>/authz/denials</span> + <span class="endpoint"><span class="m">GET</span>/authz/denials/summary</span></td><td><span class="status live">Live</span></td><td>Every 403, counted per person, action and route per minute. A tenant admin sees its own people's.</td></tr>
         <tr><td>Action catalog</td><td><span class="endpoint"><span class="m">GET</span>/authz/actions</span> + <span class="endpoint"><span class="m">GET</span>/authz/action-catalog/health</span> + <span class="endpoint"><span class="m">PATCH</span>/authz/actions/:name</span></td><td><span class="status live">Live</span></td><td>Every action by module, its scope and the roles granting it; drift between code and table; describe (platform admin).</td></tr>
-        <tr><td>My access</td><td><span class="endpoint"><span class="m">GET</span>/authz/me/access</span> + <span class="endpoint"><span class="m">GET</span>/authz/delegations/mine</span> + <span class="endpoint"><span class="m">POST</span>/authz/delegations</span></td><td><span class="status live">Live</span></td><td>Any signed-in user — no action needed to read your own access; lending needs <code>authz.manage_delegations</code>.</td></tr>
+        <tr><td>My access</td><td><span class="endpoint"><span class="m">GET</span>/authz/me/access</span> + <span class="endpoint"><span class="m">GET</span>/authz/delegations/mine</span> + <span class="endpoint"><span class="m">POST</span>/authz/delegations</span></td><td><span class="status live">Live</span></td><td>Any signed-in user — no action needed to read your own access and delegations, give back or take back; lending needs <code>authz.manage_delegations</code>.</td></tr>
         <tr><td class="muted">Deferred</td><td class="muted">—</td><td class="muted">Not built</td><td class="muted">Custom roles per tenant (phase 2), inviting / disabling users (the app's identity provider), access reviews with sign-off, alerts on a probing user — see the module's AUDIT-REPORT.</td></tr>
       </tbody>
     </table>
@@ -493,7 +493,7 @@
         <span class="status live">Live</span>
       </div>
       <p class="screen-purpose">Everything lent in the tenant — cover during leave, a backlog, quarter close. What's active, about to end, no longer granting, or over.</p>
-      <p class="gating">Gate: <code>authz.view</code>; Revoke needs <code>authz.manage_delegations</code> and to be its lender, its receiver, a role admin of the tenant or a platform admin.</p>
+      <p class="gating">Gate: <code>authz.view</code>; Revoke needs to be its lender, its receiver, a role admin of the tenant or a platform admin.</p>
       <div class="filterbar">
         <span class="seg"><span class="on">Active</span><span>Expiring (7 days)</span><span>Lapsed <span class="badge proposed">Proposed</span></span><span>Expired</span><span>Revoked</span><span>All</span></span>
         <span class="field"><span class="lbl">Person</span><span class="val">anyone</span></span>
@@ -609,7 +609,7 @@
         <span class="status live">Live</span>
       </div>
       <p class="screen-purpose">For anyone signed in — what I can do here and why, what I lent and was lent, and lending some of mine while I'm away.</p>
-      <p class="gating">No action needed to read your own access (<code>GET /authz/me/access</code>). Lending needs <code>authz.manage_delegations</code>.</p>
+      <p class="gating">No action needed to read your own access and delegations (<code>GET /authz/me/access</code>, <code>GET /authz/delegations/mine</code>), to give back what you were lent or take back what you lent. Lending needs <code>authz.manage_delegations</code>.</p>
       <div class="two">
         <div class="card">
           <div class="ch"><h4>My roles</h4><p>Vera Novak · Acme</p></div>
