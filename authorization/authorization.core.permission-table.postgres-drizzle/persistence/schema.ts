@@ -107,7 +107,7 @@ export const authzDelegation = pgTable(
   ],
 );
 
-/** The denied-requests log — one row per actor, action, route, method, correlation id and minute (migration 0003). */
+/** The denied-requests log — one row per actor, action, route, method and minute (migrations 0003–0004). */
 export const authzDenial = pgTable(
   'commons_authz_denial',
   {
@@ -122,11 +122,12 @@ export const authzDenial = pgTable(
     denialCount: integer('denial_count').notNull(),
     firstDeniedAt: timestamp('first_denied_at', { withTimezone: true, mode: 'date' }).notNull(),
     lastDeniedAt: timestamp('last_denied_at', { withTimezone: true, mode: 'date' }).notNull(),
+    /** The latest denied request's correlation id in the window — a sample to trace, not part of the key. */
     correlationId: text('correlation_id'),
   },
   (table) => [
     unique('commons_authz_denial_window_uq')
-      .on(table.application, table.actorId, table.tenantId, table.action, table.method, table.route, table.windowStart, table.correlationId)
+      .on(table.application, table.actorId, table.tenantId, table.action, table.method, table.route, table.windowStart)
       .nullsNotDistinct(),
     index('commons_authz_denial_list_idx').on(table.application, table.windowStart.desc(), table.id.desc()),
     index('commons_authz_denial_tenant_idx').on(table.application, table.tenantId, table.windowStart.desc(), table.id.desc()),

@@ -1,6 +1,6 @@
 /**
- * The denied-requests log's reads — every 403 `AuthorizationGuard` answered, counted per actor, action and route in
- * one-minute windows. Bound under `ACCESS_DENIAL_OBSERVABILITY_PORT` by a stack adapter; `authorization.api` serves it.
+ * The denied-requests log's reads — every 403 `AuthorizationGuard` answered, counted per actor, action, method and
+ * route in one-minute windows. Bound under `ACCESS_DENIAL_OBSERVABILITY_PORT` by a stack adapter; `authorization.api` serves it.
  */
 export interface AccessDenialView {
   id: string;
@@ -14,6 +14,7 @@ export interface AccessDenialView {
   count: number;
   firstDeniedAt: Date;
   lastDeniedAt: Date;
+  /** The latest denied request's correlation id in the window — a sample to trace. */
   correlationId: string | null;
 }
 

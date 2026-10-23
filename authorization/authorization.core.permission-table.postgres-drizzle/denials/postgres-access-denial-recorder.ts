@@ -45,7 +45,8 @@ function text(value: unknown, fallback: string): string {
 
 /**
  * `AccessDenialRecorder` for Postgres — counts 403s in memory and upserts them every `flushIntervalMs`, one row per
- * (actor, tenant, action, method, route, correlation id, minute). A denied request — possibly an attacker's, at their
+ * (actor, tenant, action, method, route, minute) — the correlation id is the window's latest, a sample to trace, never
+ * part of the key: every request carries its own, so keyed on it a burst would write a row per request. A denied request — possibly an attacker's, at their
  * rate — never waits on the database. Each denial is normalized as it's buffered, so one malformed value can't sink a
  * batch. The buffer is bounded; it's written on shutdown (`app.enableShutdownHooks()`). A failed write is logged with
  * how many denials it lost, never retried; the 403s themselves are unaffected.
@@ -97,7 +98,11 @@ export class PostgresAccessDenialRecorder implements AccessDenialRecorder, OnMod
     if (existing) {
       existing.count += 1;
       if (at < existing.firstDeniedAt) existing.firstDeniedAt = at;
-      if (at > existing.lastDeniedAt) existing.lastDeniedAt = at;
+      if (at >= existing.lastDeniedAt) {
+        existing.lastDeniedAt = at;
+        // The latest request's id is the window's sample — never part of its key (every request has its own).
+        existing.correlationId = item.correlationId ?? existing.correlationId;
+      }
       return;
     }
     this.buffer.set(key, item);
@@ -149,11 +154,13 @@ export class PostgresAccessDenialRecorder implements AccessDenialRecorder, OnMod
       on conflict on constraint commons_authz_denial_window_uq do update set
         denial_count = d.denial_count + excluded.denial_count,
         first_denied_at = least(d.first_denied_at, excluded.first_denied_at),
-        last_denied_at = greatest(d.last_denied_at, excluded.last_denied_at)
+        last_denied_at = greatest(d.last_denied_at, excluded.last_denied_at),
+        correlation_id = case when excluded.last_denied_at >= d.last_denied_at
+          then coalesce(excluded.correlation_id, d.correlation_id) else d.correlation_id end
     `);
   }
 }
 
 function windowKey(w: BufferedWindow): string {
-  return JSON.stringify([w.actorId, w.tenantId, w.action, w.method, w.route, w.windowStart.getTime(), w.correlationId]);
+  return JSON.stringify([w.actorId, w.tenantId, w.action, w.method, w.route, w.windowStart.getTime()]);
 }

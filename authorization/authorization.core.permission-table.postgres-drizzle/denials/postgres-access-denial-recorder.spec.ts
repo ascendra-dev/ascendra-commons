@@ -47,15 +47,26 @@ describe('PostgresAccessDenialRecorder', () => {
     expect(params).not.toContain(undefined);
   });
 
-  it('keeps a well-formed correlation id, falls back to the ambient one, and drops anything else', async () => {
+  it('never splits a window by correlation id — every request has its own; the latest one is kept as a sample', async () => {
     const db = fakeDb();
     const r = make(db, { correlationIdResolver: () => 'ambient-1' });
     r.recordDenial(denial({ correlationId: 'req-1' }));
-    r.recordDenial(denial({ correlationId: 'bad id!' }));
+    r.recordDenial(denial({ correlationId: 'req-2', at: new Date('2026-10-23T10:15:30Z') }));
+    r.recordDenial(denial({ correlationId: 'bad id!', at: new Date('2026-10-23T10:15:10Z') }));
     await r.flush();
-    const { params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
-    expect(params).toEqual(expect.arrayContaining(['req-1', 'ambient-1']));
+    const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(params).toEqual(expect.arrayContaining([3, 'req-2'])); // one window, three denials, the latest id
+    expect(params).not.toContain('req-1');
     expect(params).not.toContain('bad id!');
+    expect(text).toMatch(/correlation_id = case when excluded\.last_denied_at >= d\.last_denied_at/i);
+  });
+
+  it('falls back to the ambient correlation id for a denial sent without one', async () => {
+    const db = fakeDb();
+    const r = make(db, { correlationIdResolver: () => 'ambient-1' });
+    r.recordDenial(denial());
+    await r.flush();
+    expect(dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).params).toContain('ambient-1');
   });
 
   it('is bounded — past maxBufferedKeys, new actors count under (overflow) so totals stay exact', async () => {
