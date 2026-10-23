@@ -25,7 +25,8 @@ export interface AuthzApiModuleConfig {
   /**
    * Modules exporting `AUTHZ_ADMIN_PORT` + `AUTHZ_OBSERVABILITY_PORT` (`PostgresAuthzAdminModule`) and
    * `PERMISSION_TABLE_AUTHORIZER` + `AUTHZ_DELEGATION_SERVICE` (`PostgresPermissionTableModule`) — and optionally an
-   * `AUTHZ_USER_DIRECTORY`.
+   * `AUTHZ_USER_DIRECTORY`, and `ACCESS_DENIAL_OBSERVABILITY_PORT` (`PostgresAccessDenialObservabilityModule`) for the
+   * denied-requests log.
    */
   imports?: DynamicModule['imports'];
   /**

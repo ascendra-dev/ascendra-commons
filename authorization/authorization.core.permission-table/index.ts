@@ -3,6 +3,13 @@ export type { PermissionRepository, RolePermissionSet } from './ports/permission
 export type { DelegationRepository } from './ports/delegation-repository.port';
 export type { AuthzAdminPort } from './ports/authz-admin.port';
 export type { AuthzObservabilityPort } from './ports/authz-observability.port';
+export type {
+  AccessDenialObservabilityPort,
+  AccessDenialView,
+  AccessDenialQuery,
+  AccessDenialPage,
+  AccessDenialSummary,
+} from './ports/access-denial-observability.port';
 
 // Answer-shapes — what the ports return, what authorization.api serves
 export type {
@@ -63,4 +70,5 @@ export {
   AUTHZ_DELEGATION_SERVICE,
   AUTHZ_ADMIN_PORT,
   AUTHZ_OBSERVABILITY_PORT,
+  ACCESS_DENIAL_OBSERVABILITY_PORT,
 } from './tokens';

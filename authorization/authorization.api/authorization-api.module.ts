@@ -12,6 +12,8 @@ import { AuthzAccessScope } from './shared/access-scope';
 import { AuthzPeopleApiService } from './people/authz-people-api.service';
 import { AuthzPeopleController } from './people/authz-people.controller';
 import { AUTHZ_USER_DIRECTORY } from './tokens';
+import { AuthzDenialsApiService } from './denials/authz-denials-api.service';
+import { AuthzDenialsController } from './denials/authz-denials.controller';
 
 /**
  * HTTP endpoints for a role-management / access-audit UI, over the
@@ -44,7 +46,7 @@ export class AuthorizationApiModule {
       module: AuthorizationApiModule,
       imports: config.imports ?? [],
       // Admin first: its static `roles/assignable` must be matched before the observability controller's `roles/:id`.
-      controllers: [AuthzAdminController, AuthzDelegationController, AuthzPeopleController, AuthzObservabilityController],
+      controllers: [AuthzAdminController, AuthzDelegationController, AuthzPeopleController, AuthzDenialsController, AuthzObservabilityController],
       providers: [
         { provide: AUTHZ_API_OPTIONS, useValue: resolveAuthzApiOptions(config) },
         config.auditEmitterToken
@@ -53,6 +55,7 @@ export class AuthorizationApiModule {
         ...(config.userDirectoryToken ? [{ provide: AUTHZ_USER_DIRECTORY, useExisting: config.userDirectoryToken }] : []),
         AuthzAccessScope,
         AuthzPeopleApiService,
+        AuthzDenialsApiService,
         AuthzObservabilityApiService,
         AuthzAdminApiService,
         AuthzDelegationApiService,

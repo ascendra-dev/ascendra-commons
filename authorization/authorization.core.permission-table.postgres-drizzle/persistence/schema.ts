@@ -1,4 +1,4 @@
-import { boolean, index, pgTable, primaryKey, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { bigserial, boolean, index, integer, pgTable, primaryKey, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 
 /**
  * The reference `commons_authz_*` schema — one concrete Postgres/Drizzle shape of the
@@ -104,5 +104,32 @@ export const authzDelegation = pgTable(
     index('commons_authz_delegation_list_idx').on(table.createdAt.desc(), table.id.desc()),
     index('commons_authz_delegation_tenant_idx').on(table.tenantId, table.createdAt.desc(), table.id.desc()),
     index('commons_authz_delegation_granter_idx').on(table.granterId, table.tenantId),
+  ],
+);
+
+/** The denied-requests log — one row per actor, action, route, method, correlation id and minute (migration 0003). */
+export const authzDenial = pgTable(
+  'commons_authz_denial',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    application: text('application').notNull(),
+    actorId: text('actor_id').notNull(),
+    tenantId: text('tenant_id'),
+    action: text('action').notNull(),
+    method: text('method').notNull(),
+    route: text('route').notNull(),
+    windowStart: timestamp('window_start', { withTimezone: true, mode: 'date' }).notNull(),
+    denialCount: integer('denial_count').notNull(),
+    firstDeniedAt: timestamp('first_denied_at', { withTimezone: true, mode: 'date' }).notNull(),
+    lastDeniedAt: timestamp('last_denied_at', { withTimezone: true, mode: 'date' }).notNull(),
+    correlationId: text('correlation_id'),
+  },
+  (table) => [
+    unique('commons_authz_denial_window_uq')
+      .on(table.application, table.actorId, table.tenantId, table.action, table.method, table.route, table.windowStart, table.correlationId)
+      .nullsNotDistinct(),
+    index('commons_authz_denial_list_idx').on(table.application, table.windowStart.desc(), table.id.desc()),
+    index('commons_authz_denial_tenant_idx').on(table.application, table.tenantId, table.windowStart.desc(), table.id.desc()),
+    index('commons_authz_denial_actor_idx').on(table.application, table.actorId, table.windowStart.desc(), table.id.desc()),
   ],
 );

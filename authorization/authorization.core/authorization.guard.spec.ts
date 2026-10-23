@@ -138,4 +138,35 @@ describe('AuthorizationGuard — marks the requests it lets through', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(denied[AUTHORIZATION_CHECKED]).toBeUndefined();
   });
+
+  describe('denied-requests recording', () => {
+    const actor = { id: 'u1', persona: 'member', tenantId: 't1' };
+    const deny: Authorizer = { can: vi.fn().mockResolvedValue(false) };
+    const guardWith = (recordDenial: (d: unknown) => void, authorizer = deny) => {
+      const reflector = { get: vi.fn((key: string, target: unknown) => (target === HANDLER && key === ACTION_METADATA_KEY ? 'invoice.void' : undefined)) } as unknown as Reflector;
+      return new AuthorizationGuard(reflector, authorizer, { recordDenial });
+    };
+
+    it('hands every 403 to the recorder — the route pattern, never the URL; a well-formed correlation id only', async () => {
+      const recordDenial = vi.fn();
+      const request = { actor, method: 'POST', route: { path: '/invoices/:id/void' }, url: '/invoices/inv_secret/void', headers: { 'x-correlation-id': 'req-1' } };
+      await expect(guardWith(recordDenial).canActivate(ctx(request))).rejects.toBeInstanceOf(ForbiddenException);
+      expect(recordDenial).toHaveBeenCalledWith(expect.objectContaining({
+        actorId: 'u1', tenantId: 't1', action: 'invoice.void', method: 'POST', route: '/invoices/:id/void', correlationId: 'req-1',
+      }));
+
+      recordDenial.mockClear();
+      await expect(guardWith(recordDenial).canActivate(ctx({ actor, headers: { 'x-correlation-id': 'bad id!' } }))).rejects.toBeInstanceOf(ForbiddenException);
+      expect(recordDenial).toHaveBeenCalledWith(expect.objectContaining({ route: 'Controller.handler', correlationId: undefined }));
+    });
+
+    it('still answers 403 when the recorder throws, and records nothing for an allowed request', async () => {
+      const throwing = vi.fn(() => { throw new Error('buffer broke'); });
+      await expect(guardWith(throwing).canActivate(ctx({ actor }))).rejects.toBeInstanceOf(ForbiddenException);
+
+      const recordDenial = vi.fn();
+      await expect(guardWith(recordDenial, { can: vi.fn().mockResolvedValue(true) }).canActivate(ctx({ actor }))).resolves.toBe(true);
+      expect(recordDenial).not.toHaveBeenCalled();
+    });
+  });
 });

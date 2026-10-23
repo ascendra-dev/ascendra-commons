@@ -5,6 +5,7 @@ export {
   authzRolePermission,
   authzUserRole,
   authzDelegation,
+  authzDenial,
 } from './persistence/schema';
 export type { SqlExecutor } from './persistence/sql-executor';
 
@@ -19,3 +20,14 @@ export type { PostgresPermissionTableModuleConfig } from './postgres-permission-
 export { PostgresAuthzAdminModule } from './postgres-authz-admin.module';
 export type { PostgresAuthzAdminModuleConfig } from './postgres-authz-admin.module';
 export { AUTHZ_SQL_EXECUTOR } from './tokens';
+
+// The denied-requests log
+export { PostgresAccessDenialRecorder, DENIAL_WINDOW_MS, OVERFLOW_ACTOR } from './denials/postgres-access-denial-recorder';
+export type { PostgresAccessDenialRecorderOptions } from './denials/postgres-access-denial-recorder';
+export {
+  PostgresAccessDenialObservabilityService,
+  PostgresAccessDenialRetention,
+} from './denials/postgres-access-denial-observability.service';
+export { PostgresAccessDenialRecorderModule, PostgresAccessDenialObservabilityModule } from './denials/postgres-access-denial.modules';
+export type { PostgresAccessDenialModuleConfig } from './denials/postgres-access-denial.modules';
+export { POSTGRES_ACCESS_DENIAL_RECORDER } from './tokens';

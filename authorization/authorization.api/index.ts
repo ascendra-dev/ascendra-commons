@@ -10,6 +10,7 @@ export { AUTHZ_AUDIT_EMITTER, AUTHZ_API_OPTIONS, AUTHZ_USER_DIRECTORY } from './
 
 export { AuthzAccessScope } from './shared/access-scope';
 export type { PersonRow, PersonProfile } from './people/authz-people-api.service';
+export type { DenialListQuery } from './denials/authz-denials-api.service';
 export type {
   AuthzUserDirectory,
   AuthzDirectoryUser,

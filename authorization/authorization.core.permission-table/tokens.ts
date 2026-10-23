@@ -33,3 +33,6 @@ export const AUTHZ_ADMIN_PORT = Symbol('AUTHZ_ADMIN_PORT');
 
 /** A stack adapter's `AuthzObservabilityPort` implementation — the role/assignment/delegation/explain reads for an admin screen. */
 export const AUTHZ_OBSERVABILITY_PORT = Symbol('AUTHZ_OBSERVABILITY_PORT');
+
+/** `AccessDenialObservabilityPort` — the denied-requests log's reads. Optional for `authorization.api`. */
+export const ACCESS_DENIAL_OBSERVABILITY_PORT = Symbol('ACCESS_DENIAL_OBSERVABILITY_PORT');
