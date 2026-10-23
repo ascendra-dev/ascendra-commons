@@ -95,6 +95,13 @@ describe('AuthzPeopleApiService', () => {
     await expect(svc.listUsers(tenantAdmin, { roleId: 'member', roleless: 'true' })).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('refuses a roleless flag that is neither true nor false — never a silently ignored filter', async () => {
+    const { svc } = deps({});
+    for (const roleless of ['1', 'TRUE', 'yes']) {
+      await expect(svc.listUsers(tenantAdmin, { roleless })).rejects.toBeInstanceOf(BadRequestException);
+    }
+  });
+
   it('walks the directory for people holding no role until the page fills', async () => {
     const listUsers = vi.fn()
       .mockResolvedValueOnce({ users: [USERS[0], USERS[1]], nextCursor: 'c1' }) // Ann holds member; Bob none
