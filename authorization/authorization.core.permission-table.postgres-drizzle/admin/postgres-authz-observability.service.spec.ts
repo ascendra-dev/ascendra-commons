@@ -248,6 +248,12 @@ describe('PostgresAuthzObservabilityService', () => {
       await expect(svc(fakeDb()).listDelegations({ cursor: 'garbage' })).rejects.toBeInstanceOf(InvalidAuthzCursorError);
     });
 
+    it('renders the lapsed filter — active, lending an action the granter no longer holds', async () => {
+      const db = fakeDb();
+      await svc(db).listDelegations({ status: 'active', lapsed: true });
+      expect(textOf(db).sql).toMatch(/exists \(select 1 from unnest\(d\.actions\) as la\(action\) where not exists/i);
+    });
+
     it('renders the expiringWithinDays predicate', async () => {
       const db = fakeDb();
       await svc(db).listDelegations({ expiringWithinDays: 7, tenantId: 't1' });

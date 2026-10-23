@@ -83,4 +83,26 @@ describe('AuthzPeopleApiService', () => {
     await expect(svc.stats(tenantAdmin, undefined)).resolves.toMatchObject({ users: 5, usersWithoutRole: 3 });
     expect(port.accessStats).toHaveBeenCalledWith('t1');
   });
+
+  it('lists a role’s holders by name, filtered by search', async () => {
+    const { svc, port } = deps({});
+    (port.listUserRoleAssignments as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      assignments: [{ userId: 'bob@acme.test', roleId: 'member' }, { userId: 'ann@acme.test', roleId: 'member' }],
+    });
+    const page = await svc.listUsers(tenantAdmin, { roleId: 'member' });
+    expect(port.listUserRoleAssignments).toHaveBeenNthCalledWith(1, expect.objectContaining({ roleId: 'member', tenantId: 't1', status: 'active' }));
+    expect(page.data.map((u) => u.name)).toEqual(['Ann', 'Bob']);
+    await expect(svc.listUsers(tenantAdmin, { roleId: 'member', roleless: 'true' })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('walks the directory for people holding no role until the page fills', async () => {
+    const listUsers = vi.fn()
+      .mockResolvedValueOnce({ users: [USERS[0], USERS[1]], nextCursor: 'c1' }) // Ann holds member; Bob none
+      .mockResolvedValueOnce({ users: [{ id: 'cat@acme.test', name: 'Cat', tenantId: 't1' }], nextCursor: 'c2' });
+    const { svc, dir } = deps({ listUsers });
+    const page = await svc.listUsers(tenantAdmin, { roleless: 'true', limit: '2' });
+    expect(page.data.map((u) => u.id)).toEqual(['bob@acme.test', 'cat@acme.test']);
+    expect(page.meta.nextCursor).toBe('c2');
+    expect(dir!.listUsers).toHaveBeenNthCalledWith(2, expect.objectContaining({ limit: 1, cursor: 'c1' }));
+  });
 });

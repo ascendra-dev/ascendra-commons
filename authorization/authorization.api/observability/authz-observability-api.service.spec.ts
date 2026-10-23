@@ -106,6 +106,12 @@ describe('AuthzObservabilityApiService — answers', () => {
     await expect(svc.getDelegation(tenantAdmin, 'd1')).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it('maps status=lapsed to active delegations lending what the granter lost', async () => {
+    const port = fakePort();
+    await svcFor(port).listDelegations(platformAdmin, { status: 'lapsed' });
+    expect(port.listDelegations).toHaveBeenCalledWith(expect.objectContaining({ status: 'active', lapsed: true }));
+  });
+
   it("answers a user's own access in their own tenant", async () => {
     const port = fakePort();
     await svcFor(port).myAccess(tenantAdmin);
