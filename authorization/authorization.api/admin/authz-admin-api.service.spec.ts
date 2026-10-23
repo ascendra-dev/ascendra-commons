@@ -7,8 +7,8 @@ import type { AuthzAuditEmitter } from '../authz-audit.port';
 import type { Actor } from '../../authorization.core';
 
 const ROLES: RoleView[] = [
-  { id: 'issuer', description: null, grantsAll: false, actions: ['invoice.view'] },
-  { id: 'platform_admin', description: null, grantsAll: true, actions: [] },
+  { id: 'issuer', description: null, grantsAll: false, actions: ['invoice.view'], scope: 'tenant', platformActions: [] },
+  { id: 'platform_admin', description: null, grantsAll: true, actions: [], scope: 'platform', platformActions: [] },
 ];
 
 function deps(overrides: { isPlatformAdmin?: AuthzApiOptions['isPlatformAdmin'] } = {}) {

@@ -32,6 +32,8 @@ export const authzRole = pgTable('commons_authz_role', {
 export const authzAction = pgTable('commons_authz_action', {
   name: text('name').primaryKey(),
   description: text('description'),
+  /** 'platform' | 'tenant' — where a role granting it may be assigned (migration 0002). */
+  scope: text('scope').notNull().default('tenant'),
 });
 
 /** Which actions each role grants. Ignored when the role's `grants_all` is true. */
@@ -64,11 +66,15 @@ export const authzUserRole = pgTable(
       .references(() => authzRole.id, { onDelete: 'cascade' }),
     grantedAt: timestamp('granted_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     grantedBy: text('granted_by'),
+    /** When the role stops applying; null = no expiry (migration 0002). */
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
   },
   (table) => [
     // NULLS NOT DISTINCT so (user, NULL, role) can't be double-inserted (Postgres 15+).
     unique('commons_authz_user_role_uq').on(table.userId, table.tenantId, table.roleId).nullsNotDistinct(),
     index('commons_authz_user_role_lookup').on(table.userId, table.tenantId),
+    index('commons_authz_user_role_tenant_idx').on(table.tenantId, table.grantedAt.desc()),
+    index('commons_authz_user_role_role_idx').on(table.roleId, table.tenantId),
   ],
 );
 
@@ -93,5 +99,10 @@ export const authzDelegation = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     createdBy: text('created_by').notNull(),
   },
-  (table) => [index('commons_authz_delegation_grantee').on(table.granteeId, table.tenantId)],
+  (table) => [
+    index('commons_authz_delegation_grantee').on(table.granteeId, table.tenantId),
+    index('commons_authz_delegation_list_idx').on(table.createdAt.desc(), table.id.desc()),
+    index('commons_authz_delegation_tenant_idx').on(table.tenantId, table.createdAt.desc(), table.id.desc()),
+    index('commons_authz_delegation_granter_idx').on(table.granterId, table.tenantId),
+  ],
 );

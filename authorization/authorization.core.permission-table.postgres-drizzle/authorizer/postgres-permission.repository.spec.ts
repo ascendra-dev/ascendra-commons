@@ -9,8 +9,8 @@ const dialect = new PgDialect();
 function fakeDb(responses: { roles?: unknown[]; delegations?: unknown[] } = {}) {
   const execute = vi.fn(async (q: SQL) => {
     const text = dialect.sqlToQuery(q).sql;
-    if (text.includes('commons_authz_user_role')) return { rows: responses.roles ?? [] };
     if (text.includes('commons_authz_delegation')) return { rows: responses.delegations ?? [] };
+    if (text.includes('commons_authz_user_role')) return { rows: responses.roles ?? [] };
     return { rows: [] };
   });
   return { execute } as unknown as SqlExecutor & { execute: ReturnType<typeof vi.fn> };
@@ -32,6 +32,13 @@ describe('PostgresPermissionRepository', () => {
     expect(params).toEqual(expect.arrayContaining(['u1', 't1']));
   });
 
+  it('loadRolePermissions ignores an expired assignment', async () => {
+    const db = fakeDb();
+    await new PostgresPermissionRepository(db).loadRolePermissions('u1', 't1');
+    const text = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).sql;
+    expect(text).toMatch(/ur\.expires_at is null or ur\.expires_at > now\(\)/i);
+  });
+
   it('loadRolePermissions reports grantsAll and drops the null action row of a wildcard role', async () => {
     const db = fakeDb({ roles: [{ action: null, grants_all: true }] });
     const set = await new PostgresPermissionRepository(db).loadRolePermissions('u1', 't1');
@@ -48,5 +55,15 @@ describe('PostgresPermissionRepository', () => {
     const text = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).sql;
     expect(text).toMatch(/revoked_at IS NULL/i);
     expect(text).toMatch(/expires_at > now\(\)/i);
+  });
+
+  it('loadActiveDelegatedActions lends only what the granter still holds from an active role', async () => {
+    const db = fakeDb();
+    await new PostgresPermissionRepository(db).loadActiveDelegatedActions('u1', 't1');
+    const text = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).sql;
+    expect(text).toMatch(/gur\.user_id = d\.granter_id/i);
+    expect(text).toMatch(/gur\.tenant_id = d\.tenant_id or gur\.tenant_id is null/i);
+    expect(text).toMatch(/gur\.expires_at is null or gur\.expires_at > now\(\)/i);
+    expect(text).toMatch(/grp\.action = da\.action/i);
   });
 });

@@ -6,10 +6,13 @@ import type { AuthzApiOptions } from '../authz-api.options';
 
 function fakePort(): AuthzObservabilityPort {
   return {
-    listRoles: vi.fn().mockResolvedValue([{ id: 'issuer', description: null, grantsAll: false, actions: [] }]),
-    getRole: vi.fn().mockResolvedValue({ id: 'issuer', description: null, grantsAll: false, actions: [] }),
+    listRoles: vi.fn().mockResolvedValue([{ id: 'issuer', description: null, grantsAll: false, actions: [], scope: 'tenant', platformActions: [] }]),
+    getRole: vi.fn().mockResolvedValue({ id: 'issuer', description: null, grantsAll: false, actions: [], scope: 'tenant', platformActions: [] }),
     countHolders: vi.fn().mockResolvedValue(3),
-    listUserRoleAssignments: vi.fn().mockResolvedValue([]),
+    listUserRoleAssignments: vi.fn().mockResolvedValue({ assignments: [] }),
+    listActions: vi.fn().mockResolvedValue([]),
+    getDelegation: vi.fn().mockResolvedValue(null),
+    exactTenantHolders: vi.fn().mockResolvedValue([]),
     explainAccess: vi.fn().mockResolvedValue({ userId: 'u1', tenantId: 't1', roles: [], delegations: [], effectiveActions: [] }),
     listDelegations: vi.fn().mockResolvedValue({ delegations: [] }),
     actionCatalogHealth: vi.fn().mockResolvedValue({
@@ -52,7 +55,7 @@ describe('AuthzObservabilityApiService.getRole', () => {
   it('merges the role with its holder count', async () => {
     const port = fakePort();
     const detail = await new AuthzObservabilityApiService(port, OPTIONS).getRole('issuer');
-    expect(detail).toEqual({ id: 'issuer', description: null, grantsAll: false, actions: [], holderCount: 3 });
+    expect(detail).toEqual({ id: 'issuer', description: null, grantsAll: false, actions: [], scope: 'tenant', platformActions: [], holderCount: 3 });
     expect(port.countHolders).toHaveBeenCalledWith('issuer');
   });
 

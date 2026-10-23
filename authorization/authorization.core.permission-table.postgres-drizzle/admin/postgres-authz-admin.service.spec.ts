@@ -20,13 +20,15 @@ function rendered(db: ReturnType<typeof fakeDb>, matcher: RegExp) {
 const svc = (db: SqlExecutor) => new PostgresAuthzAdminService(db);
 
 describe('PostgresAuthzAdminService.assignRole', () => {
-  it('checks the role exists, then inserts idempotently', async () => {
+  it('checks the role exists, then inserts — re-assigning renews grantedBy, grantedAt and the expiry', async () => {
     const db = fakeDb((text) => (/from commons_authz_role\b/i.test(text) ? [{ id: 'issuer' }] : []));
-    await svc(db).assignRole({ userId: 'u1', tenantId: 't1', roleId: 'issuer', grantedBy: 'admin-1' });
+    const expiresAt = new Date('2027-01-01T00:00:00Z');
+    await svc(db).assignRole({ userId: 'u1', tenantId: 't1', roleId: 'issuer', grantedBy: 'admin-1', expiresAt });
 
     const insert = rendered(db, /insert into commons_authz_user_role/i)!;
-    expect(insert.sql).toMatch(/on conflict on constraint commons_authz_user_role_uq do nothing/i);
-    expect(insert.params).toEqual(expect.arrayContaining(['u1', 't1', 'issuer', 'admin-1']));
+    expect(insert.sql).toMatch(/on conflict on constraint commons_authz_user_role_uq do update/i);
+    expect(insert.sql).toMatch(/expires_at = excluded\.expires_at/i);
+    expect(insert.params).toEqual(expect.arrayContaining(['u1', 't1', 'issuer', 'admin-1', expiresAt]));
   });
 
   it('throws RoleNotFoundError when the role is not in the catalog — and issues no insert', async () => {
@@ -54,6 +56,11 @@ describe('PostgresAuthzAdminService.revokeRole', () => {
     const del = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
     expect(del.sql).toMatch(/tenant_id =/i);
     expect(del.params).toContain('t9');
+  });
+
+  it('answers whether a row was removed', async () => {
+    await expect(svc(fakeDb(() => [{ role_id: 'issuer' }])).revokeRole({ userId: 'u1', tenantId: 't9', roleId: 'issuer' })).resolves.toBe(true);
+    await expect(svc(fakeDb(() => [])).revokeRole({ userId: 'u1', tenantId: 't9', roleId: 'issuer' })).resolves.toBe(false);
   });
 });
 

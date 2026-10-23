@@ -27,18 +27,21 @@ export class PostgresAuthzAdminService implements AuthzAdminPort {
     if (rows.length === 0) throw new RoleNotFoundError(input.roleId);
 
     await this.db.execute(sql`
-      insert into commons_authz_user_role (user_id, tenant_id, role_id, granted_by)
-      values (${input.userId}, ${input.tenantId}, ${input.roleId}, ${input.grantedBy})
-      on conflict on constraint commons_authz_user_role_uq do nothing
+      insert into commons_authz_user_role (user_id, tenant_id, role_id, granted_by, expires_at)
+      values (${input.userId}, ${input.tenantId}, ${input.roleId}, ${input.grantedBy}, ${input.expiresAt ?? null})
+      on conflict on constraint commons_authz_user_role_uq do update
+        set granted_by = excluded.granted_by, granted_at = now(), expires_at = excluded.expires_at
     `);
   }
 
-  async revokeRole(input: RevokeRoleInput): Promise<void> {
+  async revokeRole(input: RevokeRoleInput): Promise<boolean> {
     const tenantCond = input.tenantId === null ? sql`tenant_id is null` : sql`tenant_id = ${input.tenantId}`;
-    await this.db.execute(sql`
+    const { rows } = await this.db.execute<{ role_id: string }>(sql`
       delete from commons_authz_user_role
       where user_id = ${input.userId} and role_id = ${input.roleId} and ${tenantCond}
+      returning role_id
     `);
+    return rows.length > 0;
   }
 
   async setActionDescription(action: string, description: string | null): Promise<void> {

@@ -10,6 +10,7 @@ export type { SqlExecutor } from './persistence/sql-executor';
 
 // Seed helpers — run once at deploy time / in a migration
 export { syncActions } from './seed/sync-actions';
+export type { ActionCatalogEntry } from './seed/sync-actions';
 export { seedRolesFromPersonaMap } from './seed/seed-roles-from-persona-map';
 
 // Wiring

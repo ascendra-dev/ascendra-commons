@@ -6,10 +6,15 @@ export type { AuthzObservabilityPort } from './ports/authz-observability.port';
 
 // Answer-shapes — what the ports return, what authorization.api serves
 export type {
+  ActionScope,
+  ActionView,
+  ActionHolder,
   RoleView,
   RoleDetail,
   UserRoleAssignment,
+  AssignmentStatus,
   AssignmentQuery,
+  AssignmentPage,
   DelegationView,
   DelegationQuery,
   DelegationPage,
@@ -28,7 +33,7 @@ export type {
   DelegationStatus,
 } from './types/delegation.types';
 export type { ResolvedPermissions } from './types/resolved-permissions';
-export { RoleNotFoundError, ActionNotFoundError } from './admin/authz-admin.errors';
+export { RoleNotFoundError, ActionNotFoundError, InvalidAuthzCursorError } from './admin/authz-admin.errors';
 
 // Stack-agnostic implementation
 export { PermissionResolver } from './resolution/permission-resolver';

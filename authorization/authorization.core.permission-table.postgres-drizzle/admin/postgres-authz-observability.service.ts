@@ -1,24 +1,46 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql, type SQL } from 'drizzle-orm';
-import type {
-  AccessExplanation,
-  ActionCatalogHealth,
-  AssignmentQuery,
-  AuthzObservabilityPort,
-  DelegationPage,
-  DelegationQuery,
-  DelegationView,
-  RoleView,
-  UserRoleAssignment,
-  WhoCanResult,
+import {
+  InvalidAuthzCursorError,
+  type AccessExplanation,
+  type ActionCatalogHealth,
+  type ActionHolder,
+  type ActionScope,
+  type ActionView,
+  type AssignmentPage,
+  type AssignmentQuery,
+  type AuthzObservabilityPort,
+  type DelegationPage,
+  type DelegationQuery,
+  type DelegationView,
+  type RoleView,
+  type UserRoleAssignment,
+  type WhoCanResult,
 } from '../../authorization.core.permission-table';
-import { textArray } from '../persistence/sql-helpers';
+import { activeAssignment, decodeCursor, encodeCursor, granterStillHolds, isoMicros } from '../persistence/sql-helpers';
 import type { SqlExecutor } from '../persistence/sql-executor';
 import { AUTHZ_SQL_EXECUTOR } from '../tokens';
 
 const DEFAULT_DELEGATION_LIMIT = 50;
 const MAX_DELEGATION_LIMIT = 200;
-const MAX_ASSIGNMENT_ROWS = 2000;
+const DEFAULT_ASSIGNMENT_LIMIT = 100;
+const MAX_ASSIGNMENT_LIMIT = 500;
+
+/** A role with its actions and their scopes — one row per role. */
+const ROLE_SELECT = sql`
+  select r.id, r.description, r.grants_all,
+         coalesce(array_agg(rp.action order by rp.action) filter (where rp.action is not null), '{}') as actions,
+         coalesce(array_agg(rp.action order by rp.action) filter (where a.scope = 'platform'), '{}') as platform_actions
+  from commons_authz_role r
+  left join commons_authz_role_permission rp on rp.role_id = r.id
+  left join commons_authz_action a on a.name = rp.action
+`;
+
+/** What a delegation (alias `d`) no longer grants — the actions its granter has stopped holding from a role. */
+const LAPSED_ACTIONS = sql`array(
+  select la.action from unnest(d.actions) as la(action)
+  where not ${granterStillHolds('d', sql`la.action`)}
+) as lapsed_actions`;
 
 /**
  * `AuthzObservabilityPort` for Postgres/Drizzle — read-only reporting over
@@ -26,96 +48,109 @@ const MAX_ASSIGNMENT_ROWS = 2000;
  * `PostgresAuthzAdminService` / `DelegationService`. No `application` column
  * exists on these tables (the role catalog is project-specific —
  * `MODULE-STANDARD.md` dimension 4).
+ *
+ * Every read resolves the way `PermissionTableAuthorizer` does — an expired assignment grants nothing
+ * (`activeAssignment`), and a delegation grants only what its granter still holds (`granterStillHolds`) — so the
+ * console never shows access the guard wouldn't honour.
  */
 @Injectable()
 export class PostgresAuthzObservabilityService implements AuthzObservabilityPort {
   constructor(@Inject(AUTHZ_SQL_EXECUTOR) private readonly db: SqlExecutor) {}
 
   async listRoles(): Promise<RoleView[]> {
-    const { rows } = await this.db.execute<{
-      id: string;
-      description: string | null;
-      grants_all: boolean;
-      actions: string[];
-    }>(sql`
-      select r.id, r.description, r.grants_all,
-             coalesce(array_agg(rp.action) filter (where rp.action is not null), '{}') as actions
-      from commons_authz_role r
-      left join commons_authz_role_permission rp on rp.role_id = r.id
+    const { rows } = await this.db.execute<RoleRow>(sql`
+      ${ROLE_SELECT}
       group by r.id, r.description, r.grants_all
       order by r.id
     `);
-    return rows.map((r) => ({
-      id: r.id,
-      description: r.description,
-      grantsAll: r.grants_all,
-      actions: r.grants_all ? [] : [...(r.actions ?? [])].sort(),
-    }));
+    return rows.map(toRoleView);
   }
 
   async getRole(id: string): Promise<RoleView | null> {
-    const { rows } = await this.db.execute<{
-      id: string;
-      description: string | null;
-      grants_all: boolean;
-      actions: string[];
-    }>(sql`
-      select r.id, r.description, r.grants_all,
-             coalesce(array_agg(rp.action) filter (where rp.action is not null), '{}') as actions
-      from commons_authz_role r
-      left join commons_authz_role_permission rp on rp.role_id = r.id
+    const { rows } = await this.db.execute<RoleRow>(sql`
+      ${ROLE_SELECT}
       where r.id = ${id}
       group by r.id, r.description, r.grants_all
     `);
-    if (rows.length === 0) return null;
-    const r = rows[0];
-    return {
-      id: r.id,
-      description: r.description,
-      grantsAll: r.grants_all,
-      actions: r.grants_all ? [] : [...(r.actions ?? [])].sort(),
-    };
+    return rows[0] ? toRoleView(rows[0]) : null;
   }
 
-  async countHolders(roleId: string): Promise<number> {
+  async countHolders(roleId: string, tenantId?: string | null): Promise<number> {
+    const tenantCond =
+      tenantId === undefined ? sql`` : tenantId === null ? sql`and ur.tenant_id is null` : sql`and ur.tenant_id = ${tenantId}`;
     const { rows } = await this.db.execute<{ count: string | number }>(sql`
-      select count(distinct user_id) as count
-      from commons_authz_user_role
-      where role_id = ${roleId}
+      select count(distinct ur.user_id) as count
+      from commons_authz_user_role ur
+      where ur.role_id = ${roleId} and ${activeAssignment('ur')} ${tenantCond}
     `);
-    const raw = rows[0]?.count ?? 0;
-    return typeof raw === 'string' ? parseInt(raw, 10) : raw;
+    return Number(rows[0]?.count ?? 0);
   }
 
-  async listUserRoleAssignments(query: AssignmentQuery = {}): Promise<UserRoleAssignment[]> {
-    const conds: SQL[] = [];
-    if (query.userId !== undefined) conds.push(sql`user_id = ${query.userId}`);
-    if ('tenantId' in query) {
-      conds.push(query.tenantId === null ? sql`tenant_id is null` : sql`tenant_id = ${query.tenantId}`);
-    }
-    if (query.roleId !== undefined) conds.push(sql`role_id = ${query.roleId}`);
-    const where = conds.length ? sql`where ${sql.join(conds, sql` and `)}` : sql``;
-
+  async listActions(): Promise<ActionView[]> {
     const { rows } = await this.db.execute<{
-      user_id: string;
-      tenant_id: string | null;
-      role_id: string;
-      granted_at: string | Date;
-      granted_by: string | null;
+      name: string;
+      description: string | null;
+      scope: string;
+      role_ids: string[] | null;
     }>(sql`
-      select user_id, tenant_id, role_id, granted_at, granted_by
-      from commons_authz_user_role
-      ${where}
-      order by granted_at desc
-      limit ${MAX_ASSIGNMENT_ROWS}
+      select a.name, a.description, a.scope,
+             coalesce(array_agg(rp.role_id order by rp.role_id) filter (where rp.role_id is not null), '{}') as role_ids
+      from commons_authz_action a
+      left join commons_authz_role_permission rp on rp.action = a.name
+      group by a.name, a.description, a.scope
+      order by a.name
     `);
     return rows.map((r) => ({
-      userId: r.user_id,
-      tenantId: r.tenant_id,
-      roleId: r.role_id,
-      grantedAt: asDate(r.granted_at),
-      grantedBy: r.granted_by,
+      name: r.name,
+      description: r.description,
+      scope: r.scope === 'platform' ? 'platform' : 'tenant',
+      roleIds: [...(r.role_ids ?? [])],
     }));
+  }
+
+  async listUserRoleAssignments(query: AssignmentQuery = {}): Promise<AssignmentPage> {
+    const limit = Math.min(Math.max(1, query.limit ?? DEFAULT_ASSIGNMENT_LIMIT), MAX_ASSIGNMENT_LIMIT);
+    const conds: SQL[] = [];
+    if (query.userId !== undefined) conds.push(sql`ur.user_id = ${query.userId}`);
+    if ('tenantId' in query && query.tenantId !== undefined) {
+      conds.push(query.tenantId === null ? sql`ur.tenant_id is null` : sql`ur.tenant_id = ${query.tenantId}`);
+    }
+    if (query.roleId !== undefined) conds.push(sql`ur.role_id = ${query.roleId}`);
+    if (query.status === 'active') conds.push(activeAssignment('ur'));
+    if (query.status === 'expired') conds.push(sql`ur.expires_at <= now()`);
+    if (query.expiringWithinDays !== undefined) {
+      conds.push(
+        sql`ur.expires_at > now() and ur.expires_at <= now() + (${query.expiringWithinDays} * interval '1 day')`,
+      );
+    }
+    if (query.cursor) {
+      const c = decodeCursor(query.cursor, ['ts', 'userId', 'roleId', 'tenantId'], ['tenantId']);
+      if (!c) throw new InvalidAuthzCursorError(query.cursor);
+      const ts = sql`${c.ts}::timestamptz`;
+      // (granted_at, user_id, role_id, tenant_id) descending — the last two make the order total.
+      conds.push(sql`(ur.granted_at < ${ts} or (ur.granted_at = ${ts} and (ur.user_id, ur.role_id, coalesce(ur.tenant_id, ''))
+        < (${c.userId}, ${c.roleId}, ${c.tenantId ?? ''})))`);
+    }
+    const where = conds.length ? sql`where ${sql.join(conds, sql` and `)}` : sql``;
+
+    const { rows } = await this.db.execute<AssignmentRow>(sql`
+      select ur.user_id, ur.tenant_id, ur.role_id, ur.granted_at, ur.granted_by, ur.expires_at,
+             ${isoMicros('ur.granted_at', 'granted_at_key')}
+      from commons_authz_user_role ur
+      ${where}
+      order by ur.granted_at desc, ur.user_id desc, ur.role_id desc, coalesce(ur.tenant_id, '') desc
+      limit ${limit + 1}
+    `);
+    const page = rows.slice(0, limit);
+    const assignments = page.map(toAssignment);
+    if (rows.length > limit) {
+      const last = page[page.length - 1];
+      return {
+        assignments,
+        nextCursor: encodeCursor({ ts: last.granted_at_key, userId: last.user_id, roleId: last.role_id, tenantId: last.tenant_id }),
+      };
+    }
+    return { assignments };
   }
 
   async explainAccess(userId: string, tenantId: string | null, action?: string): Promise<AccessExplanation> {
@@ -129,14 +164,15 @@ export class PostgresAuthzObservabilityService implements AuthzObservabilityPort
       tenant_id: string | null;
       grants_all: boolean;
       actions: string[];
+      expires_at: string | Date | null;
     }>(sql`
-      select ur.role_id, ur.tenant_id, r.grants_all,
-             coalesce(array_agg(rp.action) filter (where rp.action is not null), '{}') as actions
+      select ur.role_id, ur.tenant_id, r.grants_all, ur.expires_at,
+             coalesce(array_agg(rp.action order by rp.action) filter (where rp.action is not null), '{}') as actions
       from commons_authz_user_role ur
       join commons_authz_role r on r.id = ur.role_id
       left join commons_authz_role_permission rp on rp.role_id = r.id
-      where ${roleWhere}
-      group by ur.role_id, ur.tenant_id, r.grants_all
+      where ${roleWhere} and ${activeAssignment('ur')}
+      group by ur.role_id, ur.tenant_id, r.grants_all, ur.expires_at
       order by ur.role_id
     `);
 
@@ -144,7 +180,8 @@ export class PostgresAuthzObservabilityService implements AuthzObservabilityPort
       roleId: r.role_id,
       tenantId: r.tenant_id,
       grantsAll: r.grants_all,
-      grantedActions: r.grants_all ? [] : [...(r.actions ?? [])].sort(),
+      grantedActions: r.grants_all ? [] : [...(r.actions ?? [])],
+      expiresAt: r.expires_at == null ? null : asDate(r.expires_at),
     }));
 
     let delegations: AccessExplanation['delegations'] = [];
@@ -153,20 +190,25 @@ export class PostgresAuthzObservabilityService implements AuthzObservabilityPort
         id: string;
         granter_id: string;
         actions: string[];
+        lapsed_actions: string[];
         expires_at: string | Date;
       }>(sql`
-        select id, granter_id, actions, expires_at
-        from commons_authz_delegation
-        where grantee_id = ${userId} and tenant_id = ${tenantId}
-          and revoked_at is null and expires_at > now()
-        order by created_at desc
+        select d.id, d.granter_id, d.actions, d.expires_at, ${LAPSED_ACTIONS}
+        from commons_authz_delegation d
+        where d.grantee_id = ${userId} and d.tenant_id = ${tenantId}
+          and d.revoked_at is null and d.expires_at > now()
+        order by d.created_at desc
       `);
-      delegations = delRows.map((d) => ({
-        id: d.id,
-        granterId: d.granter_id,
-        actions: d.actions,
-        expiresAt: asDate(d.expires_at),
-      }));
+      delegations = delRows.map((d) => {
+        const lapsed = new Set(d.lapsed_actions ?? []);
+        return {
+          id: d.id,
+          granterId: d.granter_id,
+          actions: d.actions.filter((a) => !lapsed.has(a)),
+          lapsedActions: [...lapsed],
+          expiresAt: asDate(d.expires_at),
+        };
+      });
     }
 
     const grantsAllRole = roles.find((r) => r.grantsAll);
@@ -183,12 +225,16 @@ export class PostgresAuthzObservabilityService implements AuthzObservabilityPort
       } else {
         const viaRole = roles.find((r) => r.grantedActions.includes(action));
         const viaDelegation = delegations.find((d) => d.actions.includes(action));
+        const lapsed = delegations.find((d) => d.lapsedActions.includes(action));
         if (viaRole) {
           explanation.allowed = true;
           explanation.reason = `granted by role '${viaRole.roleId}'`;
         } else if (viaDelegation) {
           explanation.allowed = true;
           explanation.reason = `granted by delegation ${viaDelegation.id} from ${viaDelegation.granterId} (expires ${viaDelegation.expiresAt.toISOString()})`;
+        } else if (lapsed) {
+          explanation.allowed = false;
+          explanation.reason = `denied — delegation ${lapsed.id} from ${lapsed.granterId} lends '${action}', but the granter no longer holds it`;
         } else {
           explanation.allowed = false;
           explanation.reason = `denied — no role or active delegation grants '${action}'`;
@@ -201,38 +247,54 @@ export class PostgresAuthzObservabilityService implements AuthzObservabilityPort
   async listDelegations(query: DelegationQuery = {}): Promise<DelegationPage> {
     const limit = Math.min(Math.max(1, query.limit ?? DEFAULT_DELEGATION_LIMIT), MAX_DELEGATION_LIMIT);
     const conds: SQL[] = [];
-    if (query.granterId !== undefined) conds.push(sql`granter_id = ${query.granterId}`);
-    if (query.granteeId !== undefined) conds.push(sql`grantee_id = ${query.granteeId}`);
-    if (query.tenantId !== undefined) conds.push(sql`tenant_id = ${query.tenantId}`);
-    if (query.status === 'active') conds.push(sql`revoked_at is null and expires_at > now()`);
-    else if (query.status === 'revoked') conds.push(sql`revoked_at is not null`);
-    else if (query.status === 'expired') conds.push(sql`revoked_at is null and expires_at <= now()`);
+    if (query.granterId !== undefined) conds.push(sql`d.granter_id = ${query.granterId}`);
+    if (query.granteeId !== undefined) conds.push(sql`d.grantee_id = ${query.granteeId}`);
+    if (query.userId !== undefined) conds.push(sql`(d.granter_id = ${query.userId} or d.grantee_id = ${query.userId})`);
+    if (query.tenantId !== undefined) conds.push(sql`d.tenant_id = ${query.tenantId}`);
+    if (query.status === 'active') conds.push(sql`d.revoked_at is null and d.expires_at > now()`);
+    else if (query.status === 'revoked') conds.push(sql`d.revoked_at is not null`);
+    else if (query.status === 'expired') conds.push(sql`d.revoked_at is null and d.expires_at <= now()`);
     if (query.expiringWithinDays !== undefined) {
       conds.push(
-        sql`revoked_at is null and expires_at > now() and expires_at <= now() + (${query.expiringWithinDays} * interval '1 day')`,
+        sql`d.revoked_at is null and d.expires_at > now() and d.expires_at <= now() + (${query.expiringWithinDays} * interval '1 day')`,
       );
     }
-
-    const cursor = query.cursor ? decodeCursor(query.cursor) : null;
-    if (cursor) {
-      conds.push(sql`(created_at < ${cursor.createdAt} or (created_at = ${cursor.createdAt} and id < ${cursor.id}))`);
+    if (query.cursor) {
+      const c = decodeCursor(query.cursor, ['ts', 'id']);
+      if (!c) throw new InvalidAuthzCursorError(query.cursor);
+      const ts = sql`${c.ts}::timestamptz`;
+      // Led by created_at, so the scan starts at the boundary (an Index Cond); the OR alone is only a Filter.
+      conds.push(sql`d.created_at <= ${ts} and (d.created_at < ${ts} or d.id < ${c.id}::uuid)`);
     }
     const where = conds.length ? sql`where ${sql.join(conds, sql` and `)}` : sql``;
 
     const { rows } = await this.db.execute<DelegationRow>(sql`
-      select id, granter_id, grantee_id, tenant_id, actions, expires_at, revoked_at, revoked_by, reason, created_at, created_by
-      from commons_authz_delegation
+      select d.id, d.granter_id, d.grantee_id, d.tenant_id, d.actions, d.expires_at, d.revoked_at, d.revoked_by,
+             d.reason, d.created_at, d.created_by, ${LAPSED_ACTIONS}, ${isoMicros('d.created_at', 'created_at_key')}
+      from commons_authz_delegation d
       ${where}
-      order by created_at desc, id desc
+      order by d.created_at desc, d.id desc
       limit ${limit + 1}
     `);
-    const all = rows.map(toDelegationView);
-    if (all.length > limit) {
-      const delegations = all.slice(0, limit);
-      const last = delegations[delegations.length - 1];
-      return { delegations, nextCursor: encodeCursor(last.createdAt, last.id) };
+    const page = rows.slice(0, limit);
+    const delegations = page.map(toDelegationView);
+    if (rows.length > limit) {
+      const last = page[page.length - 1];
+      return { delegations, nextCursor: encodeCursor({ ts: last.created_at_key, id: last.id }) };
     }
-    return { delegations: all };
+    return { delegations };
+  }
+
+  async getDelegation(id: string): Promise<DelegationView | null> {
+    // Not a uuid → no such delegation (a 404), never a failed ::uuid cast (a 500).
+    if (!UUID.test(id)) return null;
+    const { rows } = await this.db.execute<DelegationRow>(sql`
+      select d.id, d.granter_id, d.grantee_id, d.tenant_id, d.actions, d.expires_at, d.revoked_at, d.revoked_by,
+             d.reason, d.created_at, d.created_by, ${LAPSED_ACTIONS}, ${isoMicros('d.created_at', 'created_at_key')}
+      from commons_authz_delegation d
+      where d.id = ${id}::uuid
+    `);
+    return rows[0] ? toDelegationView(rows[0]) : null;
   }
 
   async actionCatalogHealth(knownActions: readonly string[]): Promise<ActionCatalogHealth> {
@@ -260,55 +322,39 @@ export class PostgresAuthzObservabilityService implements AuthzObservabilityPort
   }
 
   async whoCan(action: string, tenantId?: string): Promise<WhoCanResult> {
-    const { rows: roleRows } = await this.db.execute<{ id: string; grants_all: boolean }>(sql`
-      select distinct r.id, r.grants_all
+    const tenantCond = tenantId === undefined ? sql`` : sql`and (ur.tenant_id = ${tenantId} or ur.tenant_id is null)`;
+    const { rows: roleRows } = await this.db.execute<{ id: string; grants_all: boolean; holders: string[] | null }>(sql`
+      select r.id, r.grants_all,
+             array_agg(distinct ur.user_id order by ur.user_id) filter (where ur.user_id is not null) as holders
       from commons_authz_role r
-      left join commons_authz_role_permission rp on rp.role_id = r.id
-      where r.grants_all = true or rp.action = ${action}
+      left join commons_authz_user_role ur on ur.role_id = r.id and ${activeAssignment('ur')} ${tenantCond}
+      where r.grants_all or exists (
+        select 1 from commons_authz_role_permission rp where rp.role_id = r.id and rp.action = ${action}
+      )
+      group by r.id, r.grants_all
       order by r.id
     `);
 
-    const holdersByRole = new Map<string, string[]>();
-    const roleIds = roleRows.map((r) => r.id);
-    if (roleIds.length > 0) {
-      const tenantCond = tenantId === undefined ? sql`` : sql`and (tenant_id = ${tenantId} or tenant_id is null)`;
-      const { rows: holderRows } = await this.db.execute<{ role_id: string; user_id: string }>(sql`
-        select role_id, user_id
-        from commons_authz_user_role
-        where role_id = any(${textArray(roleIds)}) ${tenantCond}
-      `);
-      for (const h of holderRows) {
-        const list = holdersByRole.get(h.role_id) ?? [];
-        list.push(h.user_id);
-        holdersByRole.set(h.role_id, list);
-      }
-    }
-
-    const roles = roleRows.map((r) => ({
-      roleId: r.id,
-      grantsAll: r.grants_all,
-      holderUserIds: [...new Set(holdersByRole.get(r.id) ?? [])].sort(),
-    }));
-
-    const tenantDelCond = tenantId === undefined ? sql`` : sql`and tenant_id = ${tenantId}`;
+    const tenantDelCond = tenantId === undefined ? sql`` : sql`and d.tenant_id = ${tenantId}`;
     const { rows: delRows } = await this.db.execute<{
       id: string;
       granter_id: string;
       grantee_id: string;
       expires_at: string | Date;
     }>(sql`
-      select id, granter_id, grantee_id, expires_at
-      from commons_authz_delegation
-      where revoked_at is null and expires_at > now()
-        and actions @> ${textArray([action])}
+      select d.id, d.granter_id, d.grantee_id, d.expires_at
+      from commons_authz_delegation d
+      where d.revoked_at is null and d.expires_at > now()
+        and ${action} = any(d.actions)
+        and ${granterStillHolds('d', sql`${action}`)}
         ${tenantDelCond}
-      order by expires_at asc
+      order by d.expires_at asc
     `);
 
     return {
       action,
       tenantId: tenantId ?? null,
-      roles,
+      roles: roleRows.map((r) => ({ roleId: r.id, grantsAll: r.grants_all, holderUserIds: [...(r.holders ?? [])] })),
       delegations: delRows.map((d) => ({
         id: d.id,
         granterId: d.granter_id,
@@ -317,6 +363,66 @@ export class PostgresAuthzObservabilityService implements AuthzObservabilityPort
       })),
     };
   }
+
+  async exactTenantHolders(action: string, tenantId: string | null): Promise<ActionHolder[]> {
+    const tenantCond = tenantId === null ? sql`ur.tenant_id is null` : sql`ur.tenant_id = ${tenantId}`;
+    const { rows } = await this.db.execute<{ user_id: string; role_id: string }>(sql`
+      select ur.user_id, ur.role_id
+      from commons_authz_user_role ur
+      join commons_authz_role r on r.id = ur.role_id
+      where ${tenantCond} and ${activeAssignment('ur')}
+        and (r.grants_all or exists (
+          select 1 from commons_authz_role_permission rp where rp.role_id = r.id and rp.action = ${action}
+        ))
+    `);
+    return rows.map((r) => ({ userId: r.user_id, roleId: r.role_id }));
+  }
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+interface RoleRow {
+  id: string;
+  description: string | null;
+  grants_all: boolean;
+  actions: string[] | null;
+  platform_actions: string[] | null;
+}
+
+function toRoleView(r: RoleRow): RoleView {
+  const platformActions = r.grants_all ? [] : [...(r.platform_actions ?? [])];
+  const scope: ActionScope = r.grants_all || platformActions.length > 0 ? 'platform' : 'tenant';
+  return {
+    id: r.id,
+    description: r.description,
+    grantsAll: r.grants_all,
+    actions: r.grants_all ? [] : [...(r.actions ?? [])],
+    scope,
+    platformActions,
+  };
+}
+
+interface AssignmentRow {
+  user_id: string;
+  tenant_id: string | null;
+  role_id: string;
+  granted_at: string | Date;
+  granted_by: string | null;
+  expires_at: string | Date | null;
+  granted_at_key: string;
+}
+
+function toAssignment(r: AssignmentRow): UserRoleAssignment {
+  const expiresAt = r.expires_at == null ? null : asDate(r.expires_at);
+  return {
+    userId: r.user_id,
+    tenantId: r.tenant_id,
+    roleId: r.role_id,
+    grantedAt: asDate(r.granted_at),
+    grantedBy: r.granted_by,
+    expiresAt,
+    status: expiresAt && expiresAt.getTime() <= Date.now() ? 'expired' : 'active',
+  };
 }
 
 interface DelegationRow {
@@ -325,12 +431,14 @@ interface DelegationRow {
   grantee_id: string;
   tenant_id: string;
   actions: string[];
+  lapsed_actions: string[] | null;
   expires_at: string | Date;
   revoked_at: string | Date | null;
   revoked_by: string | null;
   reason: string | null;
   created_at: string | Date;
   created_by: string;
+  created_at_key: string;
 }
 
 function toDelegationView(row: DelegationRow): DelegationView {
@@ -347,6 +455,7 @@ function toDelegationView(row: DelegationRow): DelegationView {
     granteeId: row.grantee_id,
     tenantId: row.tenant_id,
     actions: row.actions,
+    lapsedActions: [...(row.lapsed_actions ?? [])],
     expiresAt,
     revokedAt,
     revokedBy: row.revoked_by,
@@ -359,18 +468,4 @@ function toDelegationView(row: DelegationRow): DelegationView {
 
 function asDate(v: string | Date): Date {
   return v instanceof Date ? v : new Date(v);
-}
-
-function encodeCursor(createdAt: Date, id: string): string {
-  return Buffer.from(`${createdAt.toISOString()}|${id}`).toString('base64url');
-}
-
-function decodeCursor(cursor: string): { createdAt: Date; id: string } | null {
-  try {
-    const [ts, id] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
-    if (!ts || !id || Number.isNaN(Date.parse(ts))) return null;
-    return { createdAt: new Date(ts), id };
-  } catch {
-    return null;
-  }
 }

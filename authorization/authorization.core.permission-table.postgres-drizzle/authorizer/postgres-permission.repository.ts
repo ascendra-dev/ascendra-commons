@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import type { PermissionRepository, RolePermissionSet } from '../../authorization.core.permission-table';
+import { activeAssignment, granterStillHolds } from '../persistence/sql-helpers';
 import type { SqlExecutor } from '../persistence/sql-executor';
 import { AUTHZ_SQL_EXECUTOR } from '../tokens';
 
@@ -22,6 +23,7 @@ export class PostgresPermissionRepository implements PermissionRepository {
       LEFT JOIN commons_authz_role_permission rp ON rp.role_id = r.id
       WHERE ur.user_id = ${userId}
         AND (ur.tenant_id = ${tenantId} OR ur.tenant_id IS NULL)
+        AND ${activeAssignment('ur')}
     `);
     return {
       grantsAll: rows.some((r) => r.grants_all),
@@ -30,13 +32,16 @@ export class PostgresPermissionRepository implements PermissionRepository {
   }
 
   async loadActiveDelegatedActions(granteeId: string, tenantId: string): Promise<string[]> {
+    // Only what each granter still holds from a role — a delegation lends, it doesn't copy.
     const { rows } = await this.db.execute<{ action: string }>(sql`
-      SELECT DISTINCT unnest(actions) AS action
-      FROM commons_authz_delegation
-      WHERE grantee_id = ${granteeId}
-        AND tenant_id = ${tenantId}
-        AND revoked_at IS NULL
-        AND expires_at > now()
+      SELECT DISTINCT da.action
+      FROM commons_authz_delegation d
+      CROSS JOIN LATERAL unnest(d.actions) AS da(action)
+      WHERE d.grantee_id = ${granteeId}
+        AND d.tenant_id = ${tenantId}
+        AND d.revoked_at IS NULL
+        AND d.expires_at > now()
+        AND ${granterStillHolds('d', sql`da.action`)}
     `);
     return rows.map((r) => r.action);
   }

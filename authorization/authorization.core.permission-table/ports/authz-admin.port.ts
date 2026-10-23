@@ -12,10 +12,10 @@ import type { AssignRoleInput, RevokeRoleInput } from '../types/authz-admin.type
  * `authz-admin.errors.ts`.
  */
 export interface AuthzAdminPort {
-  /** Idempotent — assigning a role the user already holds (same tenant) is a no-op. */
+  /** Assigning a role the user already holds (same tenant) renews it: `grantedBy`, `grantedAt` and `expiresAt` are replaced. */
   assignRole(input: AssignRoleInput): Promise<void>;
-  /** Idempotent — revoking a role the user doesn't hold is a no-op. */
-  revokeRole(input: RevokeRoleInput): Promise<void>;
+  /** `false` when the user didn't hold the role there — nothing changed. */
+  revokeRole(input: RevokeRoleInput): Promise<boolean>;
   /** Fill in (or clear) the free-text description of a catalog action. */
   setActionDescription(action: string, description: string | null): Promise<void>;
 }

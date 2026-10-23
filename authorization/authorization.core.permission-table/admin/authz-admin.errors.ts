@@ -19,3 +19,11 @@ export class ActionNotFoundError extends Error {
     this.name = 'ActionNotFoundError';
   }
 }
+
+/** A list cursor this adapter never issued — the `.api` turns it into a 400 rather than restarting at page one. */
+export class InvalidAuthzCursorError extends Error {
+  constructor(cursor: string) {
+    super(`Unrecognized cursor "${cursor}"`);
+    this.name = 'InvalidAuthzCursorError';
+  }
+}

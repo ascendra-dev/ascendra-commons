@@ -31,4 +31,19 @@ describe('syncActions', () => {
     // de-duped to the two distinct keys
     expect([...params].sort()).toEqual(['invoice.view', 'invoice.void']);
   });
+
+  it('sets the scope of entries given with one — on every sync — and never touches a bare key scope', async () => {
+    const db = fakeDb();
+    await syncActions(db, ['invoice.view', { name: 'job.run', scope: 'platform' }]);
+
+    const bare = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(bare.sql).toMatch(/ON CONFLICT \(name\) DO NOTHING/i);
+    expect(bare.params).toEqual(['invoice.view']);
+
+    const scoped = dialect.sqlToQuery(db.execute.mock.calls[1][0] as SQL);
+    expect(scoped.sql).toMatch(/INSERT INTO commons_authz_action \(name, scope\)/i);
+    expect(scoped.sql).toMatch(/ON CONFLICT \(name\) DO UPDATE SET scope = EXCLUDED\.scope/i);
+    expect(scoped.sql).not.toMatch(/description/i);
+    expect(scoped.params).toEqual(['job.run', 'platform']);
+  });
 });
