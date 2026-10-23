@@ -88,7 +88,7 @@ sometimes throws), one listener whose event never fires.
   sandbox's Postgres 16 by hand.
 - Recorder options aren't validated — `flushIntervalMs: 0` would flush in a tight loop (as rate-limiting).
 - The listener catalogue rescans every provider per call — cache it at bootstrap if the screen is polled.
-- Clickable rows are `<tr onClick>`, not keyboard-reachable (as the other modules).
+- Rows that open a sheet are `<tr onClick>`, not keyboard-reachable — rows that open a page are real links since 2026-10-23 (`TableRowLink`; [background-jobs' report](../background-jobs/AUDIT-REPORT.md)).
 - `tableSizeBytes` is the whole table, every application sharing it.
 
 ## Suggested order

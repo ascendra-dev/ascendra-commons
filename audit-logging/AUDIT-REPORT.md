@@ -93,8 +93,8 @@ the next layer up (retention, access auditing, request context, scale), not flaw
 - Archive before purge (`file-storage`); legal hold.
 - Point-in-time reconstruction — "this entity's state on date X".
 - Broker-transport correlation-id carry-through; a per-request application on the write side (both in README).
-- No automated frontend tests (verified manually with Playwright); clickable rows are `<tr onClick>`, not keyboard
-  reachable; the volume chart's tooltip shows the raw `YYYY-MM-DD`.
+- No automated frontend tests (verified manually with Playwright); rows that open a sheet are `<tr onClick>`, not
+  keyboard-reachable (rows that open a page are real links since 2026-10-23 — `TableRowLink`); the volume chart's tooltip shows the raw `YYYY-MM-DD`.
 - Cursor precision — milliseconds in the cursor, microseconds in Postgres. Safe while every row comes from a JS
   `Date`; a row written with `now()` could be skipped at a page boundary.
 

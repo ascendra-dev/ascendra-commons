@@ -95,7 +95,7 @@ enumerator, a brute-forcer, a partner with correlation ids, two sync jobs (one c
   verified against the sandbox's Postgres 16 by hand.
 - Recorder options aren't validated — `flushIntervalMs: 0` would flush in a tight loop.
 - Block / allow actions from the screens (an edge or gateway concern; the screens could produce the list).
-- Clickable rows are `<tr onClick>`, not keyboard-reachable (as audit).
+- Rows that open a sheet are `<tr onClick>`, not keyboard-reachable — rows that open a page are real links since 2026-10-23 (`TableRowLink`; [background-jobs' report](../background-jobs/AUDIT-REPORT.md)).
 - `tableSizeBytes` is the whole table, every application sharing it.
 - Sandbox data is recent only — the recorder stamps the real clock, so history accumulates only while `simulate` runs.
 

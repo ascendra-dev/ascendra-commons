@@ -101,7 +101,7 @@ replays, 14 conflicts, 3 pending, 2 reclaimed, 1 ran twice.
 - No real-database tests in CI — the atomic claim under concurrency, `xmax`, the batched counter `UPDATE`, microsecond
   cursors and the plans were verified on the sandbox's Postgres 16 by hand.
 - A late complete is counted with an `UPDATE` per event (rare by nature; the duplicate path's rule doesn't apply).
-- Clickable rows are `<tr onClick>`, not keyboard-reachable (as audit and rate-limiting).
+- Rows that open a sheet are `<tr onClick>`, not keyboard-reachable — rows that open a page are real links since 2026-10-23 (`TableRowLink`; [background-jobs' report](../background-jobs/AUDIT-REPORT.md)).
 - Sandbox data ages out: the seed is gone 24 h after it runs — re-seed before a review.
 
 ## Suggested order
