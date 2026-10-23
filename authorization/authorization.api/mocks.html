@@ -2,12 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Authorization — Admin Console Mocks</title>
+<title>Authorization — Access Console Mocks</title>
 <style>
-  /* Tokens transcribed from ../ascendra-ui/app/globals.css (:root and .dark). Component
-     shadow/radius/gradient values transcribed from the real component source under
-     ../ascendra-ui/ascendra-ui/components/. Light is the base; dark mirrors globals.css's
-     .dark and is applied by the OS setting only (no toggle — zero JS). */
   :root {
     --background: oklch(1 0 0);
     --foreground: oklch(0.2928 0.0163 285.35);
@@ -18,9 +14,8 @@
     --card: oklch(1 0 0);
     --primary: oklch(0.5573 0.2543 283.67);
     --radius: 0.625rem;
-    --positive: #15892b; --negative: #e02e2e; --warning: #fd7224; --info: #236dd7; --dimmed: #adadb7;
-    --gray-50: #fafafb; --gray-700: #767684;
-    --shadow-xs: 0px 0px 2px 0px #00000014, 0px 1px 2px 0px #0000000f, 0px 0px 0px 1px #0000000a;
+    --positive: #15892b; --negative: #e02e2e; --warning: #fd7224; --info: #236dd7;
+    --gray-700: #767684;
     --text-caption: 0.6875rem; --text-label: 0.75rem; --text-body-sm: 0.875rem; --text-body: 1rem;
     --text-heading-sm: 1.125rem; --text-heading: 1.25rem; --text-heading-lg: 1.5rem;
     --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -28,430 +23,615 @@
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --background: oklch(0.2238 0.0077 285.76);
-      --foreground: oklch(0.9734 0.0013 286.37);
-      --muted: oklch(0.1785 0.0041 285.98);
-      --muted-foreground: oklch(0.7507 0.0142 286.05);
-      --secondary-foreground: oklch(0.985 0.001 106.423);
-      --border: oklch(0.2582 0.0093 285.73);
-      --card: oklch(0.216 0.006 285.76);
-      --primary: oklch(0.5573 0.2543 283.67);
-      --positive: #31c854; --negative: #f73d3d; --warning: #fd7224; --info: #307ff6; --dimmed: #5f5f6f;
-      --gray-50: #232328; --gray-700: #adadb7;
-      --shadow-xs: 0px 1.5px 2px 0px #00000052, 0px -1px 0px 0px #ffffff0a, 0px 0px 0px 1px #ffffff1f;
+      --background: oklch(0.2238 0.0077 285.76); --foreground: oklch(0.9734 0.0013 286.37);
+      --muted: oklch(0.1785 0.0041 285.98); --muted-foreground: oklch(0.7507 0.0142 286.05);
+      --secondary-foreground: oklch(0.985 0.001 106.423); --border: oklch(0.2582 0.0093 285.73);
+      --card: oklch(0.216 0.006 285.76); --primary: oklch(0.5573 0.2543 283.67);
+      --positive: #31c854; --negative: #f73d3d; --warning: #fd7224; --info: #307ff6; --gray-700: #adadb7;
     }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans);
-         font-size: var(--text-body-sm); line-height: 1.5; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); font-size: var(--text-body-sm); line-height: 1.5; }
   code, pre, .mono { font-family: var(--font-mono); }
-
   .shell { display: flex; min-height: 100vh; }
-  .sidebar { width: 248px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.25rem 0.75rem; }
-  .brand { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem; font-weight: 600; }
+  .sidebar { width: 248px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.25rem 0.75rem; background: var(--background); }
+  .brand { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem; font-weight: 600; font-size: var(--text-body-sm); }
   .brand span { width: 18px; height: 18px; border-radius: 5px; background: var(--primary); display: inline-block; }
   .nav-group { margin-bottom: 1rem; }
-  .nav-group-title { color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase;
-                     letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem; }
-  .nav-item { display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem; border-radius: 0.375rem;
-              color: var(--muted-foreground); font-size: var(--text-body-sm); text-decoration: none; position: relative; }
+  .nav-group-title { color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase; letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem; }
+  .nav-item { display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem; border-radius: 0.375rem; color: var(--muted-foreground); font-size: var(--text-body-sm); text-decoration: none; position: relative; }
   .nav-item.active { background: color-mix(in oklab, var(--foreground) 8%, transparent); color: var(--foreground); }
   .nav-item.active::before { content: ""; position: absolute; left: 2px; top: 6px; bottom: 6px; width: 1px; background: var(--foreground); }
-  .nav-item .pill { margin-left: auto; font-size: 9px; line-height: 11px; padding: 1px 4px; border-radius: 4px;
-                    background: color-mix(in oklab, var(--warning) 12%, transparent); color: var(--warning);
-                    text-transform: uppercase; letter-spacing: 0.02em; }
-
   .main { flex: 1; min-width: 0; padding: 1.75rem 2rem 4rem; max-width: 1180px; }
+  .page-head { margin-bottom: 0.375rem; }
   .page-title { font-size: var(--text-heading-lg); font-weight: 600; margin: 0; }
-  .page-sub { color: var(--muted-foreground); margin: 0.25rem 0 0; max-width: 74ch; }
-
-  .note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem;
-          background: color-mix(in oklab, var(--info) 6%, transparent);
-          border: 1px solid color-mix(in oklab, var(--info) 22%, transparent); margin: 1.25rem 0; }
+  .page-sub { color: var(--muted-foreground); margin: 0.25rem 0 0; max-width: 70ch; }
+  .note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; background: color-mix(in oklab, var(--info) 6%, transparent); border: 1px solid color-mix(in oklab, var(--info) 22%, transparent); color: var(--foreground); font-size: var(--text-body-sm); margin: 1.25rem 0; }
   .note b { color: var(--info); }
-
-  .cov { width: 100%; border-collapse: collapse; margin: 0.75rem 0 0.5rem; }
-  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
-            padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  .note.warn { background: color-mix(in oklab, var(--warning) 7%, transparent); border-color: color-mix(in oklab, var(--warning) 26%, transparent); }
+  .note.warn b { color: var(--warning); }
+  .cov { width: 100%; border-collapse: collapse; margin: 0.75rem 0 0.5rem; font-size: var(--text-body-sm); }
+  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
   .cov td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
   .cov td:first-child { font-weight: 500; white-space: nowrap; }
-
-  .screen { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin: 1.5rem 0; }
+  .screen { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin: 1.5rem 0; background: var(--background); }
   .screen-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-bottom: 0.25rem; }
   .screen-name { font-size: var(--text-heading); font-weight: 600; margin: 0; }
   .screen-purpose { color: var(--muted-foreground); margin: 0.25rem 0 1rem; }
-  .endpoint { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--text-caption);
-              padding: 0.15rem 0.45rem; border-radius: 4px; background: var(--muted); border: 1px solid var(--border); }
+  .endpoint { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--text-caption); padding: 0.15rem 0.45rem; border-radius: 4px; background: var(--muted); border: 1px solid var(--border); color: var(--foreground); }
   .endpoint .m { font-weight: 700; color: var(--info); }
-  .status { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em;
-            padding: 0.1rem 0.35rem; border-radius: 4px; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .status { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
   .status.live { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 22%, transparent); }
-  .status.partial { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 24%, transparent); }
-  .status.proposed { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent); }
   .gating { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0 0 1rem; padding-left: 0.75rem; border-left: 2px solid var(--border); }
   .gating code { color: var(--foreground); }
-  .proposed-note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; margin: 0 0 1rem;
-                   background: color-mix(in oklab, var(--primary) 5%, transparent);
-                   border: 1px dashed color-mix(in oklab, var(--primary) 35%, transparent); }
-  .proposed-note b { color: var(--primary); }
-  .proposed-note .sig { font-family: var(--font-mono); font-size: var(--text-caption); }
-
   .filterbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
-  .field { height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--background);
-           font-size: var(--text-body-sm); display: inline-flex; align-items: center; gap: 0.35rem; }
+  .field { height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--background); color: var(--foreground); font-size: var(--text-body-sm); display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; }
   .field .lbl { color: var(--muted-foreground); }
-  .btn { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
-         font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary); position: relative; overflow: hidden;
-         box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16), 0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255); }
+  .field .val { color: var(--foreground); }
+  .btn { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer; font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary); position: relative; overflow: hidden; box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16), 0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255); }
   .btn::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(255,255,255,0.2), transparent); }
-  .btn-secondary { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
-                   font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card);
-                   box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06), 0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1); }
-
-  .table { width: 100%; border-collapse: separate; border-spacing: 0; }
-  .table th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
-              padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .btn-secondary { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer; font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card); box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06), 0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1); }
+  .table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--text-body-sm); }
+  .table th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
   .table td { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); vertical-align: top; }
   .table tbody tr:hover { background: color-mix(in oklab, var(--gray-700) 4%, transparent); }
   .table .t-time { color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .table .t-id { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted-foreground); }
-
-  .badge { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em;
-           padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
-  .badge.ok    { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 20%, transparent); }
-  .badge.fail  { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 20%, transparent); }
-  .badge.warn  { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 20%, transparent); }
-  .badge.info  { color: var(--info); background-color: color-mix(in oklab, var(--info) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 16%, transparent); }
-  .badge.neutral { color: var(--muted-foreground); background-color: color-mix(in oklab, var(--gray-700) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gray-700) 16%, transparent); }
-  .badge.brand { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent); }
-
-  .pagebar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.25rem 0; color: var(--muted-foreground); }
+  .table .t-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .badge { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .badge.action { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent); }
+  .badge.bad { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 16%, transparent); }
+  .pagebar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.25rem 0; color: var(--muted-foreground); font-size: var(--text-body-sm); }
   .pagebar .pager { display: flex; gap: 0.25rem; }
-  .pagebar .pager span { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem;
-                         padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption); }
-
-  .empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1rem; padding: 2.5rem;
-           border: 1px dashed var(--border); border-radius: 0.75rem; color: var(--muted-foreground); }
-  .empty .ic { width: 3rem; height: 3rem; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;
-               background: color-mix(in oklab, var(--gray-700) 4%, transparent); box-shadow: inset 0 0 0 1px var(--border); font-size: 1.1rem; }
-
-  .sheet { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); padding: 1.5rem;
-           margin: 1rem 0 0 2rem; max-width: 520px; box-shadow: var(--shadow-xs); }
-  .sheet::before { content: attr(data-label); display: block; font-size: var(--text-caption); color: var(--muted-foreground);
-                   text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.75rem; }
-  .form-row { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.875rem; }
-  .form-row label { font-size: var(--text-label); color: var(--muted-foreground); }
-  .form-row .control { height: 2rem; border: 1px solid var(--border); border-radius: 0.375rem; padding: 0 0.6rem; display: flex; align-items: center; }
-
-  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 0.4rem 1rem; margin: 0; }
-  .kv dt { color: var(--muted-foreground); }
-  .kv dd { margin: 0; word-break: break-word; }
-
-  .verdict { display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem 1rem; border-radius: 0.5rem; margin: 0 0 1rem;
-             font-size: var(--text-body); font-weight: 600; }
-  .verdict.allow { color: var(--positive); background: color-mix(in oklab, var(--positive) 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 24%, transparent); }
-  .verdict.deny  { color: var(--negative); background: color-mix(in oklab, var(--negative) 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 24%, transparent); }
-  .verdict small { font-weight: 400; color: var(--muted-foreground); }
-
+  .pagebar .pager span { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem; padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption); }
   .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
   .kpi { background: var(--muted); border-radius: 0.75rem; padding: 0.875rem 1rem; }
+  .kpi.alert { background: color-mix(in oklab, var(--negative) 6%, var(--muted)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 20%, transparent); }
   .kpi .k-label { color: var(--muted-foreground); font-size: var(--text-label); }
   .kpi .k-value { font-size: var(--text-heading); font-weight: 600; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
-
-  .breadcrumb { color: var(--muted-foreground); margin-bottom: 0.75rem; }
+  .kpi.alert .k-value { color: var(--negative); }
+  .timeline { position: relative; margin: 0; padding: 0 0 0 1.25rem; list-style: none; }
+  .timeline::before { content: ""; position: absolute; left: 3px; top: 4px; bottom: 4px; width: 1px; background: var(--border); }
+  .tl-item { position: relative; padding: 0 0 1.1rem; }
+  .tl-item::before { content: ""; position: absolute; left: -1.25rem; top: 5px; width: 7px; height: 7px; border-radius: 999px; background: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent); }
+  .tl-time { color: var(--muted-foreground); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
+  .tl-title { font-size: var(--text-body-sm); margin-top: 0.1rem; }
+  .breadcrumb { color: var(--muted-foreground); font-size: var(--text-body-sm); margin-bottom: 0.75rem; }
   .breadcrumb b { color: var(--foreground); font-weight: 500; }
   .scrollx { overflow-x: auto; }
   h3.sub { font-size: var(--text-heading-sm); font-weight: 600; margin: 1.5rem 0 0.5rem; }
-  .taglist { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .seg { display: inline-flex; padding: 2px; border-radius: 0.5rem; background: var(--muted); border: 1px solid var(--border); gap: 2px; }
+  .seg span { padding: 0.2rem 0.65rem; border-radius: 0.375rem; font-size: var(--text-label); color: var(--muted-foreground); }
+  .seg span.on { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+  .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+  .panel { border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.125rem; }
+  .panel h4 { margin: 0 0 0.75rem; font-size: var(--text-body-sm); font-weight: 600; }
+  .bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.625rem; }
+  .bars a { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.75rem; color: inherit; text-decoration: none; }
+  .bars .bar { grid-column: 1 / -1; height: 6px; border-radius: 999px; background: var(--muted); overflow: hidden; }
+  .bars .bar i { display: block; height: 100%; background: color-mix(in oklab, var(--negative) 70%, transparent); border-radius: 999px; }
+  .bars .n { font-variant-numeric: tabular-nums; font-weight: 500; }
+  .src { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .src:last-child { border-bottom: 0; }
+  .src .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .muted { color: var(--muted-foreground); }
+  .link { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: color-mix(in oklab, var(--primary) 40%, transparent); }
+  .empty { text-align: center; padding: 2.5rem 1rem; color: var(--muted-foreground); border: 1px dashed var(--border); border-radius: var(--radius); }
+  .empty b { display: block; color: var(--foreground); font-size: var(--text-body); margin-bottom: 0.25rem; }
+  .sheet { margin-left: auto; max-width: 420px; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; box-shadow: 0 12px 32px -12px rgba(0,0,0,0.25); }
+  .sheet h4 { margin: 0; font-size: var(--text-heading-sm); }
+  .sheet .desc { color: var(--muted-foreground); font-size: var(--text-label); margin: 0.25rem 0 1.25rem; }
+  .ann { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0.5rem 0 0; }
+  .ann li { margin: 0.2rem 0; }
+  .vchart { display: flex; align-items: flex-end; gap: 3px; height: 96px; padding: 0.5rem 0 0; border-bottom: 1px solid var(--border); }
+  .vchart a { flex: 1; background: color-mix(in oklab, var(--negative) 65%, transparent); border-radius: 2px 2px 0 0; min-height: 1px; }
+  .vchart a.zero { background: var(--border); }
+  .vaxis { display: flex; justify-content: space-between; color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.25rem; }
+
+  .badge.good { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 16%, transparent); }
+  .badge.warn { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 16%, transparent); }
+  .badge.info { color: var(--info); background-color: color-mix(in oklab, var(--info) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 16%, transparent); }
+  .kpi.warn { background: color-mix(in oklab, var(--warning) 6%, var(--muted)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 22%, transparent); }
+  .kpi.warn .k-value { color: var(--warning); }
+  .kpi .k-sub { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.1rem; }
+  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 0.4rem 1rem; margin: 0; font-size: var(--text-body-sm); }
+  .kv dt { color: var(--muted-foreground); }
+  .kv dd { margin: 0; word-break: break-word; }
+  .saved { margin-top: 1.25rem; border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; }
+  .saved .head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.75rem; background: var(--muted); font-size: var(--text-label); color: var(--secondary-foreground); }
+  .saved pre { margin: 0; padding: 0.75rem; font-size: var(--text-caption); overflow-x: auto; }
+  .saved .locked { padding: 0.75rem; color: var(--muted-foreground); font-size: var(--text-label); }
+  .variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1rem; align-items: start; }
+  .variants .sheet { margin: 0; max-width: none; }
+  .vlabel { font-size: var(--text-caption); color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 0.5rem; }
+  .bars .bar i.dup { background: color-mix(in oklab, var(--info) 65%, transparent); }
+  .pend { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .pend:last-child { border-bottom: 0; }
+  .pend .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .table .t-id { white-space: nowrap; }
+  .footnote { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.75rem; }
+  .wire td .lst { display: flex; flex-direction: column; gap: 0.15rem; }
+  .wire td .lst span { white-space: nowrap; }
+  .check { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+  .kv pre, .err { margin: 0; padding: 0.75rem; font-size: var(--text-caption); background: var(--muted); border: 1px solid var(--border); border-radius: 0.5rem; overflow-x: auto; white-space: pre; }
+  .refs { list-style: none; margin: 0; padding: 0; font-family: var(--font-mono); font-size: var(--text-caption); }
+  .refs li { padding: 0.3rem 0; border-bottom: 1px solid var(--border); }
+  .refs li:last-child { border-bottom: 0; }
+  .jobrow { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.55rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .jobrow:last-child { border-bottom: 0; }
+  .jobrow .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .header-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1rem; }
+  .toast { display: inline-flex; gap: 0.5rem; align-items: center; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 0.5rem; box-shadow: 0 8px 24px -12px rgba(0,0,0,0.25); font-size: var(--text-label); margin: 0.25rem 0.5rem 0.25rem 0; }
+  .vchart a { display: flex; flex-direction: column-reverse; background: color-mix(in oklab, var(--info) 55%, transparent); }
+  .vchart a i { display: block; background: color-mix(in oklab, var(--negative) 70%, transparent); }
+  .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+</style>
+<style>
+  .badge.scope-p { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 22%, transparent); }
+  .badge.muted { color: var(--muted-foreground); background-color: var(--muted); box-shadow: inset 0 0 0 1px var(--border); }
+  .badge.lapsed { color: var(--muted-foreground); text-decoration: line-through; background-color: var(--muted); box-shadow: inset 0 0 0 1px var(--border); }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+  .person { display: flex; flex-direction: column; }
+  .person .em { color: var(--muted-foreground); font-size: var(--text-caption); }
+  .persona-tag { display: inline-flex; gap: 0.35rem; align-items: center; font-size: var(--text-caption); color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem; align-items: start; }
+  .card { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .card .ch { padding: 0.9rem 1.125rem 0.5rem; }
+  .card .ch h4 { margin: 0; font-size: var(--text-body-sm); font-weight: 600; }
+  .card .ch p { margin: 0.15rem 0 0; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .card .cf { display: flex; gap: 0.5rem; padding: 0.6rem 1.125rem; color: var(--muted-foreground); font-size: var(--text-caption); border-top: 0; }
+  .card .table th, .card .table td { padding-left: 1.125rem; padding-right: 1.125rem; }
+  .modgroup { padding: 0.5rem 1.125rem 0.75rem; }
+  .modgroup .mt { font-size: var(--text-caption); color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; margin: 0.4rem 0 0.35rem; }
+  .act { display: grid; grid-template-columns: 1fr auto; gap: 0 0.75rem; padding: 0.3rem 0; border-bottom: 1px solid var(--border); }
+  .act:last-child { border-bottom: 0; }
+  .act .d { color: var(--muted-foreground); font-size: var(--text-caption); grid-column: 1 / -1; }
+  .verdict { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.75rem 0.9rem; border-radius: 0.5rem; margin: 0.75rem 0; }
+  .verdict.ok { background: color-mix(in oklab, var(--positive) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 22%, transparent); }
+  .verdict.no { background: color-mix(in oklab, var(--negative) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 22%, transparent); }
+  .verdict b { display: block; }
+  .picker { border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.35rem; max-width: 420px; box-shadow: 0 12px 32px -12px rgba(0,0,0,0.25); }
+  .picker .opt { display: grid; grid-template-columns: 1fr auto; gap: 0 0.5rem; padding: 0.45rem 0.6rem; border-radius: 0.375rem; }
+  .picker .opt.off { opacity: 0.55; }
+  .picker .opt .why { grid-column: 1 / -1; font-size: var(--text-caption); color: var(--muted-foreground); }
+  .picker .opt.hover { background: var(--muted); }
+  .proposed { color: var(--info); background-color: color-mix(in oklab, var(--info) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 22%, transparent); }
+  .persona-cmp { width: 100%; border-collapse: collapse; font-size: var(--text-body-sm); margin: 0.5rem 0 0; }
+  .persona-cmp th, .persona-cmp td { text-align: left; padding: 0.45rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .persona-cmp th { color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; }
 </style>
 </head>
 <body>
 <div class="shell">
   <nav class="sidebar">
-    <div class="brand"><span></span>Access Console</div>
+    <div class="brand"><span></span>Access</div>
     <div class="nav-group">
-      <div class="nav-group-title">People &amp; Roles</div>
-      <a class="nav-item active" href="#explain">Access Explainer</a>
-      <a class="nav-item" href="#assignments">Assignments</a>
-      <a class="nav-item" href="#roles">Roles Catalog</a>
+      <div class="nav-group-title">Access console</div>
+      <a class="nav-item active" href="#overview">Overview</a>
+      <a class="nav-item" href="#people">People</a>
+      <a class="nav-item" href="#person">Person</a>
+      <a class="nav-item" href="#roles">Roles</a>
+      <a class="nav-item" href="#delegations">Delegations</a>
+      <a class="nav-item" href="#checker">Access checker</a>
+      <a class="nav-item" href="#denials">Denied requests</a>
+      <a class="nav-item" href="#catalog">Action catalog</a>
     </div>
     <div class="nav-group">
-      <div class="nav-group-title">Delegation</div>
-      <a class="nav-item" href="#delegations">Delegation Ledger</a>
-      <a class="nav-item" href="#expiring">Expiring Soon <span class="pill">new API</span></a>
-    </div>
-    <div class="nav-group">
-      <div class="nav-group-title">Catalog &amp; Insight</div>
-      <a class="nav-item" href="#catalog">Action Catalog Health</a>
-      <a class="nav-item" href="#who-can">Who Can Do X <span class="pill">new API</span></a>
-      <a class="nav-item" href="#overview">Overview <span class="pill">new API</span></a>
+      <div class="nav-group-title">Everyone</div>
+      <a class="nav-item" href="#mine">My access</a>
     </div>
   </nav>
 
   <main class="main">
-    <h1 class="page-title">Authorization — Admin Console</h1>
-    <p class="page-sub">Screen mocks for the <code>authorization</code> module's admin surface, each mapped to its
-    endpoint. Reads gated <code>@RequiresAction('authz.view')</code>; role assignment
-    <code>'authz.assign_roles'</code>; delegation <code>'authz.manage_delegations'</code>; catalog editing
-    <code>'authz.manage_catalog'</code>. A non-platform actor may only assign roles in their own tenant and
-    cannot assign a <code>grantsAll</code> role. Screens marked <b>Proposed</b> are legitimate but unserved.</p>
+    <div class="page-head">
+      <h1 class="page-title">Authorization — Access Console</h1>
+      <p class="page-sub">
+        Screen mocks for the <code>authorization</code> module's console — who can do what, and changing it. One console
+        for two audiences: a <b>platform admin</b> sees every tenant and the platform roles; a <b>tenant admin</b> sees and
+        changes its own tenant only — the API forces it, the screens just don't offer the rest. Any signed-in user gets
+        <b>My access</b>.
+      </p>
+    </div>
 
-    <div class="note"><div><b>By design.</b> Editing which actions a <em>role</em> grants is deliberately not an
-    endpoint — that's migration / seed territory, <code>REVOKE</code>d from the app's DB role. This console
-    assigns existing roles, manages delegations, and describes actions; it never rewrites the permission
-    matrix.</div></div>
+    <div class="note warn">
+      <div><b>Why this console exists.</b> Access drifts quietly: people collect roles nobody takes back, a contractor's
+      role outlives the contract, someone lends an approval while on leave and forgets it. And a missing grant only
+      shows up as somebody's "it says I don't have permission". This is where you see who holds what, why someone can or
+      can't do something, what's about to lapse, and who keeps getting refused.</div>
+    </div>
+
+    <div class="note">
+      <div><b>The model.</b> A <b>role</b> grants a set of <b>actions</b>; a user holds roles <b>in a tenant</b> (or
+      <b>globally</b> — every tenant — for platform staff), optionally until an <b>expiry</b>. A user can <b>lend</b>
+      some of their own actions to a colleague in their tenant until a date (a <b>delegation</b>) — it grants only while
+      the lender still holds them. Each action is <b>tenant</b>-scope (acts on one tenant's data) or <b>platform</b>-scope
+      (reads or changes every tenant's — a rate-limit log, running a job); a role holding a platform action is assigned
+      globally only, by a platform admin. Role <i>definitions</i> ship with the app — this console assigns, lends and
+      describes; it never edits what a role grants.</div>
+    </div>
+
+    <h3 class="sub">Who sees what</h3>
+    <table class="persona-cmp">
+      <thead><tr><th></th><th>Platform admin <span class="muted">(authz.platform)</span></th><th>Tenant admin <span class="muted">(authz.assign_roles)</span></th><th>Platform support <span class="muted">(authz.view + authz.platform)</span></th><th>Anyone</th></tr></thead>
+      <tbody>
+        <tr><td>Scope</td><td>Every tenant + global; tenant picker in the page header</td><td>Its own tenant — no picker</td><td>Every tenant, read-only</td><td>Itself</td></tr>
+        <tr><td>Assign / revoke roles</td><td>Any role; platform roles globally only</td><td>Tenant roles whose every action it holds itself</td><td>—</td><td>—</td></tr>
+        <tr><td>Delegations</td><td>See all, revoke any</td><td>See and revoke its tenant's</td><td>See all</td><td>Lend its own; revoke what it lent or got</td></tr>
+        <tr><td>Catalog</td><td>Describe actions</td><td>Read</td><td>Read</td><td>—</td></tr>
+      </tbody>
+    </table>
 
     <h3 class="sub">Endpoint coverage map</h3>
     <div class="scrollx">
     <table class="cov">
       <thead><tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr></thead>
       <tbody>
-        <tr><td>Access Explainer</td><td><span class="endpoint"><span class="m">GET</span>/authz/explain</span></td><td><span class="status live">Live</span></td><td>User + tenant (+ optional action) → roles, delegations, effective set, allow/deny + reason.</td></tr>
-        <tr><td>Assignments</td><td><span class="endpoint"><span class="m">GET</span>/authz/assignments</span> · <span class="endpoint"><span class="m">POST/DELETE</span>/authz/assignments</span></td><td><span class="status live">Live</span></td><td>List + assign/revoke, one at a time. Tenant/role-ceiling scoped.</td></tr>
-        <tr><td>Roles Catalog</td><td><span class="endpoint"><span class="m">GET</span>/authz/roles</span></td><td><span class="status live">Live</span></td><td>Every role + its granted actions. Read-only — permission editing is out of scope by design.</td></tr>
-        <tr><td>Role Detail</td><td><span class="endpoint"><span class="m">GET</span>/authz/roles/:id</span></td><td><span class="status live">Live</span></td><td>Single-role fetch plus a holder count (distinct users assigned the role). 404 if the role id is unknown.</td></tr>
-        <tr><td>Delegation Ledger</td><td><span class="endpoint"><span class="m">GET</span>/authz/delegations</span> · <span class="endpoint"><span class="m">POST/DELETE</span>/authz/delegations</span> · <span class="endpoint"><span class="m">GET</span>/authz/delegations/mine</span></td><td><span class="status live">Live</span></td><td>Ledger + create/revoke; granter is always the request actor. Revoke enforces a tenant ceiling — a non-platform actor can't revoke another tenant's delegation.</td></tr>
-        <tr><td>Expiring Soon</td><td><span class="endpoint"><span class="m">GET</span>/authz/delegations/expiring</span></td><td><span class="status live">Live</span></td><td>Delegations lapsing within a window (<code>?within=7d</code>, optional <code>tenantId</code>) — a real server-side filter, not client-side paging.</td></tr>
-        <tr><td>Action Catalog Health</td><td><span class="endpoint"><span class="m">GET</span>/authz/action-catalog/health</span> · <span class="endpoint"><span class="m">PATCH</span>/authz/actions/:name</span></td><td><span class="status live">Live</span></td><td>Code↔DB drift + granted-but-undescribed; edit a description inline.</td></tr>
-        <tr><td>Who Can Do X</td><td><span class="endpoint"><span class="m">GET</span>/authz/who-can</span></td><td><span class="status live">Live</span></td><td>Reverse of explain — every role (+ holders in a tenant) and active delegation that grants an action. Built for incident response ("who could have approved that payout").</td></tr>
-        <tr><td>Overview</td><td><span class="endpoint"><span class="m">GET</span>/authz/stats</span></td><td><span class="status proposed">Proposed</span></td><td>Roles in use, users with no role, platform-admin count, delegations lapsing, most-delegated actions.</td></tr>
+        <tr><td>Overview</td><td><span class="endpoint"><span class="m">GET</span>/authz/stats?tenantId</span> + <span class="endpoint"><span class="m">GET</span>/authz/denials/summary?since</span></td><td><span class="status live">Live</span></td><td>People with / without a role, holders per role, platform holders, delegations active / lapsed / expiring, assignments expiring; top refused actions and people.</td></tr>
+        <tr><td>People</td><td><span class="endpoint"><span class="m">GET</span>/authz/users?search&amp;tenantId</span></td><td><span class="status live">Live</span></td><td>The app's users (its <code>AuthzUserDirectory</code>) by name, each with the roles they actively hold. Rule 4, no total.</td></tr>
+        <tr><td>People — by role</td><td><span class="endpoint"><span class="m">GET</span>/authz/users?roleId</span></td><td><span class="status proposed">Proposed</span></td><td>"Who holds billing-clerk" as a people list (the Role screen's holders, the Overview's role bars). Assignments by role, then the directory — no directory change.</td></tr>
+        <tr><td>Person</td><td><span class="endpoint"><span class="m">GET</span>/authz/users/:id</span> + <span class="endpoint"><span class="m">GET</span>/authz/roles/assignable</span> + <span class="endpoint"><span class="m">POST</span>/authz/users/:id/roles</span> + <span class="endpoint"><span class="m">DELETE</span>/authz/users/:id/roles/:roleId</span></td><td><span class="status live">Live</span></td><td>Roles (active and expired), effective access with its source, delegations lent and received; assign (with an optional expiry) and revoke. 403 past a ceiling, 409 for the last admin or yourself.</td></tr>
+        <tr><td>Roles · Role</td><td><span class="endpoint"><span class="m">GET</span>/authz/roles</span> · <span class="endpoint"><span class="m">GET</span>/authz/roles/:id</span> + <span class="endpoint"><span class="m">POST</span>/authz/roles/:id/holders</span></td><td><span class="status live">Live</span></td><td>Each role's scope, actions and holders (in the viewer's tenant); assign one role to many people.</td></tr>
+        <tr><td>Delegations</td><td><span class="endpoint"><span class="m">GET</span>/authz/delegations</span> · <span class="endpoint"><span class="m">GET</span>/authz/delegations/expiring</span> · <span class="endpoint"><span class="m">GET</span>/authz/delegations/:id</span> + <span class="endpoint"><span class="m">DELETE</span></span></td><td><span class="status live">Live</span></td><td>The ledger, newest first; each row's <code>lapsedActions</code> — what it no longer grants.</td></tr>
+        <tr><td>Delegations — lapsed</td><td><span class="endpoint"><span class="m">GET</span>/authz/delegations?status=lapsed</span></td><td><span class="status proposed">Proposed</span></td><td>The Overview's "lapsed" tile needs a list it can open: active delegations lending something the lender lost.</td></tr>
+        <tr><td>Access checker</td><td><span class="endpoint"><span class="m">GET</span>/authz/explain?userId&amp;action</span> + <span class="endpoint"><span class="m">GET</span>/authz/who-can?action</span></td><td><span class="status live">Live</span></td><td>"Can she approve payouts, and why?" and "who can approve payouts here?" — one screen, two questions.</td></tr>
+        <tr><td>Denied requests</td><td><span class="endpoint"><span class="m">GET</span>/authz/denials</span> + <span class="endpoint"><span class="m">GET</span>/authz/denials/summary</span></td><td><span class="status live">Live</span></td><td>Every 403, counted per person, action and route per minute. A tenant admin sees its own people's.</td></tr>
+        <tr><td>Action catalog</td><td><span class="endpoint"><span class="m">GET</span>/authz/actions</span> + <span class="endpoint"><span class="m">GET</span>/authz/action-catalog/health</span> + <span class="endpoint"><span class="m">PATCH</span>/authz/actions/:name</span></td><td><span class="status live">Live</span></td><td>Every action by module, its scope and the roles granting it; drift between code and table; describe (platform admin).</td></tr>
+        <tr><td>My access</td><td><span class="endpoint"><span class="m">GET</span>/authz/me/access</span> + <span class="endpoint"><span class="m">GET</span>/authz/delegations/mine</span> + <span class="endpoint"><span class="m">POST</span>/authz/delegations</span></td><td><span class="status live">Live</span></td><td>Any signed-in user — no action needed to read your own access; lending needs <code>authz.manage_delegations</code>.</td></tr>
+        <tr><td class="muted">Deferred</td><td class="muted">—</td><td class="muted">Not built</td><td class="muted">Custom roles per tenant (phase 2), inviting / disabling users (the app's identity provider), access reviews with sign-off, alerts on a probing user — see the module's AUDIT-REPORT.</td></tr>
       </tbody>
     </table>
     </div>
 
-    <!-- 1 · ACCESS EXPLAINER -->
-    <section class="screen" id="explain">
-      <div class="screen-head"><h2 class="screen-name">Access Explainer</h2><span class="endpoint"><span class="m">GET</span>/authz/explain</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">"Can this user do this, and why?" — the single highest-value screen. Resolves roles + active delegations into an effective action set and, when an action is named, a verdict with a reason.</p>
-      <p class="gating">Gate: <code>authz.view</code>.</p>
-      <div class="filterbar">
-        <span class="field"><span class="lbl">User</span>u_44b2</span>
-        <span class="field"><span class="lbl">Tenant</span>t_kairos</span>
-        <span class="field"><span class="lbl">Action</span>payout.approve</span>
-        <button class="btn" type="button">Explain</button>
-      </div>
-
-      <div class="verdict deny">✕ &nbsp;Denied &nbsp;<small>— <code>payout.approve</code> is not in the effective action set for u_44b2 in t_kairos</small></div>
-
-      <h3 class="sub">Roles held</h3>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Role</th><th>Scope</th><th>Grants</th></tr></thead>
-        <tbody>
-          <tr><td>reviewer</td><td>t_kairos</td><td class="taglist"><span class="badge neutral">kyc.review</span> <span class="badge neutral">kyc.request_changes</span> <span class="badge neutral">attachment.view</span></td></tr>
-        </tbody>
-      </table>
-      </div>
-
-      <h3 class="sub">Active delegations</h3>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>From</th><th>Actions</th><th>Expires</th></tr></thead>
-        <tbody>
-          <tr><td>u_9f3a</td><td class="taglist"><span class="badge brand">invoice.void</span></td><td class="t-time">2026-09-12</td></tr>
-        </tbody>
-      </table>
-      </div>
-
-      <h3 class="sub">Effective actions</h3>
-      <div class="taglist">
-        <span class="badge neutral">kyc.review</span><span class="badge neutral">kyc.request_changes</span>
-        <span class="badge neutral">attachment.view</span><span class="badge brand">invoice.void</span>
-      </div>
-    </section>
-
-    <!-- 2 · ASSIGNMENTS -->
-    <section class="screen" id="assignments">
-      <div class="screen-head"><h2 class="screen-name">Assignments</h2>
-        <span class="endpoint"><span class="m">GET</span>/authz/assignments</span>
-        <span class="endpoint"><span class="m">POST / DELETE</span>/authz/assignments</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Who holds which role, in which tenant. Assign or revoke here.</p>
-      <p class="gating">List: <code>authz.view</code>. Write: <code>authz.assign_roles</code> — a non-platform actor may only assign roles in their own tenant, and may not assign a <code>grantsAll</code> role or a <code>null</code>-tenant (platform) assignment.</p>
-      <div class="filterbar">
-        <span class="field"><span class="lbl">User</span>—</span>
-        <span class="field"><span class="lbl">Role</span>reviewer</span>
-        <span class="field"><span class="lbl">Tenant</span>t_kairos</span>
-        <button class="btn-secondary" type="button">Apply</button>
-      </div>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>User</th><th>Role</th><th>Tenant</th><th>Granted</th><th>By</th><th></th></tr></thead>
-        <tbody>
-          <tr><td>u_44b2</td><td>reviewer</td><td>t_kairos</td><td class="t-time">2026-09-06 18:03</td><td>u_1c07</td><td class="t-time">revoke</td></tr>
-          <tr><td>u_9f3a</td><td>issuer_owner</td><td>t_kairos</td><td class="t-time">2026-06-01 09:12</td><td>system</td><td class="t-time">revoke</td></tr>
-          <tr><td>u_1c07</td><td>ascendra_admin</td><td class="t-time">null <span class="badge info">all tenants</span></td><td class="t-time">2026-04-14 10:00</td><td>system</td><td class="t-time">revoke</td></tr>
-        </tbody>
-      </table>
-      </div>
-      <div class="sheet" data-label="Sheet — Assign role (shown open)">
-        <div class="form-row"><label>User id</label><div class="control">u_7788</div></div>
-        <div class="form-row"><label>Role</label><div class="control">reviewer</div></div>
-        <div class="form-row"><label>Tenant</label><div class="control">t_kairos</div></div>
-        <button class="btn" type="button">Assign</button>
-      </div>
-      <div class="proposed-note"><div><b>Enhancement — Bulk assign.</b> <span class="sig">POST /authz/assignments/bulk</span> for onboarding a cohort (40 reviewers at once) instead of 40 round-trips.</div></div>
-    </section>
-
-    <!-- 3 · ROLES CATALOG -->
-    <section class="screen" id="roles">
-      <div class="screen-head"><h2 class="screen-name">Roles Catalog</h2><span class="endpoint"><span class="m">GET</span>/authz/roles</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Every role and the actions it grants. Reference for the assignment and explainer screens.</p>
-      <p class="gating">Gate: <code>authz.view</code>. <b>Read-only</b> — a role's permission set is defined in migrations/seed, not editable here.</p>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Role</th><th>Description</th><th>Grants</th></tr></thead>
-        <tbody>
-          <tr><td>ascendra_admin</td><td>Platform operator</td><td><span class="badge brand">grantsAll</span></td></tr>
-          <tr><td>issuer_owner</td><td>Owns an issuer org</td><td class="taglist"><span class="badge neutral">invoice.create</span> <span class="badge neutral">invoice.void</span> <span class="badge neutral">attachment.upload</span> <span class="badge neutral">+6</span></td></tr>
-          <tr><td>reviewer</td><td>Compliance reviewer</td><td class="taglist"><span class="badge neutral">kyc.review</span> <span class="badge neutral">kyc.request_changes</span> <span class="badge neutral">attachment.view</span></td></tr>
-        </tbody>
-      </table>
-      </div>
-    </section>
-
-    <!-- 3b · ROLE DETAIL -->
-    <section class="screen" id="role-detail">
-      <div class="screen-head"><h2 class="screen-name">Role Detail</h2><span class="endpoint"><span class="m">GET</span>/authz/roles/:id</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Drill into one role from the catalog — its full grant list and how many users actually hold it. 404s if the role id doesn't exist.</p>
-      <p class="gating">Gate: <code>authz.view</code>. Read-only, same as the catalog.</p>
-      <div class="breadcrumb"><a href="#roles">Roles Catalog</a> / <b>finance_approver</b></div>
-      <dl class="kv">
-        <dt>Role id</dt><dd class="mono">finance_approver</dd>
-        <dt>Description</dt><dd>Approves outbound payouts</dd>
-        <dt>Grants</dt><dd class="taglist"><span class="badge neutral">payout.approve</span> <span class="badge neutral">payout.view</span></dd>
-        <dt>Holders</dt><dd><span class="badge info">2 users</span></dd>
-      </dl>
-    </section>
-
-    <!-- 4 · DELEGATION LEDGER -->
-    <section class="screen" id="delegations">
-      <div class="screen-head"><h2 class="screen-name">Delegation Ledger</h2>
-        <span class="endpoint"><span class="m">GET</span>/authz/delegations</span>
-        <span class="endpoint"><span class="m">POST / DELETE</span>/authz/delegations</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">A user granting a subset of their own actions to another, within one tenant, until an expiry. Snapshot model — the granted actions are fixed at grant time.</p>
-      <p class="gating">Gate: <code>authz.manage_delegations</code>. The granter is always the request actor — you can't create a delegation on someone else's behalf. <code>GET /delegations/mine</code> is the self-service view.</p>
-      <div class="filterbar">
-        <span class="field"><span class="lbl">Grantee</span>—</span>
-        <span class="field"><span class="lbl">Status</span>active</span>
-        <span class="field"><span class="lbl">Tenant</span>t_kairos</span>
-        <button class="btn-secondary" type="button">Apply</button>
-      </div>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Granter → Grantee</th><th>Actions</th><th>Expires</th><th>Status</th><th>Reason</th><th></th></tr></thead>
-        <tbody>
-          <tr><td>u_9f3a → u_44b2</td><td class="taglist"><span class="badge brand">invoice.void</span></td><td class="t-time">2026-09-12</td><td><span class="badge ok">active</span></td><td>Cover during leave</td><td class="t-time">revoke</td></tr>
-          <tr><td>u_9f3a → u_5521</td><td class="taglist"><span class="badge brand">invoice.void</span> <span class="badge brand">invoice.create</span></td><td class="t-time">2026-09-08</td><td><span class="badge warn">expiring</span></td><td>—</td><td class="t-time">revoke</td></tr>
-          <tr><td>u_1c07 → u_9f3a</td><td class="taglist"><span class="badge brand">payout.approve</span></td><td class="t-time">2026-08-30</td><td><span class="badge neutral">expired</span></td><td>Quarter-end</td><td>—</td></tr>
-        </tbody>
-      </table>
-      </div>
-      <div class="sheet" data-label="Sheet — Create delegation (shown open)">
-        <div class="form-row"><label>Grantee user id</label><div class="control">u_44b2</div></div>
-        <div class="form-row"><label>Actions (must be a subset of your own)</label><div class="control">invoice.void</div></div>
-        <div class="form-row"><label>Expires at (required, ≤ maxDelegationDays)</label><div class="control">2026-09-20</div></div>
-        <div class="form-row"><label>Reason</label><div class="control">Cover during leave</div></div>
-        <button class="btn" type="button">Create delegation</button>
-      </div>
-    </section>
-
-    <!-- 5 · EXPIRING SOON -->
-    <section class="screen" id="expiring">
-      <div class="screen-head"><h2 class="screen-name">Expiring Soon</h2><span class="endpoint"><span class="m">GET</span>/authz/delegations/expiring</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Delegations lapsing in the next N days — so access doesn't silently vanish mid-task, and a manager can extend or let them go deliberately.</p>
-      <p class="gating">Gate: <code>authz.view</code>. Query: <code>?within=7d</code> (or a bare day count, defaults to 7), optional <code>tenantId</code>. Server-side filter — <code>revoked_at is null and expires_at</code> between now and the window.</p>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Granter → Grantee</th><th>Actions</th><th>Expires</th><th>In</th></tr></thead>
-        <tbody>
-          <tr><td>u_9f3a → u_5521</td><td class="taglist"><span class="badge brand">invoice.void</span> <span class="badge brand">invoice.create</span></td><td class="t-time">2026-09-08</td><td><span class="badge warn">1 day</span></td></tr>
-          <tr><td>u_2210 → u_7788</td><td class="taglist"><span class="badge brand">kyc.review</span></td><td class="t-time">2026-09-13</td><td><span class="badge warn">6 days</span></td></tr>
-        </tbody>
-      </table>
-      </div>
-    </section>
-
-    <!-- 6 · ACTION CATALOG HEALTH -->
-    <section class="screen" id="catalog">
-      <div class="screen-head"><h2 class="screen-name">Action Catalog Health</h2>
-        <span class="endpoint"><span class="m">GET</span>/authz/action-catalog/health</span>
-        <span class="endpoint"><span class="m">PATCH</span>/authz/actions/:name</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Drift between the app's <code>Actions</code> constant and the <code>commons_authz_action</code> table, plus actions that are granted by a role but still have no human description.</p>
-      <p class="gating">Health read: <code>authz.view</code>. Description edit: <code>authz.manage_catalog</code>.</p>
-      <div class="kpi-row">
-        <div class="kpi"><div class="k-label">Described</div><div class="k-value">142 / 168</div></div>
-        <div class="kpi"><div class="k-label">In code, not in DB</div><div class="k-value">3</div></div>
-        <div class="kpi"><div class="k-label">In DB, not in code</div><div class="k-value">1</div></div>
-        <div class="kpi"><div class="k-label">Granted but undescribed</div><div class="k-value">7</div></div>
-      </div>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Action</th><th>Issue</th><th>Fix</th></tr></thead>
-        <tbody>
-          <tr><td class="mono">payout.reverse</td><td><span class="badge warn">in code, not in DB</span></td><td>run <code>syncActions()</code></td></tr>
-          <tr><td class="mono">invoice.rescind</td><td><span class="badge fail">in DB, not in code</span></td><td>renamed / removed — verify then delete the row</td></tr>
-          <tr><td class="mono">dispute.escalate</td><td><span class="badge neutral">granted, undescribed</span></td><td><span class="badge brand">PATCH description →</span> <span class="field" style="height:1.7rem">Escalate a dispute to Ascendra ops</span></td></tr>
-        </tbody>
-      </table>
-      </div>
-    </section>
-
-    <!-- 7 · WHO CAN DO X -->
-    <section class="screen" id="who-can">
-      <div class="screen-head"><h2 class="screen-name">Who Can Do X</h2><span class="endpoint"><span class="m">GET</span>/authz/who-can</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">The reverse of the explainer — given an action, every role that grants it and every user who holds such a role or an active delegation. The first question in an incident: "who could have done this?"</p>
-      <p class="gating">Gate: <code>authz.view</code> (the same read gate as the rest of this controller — no new gating infrastructure was added); a cross-tenant call just omits <code>tenantId</code>. Query: <code>?action=payout.approve&amp;tenantId=t_kairos</code> → <code>{ action, tenantId, roles: [{ roleId, grantsAll, holderUserIds[] }], delegations: [{ id, granterId, granteeId, expiresAt }] }</code>, built from <code>role_permission</code> + <code>grantsAll</code> roles + active delegations (Postgres <code>actions @&gt; ARRAY[...]</code> containment).</p>
-      <div class="filterbar">
-        <span class="field"><span class="lbl">Action</span>payout.approve</span>
-        <span class="field"><span class="lbl">Tenant</span>t_kairos</span>
-        <button class="btn" type="button">Search</button>
-      </div>
-      <h3 class="sub">Via role</h3>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Role</th><th>Holders in t_kairos</th></tr></thead>
-        <tbody>
-          <tr><td>ascendra_admin <span class="badge brand">grantsAll</span></td><td>u_1c07</td></tr>
-          <tr><td>finance_approver</td><td>u_9f3a, u_2210</td></tr>
-        </tbody>
-      </table>
-      </div>
-      <h3 class="sub">Via active delegation</h3>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>User</th><th>From</th><th>Expires</th></tr></thead>
-        <tbody>
-          <tr><td>u_44b2</td><td>u_9f3a</td><td class="t-time">2026-09-19</td></tr>
-        </tbody>
-      </table>
-      </div>
-    </section>
-
-    <!-- 8 · OVERVIEW (proposed) -->
+    <!-- 1 · OVERVIEW -->
     <section class="screen" id="overview">
-      <div class="screen-head"><h2 class="screen-name">Overview</h2><span class="endpoint"><span class="m">GET</span>/authz/stats</span><span class="status proposed">Proposed</span></div>
-      <p class="screen-purpose">Posture at a glance — how many people hold elevated roles, how many have none, what's about to lapse. A monthly access-review starting point.</p>
-      <div class="proposed-note"><div><b>Missing API.</b> No aggregation endpoint. Proposed: <span class="sig">GET /authz/stats?tenantId=…</span> → <code>{ rolesInUse[], usersWithNoRole, platformAdminCount, delegationsExpiring7d, mostDelegatedActions[] }</code>.</div></div>
-      <div class="kpi-row">
-        <div class="kpi"><div class="k-label">Users with a role</div><div class="k-value">312</div></div>
-        <div class="kpi"><div class="k-label">Users with none</div><div class="k-value">7</div></div>
-        <div class="kpi"><div class="k-label">Platform admins</div><div class="k-value">4</div></div>
-        <div class="kpi"><div class="k-label">Delegations lapsing (7d)</div><div class="k-value">12</div></div>
+      <div class="screen-head">
+        <h2 class="screen-name">Overview</h2>
+        <span class="status live">Live</span>
       </div>
-      <div class="note"><div><b>Cross-reference.</b> Assignment and delegation <em>changes</em> over time aren't here — those live in <code>audit-logging</code> when the vertical raises <code>AuditRecordRaised</code> on assign/revoke (see the <code>authz.assign_roles</code> flow). A "recent access changes" panel would embed an <code>audit-logging.api</code> query.</div></div>
+      <p class="screen-purpose">The landing screen — what needs a look in who-can-do-what. Posture is "now"; only the denied-requests tile takes the period. Header: "People", "Delegations", and for a platform admin a tenant picker (All tenants · Acme · Globex · Meridian).</p>
+      <p class="gating">Gate: <code>authz.view</code>. Calls <code>/authz/stats</code> and <code>/authz/denials/summary?since</code>. Shown as Acme's tenant admin sees it.</p>
+
+      <div class="filterbar">
+        <span class="seg"><span>Past 24 hours</span><span class="on">Past 7 days</span><span>Past 30 days</span></span>
+        <span class="muted" style="font-size: var(--text-caption)">— the period applies to denied requests</span>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi"><div class="k-label">People</div><div class="k-value">26</div><div class="k-sub">22 with a role</div></div>
+        <div class="kpi warn"><div class="k-label">Without a role</div><div class="k-value">4</div><div class="k-sub">signed up, can do nothing yet</div></div>
+        <div class="kpi"><div class="k-label">Active delegations ↗</div><div class="k-value">3</div><div class="k-sub">1 lapsing in 7 days</div></div>
+        <div class="kpi alert"><div class="k-label">Lapsed delegations</div><div class="k-value">1</div><div class="k-sub">lend what the lender lost</div></div>
+        <div class="kpi"><div class="k-label">Roles expiring ↗</div><div class="k-value">2</div><div class="k-sub">within 7 days</div></div>
+        <div class="kpi"><div class="k-label">Denied requests ↗</div><div class="k-value">31</div><div class="k-sub">by 14 people · past 7 days</div></div>
+      </div>
+
+      <div class="panels">
+        <div class="panel">
+          <h4>Who holds what</h4>
+          <ul class="bars">
+            <li><a href="#role"><span><span class="badge action">billing-clerk</span></span><span class="n">7</span><span class="bar"><i class="dup" style="width:100%"></i></span></a></li>
+            <li><a href="#role"><span><span class="badge action">viewer</span></span><span class="n">5</span><span class="bar"><i class="dup" style="width:71%"></i></span></a></li>
+            <li><a href="#role"><span><span class="badge action">auditor</span></span><span class="n">5</span><span class="bar"><i class="dup" style="width:71%"></i></span></a></li>
+            <li><a href="#role"><span><span class="badge action">finance-approver</span></span><span class="n">3</span><span class="bar"><i class="dup" style="width:43%"></i></span></a></li>
+            <li><a href="#role"><span><span class="badge action">tenant-admin</span></span><span class="n">2</span><span class="bar"><i class="dup" style="width:29%"></i></span></a></li>
+            <li><a href="#role"><span><span class="badge action">support-agent</span></span><span class="n">2</span><span class="bar"><i class="dup" style="width:29%"></i></span></a></li>
+          </ul>
+          <p class="footnote">Each row opens its role. 3 platform staff hold a global role here too (platform-admin, platform-support) — they act in every tenant.</p>
+        </div>
+        <div class="panel">
+          <h4>Needs a look</h4>
+          <a class="src" href="#delegations"><span><b>Gabriel Mensah</b> → Amara Jensen lends <span class="badge lapsed">report.export</span></span><span class="badge bad">lapsed</span><span class="meta">Gabriel lost finance-approver · the delegation grants nothing now · revoke it, or give the role back</span></a>
+          <a class="src" href="#person"><span><b>Amara Brooks</b> · viewer</span><span class="badge warn">expires in 3 days</span><span class="meta">a contractor's role · renew from her page, or let it lapse</span></a>
+          <a class="src" href="#delegations"><span><b>Rania Mensah</b> → Vera Jensen lends <span class="badge action">payment.refund</span></span><span class="badge warn">expires in 2 days</span><span class="meta">"Refund backlog this week"</span></a>
+          <a class="src" href="#denials"><span><b>Hana Ito</b> refused 9 times</span><span class="badge info">2 actions</span><span class="meta">job.view, audit.view · a missing grant, or curiosity — open her denials</span></a>
+        </div>
+      </div>
+      <ul class="ann">
+        <li><b>Without a role</b> is a distinct count from two sources (the directory's people minus those holding a role) — no list can filter it until <code>/authz/users?roleless=true</code> exists, so it doesn't link (the rule: a distinct-count number doesn't open a list of records).</li>
+        <li><b>Lapsed delegations</b> opens Delegations filtered to lapsed once <code>status=lapsed</code> exists (Proposed); until then the panel lists them.</li>
+        <li>A platform admin sees a fifth tile, <b>Platform access</b> — people holding a platform-scope role (3) — and the tenant picker; "All tenants" adds a Tenant column wherever a person appears.</li>
+      </ul>
     </section>
 
-    <!-- EMPTY STATE -->
-    <section class="screen">
-      <div class="screen-head"><h2 class="screen-name">Assignments — empty state</h2><span class="endpoint"><span class="m">GET</span>/authz/assignments</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">No assignment matches the filter — distinct from "this deployment has no roles" (which means seeds haven't run).</p>
-      <div class="empty">
-        <div class="ic">🔑</div>
-        <div><div style="color:var(--foreground);font-weight:500">No assignments match</div>
-        <div>Widen the tenant or clear the role filter. To grant access, use "Assign role".</div></div>
-        <button class="btn" type="button">Assign role</button>
+    <!-- 2 · PEOPLE -->
+    <section class="screen" id="people">
+      <div class="screen-head">
+        <h2 class="screen-name">People</h2>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">Everyone in the tenant, by name, with what they hold. The app owns its users (sign-up, invites, disabling) — this list reads them through the directory port; it never creates one.</p>
+      <p class="gating">Gate: <code>authz.view</code>. <code>GET /authz/users?search&amp;limit&amp;cursor</code> (Rule 4 — next/previous, no total). "Assign a role" (bulk) needs <code>authz.assign_roles</code>.</p>
+
+      <div class="filterbar">
+        <span class="field"><span class="lbl">Search</span><span class="val">name or email</span></span>
+        <span class="field"><span class="lbl">Role</span><span class="val">Any</span> <span class="badge proposed" style="margin-left:0.25rem">Proposed</span></span>
+        <span style="flex:1"></span>
+        <button class="btn-secondary">Assign a role to selected (3)</button>
+      </div>
+      <div class="scrollx">
+      <table class="table">
+        <thead><tr><th style="width:2rem"></th><th>Person</th><th>Roles</th></tr></thead>
+        <tbody>
+          <tr><td>☐</td><td><div class="person"><a class="link" href="#person">Acme Admin</a><span class="em">admin@acme.test</span></div></td><td><div class="chips"><span class="badge action">tenant-admin</span></div></td></tr>
+          <tr><td>☑</td><td><div class="person"><a class="link" href="#person">Amara Brooks</a><span class="em">amara.brooks@acme.test</span></div></td><td><div class="chips"><span class="badge action">auditor</span><span class="badge action">viewer</span><span class="badge warn">viewer until Oct 26</span></div></td></tr>
+          <tr><td>☐</td><td><div class="person"><a class="link" href="#person">Amara Jensen</a><span class="em">amara.jensen@acme.test</span></div></td><td><div class="chips"><span class="badge action">viewer</span></div></td></tr>
+          <tr><td>☑</td><td><div class="person"><a class="link" href="#person">Bilal Novak</a><span class="em">bilal.novak@acme.test</span></div></td><td><span class="badge muted">no role</span></td></tr>
+          <tr><td>☐</td><td><div class="person"><a class="link" href="#person">Elif Khan</a><span class="em">elif.khan@acme.test</span></div></td><td><div class="chips"><span class="badge action">billing-clerk</span></div></td></tr>
+          <tr><td>☑</td><td><div class="person"><a class="link" href="#person">Elif Rossi</a><span class="em">elif.rossi@acme.test</span></div></td><td><span class="badge muted">no role</span></td></tr>
+          <tr><td>☐</td><td><div class="person"><a class="link" href="#person">Farah Garcia</a><span class="em">farah.garcia@acme.test</span></div></td><td><div class="chips"><span class="badge action">finance-approver</span></div></td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="pagebar"><span>Showing 1–7</span><span class="pager"><span>‹ Previous</span><span>Next ›</span></span></div>
+      <ul class="ann">
+        <li>The whole row opens the person (a real link). A role chip with an expiry shows the date; an expired role isn't listed (the endpoint returns active roles).</li>
+        <li>Platform admin, "All tenants": a Tenant column; platform staff appear with a <span class="badge scope-p">global</span> chip on their role.</li>
+      </ul>
+    </section>
+
+    <!-- 3 · PERSON -->
+    <section class="screen" id="person">
+      <div class="screen-head">
+        <h2 class="screen-name">Person</h2>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">One person's access: the roles they were given (and by whom), what they can actually do, what they lent and were lent, and what they were refused. The place to give or take a role.</p>
+      <p class="gating">Gate: <code>authz.view</code> to read; <code>authz.assign_roles</code> for "Give a role" and Revoke. A person outside the viewer's tenant is a 404.</p>
+      <div class="breadcrumb">People / <b>Farah Garcia</b> · farah.garcia@acme.test · Acme</div>
+
+      <div class="two">
+        <div class="card">
+          <div class="ch"><h4>Roles</h4><p>Active and expired · granted by · until</p></div>
+          <table class="table">
+            <thead><tr><th>Role</th><th>Granted</th><th>Until</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><span class="badge action">finance-approver</span></td><td class="t-time">Jul 8 · Acme Admin</td><td class="t-time">—</td><td><a class="link">Revoke</a></td></tr>
+              <tr><td><span class="badge muted">viewer</span> <span class="badge muted">expired</span></td><td class="t-time">May 2 · Acme Admin</td><td class="t-time">Jun 30</td><td></td></tr>
+            </tbody>
+          </table>
+          <div class="cf"><button class="btn">Give a role</button></div>
+        </div>
+
+        <div>
+          <p class="vlabel">"Give a role" — the picker, from GET /authz/roles/assignable</p>
+          <div class="picker">
+            <div class="opt hover"><span><span class="badge action">billing-clerk</span></span><span class="muted">7 actions</span></div>
+            <div class="opt"><span><span class="badge action">auditor</span></span><span class="muted">4 actions</span></div>
+            <div class="opt"><span><span class="badge action">tenant-admin</span></span><span class="muted">15 actions</span></div>
+            <div class="opt off"><span><span class="badge scope-p">platform-support</span></span><span class="muted">disabled</span><span class="why">grants platform-wide actions (job.view, rate-limit.view, …) — only a platform admin, to all tenants</span></div>
+            <div style="padding:0.5rem 0.6rem; border-top:1px solid var(--border); margin-top:0.25rem; display:flex; gap:0.5rem; align-items:center"><span class="field"><span class="lbl">Until</span><span class="val">no expiry</span></span><button class="btn">Give billing-clerk</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="two" style="margin-top:1rem">
+        <div class="card">
+          <div class="ch"><h4>What she can do</h4><p>In Acme · grouped by module · from her roles and delegations</p></div>
+          <div class="modgroup">
+            <div class="mt">Invoices</div>
+            <div class="act"><span><code>invoice.view</code></span><span class="badge muted">finance-approver</span><span class="d">See invoices and their history</span></div>
+            <div class="act"><span><code>invoice.void</code></span><span class="badge muted">finance-approver</span><span class="d">Void an issued invoice</span></div>
+            <div class="mt">Payouts &amp; payments</div>
+            <div class="act"><span><code>payout.approve</code></span><span class="badge muted">finance-approver</span><span class="d">Approve an outbound payout</span></div>
+            <div class="act"><span><code>payment.refund</code></span><span class="badge muted">finance-approver</span><span class="d">Refund a captured payment</span></div>
+            <div class="mt">Access</div>
+            <div class="act"><span><code>authz.manage_delegations</code></span><span class="badge muted">finance-approver</span><span class="d">Lend your own actions to someone else for a while</span></div>
+          </div>
+          <div class="cf"><span>ⓘ</span><span>Check any action — "can she approve payouts, and why" — in the Access checker.</span></div>
+        </div>
+        <div class="card">
+          <div class="ch"><h4>Delegations</h4><p>Lent and received · newest first</p></div>
+          <table class="table">
+            <thead><tr><th>With</th><th>Actions</th><th>Until</th></tr></thead>
+            <tbody>
+              <tr><td class="muted" colspan="3">None — she hasn't lent or been lent anything.</td></tr>
+            </tbody>
+          </table>
+          <div class="ch" style="padding-top:0.25rem"><h4>Refused</h4><p>Her denied requests, past 7 days</p></div>
+          <table class="table">
+            <tbody><tr><td class="muted" colspan="3">None — nothing she tried was refused.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <ul class="ann">
+        <li><b>Revoke</b> asks to confirm. The API answers 409 for the tenant's last role admin, or your own role management — the dialog shows its message ("ask another admin to").</li>
+        <li>A <b>global</b> role (platform staff) shows a <span class="badge scope-p">global</span> chip and, for a tenant admin, no Revoke — it isn't theirs.</li>
+        <li>The Refused list is <code>/authz/denials?actorId</code>; "see all" opens Denied requests filtered to her.</li>
+      </ul>
+    </section>
+
+    <!-- 4 · ROLES / ROLE -->
+    <section class="screen" id="roles">
+      <div class="screen-head">
+        <h2 class="screen-name">Roles</h2>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">The roles the app ships — what each grants and how many hold it here. Read-only: a role's definition ships with the app.</p>
+      <p class="gating">Gate: <code>authz.view</code>. <code>GET /authz/roles</code>; holder counts from <code>/authz/stats</code>.</p>
+      <table class="table">
+        <thead><tr><th>Role</th><th>Scope</th><th class="t-num">Actions</th><th class="t-num">Holders</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><a class="link" href="#role">billing-clerk</a></td><td><span class="badge muted">tenant</span></td><td class="t-num">7</td><td class="t-num">7</td><td class="muted">Drafts and sends invoices, records payments</td></tr>
+          <tr><td><a class="link" href="#role">finance-approver</a></td><td><span class="badge muted">tenant</span></td><td class="t-num">7</td><td class="t-num">3</td><td class="muted">Approves payouts and refunds, voids invoices</td></tr>
+          <tr><td><a class="link" href="#role">tenant-admin</a></td><td><span class="badge muted">tenant</span></td><td class="t-num">15</td><td class="t-num">2</td><td class="muted">Runs the tenant: its people's roles, its audit log</td></tr>
+          <tr><td><a class="link" href="#role">platform-support</a></td><td><span class="badge scope-p">platform</span></td><td class="t-num">6</td><td class="t-num">2</td><td class="muted">Reads every tenant's operations; changes nothing</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub" id="role">Role — finance-approver</h3>
+      <p class="screen-purpose">What it grants (by module, with each action's description) and who holds it. "Give this role" opens a people picker for many at once (<code>POST /authz/roles/finance-approver/holders</code>).</p>
+      <div class="two">
+        <div class="card">
+          <div class="ch"><h4>Grants</h4><p>7 actions · tenant scope</p></div>
+          <div class="modgroup">
+            <div class="mt">Invoices</div>
+            <div class="act"><span><code>invoice.view</code></span><span></span><span class="d">See invoices and their history</span></div>
+            <div class="act"><span><code>invoice.void</code></span><span></span><span class="d">Void an issued invoice</span></div>
+            <div class="mt">Payouts &amp; payments</div>
+            <div class="act"><span><code>payout.approve</code></span><span></span><span class="d">Approve an outbound payout</span></div>
+            <div class="act"><span><code>payout.view</code></span><span class="badge warn">no description</span><span class="d">—</span></div>
+            <div class="act"><span><code>payment.refund</code></span><span></span><span class="d">Refund a captured payment</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ch"><h4>Holders in Acme</h4><p>3 people</p></div>
+          <table class="table"><tbody>
+            <tr><td><a class="link" href="#person">Farah Garcia</a></td><td class="t-time">since Jul 8</td></tr>
+            <tr><td><a class="link" href="#person">Sami Garcia</a></td><td class="t-time">since Aug 19</td></tr>
+            <tr><td><a class="link" href="#person">Vera Novak</a></td><td class="t-time">since Jun 3</td></tr>
+          </tbody></table>
+          <div class="cf"><button class="btn-secondary">Give this role…</button></div>
+        </div>
+      </div>
+      <ul class="ann"><li>Holders come from <code>/authz/assignments?roleId</code> (Live) with names from <code>/authz/users/lookup</code>; with <code>/authz/users?roleId</code> (Proposed) it becomes one paged call.</li></ul>
+    </section>
+
+    <!-- 5 · DELEGATIONS -->
+    <section class="screen" id="delegations">
+      <div class="screen-head">
+        <h2 class="screen-name">Delegations</h2>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">Everything lent in the tenant — cover during leave, a backlog, quarter close. What's active, about to end, no longer granting, or over.</p>
+      <p class="gating">Gate: <code>authz.view</code>; Revoke needs <code>authz.manage_delegations</code> and to be its lender, its receiver, a role admin of the tenant or a platform admin.</p>
+      <div class="filterbar">
+        <span class="seg"><span class="on">Active</span><span>Expiring (7 days)</span><span>Lapsed <span class="badge proposed">Proposed</span></span><span>Expired</span><span>Revoked</span><span>All</span></span>
+        <span class="field"><span class="lbl">Person</span><span class="val">anyone</span></span>
+      </div>
+      <table class="table">
+        <thead><tr><th>From → to</th><th>Actions</th><th>Until</th><th>Reason</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>Gabriel Mensah → Amara Jensen</td><td><div class="chips"><span class="badge lapsed">report.export</span><span class="badge bad">lapsed</span></div></td><td class="t-time">Nov 12</td><td class="muted">Month-end reports</td><td><a class="link">Revoke</a></td></tr>
+          <tr><td>Rania Mensah → Vera Jensen</td><td><span class="badge action">payment.refund</span></td><td class="t-time"><span class="badge warn">Oct 25 · 2 days</span></td><td class="muted">Refund backlog this week</td><td><a class="link">Revoke</a></td></tr>
+          <tr><td>Vera Novak → Elif Khan</td><td><div class="chips"><span class="badge action">payout.approve</span><span class="badge action">invoice.void</span></div></td><td class="t-time">Nov 2</td><td class="muted">Cover during annual leave</td><td><a class="link">Revoke</a></td></tr>
+        </tbody>
+      </table>
+      <ul class="ann">
+        <li>A <b>lapsed</b> action is struck through: the lender no longer holds it, so the delegation grants nothing for it (it comes back if the lender gets the role back).</li>
+        <li>A row opens the delegation sheet (<code>GET /authz/delegations/:id</code>) — created by, revoked by, the full reason.</li>
+      </ul>
+    </section>
+
+    <!-- 6 · ACCESS CHECKER -->
+    <section class="screen" id="checker">
+      <div class="screen-head">
+        <h2 class="screen-name">Access checker</h2>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">The two questions support and incident response ask. A segment control switches between them.</p>
+      <p class="gating">Gate: <code>authz.view</code>. Tenant admin: its own tenant only.</p>
+      <div class="filterbar"><span class="seg"><span class="on">Can this person…</span><span>Who can…</span></span></div>
+      <div class="two">
+        <div>
+          <div class="filterbar">
+            <span class="field"><span class="lbl">Person</span><span class="val">Amara Jensen</span></span>
+            <span class="field"><span class="lbl">Action</span><span class="val">report.export</span></span>
+            <button class="btn">Check</button>
+          </div>
+          <div class="verdict no"><span>✕</span><div><b>No — Amara can't export reports.</b><span class="muted">Delegation from Gabriel Mensah lends report.export, but Gabriel no longer holds it. No role of hers grants it.</span></div></div>
+          <div class="verdict ok"><span>✓</span><div><b>Yes — Elif Khan can approve payouts.</b><span class="muted">Lent by Vera Novak until Nov 2 ("Cover during annual leave").</span></div></div>
+        </div>
+        <div class="card">
+          <div class="ch"><h4>Who can approve payouts in Acme</h4><p>payout.approve · roles and live delegations</p></div>
+          <table class="table"><tbody>
+            <tr><td><span class="badge action">finance-approver</span></td><td>Farah Garcia, Sami Garcia, Vera Novak</td></tr>
+            <tr><td><span class="badge action">tenant-admin</span></td><td>Acme Admin, Priya Ito</td></tr>
+            <tr><td><span class="badge info">lent</span></td><td>Elif Khan <span class="muted">by Vera Novak, until Nov 2</span></td></tr>
+          </tbody></table>
+          <div class="cf"><span>ⓘ</span><span>Platform staff holding a global role that grants it are listed too — they can act here.</span></div>
+        </div>
       </div>
     </section>
+
+    <!-- 7 · DENIED REQUESTS -->
+    <section class="screen" id="denials">
+      <div class="screen-head">
+        <h2 class="screen-name">Denied requests</h2>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">Every "you don't have permission" the app answered — counted per person, action and page per minute. A missing grant shows up here before anyone files a ticket; so does someone trying doors.</p>
+      <p class="gating">Gate: <code>authz.view</code>. A tenant admin sees its own people's. Kept 90 days.</p>
+      <div class="filterbar"><span class="seg"><span>Past 24 hours</span><span class="on">Past 7 days</span><span>Past 30 days</span></span></div>
+      <div class="panels">
+        <div class="panel"><h4>Most refused</h4>
+          <ul class="bars">
+            <li><a><span><span class="badge action">job.view</span> <span class="muted">19 people</span></span><span class="n">34</span><span class="bar"><i style="width:100%"></i></span></a></li>
+            <li><a><span><span class="badge action">audit.view</span> <span class="muted">15 people</span></span><span class="n">20</span><span class="bar"><i style="width:59%"></i></span></a></li>
+            <li><a><span><span class="badge action">authz.view</span> <span class="muted">15 people</span></span><span class="n">19</span><span class="bar"><i style="width:56%"></i></span></a></li>
+          </ul></div>
+        <div class="panel"><h4>Most refused people</h4>
+          <a class="src" href="#person"><span><b>Hana Ito</b></span><span class="n">9</span><span class="meta">2 actions</span></a>
+          <a class="src" href="#person"><span><b>Elif Rossi</b> <span class="badge muted">no role</span></span><span class="n">8</span><span class="meta">4 actions — she has no role yet</span></a>
+          <a class="src" href="#person"><span><b>Gabriel Brooks</b></span><span class="n">7</span><span class="meta">3 actions</span></a>
+        </div>
+      </div>
+      <table class="table" style="margin-top:1rem">
+        <thead><tr><th>Minute</th><th>Person</th><th>Needed</th><th>Page</th><th class="t-num">Times</th></tr></thead>
+        <tbody>
+          <tr><td class="t-time">Oct 23, 12:05</td><td>Acme Member</td><td><span class="badge action">authz.view</span></td><td class="t-id">GET /authz/users</td><td class="t-num">1</td></tr>
+          <tr><td class="t-time">Oct 23, 06:05</td><td>Vera Jensen</td><td><span class="badge action">rate-limit.view</span></td><td class="t-id">GET /rate-limits/rejections</td><td class="t-num">1</td></tr>
+          <tr><td class="t-time">Oct 18, 12:04</td><td>Vera Novak <span class="muted">· Meridian</span></td><td><span class="badge action">authz.assign_roles</span></td><td class="t-id">POST /authz/users/:userId/roles</td><td class="t-num">20</td></tr>
+        </tbody>
+      </table>
+      <ul class="ann"><li>Row actions filter by the person or the action (no filter links in cells). The Meridian row is the platform view — a burst of 40 tries in two minutes.</li></ul>
+    </section>
+
+    <!-- 8 · ACTION CATALOG -->
+    <section class="screen" id="catalog">
+      <div class="screen-head">
+        <h2 class="screen-name">Action catalog</h2>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">Every action the app checks, by module — what it means, where it may be granted, which roles grant it — and where the code and the table disagree.</p>
+      <p class="gating">Gate: <code>authz.view</code>; describing needs <code>authz.manage_catalog</code> (platform admin).</p>
+      <div class="kpi-row">
+        <div class="kpi"><div class="k-label">Described</div><div class="k-value">22 / 24</div></div>
+        <div class="kpi warn"><div class="k-label">Granted, no description</div><div class="k-value">2</div><div class="k-sub">payout.view, report.export</div></div>
+        <div class="kpi warn"><div class="k-label">In the table, not in code</div><div class="k-value">1</div><div class="k-sub">invoice.rescind — renamed?</div></div>
+        <div class="kpi"><div class="k-label">In code, not in the table</div><div class="k-value">0</div></div>
+      </div>
+      <table class="table">
+        <thead><tr><th>Action</th><th>Scope</th><th>Granted by</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td colspan="4" class="muted" style="font-size:var(--text-caption);text-transform:uppercase;letter-spacing:0.04em">Payouts</td></tr>
+          <tr><td><code>payout.approve</code></td><td><span class="badge muted">tenant</span></td><td><div class="chips"><span class="badge action">finance-approver</span><span class="badge action">tenant-admin</span></div></td><td>Approve an outbound payout <a class="link">Edit</a></td></tr>
+          <tr><td><code>payout.view</code></td><td><span class="badge muted">tenant</span></td><td><div class="chips"><span class="badge action">viewer</span><span class="badge action">auditor</span><span class="badge action">finance-approver</span></div></td><td><span class="badge warn">no description</span> <a class="link">Add</a></td></tr>
+          <tr><td colspan="4" class="muted" style="font-size:var(--text-caption);text-transform:uppercase;letter-spacing:0.04em">Background jobs</td></tr>
+          <tr><td><code>job.run</code></td><td><span class="badge scope-p">platform</span></td><td><span class="badge action">platform-admin</span></td><td>Run a background job now</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 9 · MY ACCESS -->
+    <section class="screen" id="mine">
+      <div class="screen-head">
+        <h2 class="screen-name">My access</h2>
+        <span class="status live">Live</span>
+      </div>
+      <p class="screen-purpose">For anyone signed in — what I can do here and why, what I lent and was lent, and lending some of mine while I'm away.</p>
+      <p class="gating">No action needed to read your own access (<code>GET /authz/me/access</code>). Lending needs <code>authz.manage_delegations</code>.</p>
+      <div class="two">
+        <div class="card">
+          <div class="ch"><h4>My roles</h4><p>Vera Novak · Acme</p></div>
+          <table class="table"><tbody><tr><td><span class="badge action">finance-approver</span></td><td class="t-time">since Jun 3 · by Acme Admin</td></tr></tbody></table>
+          <div class="ch"><h4>I lent</h4></div>
+          <table class="table"><tbody><tr><td>→ Elif Khan</td><td><div class="chips"><span class="badge action">payout.approve</span><span class="badge action">invoice.void</span></div></td><td class="t-time">until Nov 2</td><td><a class="link">Take back</a></td></tr></tbody></table>
+        </div>
+        <div class="sheet" style="margin:0;max-width:none">
+          <h4>Lend some of my access</h4>
+          <p class="desc">To a colleague in Acme, until a date (at most 90 days). It stops granting anything you stop holding.</p>
+          <dl class="kv">
+            <dt>To</dt><dd><span class="field"><span class="val">Elif Khan</span></span></dd>
+            <dt>Actions</dt><dd><div class="chips"><span class="badge action">payout.approve ✕</span><span class="badge action">invoice.void ✕</span><span class="muted">+ add — only actions you hold, tenant-scope</span></div></dd>
+            <dt>Until</dt><dd><span class="field"><span class="val">Nov 2, 2026</span></span></dd>
+            <dt>Reason</dt><dd><span class="field"><span class="val">Cover during annual leave</span></span></dd>
+          </dl>
+          <div style="margin-top:1rem"><button class="btn">Lend</button></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="note"><div><b>Not on these screens, by design.</b> Inviting, disabling or deleting a user (the app's identity provider), editing what a role grants (ships with the app — custom tenant roles are phase 2), and a "recent access changes" feed — every assign, revoke, lend and describe is an audit record (<code>user_role</code>, <code>delegation</code>, <code>action_catalog</code>); a link opens the Audit Log filtered to them.</div></div>
   </main>
 </div>
 </body>
