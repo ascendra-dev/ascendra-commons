@@ -2,7 +2,6 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   NotificationChannel,
   NotificationChannelResult,
-  NotificationRecipient,
   NotificationRequest,
   NotificationResult,
 } from './notification.types';
@@ -10,6 +9,7 @@ import { NotificationConfig } from './notification-config.port';
 import type { DeliveryAttempt, NotificationDeliveryRecorder } from './notification-delivery-recorder.port';
 import { NoopNotificationDeliveryRecorder } from './noop-notification-delivery-recorder';
 import { NotificationSender } from './notification-sender.port';
+import { recipientRef } from './recipient-ref';
 import { NOTIFICATION_CHANNEL_SENDERS, NOTIFICATION_CONFIG, NOTIFICATION_DELIVERY_RECORDER } from './tokens';
 
 /** Carries the full NotificationResult so a caller catching this can still see per-channel detail. */
@@ -164,12 +164,4 @@ export class Notifier {
       return [channel, { status: 'failed', reason: err instanceof Error ? err.message : 'unknown_error' }];
     }
   }
-}
-
-/** Redacted recipient identity for the delivery log — never the actual address. */
-function recipientRef(recipient: NotificationRecipient): string {
-  if (recipient.type === 'user') return `user:${recipient.id}`;
-  if (recipient.email) return 'raw:email';
-  if (recipient.phone) return 'raw:phone';
-  return 'raw';
 }

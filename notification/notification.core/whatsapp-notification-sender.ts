@@ -3,6 +3,7 @@ import { NotificationChannelResult, NotificationRequest } from './notification.t
 import { NotificationConfig } from './notification-config.port';
 import { NotificationSender } from './notification-sender.port';
 import { NOTIFICATION_CONFIG } from './tokens';
+import { logStubSend } from './stub-log';
 
 /**
  * No template rendering yet — WhatsApp's real templates are pre-approved and
@@ -20,8 +21,8 @@ export class WhatsappNotificationSender implements NotificationSender {
     const provider = await this.config.providerConfigFor('whatsapp', request.tenantId ?? null);
     if (!provider) return { status: 'failed', reason: 'no_provider_config' };
 
-    // Stub: the provider config (checked above) is not logged — it may hold secrets.
-    console.log('whatsapp', { ...request });
+    // Stub: no real send — a line saying one would have gone out, without the number or the variables.
+    logStubSend('whatsapp', request);
     return { status: 'sent' };
   }
 }

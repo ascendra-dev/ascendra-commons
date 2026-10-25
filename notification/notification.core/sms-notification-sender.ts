@@ -3,6 +3,7 @@ import { NotificationChannelResult, NotificationRecipient, NotificationRequest }
 import { NotificationConfig } from './notification-config.port';
 import { NotificationSender } from './notification-sender.port';
 import { renderTemplate } from './notification-template';
+import { logStubSend } from './stub-log';
 import { UserContactResolver } from './user-contact-resolver';
 import { NOTIFICATION_CONFIG, USER_CONTACT_RESOLVER } from './tokens';
 
@@ -24,8 +25,8 @@ export class SMSNotificationSender implements NotificationSender {
     if (!template) return { status: 'failed', reason: 'template_not_found' };
 
     const rendered = renderTemplate(template, request.variables);
-    // Stub: the provider config (checked above) is not logged — it may hold secrets.
-    console.log('sms', { to, ...rendered });
+    // Stub: no real send — a line saying one would have gone out, without the number or the text.
+    logStubSend('sms', request);
     return { status: 'sent', rendered };
   }
 

@@ -3,6 +3,7 @@ import { NotificationChannelResult, NotificationRecipient, NotificationRequest }
 import { NotificationConfig } from './notification-config.port';
 import { NotificationSender } from './notification-sender.port';
 import { renderTemplate } from './notification-template';
+import { logStubSend } from './stub-log';
 import { UserContactResolver } from './user-contact-resolver';
 import { NOTIFICATION_CONFIG, USER_CONTACT_RESOLVER } from './tokens';
 
@@ -24,9 +25,8 @@ export class EmailNotificationSender implements NotificationSender {
     if (!template) return { status: 'failed', reason: 'template_not_found' };
 
     const rendered = renderTemplate(template, request.variables);
-    // Stub: log the message that would be sent. The provider config (checked
-    // above) is not logged — it is an opaque blob that may hold secrets.
-    console.log('email', { to, ...rendered });
+    // Stub: no real send — a line saying one would have gone out, without the address or the text.
+    logStubSend('email', request);
     return { status: 'sent', rendered };
   }
 
