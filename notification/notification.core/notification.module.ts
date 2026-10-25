@@ -13,6 +13,7 @@ import {
   NOTIFICATION_DELIVERY_RECORDER,
   NOTIFIER,
   NOTIFICATION_RECIPIENT_HASHER,
+  NOTIFICATION_SUPPRESSION_LIST,
   NOTIFICATION_TYPES,
   USER_CONTACT_RESOLVER,
 } from './tokens';
@@ -78,6 +79,13 @@ export interface NotificationModuleConfig {
    */
   recipientHashKey?: string;
 
+  /**
+   * The token a `NotificationSuppressionList` is provided under (e.g. `POSTGRES_NOTIFICATION_SUPPRESSION_LIST`) —
+   * `Notifier` skips a suppressed recipient's channel. Omit and nothing is suppressed. Suppression keys a raw
+   * recipient by its hashed address, so it needs `recipientHashKey` for guests.
+   */
+  suppressionListToken?: OverrideToken;
+
   /** Whatever module(s) export the token(s) above — `useExisting` only resolves a token this module can already see. */
   imports?: DynamicModule['imports'];
 }
@@ -135,6 +143,7 @@ export class NotificationModule {
           inject: senderClasses,
         },
 
+        ...(config.suppressionListToken ? [{ provide: NOTIFICATION_SUPPRESSION_LIST, useExisting: config.suppressionListToken }] : []),
         Notifier,
         { provide: NOTIFIER, useExisting: Notifier },
         { provide: NOTIFICATION_TYPES, useValue: checkedTypes(config.types ?? []) },

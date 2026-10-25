@@ -16,7 +16,8 @@ export interface DeliveryRecord {
   recipientRef: string;
   /** `user:<id>` or a keyed hash of the address — what the log searches by; `null` when the app hashes nothing. */
   recipientKey: string | null;
-  status: 'sent' | 'failed' | 'delivered' | 'bounced';
+  /** `skipped` — deliberately not sent (suppressed, opted out); `reason` says which. */
+  status: 'sent' | 'failed' | 'delivered' | 'bounced' | 'skipped';
   reason: string | null;
   providerMessageId: string | null;
   attemptedAt: Date;
@@ -162,6 +163,32 @@ export interface TemplateView {
 export interface ProviderCredentialView {
   channel: NotificationChannel;
   tenantId: string | null;
+}
+
+/** One suppression-list entry — a recipient a channel stopped sending to. */
+export interface SuppressionView {
+  id: string;
+  channel: NotificationChannel;
+  /** `user:<id>` or the keyed hash of an address — the delivery log filters by it. */
+  recipientKey: string;
+  tenantId: string | null;
+  /** The provider's word: `bounced`, `complained`, `failed`. */
+  reason: string;
+  detail: string | null;
+  firstAt: Date;
+  lastAt: Date;
+  eventCount: number;
+}
+
+export interface SuppressionListQuery {
+  /** Default 50, capped at 200. */
+  limit?: number;
+  cursor?: string;
+}
+
+export interface SuppressionPage {
+  suppressions: SuppressionView[];
+  nextCursor?: string;
 }
 
 // ---- write inputs ----

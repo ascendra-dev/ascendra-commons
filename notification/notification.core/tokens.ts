@@ -34,6 +34,9 @@ export const NOTIFIER = Symbol('NOTIFIER');
  */
 export const NOTIFICATION_DELIVERY_RECORDER = Symbol('NOTIFICATION_DELIVERY_RECORDER');
 
+/** The `NotificationSuppressionList` `Notifier` asks before each send — none unless `forRoot({ suppressionListToken })`. */
+export const NOTIFICATION_SUPPRESSION_LIST = Symbol('NOTIFICATION_SUPPRESSION_LIST');
+
 /** The `NotificationRecipientHasher` — or `null` when the app gives no `recipientHashKey` (address search off). */
 export const NOTIFICATION_RECIPIENT_HASHER = Symbol('NOTIFICATION_RECIPIENT_HASHER');
 

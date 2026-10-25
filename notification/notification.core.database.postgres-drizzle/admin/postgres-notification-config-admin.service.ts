@@ -1,7 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import type { NotificationChannel } from '../../notification.core';
-import { ConfigCache } from '../../notification.core.database';
+import {
+  ConfigCache,
+  decodeKeysetCursor,
+  encodeKeysetCursor,
+  InvalidDeliveryCursorError,
+  isDeliveryId,
+} from '../../notification.core.database';
 import type {
   ChannelRouteView,
   ConfigScope,
@@ -13,6 +19,9 @@ import type {
   SetChannelRouteInput,
   SetProviderCredentialInput,
   SetTemplateInput,
+  SuppressionListQuery,
+  SuppressionPage,
+  SuppressionView,
   TemplateView,
 } from '../../notification.core.database';
 import type { SqlExecutor } from '../persistence/sql-executor';
@@ -180,6 +189,77 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
     `);
     return rows.map((r) => ({ channel: r.channel as NotificationChannel, tenantId: r.tenant_id }));
   }
+
+  async listSuppressions(query: SuppressionListQuery, scope?: ConfigScope): Promise<SuppressionPage> {
+    const limit = Math.min(Math.max(1, query.limit ?? 50), 200);
+    const conds = [sql`application = ${this.application}`];
+    if (scope) conds.push(sql`tenant_id = ${scope.tenantId}`);
+    if (query.cursor) {
+      const cursor = decodeKeysetCursor(query.cursor);
+      if (!cursor) throw new InvalidDeliveryCursorError(`Unrecognized cursor "${query.cursor}"`);
+      const ts = sql`${cursor.timestamp}::timestamptz`;
+      conds.push(sql`last_at <= ${ts} and (last_at < ${ts} or id < ${cursor.id}::bigint)`);
+    }
+    const { rows } = await this.db.execute<SuppressionRow & { last_at_key: string }>(sql`
+      select id, channel, recipient_key, tenant_id, reason, detail, first_at, last_at, event_count,
+             to_char(last_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as last_at_key
+      from commons_notification_suppression
+      where ${sql.join(conds, sql` and `)}
+      order by last_at desc, id desc
+      limit ${limit + 1}
+    `);
+    if (rows.length > limit) {
+      const page = rows.slice(0, limit);
+      const last = page[page.length - 1];
+      return { suppressions: page.map(toSuppression), nextCursor: encodeKeysetCursor(String(last.last_at_key), String(last.id)) };
+    }
+    return { suppressions: rows.map(toSuppression) };
+  }
+
+  async getSuppression(id: string): Promise<SuppressionView | null> {
+    if (!isDeliveryId(id)) return null;
+    const { rows } = await this.db.execute<SuppressionRow>(sql`
+      select id, channel, recipient_key, tenant_id, reason, detail, first_at, last_at, event_count
+      from commons_notification_suppression where application = ${this.application} and id = ${id}::bigint
+    `);
+    return rows[0] ? toSuppression(rows[0]) : null;
+  }
+
+  async deleteSuppression(id: string): Promise<void> {
+    if (!isDeliveryId(id)) return;
+    await this.db.execute(sql`
+      delete from commons_notification_suppression where application = ${this.application} and id = ${id}::bigint
+    `);
+    // The suppression list caches its lookups — the recipient is sent to again at once in this process.
+    ConfigCache.invalidateAll();
+  }
+}
+
+interface SuppressionRow {
+  id: string | number;
+  channel: string;
+  recipient_key: string;
+  tenant_id: string | null;
+  reason: string;
+  detail: string | null;
+  first_at: string | Date;
+  last_at: string | Date;
+  event_count: string | number;
+}
+
+function toSuppression(r: SuppressionRow): SuppressionView {
+  const asDate = (v: string | Date) => (v instanceof Date ? v : new Date(v));
+  return {
+    id: String(r.id),
+    channel: r.channel as NotificationChannel,
+    recipientKey: r.recipient_key,
+    tenantId: r.tenant_id,
+    reason: r.reason,
+    detail: r.detail,
+    firstAt: asDate(r.first_at),
+    lastAt: asDate(r.last_at),
+    eventCount: Number(r.event_count),
+  };
 }
 
 /** The deployment defaults plus one tenant's rows — or every row when unscoped. */

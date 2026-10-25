@@ -71,7 +71,11 @@ export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
 /** A single channel's own outcome — always binary; only the aggregate below can be 'partial'. */
 export interface NotificationChannelResult {
-  status: 'sent' | 'failed';
+  /**
+   * `skipped` — deliberately not sent: the recipient is suppressed (a bounce, a complaint) or opted out of it. Not a
+   * failure: nothing is wrong with the config or the provider.
+   */
+  status: 'sent' | 'failed' | 'skipped';
   reason?: string;
   /**
    * Optional — a provider's own id for the accepted message (e.g. an SES
@@ -91,7 +95,8 @@ export interface NotificationChannelResult {
 }
 
 export interface NotificationResult {
-  status: 'sent' | 'partial' | 'failed';
+  /** Over the channels not skipped: all sent, some, or none — `skipped` when every channel was skipped. */
+  status: 'sent' | 'partial' | 'failed' | 'skipped';
   reason?: string;
   /** Present when more than one channel was involved (i.e. returned by Notifier). */
   channels?: Partial<Record<NotificationChannel, NotificationChannelResult>>;

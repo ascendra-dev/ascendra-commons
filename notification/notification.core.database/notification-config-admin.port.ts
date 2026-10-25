@@ -9,6 +9,9 @@ import type {
   SetChannelRouteInput,
   SetProviderCredentialInput,
   SetTemplateInput,
+  SuppressionListQuery,
+  SuppressionPage,
+  SuppressionView,
   TemplateView,
 } from './notification-admin.types';
 
@@ -40,4 +43,10 @@ export interface NotificationConfigAdminPort {
   setProviderCredential(input: SetProviderCredentialInput): Promise<void>;
   deleteProviderCredential(input: DeleteProviderCredentialInput): Promise<void>;
   listProviderCredentials(scope?: ConfigScope): Promise<ProviderCredentialView[]>;
+
+  /** The suppression list, newest first — `scope`: that tenant's entries only. */
+  listSuppressions(query: SuppressionListQuery, scope?: ConfigScope): Promise<SuppressionPage>;
+  getSuppression(id: string): Promise<SuppressionView | null>;
+  /** Removes one entry — the recipient is sent to again (at once in this process). */
+  deleteSuppression(id: string): Promise<void>;
 }

@@ -21,6 +21,9 @@ function deps(isPlatformAdmin: NotificationApiOptions['isPlatformAdmin'] = (a) =
     setProviderCredential: vi.fn().mockResolvedValue(undefined),
     deleteProviderCredential: vi.fn().mockResolvedValue(undefined),
     listProviderCredentials: vi.fn().mockResolvedValue([]),
+    listSuppressions: vi.fn().mockResolvedValue({ suppressions: [] }),
+    getSuppression: vi.fn().mockResolvedValue(null),
+    deleteSuppression: vi.fn().mockResolvedValue(undefined),
   };
   const audit: NotificationAuditEmitter = { record: vi.fn() };
   return { port, audit, svc: new NotificationConfigAdminApiService(port, { isPlatformAdmin }, audit, types) };

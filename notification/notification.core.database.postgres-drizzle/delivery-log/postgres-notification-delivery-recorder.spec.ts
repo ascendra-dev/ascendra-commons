@@ -193,3 +193,28 @@ describe('PostgresNotificationDeliveryRecorder — provider webhook', () => {
     expect(params).toEqual(expect.arrayContaining(['ascendra-pay', 'ses-9', 'bounced', 'mailbox full']));
   });
 });
+
+describe('PostgresNotificationDeliveryRecorder — suppression', () => {
+  it("a hard bounce (suppress: true) files the delivery's recipient key — keyed rows only; a repeat counts", async () => {
+    const db = fakeDb();
+    await recorder(db, 'ascendra-pay').updateDeliveryStatus({ providerMessageId: 'ses-9', status: 'bounced', detail: '550', suppress: true });
+    const { sql: text, params } = query(db, 1);
+    expect(text).toMatch(/insert into commons_notification_suppression/i);
+    expect(text).toMatch(/d\.recipient_key is not null/i);
+    expect(text).toMatch(/on conflict on constraint commons_notification_suppression_uq do update set/i);
+    expect(text).toMatch(/event_count = s\.event_count \+ 1/i);
+    expect(params).toEqual(expect.arrayContaining(['bounced', '550', 'ascendra-pay', 'ses-9']));
+  });
+
+  it('a soft bounce suppresses nothing', async () => {
+    const db = fakeDb();
+    await recorder(db).updateDeliveryStatus({ providerMessageId: 'ses-9', status: 'bounced' });
+    expect(db.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('a skipped attempt is recorded as skipped', async () => {
+    const db = fakeDb();
+    await recordAndFlush(recorder(db), [attempt({ status: 'skipped', reason: 'suppressed' })]);
+    expect(query(db).params).toEqual(expect.arrayContaining(['skipped', 'suppressed']));
+  });
+});

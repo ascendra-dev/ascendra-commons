@@ -37,7 +37,7 @@ interface BufferedRow {
   tenantId: string | null;
   recipientRef: string;
   recipientKey: string | null;
-  status: 'sent' | 'failed';
+  status: 'sent' | 'failed' | 'skipped';
   reason: string | null;
   providerMessageId: string | null;
   attemptedAt: Date;
@@ -116,12 +116,30 @@ export class PostgresNotificationDeliveryRecorder implements NotificationDeliver
             updated_at = now()
         where application = ${this.application} and provider_message_id = ${update.providerMessageId}
       `);
+      if (update.suppress) await this.suppress(update);
     } catch (err) {
       this.logger.error(
         `Failed to apply delivery-status update for provider message "${update.providerMessageId}"`,
         err instanceof Error ? err.stack : String(err),
       );
     }
+  }
+
+  /**
+   * A hard bounce or a complaint — file the delivery's recipient key in the suppression list (a repeat counts). A row
+   * without a key (a guest, with no `recipientHashKey`) can't be suppressed.
+   */
+  private async suppress(update: DeliveryStatusUpdate): Promise<void> {
+    await this.db.execute(sql`
+      insert into commons_notification_suppression as s
+        (application, channel, recipient_key, tenant_id, reason, detail)
+      select d.application, d.channel, d.recipient_key, d.tenant_id, ${update.status}, ${text(update.detail, MAX_REASON)}
+      from commons_notification_delivery d
+      where d.application = ${this.application} and d.provider_message_id = ${update.providerMessageId}
+        and d.recipient_key is not null
+      on conflict on constraint commons_notification_suppression_uq do update set
+        last_at = now(), event_count = s.event_count + 1, reason = excluded.reason, detail = excluded.detail
+    `);
   }
 
   /** Writes what's buffered. Concurrent calls share one write, then write anything buffered since. */
@@ -168,7 +186,7 @@ export class PostgresNotificationDeliveryRecorder implements NotificationDeliver
       tenantId: a.tenantId == null ? null : text(a.tenantId, MAX_TEXT),
       recipientRef: text(a.recipientRef, MAX_TEXT) ?? 'raw',
       recipientKey: text(a.recipientKey, MAX_TEXT),
-      status: a.status === 'sent' ? 'sent' : 'failed',
+      status: a.status === 'sent' || a.status === 'skipped' ? a.status : 'failed',
       reason: text(a.reason, MAX_REASON),
       providerMessageId: text(a.providerMessageId, MAX_TEXT),
       attemptedAt,

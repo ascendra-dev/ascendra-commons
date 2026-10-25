@@ -5,6 +5,7 @@ export {
   notificationProviderCredential,
 } from './persistence/config.schema';
 export { notificationDelivery } from './persistence/delivery.schema';
+export { notificationSuppression } from './persistence/suppression.schema';
 export type { SqlExecutor } from './persistence/sql-executor';
 
 // Seed — behaviour-preserving model: 'static' -> database
@@ -22,6 +23,12 @@ export { PostgresNotificationDeliveryRecorderModule } from './delivery-log/postg
 export type { PostgresNotificationDeliveryRecorderModuleConfig } from './delivery-log/postgres-notification-delivery-recorder.module';
 export type { PostgresNotificationDeliveryRecorderOptions } from './delivery-log/postgres-notification-delivery-recorder';
 
+// Suppression list — what Notifier asks before each send
+export { PostgresNotificationSuppressionList } from './suppression/postgres-notification-suppression-list';
+export type { PostgresNotificationSuppressionListOptions } from './suppression/postgres-notification-suppression-list';
+export { PostgresNotificationSuppressionModule } from './suppression/postgres-notification-suppression.module';
+export type { PostgresNotificationSuppressionModuleConfig } from './suppression/postgres-notification-suppression.module';
+
 // Retention — the consumer schedules it
 export { PostgresNotificationRetentionService } from './retention/postgres-notification-retention.service';
 export { PostgresNotificationRetentionModule } from './retention/postgres-notification-retention.module';
@@ -36,6 +43,7 @@ export type { PostgresNotificationAdminModuleConfig } from './admin/postgres-not
 export {
   POSTGRES_NOTIFICATION_CONFIG,
   POSTGRES_NOTIFICATION_DELIVERY_RECORDER,
+  POSTGRES_NOTIFICATION_SUPPRESSION_LIST,
   NOTIFICATION_CONFIG_SQL_EXECUTOR,
   NOTIFICATION_ADMIN_SQL_EXECUTOR,
 } from './tokens';

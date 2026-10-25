@@ -20,7 +20,7 @@ const WINDOW_RE = /^(\d+)(h|d)$/;
 /** A window longer than this is a typo, not a question — and an unbounded GROUP BY. */
 const MAX_WINDOW_DAYS = 366;
 
-const STATUSES = ['sent', 'failed', 'delivered', 'bounced'] as const;
+const STATUSES = ['sent', 'failed', 'delivered', 'bounced', 'skipped'] as const;
 
 /**
  * Thin orchestration over `NotificationObservabilityPort` — the reads are

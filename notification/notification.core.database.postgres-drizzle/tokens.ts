@@ -18,6 +18,12 @@ export const POSTGRES_NOTIFICATION_CONFIG = Symbol('POSTGRES_NOTIFICATION_CONFIG
 export const NOTIFICATION_ADMIN_SQL_EXECUTOR = Symbol('NOTIFICATION_ADMIN_SQL_EXECUTOR');
 export const NOTIFICATION_ADMIN_APPLICATION_ID = Symbol('NOTIFICATION_ADMIN_APPLICATION_ID');
 
+/** The suppression list's lookup cache. */
+export const NOTIFICATION_SUPPRESSION_OPTIONS = Symbol('NOTIFICATION_SUPPRESSION_OPTIONS');
+
+/** What `PostgresNotificationSuppressionModule` exports — pass it as `NotificationModule.forRoot({ suppressionListToken })`. */
+export const POSTGRES_NOTIFICATION_SUPPRESSION_LIST = Symbol('POSTGRES_NOTIFICATION_SUPPRESSION_LIST');
+
 /** The buffered delivery recorder's flush interval and buffer bound. */
 export const NOTIFICATION_DELIVERY_RECORDER_OPTIONS = Symbol('NOTIFICATION_DELIVERY_RECORDER_OPTIONS');
 

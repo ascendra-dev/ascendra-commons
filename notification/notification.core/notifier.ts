@@ -11,11 +11,13 @@ import { NoopNotificationDeliveryRecorder } from './noop-notification-delivery-r
 import { NotificationSender } from './notification-sender.port';
 import { recipientRef } from './recipient-ref';
 import { recipientKey, type NotificationRecipientHasher } from './recipient-hasher';
+import type { NotificationSuppressionList } from './notification-suppression.port';
 import {
   NOTIFICATION_CHANNEL_SENDERS,
   NOTIFICATION_CONFIG,
   NOTIFICATION_DELIVERY_RECORDER,
   NOTIFICATION_RECIPIENT_HASHER,
+  NOTIFICATION_SUPPRESSION_LIST,
 } from './tokens';
 
 /** Carries the full NotificationResult so a caller catching this can still see per-channel detail. */
@@ -44,6 +46,7 @@ export class Notifier {
     @Inject(NOTIFICATION_CHANNEL_SENDERS) private readonly senders: Map<NotificationChannel, NotificationSender>,
     @Optional() @Inject(NOTIFICATION_DELIVERY_RECORDER) deliveryRecorder?: NotificationDeliveryRecorder,
     @Optional() @Inject(NOTIFICATION_RECIPIENT_HASHER) private readonly hasher: NotificationRecipientHasher | null = null,
+    @Optional() @Inject(NOTIFICATION_SUPPRESSION_LIST) private readonly suppressions: NotificationSuppressionList | null = null,
   ) {
     // NotificationModule.forRoot() always binds the token; the fallback keeps
     // `new Notifier(config, senders)` (tests, ad hoc wiring) working.
@@ -78,10 +81,11 @@ export class Notifier {
     const channelResults = Object.fromEntries(
       entries.map(([channel, { rendered: _rendered, ...pub }]) => [channel, pub]),
     ) as Partial<Record<NotificationChannel, NotificationChannelResult>>;
-    const sentCount = entries.filter(([, result]) => result.status === 'sent').length;
-
+    // Over the channels that were tried — a skipped one (suppressed, opted out) is neither a success nor a failure.
+    const tried = entries.filter(([, result]) => result.status !== 'skipped');
+    const sentCount = tried.filter(([, result]) => result.status === 'sent').length;
     const status: NotificationResult['status'] =
-      sentCount === entries.length ? 'sent' : sentCount === 0 ? 'failed' : 'partial';
+      tried.length === 0 ? 'skipped' : sentCount === tried.length ? 'sent' : sentCount === 0 ? 'failed' : 'partial';
 
     await this.recordDelivery(request, entries);
     return { status, channels: channelResults };
@@ -146,11 +150,24 @@ export class Notifier {
    */
   async notifyCritical(request: NotificationRequest, strict = false): Promise<NotificationResult> {
     const result = await this.notify(request);
-    const shouldThrow = strict ? result.status !== 'sent' : result.status === 'failed';
+    // A skip is deliberate (suppressed, opted out) — never an error.
+    const shouldThrow = strict ? result.status === 'failed' || result.status === 'partial' : result.status === 'failed';
     if (shouldThrow) {
       throw new NotificationDeliveryError(result);
     }
     return result;
+  }
+
+  /** A broken suppression list mustn't stop every notification — on an error, the send goes ahead. */
+  private async isSuppressed(channel: NotificationChannel, request: NotificationRequest): Promise<boolean> {
+    const key = this.suppressions ? recipientKey(channel, request.recipient, this.hasher) : null;
+    if (!key) return false;
+    try {
+      return await this.suppressions!.isSuppressed(channel, key);
+    } catch (err) {
+      this.logger.warn(`suppression check failed for ${channel} — sending anyway: ${err instanceof Error ? err.message : String(err)}`);
+      return false;
+    }
   }
 
   private async dispatch(
@@ -161,6 +178,8 @@ export class Notifier {
     if (!sender) {
       return [channel, { status: 'failed', reason: 'channel_not_registered' }];
     }
+
+    if (await this.isSuppressed(channel, request)) return [channel, { status: 'skipped', reason: 'suppressed' }];
 
     try {
       const result = await sender.send(request);

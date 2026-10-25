@@ -261,3 +261,37 @@ describe('Notifier — delivery log', () => {
     expect(recorder.recordAttempts).not.toHaveBeenCalled();
   });
 });
+
+describe('Notifier — the suppression list', () => {
+  const hasher = new NotificationRecipientHasher('a-test-secret-of-32-characters!!');
+  const raw = { type: 'raw' as const, email: 'ada@example.com', phone: '+15550100' };
+
+  it('skips a suppressed channel — not sent, not a failure — and sends the rest', async () => {
+    const email = fakeSender({ status: 'sent' });
+    const sms = fakeSender({ status: 'sent' });
+    const suppressions = { isSuppressed: vi.fn(async (channel: string) => channel === 'email') };
+    const notifier = new Notifier(fakeConfig(['email', 'sms']), new Map([['email', email], ['sms', sms]]), undefined, hasher, suppressions);
+    const result = await notifier.notify({ recipient: raw, notificationType: 'x', variables: {} });
+    expect(result).toEqual({ status: 'sent', channels: { email: { status: 'skipped', reason: 'suppressed' }, sms: { status: 'sent' } } });
+    expect(email.send).not.toHaveBeenCalled();
+    expect(suppressions.isSuppressed).toHaveBeenCalledWith('email', hasher.hashEmail('ada@example.com'));
+  });
+
+  it('every channel skipped is a skipped notification — and notifyCritical does not throw for it', async () => {
+    const suppressions = { isSuppressed: vi.fn().mockResolvedValue(true) };
+    const notifier = new Notifier(fakeConfig(['email']), new Map([['email', fakeSender({ status: 'sent' })]]), undefined, hasher, suppressions);
+    await expect(notifier.notify({ recipient: raw, notificationType: 'x', variables: {} })).resolves.toMatchObject({ status: 'skipped' });
+    await expect(notifier.notifyCritical({ recipient: raw, notificationType: 'x', variables: {} }, true)).resolves.toMatchObject({ status: 'skipped' });
+  });
+
+  it('a broken list never stops a send; a guest without a hasher has no key to check', async () => {
+    const broken = { isSuppressed: vi.fn().mockRejectedValue(new Error('db down')) };
+    const sender = fakeSender({ status: 'sent' });
+    await expect(
+      new Notifier(fakeConfig(['email']), new Map([['email', sender]]), undefined, hasher, broken).notify({ recipient: raw, notificationType: 'x', variables: {} }),
+    ).resolves.toMatchObject({ status: 'sent' });
+    const list = { isSuppressed: vi.fn() };
+    await new Notifier(fakeConfig(['email']), new Map([['email', sender]]), undefined, null, list).notify({ recipient: raw, notificationType: 'x', variables: {} });
+    expect(list.isSuppressed).not.toHaveBeenCalled();
+  });
+});

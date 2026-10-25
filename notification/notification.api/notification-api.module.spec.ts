@@ -13,6 +13,7 @@ import { NotificationConfigAdminController } from './config-admin/notification-c
 import { NotificationTestSendController } from './test-send/notification-test-send.controller';
 import { NOTIFICATION_AUDIT_EMITTER } from './tokens';
 import { NotificationTypesController } from './types/notification-types.controller';
+import { NotificationSuppressionsController } from './suppressions/notification-suppressions.controller';
 import { AuthorizationEnforcedGuard, type Actor } from '../../authorization/authorization.core';
 
 const getDeliveryHistory = vi.fn().mockResolvedValue({ deliveries: [] });
@@ -48,6 +49,9 @@ const auditRecord = vi.fn();
         setProviderCredential: vi.fn(),
         deleteProviderCredential: vi.fn(),
         listProviderCredentials: vi.fn().mockResolvedValue([]),
+        listSuppressions: vi.fn().mockResolvedValue({ suppressions: [] }),
+        getSuppression: vi.fn().mockResolvedValue(null),
+        deleteSuppression: vi.fn(),
       },
     },
     { provide: NOTIFIER, useValue: { notify } },
@@ -66,7 +70,7 @@ describe('NotificationApiModule.forRoot — real DI wiring', () => {
   });
 
   it('every controller declares AuthorizationEnforcedGuard — fails closed without the global guard', () => {
-    for (const controller of [NotificationObservabilityController, NotificationConfigAdminController, NotificationTestSendController, NotificationTypesController]) {
+    for (const controller of [NotificationObservabilityController, NotificationConfigAdminController, NotificationTestSendController, NotificationTypesController, NotificationSuppressionsController]) {
       expect(Reflect.getMetadata(GUARDS_METADATA, controller)).toContain(AuthorizationEnforcedGuard);
     }
   });

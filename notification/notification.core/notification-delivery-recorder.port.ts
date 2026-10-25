@@ -30,7 +30,7 @@ export interface DeliveryAttempt {
    * address on this channel — `null` when the app hashes nothing (no `recipientHashKey`).
    */
   recipientKey?: string | null;
-  status: 'sent' | 'failed';
+  status: 'sent' | 'failed' | 'skipped';
   reason?: string;
   providerMessageId?: string;
   attemptedAt: Date;
@@ -52,6 +52,11 @@ export interface DeliveryStatusUpdate {
   status: 'delivered' | 'bounced' | 'failed';
   /** Bounce reason / provider detail. */
   detail?: string;
+  /**
+   * A hard bounce or a complaint — stop sending to this recipient on this channel: the recorder files the delivery's
+   * recipient key in the suppression list (where the store has one). A soft bounce leaves it `false`.
+   */
+  suppress?: boolean;
 }
 
 /**

@@ -118,6 +118,27 @@ describe('PostgresNotificationConfigAdminService', () => {
     invalidate.mockRestore();
   });
 
+  it('listSuppressions: newest first, a tenant scope binds it, a foreign cursor is an error', async () => {
+    const db = fakeDb();
+    await svc(db).listSuppressions({ limit: 10 }, { tenantId: 't1' });
+    const { sql: text, params } = rendered(db);
+    expect(text).toMatch(/from commons_notification_suppression/i);
+    expect(text).toMatch(/order by last_at desc, id desc/i);
+    expect(params).toEqual(['ascendra-pay', 't1', 11]);
+    await expect(svc(fakeDb()).listSuppressions({ cursor: 'junk' })).rejects.toThrow(/Unrecognized cursor/);
+  });
+
+  it('deleteSuppression empties the caches; a non-numeric id touches nothing', async () => {
+    const invalidate = vi.spyOn(ConfigCache, 'invalidateAll');
+    const db = fakeDb();
+    await svc(db).deleteSuppression('nope');
+    expect(db.execute).not.toHaveBeenCalled();
+    await svc(db).deleteSuppression('7');
+    expect(rendered(db).sql).toMatch(/delete from commons_notification_suppression/i);
+    expect(invalidate).toHaveBeenCalled();
+    invalidate.mockRestore();
+  });
+
   it('unscoped lists filter by application only', async () => {
     const db = fakeDb();
     await svc(db).listTemplates();

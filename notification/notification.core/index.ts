@@ -14,6 +14,7 @@ export type { NotificationTypeDefinition, NotificationVariableDefinition } from 
 export { sampleVariables, templateVariables } from './notification-type';
 export { NOTIFICATION_CHANNELS } from './notification.types';
 export { NotificationRecipientHasher, recipientKey } from './recipient-hasher';
+export type { NotificationSuppressionList } from './notification-suppression.port';
 
 export type { NotificationSender } from './notification-sender.port';
 export { EmailNotificationSender } from './email-notification-sender';
@@ -44,4 +45,5 @@ export {
   NOTIFICATION_DELIVERY_RECORDER,
   NOTIFICATION_TYPES,
   NOTIFICATION_RECIPIENT_HASHER,
+  NOTIFICATION_SUPPRESSION_LIST,
 } from './tokens';
