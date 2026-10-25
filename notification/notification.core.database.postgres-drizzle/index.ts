@@ -20,6 +20,12 @@ export type { PostgresNotificationConfigModuleConfig } from './config/postgres-n
 export { PostgresNotificationDeliveryRecorder } from './delivery-log/postgres-notification-delivery-recorder';
 export { PostgresNotificationDeliveryRecorderModule } from './delivery-log/postgres-notification-delivery-recorder.module';
 export type { PostgresNotificationDeliveryRecorderModuleConfig } from './delivery-log/postgres-notification-delivery-recorder.module';
+export type { PostgresNotificationDeliveryRecorderOptions } from './delivery-log/postgres-notification-delivery-recorder';
+
+// Retention — the consumer schedules it
+export { PostgresNotificationRetentionService } from './retention/postgres-notification-retention.service';
+export { PostgresNotificationRetentionModule } from './retention/postgres-notification-retention.module';
+export type { PostgresNotificationRetentionModuleConfig } from './retention/postgres-notification-retention.module';
 
 // Admin surface (implements the family ports)
 export { PostgresNotificationObservabilityService } from './admin/postgres-notification-observability.service';

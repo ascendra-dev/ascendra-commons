@@ -89,8 +89,14 @@ with `NotificationObservabilityPort.getDeliveryContent(id)`.
 
 ## Retention
 
-The consumer's (`DELETE … WHERE attempted_at < now() - interval '90 days'`, or a
-`ScheduledJob`).
+`PostgresNotificationRetentionModule.forRoot({ sqlExecutorToken, application, imports })` provides
+`PostgresNotificationRetentionService` — the consumer schedules it (a `background-jobs` `ScheduledJob`, a cron):
+
+- `clearContent(before)` — empties the stored message (`content`, personal data) of older rows, keeping the rows.
+  Suggested: 30 days.
+- `pruneDeliveries(before)` — deletes older rows. Suggested: 90 days.
+
+Both work in batches of 5,000, `application`-qualified.
 
 ## Depends on
 
