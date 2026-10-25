@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { NotificationObservabilityApiService } from './notification-observability-api.service';
-import type { NotificationObservabilityPort } from '../../notification.core.database';
+import { InvalidDeliveryCursorError, type NotificationObservabilityPort } from '../../notification.core.database';
 import type { NotificationApiOptions } from '../notification-api.options';
 import type { Actor } from '../../../authorization/authorization.core';
 
@@ -23,6 +23,38 @@ const tenantActor: Actor = { id: 'u1', persona: 'issuer', tenantId: 't1' };
 const platformActor: Actor = { id: 'p1', persona: 'platform', tenantId: null };
 
 describe('NotificationObservabilityApiService', () => {
+  describe("a caller's mistake is a 400, never a 500", () => {
+    const svc = () => new NotificationObservabilityApiService(fakePort(), options());
+    it.each([
+      ['a bad date', { since: 'yesterday' }],
+      ['a bad limit', { limit: Number('abc') }],
+      ['a zero limit', { limit: 0 }],
+      ['an unknown channel', { channel: 'fax' }],
+      ['an unknown status', { status: 'lost' }],
+      ['a NUL byte', { notificationType: 'invoice\u0000sent' }],
+      ['a malformed correlation id', { correlationId: 'has spaces' }],
+    ])('%s', async (_label, query) => {
+      await expect(svc().getDeliveryHistory(platformActor, query)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('a cursor the reader never issued', async () => {
+      const port = fakePort();
+      vi.mocked(port.getDeliveryHistory).mockRejectedValueOnce(new InvalidDeliveryCursorError('Unrecognized cursor "x"'));
+      await expect(
+        new NotificationObservabilityApiService(port, options()).getDeliveryHistory(platformActor, { cursor: 'x' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it.each(['7', 'week', '0d', '400d'])('stats window %s', async (window) => {
+      await expect(svc().getDeliveryStats(platformActor, { window })).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('stats window 24h and 30d are fine', async () => {
+      await expect(svc().getDeliveryStats(platformActor, { window: '24h' })).resolves.toBeDefined();
+      await expect(svc().getDeliveryStats(platformActor, { window: '30d' })).resolves.toBeDefined();
+    });
+  });
+
   describe('getDeliveryHistory — tenant ceiling', () => {
     it('parses since/until into Dates and passes filters through for a platform admin', async () => {
       const port = fakePort();

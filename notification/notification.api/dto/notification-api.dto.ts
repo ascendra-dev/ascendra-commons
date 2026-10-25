@@ -1,5 +1,4 @@
 import type { NotificationChannel } from '../../notification.core';
-import type { DeliveryRecord } from '../../notification.core.database';
 
 /**
  * Request shapes for `notification.api`. Plain interfaces — `ascendra-commons`
@@ -7,12 +6,13 @@ import type { DeliveryRecord } from '../../notification.core.database';
  * `.api` services apply the actor-scoped rules.
  */
 
+/** As it arrives — the service validates each field (a bad one is a 400). */
 export interface DeliveryHistoryQueryDto {
   notificationType?: string;
-  channel?: NotificationChannel;
+  channel?: string;
   tenantId?: string;
   recipientRef?: string;
-  status?: DeliveryRecord['status'];
+  status?: string;
   correlationId?: string;
   since?: string;
   until?: string;

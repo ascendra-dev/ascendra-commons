@@ -10,6 +10,7 @@ export type { NotificationConfig, NotificationConfigData, ProviderConfig } from 
 
 export type { NotificationTemplate } from './notification-template';
 export { renderTemplate } from './notification-template';
+export { NOTIFICATION_CHANNELS } from './notification.types';
 
 export type { NotificationSender } from './notification-sender.port';
 export { EmailNotificationSender } from './email-notification-sender';

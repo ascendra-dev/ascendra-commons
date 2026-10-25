@@ -80,6 +80,15 @@ describe('NotificationApiModule.forRoot — real DI wiring', () => {
     expect(getDeliveryHistory).toHaveBeenCalled();
   });
 
+  it('the delivery log answers api-contract Rule 4: { data, meta: { nextCursor } }', async () => {
+    const moduleRef = await build();
+    getDeliveryHistory.mockResolvedValueOnce({ deliveries: [{ id: '1' }], nextCursor: 'abc' });
+    await expect(moduleRef.get(NotificationObservabilityController).deliveries(platformActor)).resolves.toEqual({
+      data: [{ id: '1' }],
+      meta: { nextCursor: 'abc' },
+    });
+  });
+
   it('config-admin controller is actor-scoped and audits via the bound emitter', async () => {
     const moduleRef = await build();
     await moduleRef.get(NotificationConfigAdminController).setRoute(platformActor, {

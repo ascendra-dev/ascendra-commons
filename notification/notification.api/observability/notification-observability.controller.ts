@@ -2,8 +2,7 @@ import { Controller, Get, Inject, Param, Query, UseGuards } from '@nestjs/common
 import { AuthorizationEnforcedGuard, CurrentActor, RequiresAction, type Actor } from '../../../authorization/authorization.core';
 import { NOTIFICATION_ACTIONS } from '../notification-api.options';
 import { NotificationObservabilityApiService } from './notification-observability-api.service';
-import type { NotificationChannel } from '../../notification.core';
-import type { DeliveryRecord } from '../../notification.core.database';
+import { cursorList, positiveIntParam } from '../shared/params';
 
 /**
  * Read endpoints for a "did it send / is the config complete" admin screen. All
@@ -22,20 +21,21 @@ export class NotificationObservabilityController {
 
   @Get('deliveries')
   @RequiresAction(NOTIFICATION_ACTIONS.VIEW)
-  deliveries(
+  async deliveries(
     @CurrentActor() actor: Actor,
     @Query('notificationType') notificationType?: string,
-    @Query('channel') channel?: NotificationChannel,
+    @Query('channel') channel?: string,
     @Query('tenantId') tenantId?: string,
     @Query('recipientRef') recipientRef?: string,
-    @Query('status') status?: DeliveryRecord['status'],
+    @Query('status') status?: string,
     @Query('correlationId') correlationId?: string,
     @Query('since') since?: string,
     @Query('until') until?: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ) {
-    return this.service.getDeliveryHistory(actor, {
+    // api-contract.md Rule 4 — the port's { deliveries, nextCursor } stays a domain type; the wire shape is this one.
+    const page = await this.service.getDeliveryHistory(actor, {
       notificationType,
       channel,
       tenantId,
@@ -44,9 +44,10 @@ export class NotificationObservabilityController {
       correlationId,
       since,
       until,
-      limit: limit !== undefined ? Number(limit) : undefined,
+      limit: positiveIntParam('limit', limit),
       cursor,
     });
+    return cursorList(page.deliveries, page.nextCursor);
   }
 
   @Get('deliveries/:id')

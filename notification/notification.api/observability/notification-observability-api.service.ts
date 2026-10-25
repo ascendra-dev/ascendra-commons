@@ -1,15 +1,23 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Actor } from '../../../authorization/authorization.core';
+import { NOTIFICATION_CHANNELS } from '../../notification.core';
 import {
+  InvalidDeliveryCursorError,
   NOTIFICATION_OBSERVABILITY_PORT,
+  type DeliveryHistoryPage,
   type NotificationObservabilityPort,
 } from '../../notification.core.database';
+import { correlationIdParam, dateParam, enumParam, idParam } from '../shared/params';
 import { NOTIFICATION_API_OPTIONS } from '../tokens';
 import type { NotificationApiOptions } from '../notification-api.options';
 import type { DeliveryHistoryQueryDto, DeliveryStatsQueryDto } from '../dto/notification-api.dto';
 
 const DEFAULT_WINDOW = '7d';
 const WINDOW_RE = /^(\d+)(h|d)$/;
+/** A window longer than this is a typo, not a question — and an unbounded GROUP BY. */
+const MAX_WINDOW_DAYS = 366;
+
+const STATUSES = ['sent', 'failed', 'delivered', 'bounced'] as const;
 
 /**
  * Thin orchestration over `NotificationObservabilityPort` — the reads are
@@ -30,20 +38,28 @@ export class NotificationObservabilityApiService {
     @Inject(NOTIFICATION_API_OPTIONS) private readonly options: NotificationApiOptions,
   ) {}
 
-  async getDeliveryHistory(actor: Actor, query: DeliveryHistoryQueryDto) {
-    const tenantId = await this.resolveTenantFilter(actor, query.tenantId);
-    return this.port.getDeliveryHistory({
-      notificationType: query.notificationType,
-      channel: query.channel,
-      tenantId,
-      recipientRef: query.recipientRef,
-      status: query.status,
-      correlationId: query.correlationId,
-      since: query.since ? new Date(query.since) : undefined,
-      until: query.until ? new Date(query.until) : undefined,
-      limit: query.limit,
-      cursor: query.cursor,
-    });
+  async getDeliveryHistory(actor: Actor, query: DeliveryHistoryQueryDto): Promise<DeliveryHistoryPage> {
+    const tenantId = await this.resolveTenantFilter(actor, idParam('tenantId', query.tenantId, true));
+    if (query.limit !== undefined && (!Number.isInteger(query.limit) || query.limit < 1)) {
+      throw new BadRequestException('"limit" must be a positive whole number');
+    }
+    try {
+      return await this.port.getDeliveryHistory({
+        notificationType: idParam('notificationType', query.notificationType, true),
+        channel: enumParam('channel', query.channel, NOTIFICATION_CHANNELS),
+        tenantId,
+        recipientRef: idParam('recipientRef', query.recipientRef, true),
+        status: enumParam('status', query.status, STATUSES),
+        correlationId: correlationIdParam('correlationId', query.correlationId),
+        since: dateParam('since', query.since),
+        until: dateParam('until', query.until),
+        limit: query.limit,
+        cursor: query.cursor || undefined,
+      });
+    } catch (err) {
+      if (err instanceof InvalidDeliveryCursorError) throw new BadRequestException(err.message);
+      throw err;
+    }
   }
 
   /** 404s (rather than 403) when the row exists but belongs to another tenant — doesn't leak existence. */
@@ -67,7 +83,7 @@ export class NotificationObservabilityApiService {
   }
 
   async getDeliveryStats(actor: Actor, query: DeliveryStatsQueryDto) {
-    const tenantId = await this.resolveTenantFilter(actor, query.tenantId);
+    const tenantId = await this.resolveTenantFilter(actor, idParam('tenantId', query.tenantId, true));
     const { since, until } = resolveWindow(query.window);
     return this.port.getDeliveryStats({ tenantId, since, until });
   }
@@ -79,11 +95,14 @@ export class NotificationObservabilityApiService {
   }
 }
 
+/** `'24h'`, `'7d'`, `'30d'` — anything else is a 400, not a silent 7 days. */
 function resolveWindow(window?: string): { since: Date; until: Date } {
   const until = new Date();
-  const match = WINDOW_RE.exec(window ?? DEFAULT_WINDOW);
-  const amount = match ? Number(match[1]) : 7;
-  const unit = match?.[2] ?? 'd';
-  const ms = amount * (unit === 'h' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000);
-  return { since: new Date(until.getTime() - ms), until };
+  const match = WINDOW_RE.exec(window || DEFAULT_WINDOW);
+  const amount = match ? Number(match[1]) : NaN;
+  const hours = match?.[2] === 'h' ? amount : amount * 24;
+  if (!match || amount < 1 || hours > MAX_WINDOW_DAYS * 24) {
+    throw new BadRequestException(`"window" must look like '24h' or '7d' (up to ${MAX_WINDOW_DAYS} days)`);
+  }
+  return { since: new Date(until.getTime() - hours * 60 * 60 * 1000), until };
 }
