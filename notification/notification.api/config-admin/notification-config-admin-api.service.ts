@@ -1,6 +1,6 @@
-import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Actor } from '../../../authorization/authorization.core';
-import { renderTemplate } from '../../notification.core';
+import { NOTIFICATION_CHANNELS, renderTemplate, type NotificationChannel } from '../../notification.core';
 import {
   NOTIFICATION_CONFIG_ADMIN_PORT,
   type ConfigScope,
@@ -10,24 +10,31 @@ import { NOTIFICATION_API_OPTIONS, NOTIFICATION_AUDIT_EMITTER } from '../tokens'
 import type { NotificationApiOptions } from '../notification-api.options';
 import type { NotificationAuditEmitter } from '../notification-audit.port';
 import type {
-  DeleteChannelRouteBody,
-  DeleteProviderCredentialBody,
-  DeleteTemplateBody,
   PreviewTemplateBody,
   SetChannelRouteBody,
   SetProviderCredentialBody,
   SetTemplateBody,
 } from '../dto/notification-api.dto';
+import { booleanParam, enumParam, idParam, objectParam, tenantParam, textParam, variablesParam } from '../shared/params';
+
+/** An email subject line — RFC 5322 caps a header line at 998 characters. */
+const MAX_SUBJECT = 998;
+/** A template body — generous for an HTML email, bounded so a mistake can't fill the table. */
+const MAX_BODY = 100_000;
+/** A provider credential's JSON — a few keys, never megabytes. */
+const MAX_CREDENTIAL_BYTES = 16_384;
 
 /**
- * The actor-scoped rules `@RequiresAction('notification.manage_config')` can't
- * express, plus audit emission:
+ * The actor-scoped rules `@RequiresAction('notification.manage_config')` can't express, plus validation and audit:
  *
- *  - A non-platform admin may only touch rows for **their own tenant** — a
- *    `null` tenantId (deployment default) or a different tenant is rejected.
- *  - Each mutation emits a `NotificationAuditEvent` through the optional emitter.
+ *  - A non-platform admin may only touch rows for **their own tenant** — a `null` tenantId (deployment default) or a
+ *    different tenant is rejected.
  *  - Reads (`list*`) show a non-platform actor the deployment defaults plus their own tenant's rows — never another
  *    tenant's routing, white-labeled templates or which tenants hold a provider account.
+ *  - Every body is validated — a caller's mistake is a 400 naming what to fix, never a 500.
+ *  - Deleting a row that isn't there is a 404.
+ *  - Each mutation emits a `NotificationAuditEvent` with the row's own tenant and its `before` / `after` — a credential's
+ *    value never.
  */
 @Injectable()
 export class NotificationConfigAdminApiService {
@@ -40,15 +47,29 @@ export class NotificationConfigAdminApiService {
   // ---- routes ----
 
   async setChannelRoute(actor: Actor, body: SetChannelRouteBody): Promise<void> {
-    await this.assertTenantWritable(actor, body.tenantId);
-    await this.port.setChannelRoute(body);
-    await this.emit(actor, 'notification.route_set', 'channel_route', routeId(body.notificationType, body.tenantId), body);
+    const input = {
+      notificationType: idParam('notificationType', body?.notificationType),
+      tenantId: tenantParam('tenantId', body?.tenantId),
+      channels: channelsParam(body?.channels),
+    };
+    await this.assertTenantWritable(actor, input.tenantId);
+    const before = await this.port.getChannelRoute(input.notificationType, input.tenantId);
+    await this.port.setChannelRoute(input);
+    await this.emit(actor, 'notification.route_set', 'channel_route', input.tenantId, routeId(input.notificationType, input.tenantId), {
+      before,
+      after: input,
+    });
   }
 
-  async deleteChannelRoute(actor: Actor, body: DeleteChannelRouteBody): Promise<void> {
-    await this.assertTenantWritable(actor, body.tenantId);
-    await this.port.deleteChannelRoute(body);
-    await this.emit(actor, 'notification.route_deleted', 'channel_route', routeId(body.notificationType, body.tenantId), undefined, body);
+  async deleteChannelRoute(actor: Actor, notificationType: string, tenantId: string | undefined): Promise<void> {
+    const key = { notificationType: idParam('notificationType', notificationType), tenantId: idParam('tenantId', tenantId, true) ?? null };
+    await this.assertTenantWritable(actor, key.tenantId);
+    const before = await this.port.getChannelRoute(key.notificationType, key.tenantId);
+    if (!before) throw new NotFoundException('no such route');
+    await this.port.deleteChannelRoute(key);
+    await this.emit(actor, 'notification.route_deleted', 'channel_route', key.tenantId, routeId(key.notificationType, key.tenantId), {
+      before,
+    });
   }
 
   async listChannelRoutes(actor: Actor) {
@@ -58,15 +79,45 @@ export class NotificationConfigAdminApiService {
   // ---- templates ----
 
   async setTemplate(actor: Actor, body: SetTemplateBody): Promise<void> {
-    await this.assertTenantWritable(actor, body.tenantId);
-    await this.port.setTemplate(body);
-    await this.emit(actor, 'notification.template_set', 'template', templateId(body.channel, body.notificationType, body.tenantId), body);
+    const channel = enumParam('channel', body?.channel, NOTIFICATION_CHANNELS);
+    if (!channel) throw new BadRequestException('"channel" is required');
+    const subject = textParam('subject', body?.subject, MAX_SUBJECT) ?? null;
+    const isHtml = booleanParam('isHtml', body?.isHtml) ?? false;
+    if (channel !== 'email' && (subject !== null || isHtml)) {
+      throw new BadRequestException('"subject" and "isHtml" are for email templates only');
+    }
+    const templateBody = textParam('body', body?.body, MAX_BODY);
+    if (!templateBody) throw new BadRequestException('"body" is required');
+    const input = {
+      channel,
+      notificationType: idParam('notificationType', body?.notificationType),
+      tenantId: tenantParam('tenantId', body?.tenantId),
+      subject,
+      body: templateBody,
+      isHtml,
+    };
+    await this.assertTenantWritable(actor, input.tenantId);
+    const before = await this.port.getTemplate(input.channel, input.notificationType, input.tenantId);
+    await this.port.setTemplate(input);
+    await this.emit(actor, 'notification.template_set', 'template', input.tenantId, templateId(input.channel, input.notificationType, input.tenantId), {
+      before,
+      after: input,
+    });
   }
 
-  async deleteTemplate(actor: Actor, body: DeleteTemplateBody): Promise<void> {
-    await this.assertTenantWritable(actor, body.tenantId);
-    await this.port.deleteTemplate(body);
-    await this.emit(actor, 'notification.template_deleted', 'template', templateId(body.channel, body.notificationType, body.tenantId), undefined, body);
+  async deleteTemplate(actor: Actor, channel: string, notificationType: string, tenantId: string | undefined): Promise<void> {
+    const key = {
+      channel: requiredChannel(channel),
+      notificationType: idParam('notificationType', notificationType),
+      tenantId: idParam('tenantId', tenantId, true) ?? null,
+    };
+    await this.assertTenantWritable(actor, key.tenantId);
+    const before = await this.port.getTemplate(key.channel, key.notificationType, key.tenantId);
+    if (!before) throw new NotFoundException('no such template');
+    await this.port.deleteTemplate(key);
+    await this.emit(actor, 'notification.template_deleted', 'template', key.tenantId, templateId(key.channel, key.notificationType, key.tenantId), {
+      before,
+    });
   }
 
   async listTemplates(actor: Actor) {
@@ -75,25 +126,48 @@ export class NotificationConfigAdminApiService {
 
   /** Renders a candidate template against sample variables — stateless, no port/persistence involved. */
   previewTemplate(body: PreviewTemplateBody) {
-    return renderTemplate({ subject: body.subject, body: body.body, isHtml: body.isHtml }, body.variables ?? {});
+    const templateBody = textParam('body', body?.body, MAX_BODY);
+    if (templateBody === undefined) throw new BadRequestException('"body" is required');
+    return renderTemplate(
+      {
+        subject: textParam('subject', body?.subject, MAX_SUBJECT),
+        body: templateBody,
+        isHtml: booleanParam('isHtml', body?.isHtml),
+      },
+      variablesParam('variables', body?.variables),
+    );
   }
 
   // ---- credentials ----
 
   async setProviderCredential(actor: Actor, body: SetProviderCredentialBody): Promise<void> {
-    await this.assertTenantWritable(actor, body.tenantId);
-    await this.port.setProviderCredential(body);
-    // never audit the credential value
-    await this.emit(actor, 'notification.credential_set', 'provider_credential', `${body.channel}:${body.tenantId}`, {
-      channel: body.channel,
-      tenantId: body.tenantId,
+    const config = objectParam('config', body?.config);
+    if (JSON.stringify(config).length > MAX_CREDENTIAL_BYTES) {
+      throw new BadRequestException(`"config" must be at most ${MAX_CREDENTIAL_BYTES} bytes of JSON`);
+    }
+    const input = {
+      channel: requiredChannel(body?.channel),
+      tenantId: idParam('tenantId', body?.tenantId),
+      config,
+    };
+    await this.assertTenantWritable(actor, input.tenantId);
+    const existed = await this.port.hasProviderCredential(input.channel, input.tenantId);
+    await this.port.setProviderCredential(input);
+    // never audit the credential value — only that one was set, and whether it replaced one
+    await this.emit(actor, 'notification.credential_set', 'provider_credential', input.tenantId, `${input.channel}:${input.tenantId}`, {
+      before: existed ? { channel: input.channel, tenantId: input.tenantId, present: true } : null,
+      after: { channel: input.channel, tenantId: input.tenantId, present: true },
     });
   }
 
-  async deleteProviderCredential(actor: Actor, body: DeleteProviderCredentialBody): Promise<void> {
-    await this.assertTenantWritable(actor, body.tenantId);
-    await this.port.deleteProviderCredential(body);
-    await this.emit(actor, 'notification.credential_deleted', 'provider_credential', `${body.channel}:${body.tenantId}`, undefined, body);
+  async deleteProviderCredential(actor: Actor, channel: string, tenantId: string): Promise<void> {
+    const key = { channel: requiredChannel(channel), tenantId: idParam('tenantId', tenantId) };
+    await this.assertTenantWritable(actor, key.tenantId);
+    if (!(await this.port.hasProviderCredential(key.channel, key.tenantId))) throw new NotFoundException('no such credential');
+    await this.port.deleteProviderCredential(key);
+    await this.emit(actor, 'notification.credential_deleted', 'provider_credential', key.tenantId, `${key.channel}:${key.tenantId}`, {
+      before: { channel: key.channel, tenantId: key.tenantId, present: true },
+    });
   }
 
   async listProviderCredentials(actor: Actor) {
@@ -118,16 +192,29 @@ export class NotificationConfigAdminApiService {
     }
   }
 
+  /** The event belongs to the row's tenant — a platform admin editing tenant A's template is tenant A's history. */
   private emit(
     actor: Actor,
     action: string,
     entityType: string,
+    tenantId: string | null,
     entityId: string,
-    after?: unknown,
-    before?: unknown,
+    change: { before?: unknown; after?: unknown },
   ): Promise<void> | void {
-    return this.audit.record({ action, actorId: actor.id, tenantId: actor.tenantId, entityType, entityId, before, after });
+    return this.audit.record({ action, actorId: actor.id, tenantId, entityType, entityId, before: change.before ?? undefined, after: change.after });
   }
+}
+
+/** A non-empty list of distinct known channels. */
+function channelsParam(value: unknown): NotificationChannel[] {
+  if (!Array.isArray(value) || value.length === 0) throw new BadRequestException('"channels" must be a non-empty array');
+  return [...new Set(value.map((v, i) => requiredChannel(v, `channels[${i}]`)))];
+}
+
+function requiredChannel(value: unknown, name = 'channel'): NotificationChannel {
+  const channel = enumParam(name, value, NOTIFICATION_CHANNELS);
+  if (!channel) throw new BadRequestException(`"${name}" is required`);
+  return channel;
 }
 
 function routeId(notificationType: string, tenantId: string | null): string {

@@ -27,11 +27,6 @@ export interface SetChannelRouteBody {
   channels: NotificationChannel[];
 }
 
-export interface DeleteChannelRouteBody {
-  notificationType: string;
-  tenantId: string | null;
-}
-
 export interface SetTemplateBody {
   channel: NotificationChannel;
   notificationType: string;
@@ -41,22 +36,11 @@ export interface SetTemplateBody {
   isHtml?: boolean;
 }
 
-export interface DeleteTemplateBody {
-  channel: NotificationChannel;
-  notificationType: string;
-  tenantId: string | null;
-}
-
 export interface SetProviderCredentialBody {
   channel: NotificationChannel;
   /** Credentials are always per-tenant — never null. */
   tenantId: string;
   config: Record<string, unknown>;
-}
-
-export interface DeleteProviderCredentialBody {
-  channel: NotificationChannel;
-  tenantId: string;
 }
 
 export interface DeliveryStatsQueryDto {

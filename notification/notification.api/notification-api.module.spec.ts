@@ -34,6 +34,9 @@ const auditRecord = vi.fn();
     {
       provide: NOTIFICATION_CONFIG_ADMIN_PORT,
       useValue: {
+        getChannelRoute: vi.fn().mockResolvedValue(null),
+        getTemplate: vi.fn().mockResolvedValue(null),
+        hasProviderCredential: vi.fn().mockResolvedValue(false),
         setChannelRoute,
         deleteChannelRoute: vi.fn(),
         listChannelRoutes: vi.fn().mockResolvedValue([]),

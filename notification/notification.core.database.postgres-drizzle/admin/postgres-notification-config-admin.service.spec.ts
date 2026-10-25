@@ -72,6 +72,27 @@ describe('PostgresNotificationConfigAdminService', () => {
     expect(params).toEqual(['ascendra-pay', 't1']);
   });
 
+  it('hasProviderCredential asks whether a row exists — never selects the value', async () => {
+    const db = fakeDb();
+    db.execute.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
+    await expect(svc(db).hasProviderCredential('email', 't1')).resolves.toBe(true);
+    const { sql: text, params } = rendered(db);
+    expect(text).toMatch(/select 1 from commons_notification_provider_credential/i);
+    expect(text).not.toMatch(/config/i);
+    expect(params).toEqual(['ascendra-pay', 'email', 't1']);
+  });
+
+  it('getChannelRoute / getTemplate read one row by its key — the default row by tenant_id is null', async () => {
+    const db = fakeDb();
+    await svc(db).getChannelRoute('invoice.sent', null);
+    expect(rendered(db).sql).toMatch(/notification_type = \$\d+ and tenant_id is null/i);
+    db.execute.mockClear();
+    db.execute.mockResolvedValueOnce({ rows: [{ channel: 'email', notification_type: 'x', tenant_id: 't1', subject: null, body: 'b', is_html: false }] });
+    await expect(svc(db).getTemplate('email', 'x', 't1')).resolves.toEqual({
+      channel: 'email', notificationType: 'x', tenantId: 't1', subject: null, body: 'b', isHtml: false,
+    });
+  });
+
   it('unscoped lists filter by application only', async () => {
     const db = fakeDb();
     await svc(db).listTemplates();

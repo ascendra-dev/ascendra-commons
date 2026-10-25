@@ -11,10 +11,7 @@ export type {
   DeliveryStatsQueryDto,
   PreviewTemplateBody,
   SetChannelRouteBody,
-  DeleteChannelRouteBody,
   SetTemplateBody,
-  DeleteTemplateBody,
   SetProviderCredentialBody,
-  DeleteProviderCredentialBody,
   TestSendBody,
 } from './dto/notification-api.dto';

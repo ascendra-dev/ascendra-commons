@@ -1,3 +1,4 @@
+import type { NotificationChannel } from '../notification.core';
 import type {
   ChannelRouteView,
   ConfigScope,
@@ -22,14 +23,20 @@ import type {
  * to wire.
  */
 export interface NotificationConfigAdminPort {
+  /** One route row as stored (`tenantId` NULL = the default row) — `null` when there is none. */
+  getChannelRoute(notificationType: string, tenantId: string | null): Promise<ChannelRouteView | null>;
   setChannelRoute(input: SetChannelRouteInput): Promise<void>;
   deleteChannelRoute(input: DeleteChannelRouteInput): Promise<void>;
   listChannelRoutes(scope?: ConfigScope): Promise<ChannelRouteView[]>;
 
+  /** One template row as stored — `null` when there is none. */
+  getTemplate(channel: NotificationChannel, notificationType: string, tenantId: string | null): Promise<TemplateView | null>;
   setTemplate(input: SetTemplateInput): Promise<void>;
   deleteTemplate(input: DeleteTemplateInput): Promise<void>;
   listTemplates(scope?: ConfigScope): Promise<TemplateView[]>;
 
+  /** Whether a credential row exists for this channel and tenant — its value is never read here. */
+  hasProviderCredential(channel: NotificationChannel, tenantId: string): Promise<boolean>;
   setProviderCredential(input: SetProviderCredentialInput): Promise<void>;
   deleteProviderCredential(input: DeleteProviderCredentialInput): Promise<void>;
   listProviderCredentials(scope?: ConfigScope): Promise<ProviderCredentialView[]>;

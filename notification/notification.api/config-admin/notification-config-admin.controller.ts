@@ -1,11 +1,8 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthorizationEnforcedGuard, CurrentActor, RequiresAction, type Actor } from '../../../authorization/authorization.core';
 import { NOTIFICATION_ACTIONS } from '../notification-api.options';
 import { NotificationConfigAdminApiService } from './notification-config-admin-api.service';
 import type {
-  DeleteChannelRouteBody,
-  DeleteProviderCredentialBody,
-  DeleteTemplateBody,
   PreviewTemplateBody,
   SetChannelRouteBody,
   SetProviderCredentialBody,
@@ -40,11 +37,16 @@ export class NotificationConfigAdminController {
     return this.service.setChannelRoute(actor, body);
   }
 
-  @Delete('routes')
+  /** `?tenantId=` names a tenant's row; omitted, the deployment default. A row that isn't there is a 404. */
+  @Delete('routes/:notificationType')
   @HttpCode(204)
   @RequiresAction(NOTIFICATION_ACTIONS.MANAGE_CONFIG)
-  deleteRoute(@CurrentActor() actor: Actor, @Body() body: DeleteChannelRouteBody) {
-    return this.service.deleteChannelRoute(actor, body);
+  deleteRoute(
+    @CurrentActor() actor: Actor,
+    @Param('notificationType') notificationType: string,
+    @Query('tenantId') tenantId?: string,
+  ) {
+    return this.service.deleteChannelRoute(actor, notificationType, tenantId);
   }
 
   // templates
@@ -62,11 +64,17 @@ export class NotificationConfigAdminController {
     return this.service.setTemplate(actor, body);
   }
 
-  @Delete('templates')
+  /** `?tenantId=` names a tenant's row; omitted, the deployment default. */
+  @Delete('templates/:channel/:notificationType')
   @HttpCode(204)
   @RequiresAction(NOTIFICATION_ACTIONS.MANAGE_CONFIG)
-  deleteTemplate(@CurrentActor() actor: Actor, @Body() body: DeleteTemplateBody) {
-    return this.service.deleteTemplate(actor, body);
+  deleteTemplate(
+    @CurrentActor() actor: Actor,
+    @Param('channel') channel: string,
+    @Param('notificationType') notificationType: string,
+    @Query('tenantId') tenantId?: string,
+  ) {
+    return this.service.deleteTemplate(actor, channel, notificationType, tenantId);
   }
 
   @Post('templates/preview')
@@ -90,10 +98,11 @@ export class NotificationConfigAdminController {
     return this.service.setProviderCredential(actor, body);
   }
 
-  @Delete('credentials')
+  /** Credentials always belong to a tenant — `?tenantId=` is required. */
+  @Delete('credentials/:channel')
   @HttpCode(204)
   @RequiresAction(NOTIFICATION_ACTIONS.MANAGE_CONFIG)
-  deleteCredential(@CurrentActor() actor: Actor, @Body() body: DeleteProviderCredentialBody) {
-    return this.service.deleteProviderCredential(actor, body);
+  deleteCredential(@CurrentActor() actor: Actor, @Param('channel') channel: string, @Query('tenantId') tenantId: string) {
+    return this.service.deleteProviderCredential(actor, channel, tenantId);
   }
 }

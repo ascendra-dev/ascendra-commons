@@ -34,6 +34,15 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
     @Inject(NOTIFICATION_ADMIN_APPLICATION_ID) private readonly application: string,
   ) {}
 
+  async getChannelRoute(notificationType: string, tenantId: string | null): Promise<ChannelRouteView | null> {
+    const { rows } = await this.db.execute<{ notification_type: string; tenant_id: string | null; channels: string[] }>(sql`
+      select notification_type, tenant_id, channels from commons_notification_channel_route
+      where application = ${this.application} and notification_type = ${notificationType} and ${tenantCond(tenantId)}
+    `);
+    const r = rows[0];
+    return r ? { notificationType: r.notification_type, tenantId: r.tenant_id, channels: r.channels as NotificationChannel[] } : null;
+  }
+
   async setChannelRoute(input: SetChannelRouteInput): Promise<void> {
     await this.db.execute(sql`
       insert into commons_notification_channel_route (application, notification_type, tenant_id, channels)
@@ -62,6 +71,25 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
       tenantId: r.tenant_id,
       channels: r.channels as NotificationChannel[],
     }));
+  }
+
+  async getTemplate(channel: NotificationChannel, notificationType: string, tenantId: string | null): Promise<TemplateView | null> {
+    const { rows } = await this.db.execute<{
+      channel: string;
+      notification_type: string;
+      tenant_id: string | null;
+      subject: string | null;
+      body: string;
+      is_html: boolean;
+    }>(sql`
+      select channel, notification_type, tenant_id, subject, body, is_html from commons_notification_template
+      where application = ${this.application} and channel = ${channel} and notification_type = ${notificationType}
+        and ${tenantCond(tenantId)}
+    `);
+    const r = rows[0];
+    return r
+      ? { channel: r.channel as NotificationChannel, notificationType: r.notification_type, tenantId: r.tenant_id, subject: r.subject, body: r.body, isHtml: r.is_html }
+      : null;
   }
 
   async setTemplate(input: SetTemplateInput): Promise<void> {
@@ -107,6 +135,15 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
       body: r.body,
       isHtml: r.is_html,
     }));
+  }
+
+  async hasProviderCredential(channel: NotificationChannel, tenantId: string): Promise<boolean> {
+    // The value stays in the table — only whether a row exists.
+    const { rows } = await this.db.execute(sql`
+      select 1 from commons_notification_provider_credential
+      where application = ${this.application} and channel = ${channel} and tenant_id = ${tenantId}
+    `);
+    return rows.length > 0;
   }
 
   async setProviderCredential(input: SetProviderCredentialInput): Promise<void> {
