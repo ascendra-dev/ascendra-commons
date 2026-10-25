@@ -412,3 +412,18 @@ describe('Notifier.verifyCredential', () => {
     vi.useRealTimers();
   });
 });
+
+describe('Notifier — a failed send keeps its variables', () => {
+  it('stores the variables (no body) for a failed attempt — what a retry rebuilds it from; nothing for a skipped one', async () => {
+    const recorder = { recordAttempts: vi.fn(), updateDeliveryStatus: vi.fn() };
+    const notifier = new Notifier(
+      fakeConfig(['email', 'sms']),
+      new Map([['email', fakeSender({ status: 'failed', reason: 'provider_timeout' })], ['sms', fakeSender({ status: 'skipped', reason: 'opted_out' })]]),
+      recorder,
+    );
+    await notifier.notify({ recipient: { type: 'user', id: 'u1' }, notificationType: 'x', variables: { amount: '40' } });
+    const [email, sms] = recorder.recordAttempts.mock.calls[0][0];
+    expect(email.content).toEqual({ subject: null, body: null, isHtml: false, variables: { amount: '40' } });
+    expect(sms.content).toBeUndefined();
+  });
+});
