@@ -18,6 +18,7 @@ export type {
   DeliveryTypeStatusCount,
   DeliveryDayCount,
   CoverageGap,
+  ConfigScope,
   ChannelRouteView,
   TemplateView,
   ProviderCredentialView,

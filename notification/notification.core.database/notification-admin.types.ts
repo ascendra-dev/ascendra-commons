@@ -98,6 +98,14 @@ export interface CoverageGap {
   kind: 'missing_template' | 'missing_provider_credential';
 }
 
+/**
+ * Whose configuration a read covers: `{ tenantId }` = the deployment defaults (`tenant_id` NULL) plus that tenant's own
+ * rows — what a tenant admin may see; omitted = every row (a platform admin). Credentials have no default rows to show.
+ */
+export interface ConfigScope {
+  tenantId: string;
+}
+
 export interface ChannelRouteView {
   notificationType: string;
   tenantId: string | null;

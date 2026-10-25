@@ -64,8 +64,8 @@ export class NotificationObservabilityController {
 
   @Get('config/coverage-gaps')
   @RequiresAction(NOTIFICATION_ACTIONS.VIEW)
-  coverageGaps() {
-    return this.service.coverageGaps();
+  coverageGaps(@CurrentActor() actor: Actor) {
+    return this.service.coverageGaps(actor);
   }
 
   @Get('stats')

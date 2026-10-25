@@ -50,4 +50,31 @@ describe('PostgresNotificationConfigAdminService', () => {
     expect(list).toEqual([{ channel: 'email', tenantId: 't1' }]);
     expect(rendered(db).sql).not.toMatch(/config/i);
   });
+
+  it.each([
+    ['listChannelRoutes', 'commons_notification_channel_route'],
+    ['listTemplates', 'commons_notification_template'],
+  ] as const)('%s scoped to a tenant: the defaults plus that tenant, bound', async (method, table) => {
+    const db = fakeDb();
+    await svc(db)[method]({ tenantId: 't1' });
+    const { sql: text, params } = rendered(db);
+    expect(text).toContain(table);
+    expect(text).toMatch(/\(tenant_id is null or tenant_id = \$\d+\)/i);
+    expect(params).toEqual(['ascendra-pay', 't1']);
+  });
+
+  it('listProviderCredentials scoped to a tenant: that tenant only', async () => {
+    const db = fakeDb();
+    await svc(db).listProviderCredentials({ tenantId: 't1' });
+    const { sql: text, params } = rendered(db);
+    expect(text).toMatch(/tenant_id = \$\d+/i);
+    expect(text).not.toMatch(/tenant_id is null/i);
+    expect(params).toEqual(['ascendra-pay', 't1']);
+  });
+
+  it('unscoped lists filter by application only', async () => {
+    const db = fakeDb();
+    await svc(db).listTemplates();
+    expect(rendered(db).sql).not.toMatch(/tenant_id = /i);
+  });
 });

@@ -3,6 +3,7 @@ import type { Actor } from '../../../authorization/authorization.core';
 import { renderTemplate } from '../../notification.core';
 import {
   NOTIFICATION_CONFIG_ADMIN_PORT,
+  type ConfigScope,
   type NotificationConfigAdminPort,
 } from '../../notification.core.database';
 import { NOTIFICATION_API_OPTIONS, NOTIFICATION_AUDIT_EMITTER } from '../tokens';
@@ -25,8 +26,8 @@ import type {
  *  - A non-platform admin may only touch rows for **their own tenant** — a
  *    `null` tenantId (deployment default) or a different tenant is rejected.
  *  - Each mutation emits a `NotificationAuditEvent` through the optional emitter.
- *  - Reads (`list*`) are unscoped — the whole config is visible under
- *    `notification.view`.
+ *  - Reads (`list*`) show a non-platform actor the deployment defaults plus their own tenant's rows — never another
+ *    tenant's routing, white-labeled templates or which tenants hold a provider account.
  */
 @Injectable()
 export class NotificationConfigAdminApiService {
@@ -50,8 +51,8 @@ export class NotificationConfigAdminApiService {
     await this.emit(actor, 'notification.route_deleted', 'channel_route', routeId(body.notificationType, body.tenantId), undefined, body);
   }
 
-  listChannelRoutes() {
-    return this.port.listChannelRoutes();
+  async listChannelRoutes(actor: Actor) {
+    return this.port.listChannelRoutes(await this.scopeOf(actor));
   }
 
   // ---- templates ----
@@ -68,8 +69,8 @@ export class NotificationConfigAdminApiService {
     await this.emit(actor, 'notification.template_deleted', 'template', templateId(body.channel, body.notificationType, body.tenantId), undefined, body);
   }
 
-  listTemplates() {
-    return this.port.listTemplates();
+  async listTemplates(actor: Actor) {
+    return this.port.listTemplates(await this.scopeOf(actor));
   }
 
   /** Renders a candidate template against sample variables — stateless, no port/persistence involved. */
@@ -95,11 +96,17 @@ export class NotificationConfigAdminApiService {
     await this.emit(actor, 'notification.credential_deleted', 'provider_credential', `${body.channel}:${body.tenantId}`, undefined, body);
   }
 
-  listProviderCredentials() {
-    return this.port.listProviderCredentials();
+  async listProviderCredentials(actor: Actor) {
+    return this.port.listProviderCredentials(await this.scopeOf(actor));
   }
 
   // ---- internals ----
+
+  /** A platform admin sees every row; anyone else the defaults plus their own tenant (a tenantless one: defaults only). */
+  private async scopeOf(actor: Actor): Promise<ConfigScope | undefined> {
+    if (await this.options.isPlatformAdmin(actor)) return undefined;
+    return { tenantId: actor.tenantId ?? '' };
+  }
 
   private async assertTenantWritable(actor: Actor, tenantId: string | null): Promise<void> {
     if (await this.options.isPlatformAdmin(actor)) return;

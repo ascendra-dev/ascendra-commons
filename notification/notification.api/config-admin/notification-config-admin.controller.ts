@@ -29,8 +29,8 @@ export class NotificationConfigAdminController {
 
   @Get('routes')
   @RequiresAction(NOTIFICATION_ACTIONS.VIEW)
-  listRoutes() {
-    return this.service.listChannelRoutes();
+  listRoutes(@CurrentActor() actor: Actor) {
+    return this.service.listChannelRoutes(actor);
   }
 
   @Put('routes')
@@ -51,8 +51,8 @@ export class NotificationConfigAdminController {
 
   @Get('templates')
   @RequiresAction(NOTIFICATION_ACTIONS.VIEW)
-  listTemplates() {
-    return this.service.listTemplates();
+  listTemplates(@CurrentActor() actor: Actor) {
+    return this.service.listTemplates(actor);
   }
 
   @Put('templates')
@@ -79,8 +79,8 @@ export class NotificationConfigAdminController {
 
   @Get('credentials')
   @RequiresAction(NOTIFICATION_ACTIONS.VIEW)
-  listCredentials() {
-    return this.service.listProviderCredentials();
+  listCredentials(@CurrentActor() actor: Actor) {
+    return this.service.listProviderCredentials(actor);
   }
 
   @Put('credentials')

@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import type { NotificationChannel } from '../../notification.core';
 import type {
   ChannelRouteView,
+  ConfigScope,
   DeleteChannelRouteInput,
   DeleteProviderCredentialInput,
   DeleteTemplateInput,
@@ -50,10 +51,10 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
     `);
   }
 
-  async listChannelRoutes(): Promise<ChannelRouteView[]> {
+  async listChannelRoutes(scope?: ConfigScope): Promise<ChannelRouteView[]> {
     const { rows } = await this.db.execute<{ notification_type: string; tenant_id: string | null; channels: string[] }>(sql`
       select notification_type, tenant_id, channels from commons_notification_channel_route
-      where application = ${this.application}
+      where application = ${this.application} and ${defaultsAnd(scope)}
       order by notification_type, tenant_id nulls first
     `);
     return rows.map((r) => ({
@@ -84,7 +85,7 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
     `);
   }
 
-  async listTemplates(): Promise<TemplateView[]> {
+  async listTemplates(scope?: ConfigScope): Promise<TemplateView[]> {
     const { rows } = await this.db.execute<{
       channel: string;
       notification_type: string;
@@ -95,7 +96,7 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
     }>(sql`
       select channel, notification_type, tenant_id, subject, body, is_html
       from commons_notification_template
-      where application = ${this.application}
+      where application = ${this.application} and ${defaultsAnd(scope)}
       order by notification_type, channel, tenant_id nulls first
     `);
     return rows.map((r) => ({
@@ -124,14 +125,19 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
     `);
   }
 
-  async listProviderCredentials(): Promise<ProviderCredentialView[]> {
+  async listProviderCredentials(scope?: ConfigScope): Promise<ProviderCredentialView[]> {
     const { rows } = await this.db.execute<{ channel: string; tenant_id: string }>(sql`
       select channel, tenant_id from commons_notification_provider_credential
-      where application = ${this.application}
+      where application = ${this.application} and ${scope ? sql`tenant_id = ${scope.tenantId}` : sql`true`}
       order by channel, tenant_id
     `);
     return rows.map((r) => ({ channel: r.channel as NotificationChannel, tenantId: r.tenant_id }));
   }
+}
+
+/** The deployment defaults plus one tenant's rows — or every row when unscoped. */
+function defaultsAnd(scope?: ConfigScope) {
+  return scope ? sql`(tenant_id is null or tenant_id = ${scope.tenantId})` : sql`true`;
 }
 
 function tenantCond(tenantId: string | null) {

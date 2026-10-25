@@ -1,5 +1,6 @@
 import type {
   ChannelRouteView,
+  ConfigScope,
   DeleteChannelRouteInput,
   DeleteProviderCredentialInput,
   DeleteTemplateInput,
@@ -16,20 +17,20 @@ import type {
  * consumed by `notification.api`.
  *
  * `tenantId` NULL = the deployment default (platform-admin territory in
- * `notification.api`). Provider-credential *values* are never returned by
+ * `notification.api`). A `scope` narrows a list to the defaults plus one tenant's rows. Provider-credential *values* are never returned by
  * `listProviderCredentials` — they hold secrets. Audit is `notification.api`'s
  * to wire.
  */
 export interface NotificationConfigAdminPort {
   setChannelRoute(input: SetChannelRouteInput): Promise<void>;
   deleteChannelRoute(input: DeleteChannelRouteInput): Promise<void>;
-  listChannelRoutes(): Promise<ChannelRouteView[]>;
+  listChannelRoutes(scope?: ConfigScope): Promise<ChannelRouteView[]>;
 
   setTemplate(input: SetTemplateInput): Promise<void>;
   deleteTemplate(input: DeleteTemplateInput): Promise<void>;
-  listTemplates(): Promise<TemplateView[]>;
+  listTemplates(scope?: ConfigScope): Promise<TemplateView[]>;
 
   setProviderCredential(input: SetProviderCredentialInput): Promise<void>;
   deleteProviderCredential(input: DeleteProviderCredentialInput): Promise<void>;
-  listProviderCredentials(): Promise<ProviderCredentialView[]>;
+  listProviderCredentials(scope?: ConfigScope): Promise<ProviderCredentialView[]>;
 }

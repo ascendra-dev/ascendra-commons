@@ -125,6 +125,17 @@ describe('getDeliveryContent', () => {
 });
 
 describe('configCoverageGaps', () => {
+  it('scoped: every query reads only the defaults and that tenant', async () => {
+    const db = fakeDb();
+    await svc(db).configCoverageGaps({ tenantId: 't1' });
+    expect(db.execute).toHaveBeenCalledTimes(3);
+    for (const call of db.execute.mock.calls) {
+      const { sql: text, params } = dialect.sqlToQuery(call[0] as SQL);
+      expect(text).toMatch(/\(tenant_id is null or tenant_id = \$\d+\)/i);
+      expect(params).toContain('t1');
+    }
+  });
+
   it('flags a routed channel with no template and a tenant route with no provider credential', async () => {
     const db = fakeDb((text) => {
       if (/from commons_notification_channel_route/i.test(text)) {

@@ -64,12 +64,24 @@ describe('NotificationConfigAdminApiService — tenant ceiling', () => {
     expect(JSON.stringify(event)).not.toContain('secret');
   });
 
-  it('list reads are unscoped', async () => {
+  it("list reads: a tenant admin gets the defaults plus their own tenant — never another tenant's config", async () => {
     const { svc, port } = deps();
-    await svc.listChannelRoutes();
-    await svc.listProviderCredentials();
-    expect(port.listChannelRoutes).toHaveBeenCalled();
-    expect(port.listProviderCredentials).toHaveBeenCalled();
+    await svc.listChannelRoutes(tenantAdmin);
+    await svc.listTemplates(tenantAdmin);
+    await svc.listProviderCredentials(tenantAdmin);
+    expect(port.listChannelRoutes).toHaveBeenCalledWith({ tenantId: 't1' });
+    expect(port.listTemplates).toHaveBeenCalledWith({ tenantId: 't1' });
+    expect(port.listProviderCredentials).toHaveBeenCalledWith({ tenantId: 't1' });
+  });
+
+  it('list reads: a platform admin sees every row', async () => {
+    const { svc, port } = deps();
+    await svc.listChannelRoutes(platformAdmin);
+    await svc.listTemplates(platformAdmin);
+    await svc.listProviderCredentials(platformAdmin);
+    expect(port.listChannelRoutes).toHaveBeenCalledWith(undefined);
+    expect(port.listTemplates).toHaveBeenCalledWith(undefined);
+    expect(port.listProviderCredentials).toHaveBeenCalledWith(undefined);
   });
 });
 

@@ -6,6 +6,7 @@ import {
   encodeKeysetCursor,
   InvalidDeliveryCursorError,
   isDeliveryId,
+  type ConfigScope,
   type CoverageGap,
   type DeliveryContentRecord,
   type DeliveryHistoryPage,
@@ -120,16 +121,18 @@ export class PostgresNotificationObservabilityService implements NotificationObs
     };
   }
 
-  async configCoverageGaps(): Promise<CoverageGap[]> {
+  async configCoverageGaps(scope?: ConfigScope): Promise<CoverageGap[]> {
+    // Scoped: the defaults plus one tenant's rows — a tenant admin's gaps, never another tenant's config.
+    const rowsIn = scope ? sql`(tenant_id is null or tenant_id = ${scope.tenantId})` : sql`true`;
     const [routes, templates, creds] = await Promise.all([
       this.db.execute<{ notification_type: string; tenant_id: string | null; channels: string[] }>(
-        sql`select notification_type, tenant_id, channels from commons_notification_channel_route where application = ${this.application}`,
+        sql`select notification_type, tenant_id, channels from commons_notification_channel_route where application = ${this.application} and ${rowsIn}`,
       ),
       this.db.execute<{ channel: string; notification_type: string; tenant_id: string | null }>(
-        sql`select distinct channel, notification_type, tenant_id from commons_notification_template where application = ${this.application}`,
+        sql`select distinct channel, notification_type, tenant_id from commons_notification_template where application = ${this.application} and ${rowsIn}`,
       ),
       this.db.execute<{ channel: string; tenant_id: string }>(
-        sql`select distinct channel, tenant_id from commons_notification_provider_credential where application = ${this.application}`,
+        sql`select distinct channel, tenant_id from commons_notification_provider_credential where application = ${this.application} and ${rowsIn}`,
       ),
     ]);
 

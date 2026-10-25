@@ -83,8 +83,10 @@ export class NotificationObservabilityApiService {
     return record;
   }
 
-  coverageGaps() {
-    return this.port.configCoverageGaps();
+  /** Scoped like the config reads — a tenant admin sees gaps in the defaults and their own tenant only. */
+  async coverageGaps(actor: Actor) {
+    const platform = await this.options.isPlatformAdmin(actor);
+    return this.port.configCoverageGaps(platform ? undefined : { tenantId: actor.tenantId ?? '' });
   }
 
   async getDeliveryStats(actor: Actor, query: DeliveryStatsQueryDto) {

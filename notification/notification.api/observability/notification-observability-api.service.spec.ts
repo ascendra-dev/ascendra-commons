@@ -156,10 +156,12 @@ describe('NotificationObservabilityApiService', () => {
     });
   });
 
-  it('passes coverage-gaps through', async () => {
+  it('coverage gaps: a tenant admin only their own tenant and the defaults; a platform admin all', async () => {
     const port = fakePort();
-    await new NotificationObservabilityApiService(port, options()).coverageGaps();
-    expect(port.configCoverageGaps).toHaveBeenCalled();
+    await new NotificationObservabilityApiService(port, options()).coverageGaps(tenantActor);
+    expect(port.configCoverageGaps).toHaveBeenLastCalledWith({ tenantId: 't1' });
+    await new NotificationObservabilityApiService(port, options()).coverageGaps(platformActor);
+    expect(port.configCoverageGaps).toHaveBeenLastCalledWith(undefined);
   });
 
   describe('getDeliveryStats', () => {
