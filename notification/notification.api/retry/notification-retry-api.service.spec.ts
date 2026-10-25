@@ -8,7 +8,7 @@ import type { Actor } from '../../../authorization/authorization.core';
 const failed = (over: Partial<DeliveryRecord> = {}): DeliveryRecord => ({
   id: '41', notificationType: 'invoice.sent', channel: 'sms', tenantId: 't1', recipientRef: 'user:u9', recipientKey: 'user:u9',
   status: 'failed', reason: 'provider_timeout', providerMessageId: null, attemptedAt: new Date(), updatedAt: new Date(),
-  correlationId: 'corr-1', hasContent: true, isTest: false, retryOf: null, ...over,
+  correlationId: 'corr-1', hasContent: true, isTest: false, retryOf: null, retriedBy: null, ...over,
 });
 const stored = { id: '41', notificationType: 'invoice.sent', channel: 'sms' as const, recipientRef: 'user:u9', attemptedAt: new Date(), content: { subject: null, body: 'b', isHtml: false, variables: { amount: '40' } } };
 const tenantAdmin: Actor = { id: 'a1', persona: 'admin', tenantId: 't1' };
@@ -38,6 +38,7 @@ describe('NotificationRetryApiService', () => {
 
   it.each([
     ['a delivery that went out', failed({ status: 'sent' }), stored, /only a failed or bounced/],
+    ['one already retried', failed({ retriedBy: '57' }), stored, /already retried — delivery 57/],
     ['a test send', failed({ isTest: true }), stored, /test send/],
     ['a guest — no address stored', failed({ recipientRef: 'raw:email' }), stored, /guest/],
     ['no stored variables', failed(), null, /storeContent/],
