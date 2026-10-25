@@ -48,9 +48,20 @@ export async function seedNotificationConfigFromData(
       await db.execute(sql`
         INSERT INTO commons_notification_provider_credential (application, channel, tenant_id, config)
         VALUES (${application}, ${channel}, ${tenantId}, ${JSON.stringify(cfg)}::jsonb)
-        ON CONFLICT (application, channel, tenant_id)
+        ON CONFLICT ON CONSTRAINT commons_notification_provider_credential_uq
           DO UPDATE SET config = EXCLUDED.config
       `);
     }
+  }
+
+  // The platform's own account — the tenant_id NULL row.
+  for (const [channel, cfg] of Object.entries(data.platformProviderConfigs ?? {})) {
+    if (!cfg) continue;
+    await db.execute(sql`
+      INSERT INTO commons_notification_provider_credential (application, channel, tenant_id, config)
+      VALUES (${application}, ${channel}, NULL, ${JSON.stringify(cfg)}::jsonb)
+      ON CONFLICT ON CONSTRAINT commons_notification_provider_credential_uq
+        DO UPDATE SET config = EXCLUDED.config
+    `);
   }
 }

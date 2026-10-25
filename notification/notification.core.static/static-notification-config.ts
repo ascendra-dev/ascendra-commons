@@ -18,14 +18,19 @@ import type { NotificationChannel, NotificationTemplate } from '../notification.
  *   (`notification.core.database`), which resolves a tenant-specific row first,
  *   falling through to the deployment default.
  * - `providerConfigFor` **honors** `tenantId`: "one tenant, one provider
- *   account" is the normal shape from day one. A `null` tenantId resolves to
- *   `null` (fails closed), never a deployment-wide fallback.
+ *   account" is the normal shape from day one. A `null` tenantId resolves to the
+ *   platform's own account (`platformProviderConfigs`); a tenant with none fails
+ *   closed — unless `tenantCredentialFallback` is on, when it sends through the
+ *   platform's. Never another tenant's account.
  *
  * To go database-backed for one method only, `extends` this and override it —
  * the other methods keep serving the static data passed to `super()`.
  */
 export class StaticNotificationConfig implements NotificationConfig {
-  constructor(private readonly data: NotificationConfigData) {}
+  constructor(
+    private readonly data: NotificationConfigData,
+    private readonly tenantCredentialFallback = false,
+  ) {}
 
   async channelsFor(notificationType: string, _tenantId: string | null): Promise<NotificationChannel[]> {
     return this.data.channels[notificationType] ?? []; // deployment-wide — see the class doc for why `_tenantId` is unused
@@ -40,7 +45,8 @@ export class StaticNotificationConfig implements NotificationConfig {
   }
 
   async providerConfigFor(channel: NotificationChannel, tenantId: string | null): Promise<ProviderConfig | null> {
-    if (tenantId === null) return null;
-    return this.data.providerConfigs?.[channel]?.[tenantId] ?? null;
+    const platform = this.data.platformProviderConfigs?.[channel] ?? null;
+    if (tenantId === null) return platform;
+    return this.data.providerConfigs?.[channel]?.[tenantId] ?? (this.tenantCredentialFallback ? platform : null);
   }
 }

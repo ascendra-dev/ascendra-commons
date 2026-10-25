@@ -1,4 +1,4 @@
-import { boolean, index, jsonb, pgTable, primaryKey, text, unique } from 'drizzle-orm/pg-core';
+import { boolean, index, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
 
 /**
  * The reference `commons_notification_*` schema — one concrete Postgres/Drizzle shape
@@ -59,9 +59,9 @@ export const notificationTemplate = pgTable(
 );
 
 /**
- * Per-tenant delivery-provider settings for one channel. `tenant_id` is NOT
- * NULL — never falls through to a default (a missing row is a
- * `no_provider_config` failure, not "use another tenant's account").
+ * Delivery-provider settings for one channel: a tenant's own account, or — `tenant_id` NULL — the platform's.
+ * A tenantless send uses the platform's; a tenant with no row of its own fails `no_provider_config`, unless the app
+ * turns `tenantCredentialFallback` on, when it sends through the platform's. Never another tenant's account.
  *
  * `config` is one opaque `jsonb` blob — the adapter returns it verbatim as
  * `ProviderConfig`, because provider credential shapes vary and can't be
@@ -77,11 +77,11 @@ export const notificationProviderCredential = pgTable(
   {
     application: text('application').notNull(),
     channel: text('channel').notNull(),
-    tenantId: text('tenant_id').notNull(),
+    tenantId: text('tenant_id'),
     config: jsonb('config').notNull().$type<Record<string, unknown>>(),
   },
   (t) => [
-    primaryKey({ columns: [t.application, t.channel, t.tenantId] }),
+    unique('commons_notification_provider_credential_uq').on(t.application, t.channel, t.tenantId).nullsNotDistinct(),
     index('commons_notification_provider_credential_tenant').on(t.application, t.tenantId),
   ],
 );

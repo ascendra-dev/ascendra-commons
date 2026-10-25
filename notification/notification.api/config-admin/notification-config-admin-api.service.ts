@@ -147,25 +147,26 @@ export class NotificationConfigAdminApiService {
     }
     const input = {
       channel: requiredChannel(body?.channel),
-      tenantId: idParam('tenantId', body?.tenantId),
+      // null = the platform's own account — platform admins only (assertTenantWritable)
+      tenantId: tenantParam('tenantId', body?.tenantId),
       config,
     };
     await this.assertTenantWritable(actor, input.tenantId);
     const existed = await this.port.hasProviderCredential(input.channel, input.tenantId);
     await this.port.setProviderCredential(input);
     // never audit the credential value — only that one was set, and whether it replaced one
-    await this.emit(actor, 'notification.credential_set', 'provider_credential', input.tenantId, `${input.channel}:${input.tenantId}`, {
+    await this.emit(actor, 'notification.credential_set', 'provider_credential', input.tenantId, credentialId(input.channel, input.tenantId), {
       before: existed ? { channel: input.channel, tenantId: input.tenantId, present: true } : null,
       after: { channel: input.channel, tenantId: input.tenantId, present: true },
     });
   }
 
-  async deleteProviderCredential(actor: Actor, channel: string, tenantId: string): Promise<void> {
-    const key = { channel: requiredChannel(channel), tenantId: idParam('tenantId', tenantId) };
+  async deleteProviderCredential(actor: Actor, channel: string, tenantId: string | undefined): Promise<void> {
+    const key = { channel: requiredChannel(channel), tenantId: idParam('tenantId', tenantId, true) ?? null };
     await this.assertTenantWritable(actor, key.tenantId);
     if (!(await this.port.hasProviderCredential(key.channel, key.tenantId))) throw new NotFoundException('no such credential');
     await this.port.deleteProviderCredential(key);
-    await this.emit(actor, 'notification.credential_deleted', 'provider_credential', key.tenantId, `${key.channel}:${key.tenantId}`, {
+    await this.emit(actor, 'notification.credential_deleted', 'provider_credential', key.tenantId, credentialId(key.channel, key.tenantId), {
       before: { channel: key.channel, tenantId: key.tenantId, present: true },
     });
   }
@@ -219,6 +220,10 @@ function requiredChannel(value: unknown, name = 'channel'): NotificationChannel 
 
 function routeId(notificationType: string, tenantId: string | null): string {
   return `${notificationType}:${tenantId ?? '*'}`;
+}
+
+function credentialId(channel: string, tenantId: string | null): string {
+  return `${channel}:${tenantId ?? '*'}`;
 }
 
 function templateId(channel: string, notificationType: string, tenantId: string | null): string {

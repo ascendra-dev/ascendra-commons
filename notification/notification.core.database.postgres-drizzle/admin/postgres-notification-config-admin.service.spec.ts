@@ -34,12 +34,12 @@ describe('PostgresNotificationConfigAdminService', () => {
     expect(text).toMatch(/tenant_id is null/i);
   });
 
-  it('setProviderCredential upserts on the PK and binds config as jsonb', async () => {
+  it('setProviderCredential upserts on the unique constraint and binds config as jsonb', async () => {
     const db = fakeDb();
     await svc(db).setProviderCredential({ channel: 'email', tenantId: 't1', config: { apiKey: 'k', region: 'ap' } });
     const { sql: text, params } = rendered(db);
     expect(text).toMatch(/insert into commons_notification_provider_credential/i);
-    expect(text).toMatch(/on conflict \(application, channel, tenant_id\)/i);
+    expect(text).toMatch(/on conflict on constraint commons_notification_provider_credential_uq/i);
     expect(text).toMatch(/::jsonb/i);
     expect(params).toContain(JSON.stringify({ apiKey: 'k', region: 'ap' }));
   });
@@ -64,13 +64,21 @@ describe('PostgresNotificationConfigAdminService', () => {
     expect(params).toEqual(['ascendra-pay', 't1']);
   });
 
-  it('listProviderCredentials scoped to a tenant: that tenant only', async () => {
+  it("listProviderCredentials scoped to a tenant: theirs and the platform's — whether there's one to fall back to", async () => {
     const db = fakeDb();
     await svc(db).listProviderCredentials({ tenantId: 't1' });
     const { sql: text, params } = rendered(db);
-    expect(text).toMatch(/tenant_id = \$\d+/i);
-    expect(text).not.toMatch(/tenant_id is null/i);
+    expect(text).toMatch(/\(tenant_id is null or tenant_id = \$\d+\)/i);
     expect(params).toEqual(['ascendra-pay', 't1']);
+  });
+
+  it("the platform's credential — the tenant_id NULL row — is read, set and deleted by tenant_id is null", async () => {
+    const db = fakeDb();
+    await svc(db).hasProviderCredential('email', null);
+    await svc(db).deleteProviderCredential({ channel: 'email', tenantId: null });
+    for (const call of db.execute.mock.calls) {
+      expect(dialect.sqlToQuery(call[0] as SQL).sql).toMatch(/tenant_id is null/i);
+    }
   });
 
   it('hasProviderCredential asks whether a row exists — never selects the value', async () => {

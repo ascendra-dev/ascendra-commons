@@ -125,10 +125,10 @@ export interface TemplateView {
   isHtml: boolean;
 }
 
-/** Credentials are never returned — only which (channel, tenant) pairs have one. */
+/** Credentials are never returned — only which (channel, tenant) pairs have one. `tenantId` null = the platform's. */
 export interface ProviderCredentialView {
   channel: NotificationChannel;
-  tenantId: string;
+  tenantId: string | null;
 }
 
 // ---- write inputs ----
@@ -161,11 +161,12 @@ export interface DeleteTemplateInput {
 
 export interface SetProviderCredentialInput {
   channel: NotificationChannel;
-  tenantId: string;
+  /** `null` = the platform's own account. */
+  tenantId: string | null;
   config: Record<string, unknown>;
 }
 
 export interface DeleteProviderCredentialInput {
   channel: NotificationChannel;
-  tenantId: string;
+  tenantId: string | null;
 }

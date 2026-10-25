@@ -66,12 +66,34 @@ describe('StaticNotificationConfig', () => {
       await expect(config.providerConfigFor('email', 'unknown-tenant')).resolves.toBeNull();
     });
 
-    it('fails closed for a null tenantId — no deployment-wide default to fall back to', async () => {
+    it('fails closed for a null tenantId when the platform has no account', async () => {
       await expect(config.providerConfigFor('email', null)).resolves.toBeNull();
     });
 
     it('fails closed for a channel with no credentials configured', async () => {
       await expect(config.providerConfigFor('whatsapp', 't1')).resolves.toBeNull();
+    });
+  });
+
+  describe("providerConfigFor — the platform's own account", () => {
+    const data = {
+      channels: {},
+      providerConfigs: { email: { 'tenant-a': { apiKey: 'tenant-a' } } },
+      platformProviderConfigs: { email: { apiKey: 'platform' } },
+    };
+
+    it("a tenantless send uses the platform's account", async () => {
+      await expect(new StaticNotificationConfig(data).providerConfigFor('email', null)).resolves.toEqual({ apiKey: 'platform' });
+    });
+
+    it("by default a tenant with none fails closed — the platform's isn't used", async () => {
+      await expect(new StaticNotificationConfig(data).providerConfigFor('email', 'tenant-b')).resolves.toBeNull();
+    });
+
+    it("with the fallback, a tenant with none uses the platform's; a tenant with its own keeps it", async () => {
+      const config = new StaticNotificationConfig(data, true);
+      await expect(config.providerConfigFor('email', 'tenant-b')).resolves.toEqual({ apiKey: 'platform' });
+      await expect(config.providerConfigFor('email', 'tenant-a')).resolves.toEqual({ apiKey: 'tenant-a' });
     });
   });
 

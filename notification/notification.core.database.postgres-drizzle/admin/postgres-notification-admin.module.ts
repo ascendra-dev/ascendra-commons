@@ -5,13 +5,19 @@ import {
 } from '../../notification.core.database';
 import { PostgresNotificationConfigAdminService } from './postgres-notification-config-admin.service';
 import { PostgresNotificationObservabilityService } from './postgres-notification-observability.service';
-import { NOTIFICATION_ADMIN_APPLICATION_ID, NOTIFICATION_ADMIN_SQL_EXECUTOR } from '../tokens';
+import {
+  NOTIFICATION_ADMIN_APPLICATION_ID,
+  NOTIFICATION_ADMIN_CREDENTIAL_FALLBACK,
+  NOTIFICATION_ADMIN_SQL_EXECUTOR,
+} from '../tokens';
 
 export interface PostgresNotificationAdminModuleConfig {
   /** The token the consuming app provides its Drizzle db under — a normal pooled connection. */
   sqlExecutorToken: string | symbol | (new (...args: never[]) => unknown);
   /** Which Ascendra application this process is — every query/write is scoped to it. */
   application: string;
+  /** The same value given to `PostgresNotificationConfigModule` — so a tenant covered by the platform's credential isn't a gap. */
+  tenantCredentialFallback?: boolean;
   /** Whatever module(s) export the provider behind `sqlExecutorToken`. Omit only if that module is `global: true`. */
   imports?: DynamicModule['imports'];
 }
@@ -35,6 +41,7 @@ export class PostgresNotificationAdminModule {
       providers: [
         { provide: NOTIFICATION_ADMIN_SQL_EXECUTOR, useExisting: config.sqlExecutorToken },
         { provide: NOTIFICATION_ADMIN_APPLICATION_ID, useValue: config.application },
+        { provide: NOTIFICATION_ADMIN_CREDENTIAL_FALLBACK, useValue: config.tenantCredentialFallback ?? false },
         PostgresNotificationObservabilityService,
         { provide: NOTIFICATION_OBSERVABILITY_PORT, useExisting: PostgresNotificationObservabilityService },
         PostgresNotificationConfigAdminService,

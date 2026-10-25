@@ -69,10 +69,11 @@ describe('PostgresNotificationConfig', () => {
       });
     });
 
-    it('returns null for a null tenantId without querying — credentials never fall through', async () => {
-      const db = fakeDb();
-      await expect(new PostgresNotificationConfig(db, OPTIONS).providerConfigFor('email', null)).resolves.toBeNull();
-      expect(db.execute).not.toHaveBeenCalled();
+    it("a tenantless send reads the platform's account — the tenant_id NULL row", async () => {
+      const db = fakeDb({ credential: [{ config: { apiKey: 'platform' } }] });
+      await expect(new PostgresNotificationConfig(db, OPTIONS).providerConfigFor('email', null)).resolves.toEqual({ apiKey: 'platform' });
+      const text = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).sql;
+      expect(text).toMatch(/AND tenant_id IS NULL/i);
     });
 
     it('returns null when no credential row exists for that tenant', async () => {
@@ -80,12 +81,22 @@ describe('PostgresNotificationConfig', () => {
       await expect(new PostgresNotificationConfig(db, OPTIONS).providerConfigFor('email', 'unknown')).resolves.toBeNull();
     });
 
-    it('does not use a fall-through — the query has no "OR tenant_id IS NULL"', async () => {
-      const db = fakeDb({ credential: [{ api_key: 'k', from: 'x', from_name: null }] });
+    it("by default a tenant reads its own account only — never the platform's", async () => {
+      const db = fakeDb({ credential: [] });
       await new PostgresNotificationConfig(db, OPTIONS).providerConfigFor('email', 't1');
-
       const text = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).sql;
-      expect(text).not.toMatch(/tenant_id IS NULL/i);
+      expect(text).toMatch(/AND tenant_id = \$\d+/i);
+      expect(text).not.toMatch(/tenant_id IS NULL\)/i);
+    });
+
+    it("with tenantCredentialFallback, a tenant's own row first, then the platform's — never another tenant's", async () => {
+      const db = fakeDb({ credential: [{ config: { apiKey: 'platform' } }] });
+      const config = new PostgresNotificationConfig(db, { ...OPTIONS, tenantCredentialFallback: true });
+      await config.providerConfigFor('email', 't1');
+      const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+      expect(text).toMatch(/\(tenant_id = \$\d+ OR tenant_id IS NULL\)/i);
+      expect(text).toMatch(/ORDER BY tenant_id IS NULL/i);
+      expect(params).toContain('t1');
     });
   });
 

@@ -98,11 +98,11 @@ export class NotificationConfigAdminController {
     return this.service.setProviderCredential(actor, body);
   }
 
-  /** Credentials always belong to a tenant — `?tenantId=` is required. */
+  /** `?tenantId=` names a tenant's account; omitted, the platform's own (platform admins only). */
   @Delete('credentials/:channel')
   @HttpCode(204)
   @RequiresAction(NOTIFICATION_ACTIONS.MANAGE_CONFIG)
-  deleteCredential(@CurrentActor() actor: Actor, @Param('channel') channel: string, @Query('tenantId') tenantId: string) {
+  deleteCredential(@CurrentActor() actor: Actor, @Param('channel') channel: string, @Query('tenantId') tenantId?: string) {
     return this.service.deleteProviderCredential(actor, channel, tenantId);
   }
 }

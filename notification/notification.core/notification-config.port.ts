@@ -37,6 +37,10 @@ export interface NotificationConfig {
     notificationType: string,
     tenantId: string | null,
   ): Promise<NotificationTemplate | null>;
+  /**
+   * The tenant's own account; for `tenantId` null, the platform's. A tenant with none gets `null` — or, where the
+   * implementation is configured to fall back, the platform's. Never another tenant's.
+   */
   providerConfigFor(channel: NotificationChannel, tenantId: string | null): Promise<ProviderConfig | null>;
 }
 
@@ -51,4 +55,6 @@ export interface NotificationConfigData {
   templates?: Partial<Record<NotificationChannel, Record<string, NotificationTemplate>>>;
   /** channel -> (tenantId -> credentials). A missing entry is a per-send `no_provider_config`. */
   providerConfigs?: Partial<Record<NotificationChannel, Record<string, ProviderConfig>>>;
+  /** channel -> the platform's own account — what a tenantless send uses (and, with `tenantCredentialFallback`, a tenant without one). */
+  platformProviderConfigs?: Partial<Record<NotificationChannel, ProviderConfig>>;
 }

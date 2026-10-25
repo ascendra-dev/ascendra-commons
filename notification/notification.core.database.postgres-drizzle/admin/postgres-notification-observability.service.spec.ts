@@ -134,6 +134,19 @@ describe('getDeliveryContent', () => {
 });
 
 describe('configCoverageGaps', () => {
+  it("with the fallback on, a tenant route with no own credential isn't a gap when the platform has one", async () => {
+    const route = (text: string) => {
+      if (/from commons_notification_channel_route/i.test(text)) return [{ notification_type: 'x', tenant_id: 't1', channels: ['email'] }];
+      if (/from commons_notification_template/i.test(text)) return [{ channel: 'email', notification_type: 'x', tenant_id: null }];
+      if (/from commons_notification_provider_credential/i.test(text)) return [{ channel: 'email', tenant_id: null }];
+      return [];
+    };
+    const without = await new PostgresNotificationObservabilityService(fakeDb(route), 'ascendra-pay').configCoverageGaps();
+    expect(without).toEqual([{ notificationType: 'x', tenantId: 't1', channel: 'email', kind: 'missing_provider_credential' }]);
+    const withFallback = await new PostgresNotificationObservabilityService(fakeDb(route), 'ascendra-pay', true).configCoverageGaps();
+    expect(withFallback).toEqual([]);
+  });
+
   it('scoped: every query reads only the defaults and that tenant', async () => {
     const db = fakeDb();
     await svc(db).configCoverageGaps({ tenantId: 't1' });

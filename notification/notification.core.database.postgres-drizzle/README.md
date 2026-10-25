@@ -19,7 +19,7 @@ ports/DTOs are stack-agnostic and live in `notification.core.database`.
 
 ### 1. Tables
 
-Apply `migrations/` (`0001_config`, `0002_delivery`, `0003_delivery_test_flag`) (delivered into your migrations by `ascendra-commons.js`)
+Apply `migrations/` (`0001_config`, `0002_delivery`, `0003_delivery_test_flag`, `0004_platform_credential`) (delivered into your migrations by `ascendra-commons.js`)
 with your own migration tool — never re-export the schema tables to `drizzle-kit` too, or it
 generates them a second time (MODULE-STANDARD dimension 7).
 **Requires PostgreSQL 15+** (`NULLS NOT DISTINCT`).
@@ -62,6 +62,12 @@ notification config is ever consolidated into one shared database.
 ## Credentials — one opaque `config` jsonb
 
 Returned **verbatim** as `ProviderConfig`; the library never reads inside it.
+
+A row per tenant is that tenant's own account; the row with `tenant_id` NULL is the **platform's**. A tenantless
+send uses the platform's. A tenant with no row fails `no_provider_config` — unless the app passes
+`tenantCredentialFallback: true` to `PostgresNotificationConfigModule` (and the same to
+`PostgresNotificationAdminModule`, so coverage gaps agree), when it sends through the platform's. Never another
+tenant's account. Only a platform admin may set or delete the platform's row.
 It typically holds live secrets — **encrypt at rest** (Supabase Vault, `pgcrypto`
 + decrypting view, or `REVOKE select` from the ordinary read role).
 

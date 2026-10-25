@@ -17,6 +17,12 @@ export interface PostgresNotificationConfigModuleConfig {
   application: string;
   /** Config-cache TTL in seconds. Default 30. `0` disables the cache. */
   cacheTtlSeconds?: number;
+  /**
+   * A tenant with no provider credential of its own sends through the platform's (the `tenant_id` NULL row) instead
+   * of failing `no_provider_config` — the usual SaaS shape: the platform's account unless a tenant brings its own.
+   * Default `false`. Pass the same value to `PostgresNotificationAdminModule`, so coverage gaps agree.
+   */
+  tenantCredentialFallback?: boolean;
   /** Whatever module(s) export the provider behind `sqlExecutorToken`. */
   imports?: DynamicModule['imports'];
 }
@@ -48,7 +54,11 @@ export class PostgresNotificationConfigModule {
         { provide: NOTIFICATION_CONFIG_SQL_EXECUTOR, useExisting: config.sqlExecutorToken },
         {
           provide: NOTIFICATION_CONFIG_OPTIONS,
-          useValue: { application: config.application, cacheTtlSeconds: config.cacheTtlSeconds ?? 30 },
+          useValue: {
+            application: config.application,
+            cacheTtlSeconds: config.cacheTtlSeconds ?? 30,
+            tenantCredentialFallback: config.tenantCredentialFallback ?? false,
+          },
         },
         PostgresNotificationConfig,
         { provide: POSTGRES_NOTIFICATION_CONFIG, useExisting: PostgresNotificationConfig },

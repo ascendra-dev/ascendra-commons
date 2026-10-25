@@ -150,9 +150,14 @@ describe('NotificationConfigAdminApiService — deletes', () => {
     await expect(svc.deleteChannelRoute(tenantAdmin, 'x', undefined)).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('a credential delete needs its tenant', async () => {
-    const { svc } = deps();
-    await expect(svc.deleteProviderCredential(platformAdmin, 'email', undefined as never)).rejects.toBeInstanceOf(BadRequestException);
+  it("an absent tenantId names the platform's credential — a tenant admin may not touch it", async () => {
+    const { svc, port } = deps();
+    await expect(svc.deleteProviderCredential(tenantAdmin, 'email', undefined)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      svc.setProviderCredential(tenantAdmin, { channel: 'email', tenantId: null, config: { k: 1 } }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await svc.setProviderCredential(platformAdmin, { channel: 'email', tenantId: null, config: { k: 1 } });
+    expect(port.setProviderCredential).toHaveBeenCalledWith({ channel: 'email', tenantId: null, config: { k: 1 } });
   });
 
   it('deletes and audits what was there', async () => {

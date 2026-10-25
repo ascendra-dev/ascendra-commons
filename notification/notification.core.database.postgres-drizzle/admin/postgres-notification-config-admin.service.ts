@@ -144,11 +144,11 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
     }));
   }
 
-  async hasProviderCredential(channel: NotificationChannel, tenantId: string): Promise<boolean> {
+  async hasProviderCredential(channel: NotificationChannel, tenantId: string | null): Promise<boolean> {
     // The value stays in the table — only whether a row exists.
     const { rows } = await this.db.execute(sql`
       select 1 from commons_notification_provider_credential
-      where application = ${this.application} and channel = ${channel} and tenant_id = ${tenantId}
+      where application = ${this.application} and channel = ${channel} and ${tenantCond(tenantId)}
     `);
     return rows.length > 0;
   }
@@ -157,7 +157,7 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
     await this.db.execute(sql`
       insert into commons_notification_provider_credential (application, channel, tenant_id, config)
       values (${this.application}, ${input.channel}, ${input.tenantId}, ${JSON.stringify(input.config)}::jsonb)
-      on conflict (application, channel, tenant_id)
+      on conflict on constraint commons_notification_provider_credential_uq
       do update set config = excluded.config
     `);
     ConfigCache.invalidateAll();
@@ -166,16 +166,17 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
   async deleteProviderCredential(input: DeleteProviderCredentialInput): Promise<void> {
     await this.db.execute(sql`
       delete from commons_notification_provider_credential
-      where application = ${this.application} and channel = ${input.channel} and tenant_id = ${input.tenantId}
+      where application = ${this.application} and channel = ${input.channel} and ${tenantCond(input.tenantId)}
     `);
     ConfigCache.invalidateAll();
   }
 
   async listProviderCredentials(scope?: ConfigScope): Promise<ProviderCredentialView[]> {
-    const { rows } = await this.db.execute<{ channel: string; tenant_id: string }>(sql`
+    // A tenant admin sees their own and the platform's — whether there's an account to fall back to.
+    const { rows } = await this.db.execute<{ channel: string; tenant_id: string | null }>(sql`
       select channel, tenant_id from commons_notification_provider_credential
-      where application = ${this.application} and ${scope ? sql`tenant_id = ${scope.tenantId}` : sql`true`}
-      order by channel, tenant_id
+      where application = ${this.application} and ${defaultsAnd(scope)}
+      order by channel, tenant_id nulls first
     `);
     return rows.map((r) => ({ channel: r.channel as NotificationChannel, tenantId: r.tenant_id }));
   }

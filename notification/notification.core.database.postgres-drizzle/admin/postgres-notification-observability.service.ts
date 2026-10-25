@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { sql, type SQL } from 'drizzle-orm';
 import type { DeliveryContent, NotificationChannel } from '../../notification.core';
 import {
@@ -17,7 +17,11 @@ import {
   type NotificationObservabilityPort,
 } from '../../notification.core.database';
 import type { SqlExecutor } from '../persistence/sql-executor';
-import { NOTIFICATION_ADMIN_APPLICATION_ID, NOTIFICATION_ADMIN_SQL_EXECUTOR } from '../tokens';
+import {
+  NOTIFICATION_ADMIN_APPLICATION_ID,
+  NOTIFICATION_ADMIN_CREDENTIAL_FALLBACK,
+  NOTIFICATION_ADMIN_SQL_EXECUTOR,
+} from '../tokens';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -36,6 +40,7 @@ export class PostgresNotificationObservabilityService implements NotificationObs
   constructor(
     @Inject(NOTIFICATION_ADMIN_SQL_EXECUTOR) private readonly db: SqlExecutor,
     @Inject(NOTIFICATION_ADMIN_APPLICATION_ID) private readonly application: string,
+    @Optional() @Inject(NOTIFICATION_ADMIN_CREDENTIAL_FALLBACK) private readonly tenantCredentialFallback = false,
   ) {}
 
   async getDeliveryHistory(query: DeliveryHistoryQuery = {}): Promise<DeliveryHistoryPage> {
@@ -132,7 +137,7 @@ export class PostgresNotificationObservabilityService implements NotificationObs
       this.db.execute<{ channel: string; notification_type: string; tenant_id: string | null }>(
         sql`select distinct channel, notification_type, tenant_id from commons_notification_template where application = ${this.application} and ${rowsIn}`,
       ),
-      this.db.execute<{ channel: string; tenant_id: string }>(
+      this.db.execute<{ channel: string; tenant_id: string | null }>(
         sql`select distinct channel, tenant_id from commons_notification_provider_credential where application = ${this.application} and ${rowsIn}`,
       ),
     ]);
@@ -142,7 +147,10 @@ export class PostgresNotificationObservabilityService implements NotificationObs
     const hasTemplate = (channel: string, nt: string, tenantId: string | null) =>
       templateSet.has(templateKey(channel, nt, tenantId)) || templateSet.has(templateKey(channel, nt, null));
 
-    const credSet = new Set(creds.rows.map((r) => `${r.channel}|${r.tenant_id}`));
+    const credSet = new Set(creds.rows.map((r) => `${r.channel}|${r.tenant_id ?? ''}`));
+    // With the fallback on, a tenant with no account of its own sends through the platform's — not a gap if it exists.
+    const hasCredential = (channel: string, tenantId: string) =>
+      credSet.has(`${channel}|${tenantId}`) || (this.tenantCredentialFallback && credSet.has(`${channel}|`));
 
     const gaps: CoverageGap[] = [];
     for (const route of routes.rows) {
@@ -155,7 +163,7 @@ export class PostgresNotificationObservabilityService implements NotificationObs
             kind: 'missing_template',
           });
         }
-        if (route.tenant_id !== null && !credSet.has(`${channel}|${route.tenant_id}`)) {
+        if (route.tenant_id !== null && !hasCredential(channel, route.tenant_id)) {
           gaps.push({
             notificationType: route.notification_type,
             tenantId: route.tenant_id,

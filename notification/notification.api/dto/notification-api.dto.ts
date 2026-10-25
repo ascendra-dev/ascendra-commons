@@ -40,8 +40,8 @@ export interface SetTemplateBody {
 
 export interface SetProviderCredentialBody {
   channel: NotificationChannel;
-  /** Credentials are always per-tenant — never null. */
-  tenantId: string;
+  /** A tenant's own account, or `null` for the platform's (platform admins only). */
+  tenantId: string | null;
   config: Record<string, unknown>;
 }
 

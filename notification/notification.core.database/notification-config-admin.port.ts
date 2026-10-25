@@ -36,7 +36,7 @@ export interface NotificationConfigAdminPort {
   listTemplates(scope?: ConfigScope): Promise<TemplateView[]>;
 
   /** Whether a credential row exists for this channel and tenant — its value is never read here. */
-  hasProviderCredential(channel: NotificationChannel, tenantId: string): Promise<boolean>;
+  hasProviderCredential(channel: NotificationChannel, tenantId: string | null): Promise<boolean>;
   setProviderCredential(input: SetProviderCredentialInput): Promise<void>;
   deleteProviderCredential(input: DeleteProviderCredentialInput): Promise<void>;
   listProviderCredentials(scope?: ConfigScope): Promise<ProviderCredentialView[]>;

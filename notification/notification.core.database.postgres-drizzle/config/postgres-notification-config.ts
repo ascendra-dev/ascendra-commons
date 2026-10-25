@@ -10,6 +10,8 @@ export interface NotificationConfigOptions {
   application: string;
   /** Config-cache TTL. `0` disables the cache. */
   cacheTtlSeconds: number;
+  /** A tenant with no credential of its own sends through the platform's (`tenant_id` NULL row). */
+  tenantCredentialFallback?: boolean;
 }
 
 /**
@@ -17,7 +19,8 @@ export interface NotificationConfigOptions {
  *
  * `channelsFor` / `templateFor` resolve a **tenant-specific row first**,
  * falling through to the deployment default (`tenant_id IS NULL`).
- * `providerConfigFor` does **not** fall through. Every read is scoped by
+ * `providerConfigFor` reads the tenant's own account; a tenantless send reads the platform's (`tenant_id` NULL); a
+ * tenant without one falls through to the platform's **only** with `tenantCredentialFallback`. Every read is scoped by
  * `application` and goes through the stack-agnostic `ConfigCache` (from
  * `notification.core.database`).
  *
@@ -27,12 +30,14 @@ export interface NotificationConfigOptions {
 export class PostgresNotificationConfig implements NotificationConfig {
   private readonly cache: ConfigCache;
   private readonly application: string;
+  private readonly tenantCredentialFallback: boolean;
 
   constructor(
     @Inject(NOTIFICATION_CONFIG_SQL_EXECUTOR) private readonly db: SqlExecutor,
     @Inject(NOTIFICATION_CONFIG_OPTIONS) options: NotificationConfigOptions,
   ) {
     this.application = options.application;
+    this.tenantCredentialFallback = options.tenantCredentialFallback ?? false;
     this.cache = new ConfigCache(options.cacheTtlSeconds * 1000);
   }
 
@@ -69,11 +74,20 @@ export class PostgresNotificationConfig implements NotificationConfig {
   }
 
   providerConfigFor(channel: NotificationChannel, tenantId: string | null): Promise<ProviderConfig | null> {
-    if (tenantId === null) return Promise.resolve(null);
-    return this.cache.get(`cred:${channel}:${tenantId}`, async () => {
+    return this.cache.get(`cred:${channel}:${tenantId ?? ''}`, async () => {
+      // The tenant's own account; the platform's (tenant_id NULL) for a tenantless send, or as the fallback — the
+      // tenant's own row first. Never another tenant's.
+      const whose =
+        tenantId === null
+          ? sql`tenant_id IS NULL`
+          : this.tenantCredentialFallback
+            ? sql`(tenant_id = ${tenantId} OR tenant_id IS NULL)`
+            : sql`tenant_id = ${tenantId}`;
       const { rows } = await this.db.execute<{ config: Record<string, unknown> }>(sql`
         SELECT config FROM commons_notification_provider_credential
-        WHERE application = ${this.application} AND channel = ${channel} AND tenant_id = ${tenantId}
+        WHERE application = ${this.application} AND channel = ${channel} AND ${whose}
+        ORDER BY tenant_id IS NULL
+        LIMIT 1
       `);
       return rows[0]?.config ?? null; // returned verbatim — opaque to this library
     });

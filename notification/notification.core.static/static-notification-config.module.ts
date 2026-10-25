@@ -3,7 +3,13 @@ import type { NotificationConfigData } from '../notification.core';
 import { StaticNotificationConfig } from './static-notification-config';
 import { STATIC_NOTIFICATION_CONFIG, STATIC_NOTIFICATION_CONFIG_DATA } from './tokens';
 
-export interface StaticNotificationConfigModuleConfig extends NotificationConfigData {}
+export interface StaticNotificationConfigModuleConfig extends NotificationConfigData {
+  /**
+   * A tenant with no `providerConfigs` entry of its own sends through the platform's account
+   * (`platformProviderConfigs`) instead of failing `no_provider_config`. Default `false`.
+   */
+  tenantCredentialFallback?: boolean;
+}
 
 /**
  * Model 1 wiring. Binds `StaticNotificationConfig` (reading the in-memory
@@ -39,12 +45,13 @@ export class StaticNotificationConfigModule {
       channels: config.channels,
       templates: config.templates,
       providerConfigs: config.providerConfigs,
+      platformProviderConfigs: config.platformProviderConfigs,
     };
     return {
       module: StaticNotificationConfigModule,
       providers: [
         { provide: STATIC_NOTIFICATION_CONFIG_DATA, useValue: data },
-        { provide: StaticNotificationConfig, useValue: new StaticNotificationConfig(data) },
+        { provide: StaticNotificationConfig, useValue: new StaticNotificationConfig(data, config.tenantCredentialFallback ?? false) },
         { provide: STATIC_NOTIFICATION_CONFIG, useExisting: StaticNotificationConfig },
       ],
       exports: [STATIC_NOTIFICATION_CONFIG],
