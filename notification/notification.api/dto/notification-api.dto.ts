@@ -12,6 +12,10 @@ export interface DeliveryHistoryQueryDto {
   channel?: string;
   tenantId?: string;
   recipientRef?: string;
+  /** `user:<id>` or a hashed address, as a delivery row carries it. */
+  recipientKey?: string;
+  /** An email or phone number — hashed before the query; needs `recipientHashKey`. */
+  recipientAddress?: string;
   status?: string;
   correlationId?: string;
   /** `'true'` = test sends only, `'false'` = real sends only. */

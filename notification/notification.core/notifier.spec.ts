@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { NotificationRecipientHasher } from './recipient-hasher';
 import { Notifier, NotificationDeliveryError } from './notifier';
 import { NotificationConfig } from './notification-config.port';
 import { NotificationChannel, NotificationChannelResult } from './notification.types';
@@ -216,6 +217,25 @@ describe('Notifier — delivery log', () => {
       recipientRef: 'user:u-42', status: 'sent', providerMessageId: 'ses-1',
     }));
     expect(attempts).toContainEqual(expect.objectContaining({ channel: 'sms', status: 'failed', reason: 'no_phone' }));
+  });
+
+  it('keys each attempt by user, or by the hash of the address that channel used — never the address', async () => {
+    const recorder = fakeRecorder();
+    const hasher = new NotificationRecipientHasher('a-test-secret-of-32-characters!!');
+    const notifier = new Notifier(
+      fakeConfig(['email', 'sms']),
+      new Map([['email', fakeSender({ status: 'sent' })], ['sms', fakeSender({ status: 'sent' })]]),
+      recorder,
+      hasher,
+    );
+    await notifier.notify({ recipient: { type: 'raw', email: 'ada@example.com', phone: '+15550100' }, notificationType: 'x', variables: {} });
+    const attempts = recorder.recordAttempts.mock.calls[0][0];
+    expect(attempts.find((a: { channel: string }) => a.channel === 'email').recipientKey).toBe(hasher.hashEmail('ada@example.com'));
+    expect(attempts.find((a: { channel: string }) => a.channel === 'sms').recipientKey).toBe(hasher.hashPhone('+15550100'));
+    expect(JSON.stringify(attempts)).not.toContain('ada@');
+
+    await notifier.notify({ recipient: { type: 'user', id: 'u1' }, notificationType: 'x', variables: {} });
+    expect(recorder.recordAttempts.mock.calls[1][0][0].recipientKey).toBe('user:u1');
   });
 
   it('redacts a raw recipient to raw:email / raw:phone / raw — never the address', async () => {

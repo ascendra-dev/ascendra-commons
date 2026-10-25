@@ -12,9 +12,11 @@ import {
   NOTIFICATION_CONFIG,
   NOTIFICATION_DELIVERY_RECORDER,
   NOTIFIER,
+  NOTIFICATION_RECIPIENT_HASHER,
   NOTIFICATION_TYPES,
   USER_CONTACT_RESOLVER,
 } from './tokens';
+import { NotificationRecipientHasher } from './recipient-hasher';
 import type { NotificationTypeDefinition } from './notification-type';
 
 /** Any token NestJS's `provide`/`inject` accepts. */
@@ -68,6 +70,13 @@ export interface NotificationModuleConfig {
    * `NotificationTypeDefinition`). Exported as `NOTIFICATION_TYPES`.
    */
   types?: NotificationTypeDefinition[];
+
+  /**
+   * A secret (16+ characters, e.g. from the environment) — turns on keyed hashes of raw recipients' addresses, so the
+   * delivery log can be searched by address (and a bounced address suppressed) without storing it. Rotating it makes
+   * older rows unsearchable by address. Omit and raw recipients are logged as `raw:email` only.
+   */
+  recipientHashKey?: string;
 
   /** Whatever module(s) export the token(s) above — `useExisting` only resolves a token this module can already see. */
   imports?: DynamicModule['imports'];
@@ -129,9 +138,13 @@ export class NotificationModule {
         Notifier,
         { provide: NOTIFIER, useExisting: Notifier },
         { provide: NOTIFICATION_TYPES, useValue: checkedTypes(config.types ?? []) },
+        {
+          provide: NOTIFICATION_RECIPIENT_HASHER,
+          useValue: config.recipientHashKey ? new NotificationRecipientHasher(config.recipientHashKey) : null,
+        },
       ],
       // The resolver too — notification.api's test send checks a recipient's tenant with it.
-      exports: [NOTIFIER, USER_CONTACT_RESOLVER, NOTIFICATION_TYPES],
+      exports: [NOTIFIER, USER_CONTACT_RESOLVER, NOTIFICATION_TYPES, NOTIFICATION_RECIPIENT_HASHER],
     };
   }
 }

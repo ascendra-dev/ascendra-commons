@@ -29,6 +29,8 @@ export const notificationDelivery = pgTable(
     channel: text('channel').notNull(),
     tenantId: text('tenant_id'),
     recipientRef: text('recipient_ref').notNull(),
+    /** `user:<id>`, or a keyed hash of a raw recipient's address — searchable, never the address. */
+    recipientKey: text('recipient_key'),
     status: text('status').notNull(),
     reason: text('reason'),
     providerMessageId: text('provider_message_id'),
@@ -59,5 +61,8 @@ export const notificationDelivery = pgTable(
       .where(sql`${t.correlationId} is not null`),
     index('commons_notification_delivery_content_idx').on(t.application, t.attemptedAt).where(sql`${t.content} is not null`),
     index('commons_notification_delivery_provider_msg_idx').on(t.providerMessageId),
+    index('commons_notification_delivery_recipient_key_idx')
+      .on(t.application, t.recipientKey, t.attemptedAt.desc(), t.id.desc())
+      .where(sql`${t.recipientKey} is not null`),
   ],
 );

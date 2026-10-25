@@ -115,6 +115,14 @@ describe('PostgresNotificationDeliveryRecorder — each row normalized as it is 
     expect(params).not.toContain('has spaces');
   });
 
+  it('writes recipient_key — a user or a hashed address, never the address', async () => {
+    const db = fakeDb();
+    await recordAndFlush(recorder(db), [attempt({ recipientKey: 'h:abc' }), attempt({ recipientKey: null })]);
+    const { sql: text, params } = query(db);
+    expect(text).toMatch(/recipient_ref, recipient_key, status/i);
+    expect(params).toContain('h:abc');
+  });
+
   it('writes is_test — a test send is marked, a real one (or one that says nothing) is not', async () => {
     const db = fakeDb();
     await recordAndFlush(recorder(db), [attempt({ test: true }), attempt()]);

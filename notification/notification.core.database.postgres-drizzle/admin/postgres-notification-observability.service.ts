@@ -56,6 +56,7 @@ export class PostgresNotificationObservabilityService implements NotificationObs
     if (query.channel !== undefined) conds.push(sql`channel = ${query.channel}`);
     if (query.tenantId !== undefined) conds.push(sql`tenant_id = ${query.tenantId}`);
     if (query.recipientRef !== undefined) conds.push(sql`recipient_ref = ${query.recipientRef}`);
+    if (query.recipientKey !== undefined) conds.push(sql`recipient_key = ${query.recipientKey}`);
     if (query.status !== undefined) conds.push(sql`status = ${query.status}`);
     if (query.correlationId !== undefined) conds.push(sql`correlation_id = ${query.correlationId}`);
     if (query.test !== undefined) conds.push(sql`is_test = ${query.test}`);
@@ -74,7 +75,7 @@ export class PostgresNotificationObservabilityService implements NotificationObs
 
     const rows = (
       await this.db.execute<DeliveryRow & { attempted_at_key: string }>(sql`
-        select id, notification_type, channel, tenant_id, recipient_ref, status, reason,
+        select id, notification_type, channel, tenant_id, recipient_ref, recipient_key, status, reason,
                provider_message_id, attempted_at, updated_at, correlation_id,
                (content is not null) as has_content, is_test, ${ATTEMPTED_AT_KEY}
         from commons_notification_delivery
@@ -96,7 +97,7 @@ export class PostgresNotificationObservabilityService implements NotificationObs
     // Not a delivery id can't name a row — and `::bigint` would fail the query.
     if (!isDeliveryId(id)) return null;
     const { rows } = await this.db.execute<DeliveryRow>(sql`
-      select id, notification_type, channel, tenant_id, recipient_ref, status, reason,
+      select id, notification_type, channel, tenant_id, recipient_ref, recipient_key, status, reason,
              provider_message_id, attempted_at, updated_at, correlation_id,
              (content is not null) as has_content, is_test
       from commons_notification_delivery
@@ -301,6 +302,7 @@ interface DeliveryRow {
   channel: string;
   tenant_id: string | null;
   recipient_ref: string;
+  recipient_key: string | null;
   status: string;
   reason: string | null;
   provider_message_id: string | null;
@@ -318,6 +320,7 @@ function mapRow(row: DeliveryRow): DeliveryRecord {
     channel: row.channel as NotificationChannel,
     tenantId: row.tenant_id,
     recipientRef: row.recipient_ref,
+    recipientKey: row.recipient_key ?? null,
     status: row.status as DeliveryRecord['status'],
     reason: row.reason,
     providerMessageId: row.provider_message_id,

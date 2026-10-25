@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type { Actor } from '../../../authorization/authorization.core';
-import { NOTIFICATION_CHANNELS } from '../../notification.core';
+import { NOTIFICATION_CHANNELS, NOTIFICATION_RECIPIENT_HASHER, type NotificationRecipientHasher } from '../../notification.core';
 import {
   InvalidDeliveryCursorError,
   isValidTimeZone,
@@ -8,7 +8,7 @@ import {
   type DeliveryHistoryPage,
   type NotificationObservabilityPort,
 } from '../../notification.core.database';
-import { correlationIdParam, dateParam, enumParam, flagParam, idParam } from '../shared/params';
+import { correlationIdParam, dateParam, enumParam, flagParam, idParam, textParam } from '../shared/params';
 import { NOTIFICATION_API_OPTIONS, NOTIFICATION_AUDIT_EMITTER, NOTIFICATION_TENANT_DIRECTORY } from '../tokens';
 import type { NotificationTenantDirectory } from '../notification-tenant-directory.port';
 import type { NotificationAuditEmitter } from '../notification-audit.port';
@@ -41,7 +41,23 @@ export class NotificationObservabilityApiService {
     @Inject(NOTIFICATION_API_OPTIONS) private readonly options: NotificationApiOptions,
     @Inject(NOTIFICATION_AUDIT_EMITTER) private readonly audit: NotificationAuditEmitter,
     @Optional() @Inject(NOTIFICATION_TENANT_DIRECTORY) private readonly tenants?: NotificationTenantDirectory,
+    @Optional() @Inject(NOTIFICATION_RECIPIENT_HASHER) private readonly hasher: NotificationRecipientHasher | null = null,
   ) {}
+
+  /**
+   * `recipientKey` as given, or `recipientAddress` hashed the way Notifier keys it — an email (it has an @) or a phone
+   * number. The address never reaches the database.
+   */
+  private recipientKeyFilter(key?: string, address?: string): string | undefined {
+    const given = idParam('recipientKey', key, true);
+    const raw = textParam('recipientAddress', address, 320);
+    if (!raw) return given;
+    if (given) throw new BadRequestException('give "recipientKey" or "recipientAddress", not both');
+    if (!this.hasher) {
+      throw new BadRequestException('searching by address needs recipient hashing — NotificationModule.forRoot({ recipientHashKey })');
+    }
+    return raw.includes('@') ? this.hasher.hashEmail(raw) : this.hasher.hashPhone(raw);
+  }
 
   async getDeliveryHistory(actor: Actor, query: DeliveryHistoryQueryDto): Promise<DeliveryHistoryPage> {
     const tenantId = await this.resolveTenantFilter(actor, idParam('tenantId', query.tenantId, true));
@@ -54,6 +70,7 @@ export class NotificationObservabilityApiService {
         channel: enumParam('channel', query.channel, NOTIFICATION_CHANNELS),
         tenantId,
         recipientRef: idParam('recipientRef', query.recipientRef, true),
+        recipientKey: this.recipientKeyFilter(query.recipientKey, query.recipientAddress),
         status: enumParam('status', query.status, STATUSES),
         correlationId: correlationIdParam('correlationId', query.correlationId),
         test: query.test === undefined || query.test === '' ? undefined : flagParam('test', query.test),

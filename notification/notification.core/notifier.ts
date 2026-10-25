@@ -10,7 +10,13 @@ import type { DeliveryAttempt, NotificationDeliveryRecorder } from './notificati
 import { NoopNotificationDeliveryRecorder } from './noop-notification-delivery-recorder';
 import { NotificationSender } from './notification-sender.port';
 import { recipientRef } from './recipient-ref';
-import { NOTIFICATION_CHANNEL_SENDERS, NOTIFICATION_CONFIG, NOTIFICATION_DELIVERY_RECORDER } from './tokens';
+import { recipientKey, type NotificationRecipientHasher } from './recipient-hasher';
+import {
+  NOTIFICATION_CHANNEL_SENDERS,
+  NOTIFICATION_CONFIG,
+  NOTIFICATION_DELIVERY_RECORDER,
+  NOTIFICATION_RECIPIENT_HASHER,
+} from './tokens';
 
 /** Carries the full NotificationResult so a caller catching this can still see per-channel detail. */
 export class NotificationDeliveryError extends Error {
@@ -37,6 +43,7 @@ export class Notifier {
     @Inject(NOTIFICATION_CONFIG) private readonly config: NotificationConfig,
     @Inject(NOTIFICATION_CHANNEL_SENDERS) private readonly senders: Map<NotificationChannel, NotificationSender>,
     @Optional() @Inject(NOTIFICATION_DELIVERY_RECORDER) deliveryRecorder?: NotificationDeliveryRecorder,
+    @Optional() @Inject(NOTIFICATION_RECIPIENT_HASHER) private readonly hasher: NotificationRecipientHasher | null = null,
   ) {
     // NotificationModule.forRoot() always binds the token; the fallback keeps
     // `new Notifier(config, senders)` (tests, ad hoc wiring) working.
@@ -96,6 +103,7 @@ export class Notifier {
       channel,
       tenantId: request.tenantId ?? null,
       recipientRef: recipientRef(request.recipient),
+      recipientKey: recipientKey(channel, request.recipient, this.hasher),
       status: result.status,
       reason: result.reason,
       providerMessageId: result.providerMessageId,

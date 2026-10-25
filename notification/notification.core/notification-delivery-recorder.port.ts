@@ -25,6 +25,11 @@ export interface DeliveryAttempt {
   channel: NotificationChannel;
   tenantId: string | null;
   recipientRef: string;
+  /**
+   * What the log searches by and a suppression is filed under: `user:<id>`, or a keyed hash of a raw recipient's
+   * address on this channel — `null` when the app hashes nothing (no `recipientHashKey`).
+   */
+  recipientKey?: string | null;
   status: 'sent' | 'failed';
   reason?: string;
   providerMessageId?: string;

@@ -25,7 +25,7 @@ export interface PostgresNotificationDeliveryRecorderOptions {
 
 const DEFAULT_FLUSH_INTERVAL_MS = 2_000;
 const DEFAULT_MAX_BUFFERED_ROWS = 50_000;
-/** A batch this big is written at once, without waiting for the timer. 1,000 rows × 13 params stays far under 65,535. */
+/** A batch this big is written at once, without waiting for the timer. 1,000 rows × 14 params stays far under 65,535. */
 const ROWS_PER_INSERT = 1_000;
 const MAX_TEXT = 256;
 const MAX_REASON = 1_000;
@@ -36,6 +36,7 @@ interface BufferedRow {
   channel: string;
   tenantId: string | null;
   recipientRef: string;
+  recipientKey: string | null;
   status: 'sent' | 'failed';
   reason: string | null;
   providerMessageId: string | null;
@@ -166,6 +167,7 @@ export class PostgresNotificationDeliveryRecorder implements NotificationDeliver
       channel: text(a.channel, MAX_TEXT) ?? '(unknown)',
       tenantId: a.tenantId == null ? null : text(a.tenantId, MAX_TEXT),
       recipientRef: text(a.recipientRef, MAX_TEXT) ?? 'raw',
+      recipientKey: text(a.recipientKey, MAX_TEXT),
       status: a.status === 'sent' ? 'sent' : 'failed',
       reason: text(a.reason, MAX_REASON),
       providerMessageId: text(a.providerMessageId, MAX_TEXT),
@@ -180,13 +182,13 @@ export class PostgresNotificationDeliveryRecorder implements NotificationDeliver
     const values: SQL[] = rows.map(
       (r) => sql`(
         ${this.application}, ${r.notificationType}, ${r.channel}, ${r.tenantId},
-        ${r.recipientRef}, ${r.status}, ${r.reason}, ${r.providerMessageId},
+        ${r.recipientRef}, ${r.recipientKey}, ${r.status}, ${r.reason}, ${r.providerMessageId},
         ${r.attemptedAt}, ${r.attemptedAt}, ${r.correlationId}, ${r.content === null ? sql`null` : sql`${r.content}::jsonb`}, ${r.test}
       )`,
     );
     await this.db.execute(sql`
       insert into commons_notification_delivery
-        (application, notification_type, channel, tenant_id, recipient_ref, status, reason,
+        (application, notification_type, channel, tenant_id, recipient_ref, recipient_key, status, reason,
          provider_message_id, attempted_at, updated_at, correlation_id, content, is_test)
       values ${sql.join(values, sql`, `)}
     `);

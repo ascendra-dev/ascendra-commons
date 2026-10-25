@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { NotificationObservabilityApiService } from './notification-observability-api.service';
 import { InvalidDeliveryCursorError, type NotificationObservabilityPort } from '../../notification.core.database';
+import { NotificationRecipientHasher } from '../../notification.core';
 import type { NotificationApiOptions } from '../notification-api.options';
 import type { Actor } from '../../../authorization/authorization.core';
 
@@ -26,6 +27,41 @@ const tenantActor: Actor = { id: 'u1', persona: 'issuer', tenantId: 't1' };
 const platformActor: Actor = { id: 'p1', persona: 'platform', tenantId: null };
 
 describe('NotificationObservabilityApiService', () => {
+  describe('searching by recipient', () => {
+    const hasher = new NotificationRecipientHasher('a-test-secret-of-32-characters!!');
+
+    it('an address is hashed the way Notifier keys it — it never reaches the port', async () => {
+      const port = fakePort();
+      await new NotificationObservabilityApiService(port, options(), audit, undefined, hasher).getDeliveryHistory(platformActor, {
+        recipientAddress: 'Ada@Example.com',
+      });
+      const query = vi.mocked(port.getDeliveryHistory).mock.calls[0][0]!;
+      expect(query.recipientKey).toBe(hasher.hashEmail('ada@example.com'));
+      expect(JSON.stringify(query)).not.toContain('Example');
+    });
+
+    it('a phone number too; a key passes as given', async () => {
+      const port = fakePort();
+      const svc = new NotificationObservabilityApiService(port, options(), audit, undefined, hasher);
+      await svc.getDeliveryHistory(platformActor, { recipientAddress: '+1 555 0100' });
+      expect(vi.mocked(port.getDeliveryHistory).mock.calls[0][0]!.recipientKey).toBe(hasher.hashPhone('15550100'));
+      await svc.getDeliveryHistory(platformActor, { recipientKey: 'user:u1' });
+      expect(vi.mocked(port.getDeliveryHistory).mock.calls[1][0]!.recipientKey).toBe('user:u1');
+    });
+
+    it('without hashing, or with both given, a 400', async () => {
+      await expect(
+        new NotificationObservabilityApiService(fakePort(), options(), audit).getDeliveryHistory(platformActor, { recipientAddress: 'a@b.c' }),
+      ).rejects.toThrow(/recipientHashKey/);
+      await expect(
+        new NotificationObservabilityApiService(fakePort(), options(), audit, undefined, hasher).getDeliveryHistory(platformActor, {
+          recipientAddress: 'a@b.c',
+          recipientKey: 'user:u1',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
   describe("a caller's mistake is a 400, never a 500", () => {
     const svc = () => new NotificationObservabilityApiService(fakePort(), options(), audit);
     it.each([

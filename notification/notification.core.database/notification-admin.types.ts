@@ -14,6 +14,8 @@ export interface DeliveryRecord {
   channel: NotificationChannel;
   tenantId: string | null;
   recipientRef: string;
+  /** `user:<id>` or a keyed hash of the address — what the log searches by; `null` when the app hashes nothing. */
+  recipientKey: string | null;
   status: 'sent' | 'failed' | 'delivered' | 'bounced';
   reason: string | null;
   providerMessageId: string | null;
@@ -42,6 +44,8 @@ export interface DeliveryHistoryQuery {
   tenantId?: string;
   /** e.g. `'user:abc123'`. */
   recipientRef?: string;
+  /** `user:<id>` or a hashed address — `notification.api` hashes a searched address into this. */
+  recipientKey?: string;
   status?: DeliveryRecord['status'];
   /** Join to the same id in audit / job-run history for a cross-module trace. */
   correlationId?: string;

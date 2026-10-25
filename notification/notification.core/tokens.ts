@@ -34,5 +34,8 @@ export const NOTIFIER = Symbol('NOTIFIER');
  */
 export const NOTIFICATION_DELIVERY_RECORDER = Symbol('NOTIFICATION_DELIVERY_RECORDER');
 
+/** The `NotificationRecipientHasher` — or `null` when the app gives no `recipientHashKey` (address search off). */
+export const NOTIFICATION_RECIPIENT_HASHER = Symbol('NOTIFICATION_RECIPIENT_HASHER');
+
 /** The app's declared `NotificationTypeDefinition[]` — `forRoot({ types })`; empty when it declares none. */
 export const NOTIFICATION_TYPES = Symbol('NOTIFICATION_TYPES');
