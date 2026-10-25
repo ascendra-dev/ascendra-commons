@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { bigserial, boolean, index, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import type { DeliveryContent } from '../../notification.core';
 
@@ -45,8 +46,18 @@ export const notificationDelivery = pgTable(
     isTest: boolean('is_test').notNull().default(false),
   },
   (t) => [
-    index('commons_notification_delivery_type_time_idx').on(t.application, t.notificationType, t.attemptedAt),
-    index('commons_notification_delivery_recipient_idx').on(t.application, t.recipientRef, t.attemptedAt),
+    // Each read the screens make — see migrations/0005_delivery_read_indexes.sql.
+    index('commons_notification_delivery_list_idx').on(t.application, t.attemptedAt.desc(), t.id.desc()),
+    index('commons_notification_delivery_tenant_idx').on(t.application, t.tenantId, t.attemptedAt.desc(), t.id.desc()),
+    index('commons_notification_delivery_type_idx').on(t.application, t.notificationType, t.attemptedAt.desc(), t.id.desc()),
+    index('commons_notification_delivery_recipient_list_idx').on(t.application, t.recipientRef, t.attemptedAt.desc(), t.id.desc()),
+    index('commons_notification_delivery_failed_idx')
+      .on(t.application, t.attemptedAt.desc(), t.id.desc())
+      .where(sql`${t.status} in ('failed', 'bounced')`),
+    index('commons_notification_delivery_correlation_idx')
+      .on(t.application, t.correlationId)
+      .where(sql`${t.correlationId} is not null`),
+    index('commons_notification_delivery_content_idx').on(t.application, t.attemptedAt).where(sql`${t.content} is not null`),
     index('commons_notification_delivery_provider_msg_idx').on(t.providerMessageId),
   ],
 );
