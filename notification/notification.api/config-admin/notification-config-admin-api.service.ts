@@ -86,9 +86,11 @@ export class NotificationConfigAdminApiService {
     if (!channel) throw new BadRequestException('"channel" is required');
     const subject = textParam('subject', body?.subject, MAX_SUBJECT) ?? null;
     const isHtml = booleanParam('isHtml', body?.isHtml) ?? false;
-    if (channel !== 'email' && (subject !== null || isHtml)) {
-      throw new BadRequestException('"subject" and "isHtml" are for email templates only');
+    // An email's subject line; an in-app item's title. HTML is email's alone.
+    if (channel !== 'email' && channel !== 'in_app' && subject !== null) {
+      throw new BadRequestException('"subject" is for email (its subject line) and in_app (its title) templates only');
     }
+    if (channel !== 'email' && isHtml) throw new BadRequestException('"isHtml" is for email templates only');
     const templateBody = textParam('body', body?.body, MAX_BODY);
     if (!templateBody) throw new BadRequestException('"body" is required');
     const input = {

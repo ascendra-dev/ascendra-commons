@@ -12,3 +12,6 @@ export const NOTIFICATION_CONFIG_ADMIN_PORT = Symbol('NOTIFICATION_CONFIG_ADMIN_
 
 /** A user's preference rules — `NotificationPreferenceStore`, bound by a stack adapter. */
 export const NOTIFICATION_PREFERENCE_STORE = Symbol('NOTIFICATION_PREFERENCE_STORE');
+
+/** A user's in-app inbox — `NotificationInboxStore`, bound by a stack adapter. */
+export const NOTIFICATION_INBOX_STORE = Symbol('NOTIFICATION_INBOX_STORE');

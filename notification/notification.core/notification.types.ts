@@ -72,7 +72,8 @@ export interface NotificationRequest {
  * A channel identity is fixed and business-driven from day one — it does not
  * change when a channel's delivery mechanism goes from stub to real.
  */
-export const NOTIFICATION_CHANNELS = ['email', 'whatsapp', 'sms'] as const;
+/** `in_app` — the user's inbox in the app itself (see `InAppNotificationSender`); the others go out through a provider. */
+export const NOTIFICATION_CHANNELS = ['email', 'whatsapp', 'sms', 'in_app'] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
 /** A single channel's own outcome — always binary; only the aggregate below can be 'partial'. */

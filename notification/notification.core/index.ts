@@ -22,6 +22,8 @@ export type { NotificationSender } from './notification-sender.port';
 export { EmailNotificationSender } from './email-notification-sender';
 export { WhatsappNotificationSender } from './whatsapp-notification-sender';
 export { SMSNotificationSender } from './sms-notification-sender';
+export { InAppNotificationSender } from './in-app-notification-sender';
+export type { InboxItemInput, NotificationInbox } from './notification-inbox.port';
 
 export type { UserContactResolver } from './user-contact-resolver';
 export { NullUserContactResolver } from './user-contact-resolver';
@@ -50,4 +52,5 @@ export {
   NOTIFICATION_SUPPRESSION_LIST,
   NOTIFICATION_DEDUPLICATOR,
   NOTIFICATION_PREFERENCES,
+  NOTIFICATION_INBOX,
 } from './tokens';

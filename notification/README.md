@@ -89,4 +89,5 @@ on `NotificationRequest` and every `NotificationConfig` method.
 
 - No real senders (every stub still only logs).
 - No real `WhatsappNotificationSender` — needs its own Meta-side template shape.
+- The `in_app` channel is real (`InAppNotificationSender` + `PostgresNotificationInboxModule`); the other three ship as stubs.
 - The frontend for the admin UI — `ascendra-commons-ui`.

@@ -19,7 +19,7 @@ ports/DTOs are stack-agnostic and live in `notification.core.database`.
 
 ### 1. Tables
 
-Apply `migrations/` (`0001_config`, `0002_delivery`, `0003_delivery_test_flag`, `0004_platform_credential`, `0005_delivery_read_indexes`, `0006_delivery_recipient_key`, `0007_suppression`, `0008_dedupe`, `0009_preferences`) (delivered into your migrations by `ascendra-commons.js`)
+Apply `migrations/` (`0001_config`, `0002_delivery`, `0003_delivery_test_flag`, `0004_platform_credential`, `0005_delivery_read_indexes`, `0006_delivery_recipient_key`, `0007_suppression`, `0008_dedupe`, `0009_preferences`, `0010_inbox`) (delivered into your migrations by `ascendra-commons.js`)
 with your own migration tool — never re-export the schema tables to `drizzle-kit` too, or it
 generates them a second time (MODULE-STANDARD dimension 7).
 **Requires PostgreSQL 15+** (`NULLS NOT DISTINCT`).
@@ -79,6 +79,13 @@ Each row is normalized as it's queued. A failed write is logged with how many ro
 thrown). While the database is slow, at most `maxBufferedRows` (50,000) wait; past it the oldest are dropped and
 counted. Call `app.enableShutdownHooks()` so the last rows are written on shutdown. A provider webhook's
 `updateDeliveryStatus` writes the queue first, so it never misses a row still waiting.
+
+## The in-app inbox
+
+`PostgresNotificationInboxModule.forRoot({ sqlExecutorToken, application, imports })` — pass
+`POSTGRES_NOTIFICATION_INBOX` as `NotificationModule.forRoot({ inboxToken })` (the `in_app` channel delivers there),
+and import the module into `NotificationApiModule` too for the user's inbox endpoints. Schedule
+`PostgresNotificationRetentionService.pruneInbox(before)`.
 
 ## Users' preferences
 

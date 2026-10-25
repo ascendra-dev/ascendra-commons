@@ -105,6 +105,12 @@ describe('NotificationConfigAdminApiService — validation: a 400, never a 500',
     expect(port.setChannelRoute).not.toHaveBeenCalled();
   });
 
+  it('an in-app template takes a subject — its title', async () => {
+    const { svc, port } = deps();
+    await svc.setTemplate(platformAdmin, { channel: 'in_app', notificationType: 'x', tenantId: null, subject: 'Invoice due', body: 'b' });
+    expect(port.setTemplate).toHaveBeenCalledWith(expect.objectContaining({ channel: 'in_app', subject: 'Invoice due' }));
+  });
+
   it('route: duplicate channels collapse', async () => {
     const { svc, port } = deps();
     await svc.setChannelRoute(platformAdmin, { notificationType: 'x', tenantId: null, channels: ['email', 'email', 'sms'] });
@@ -115,6 +121,7 @@ describe('NotificationConfigAdminApiService — validation: a 400, never a 500',
     ['an unknown channel', { channel: 'fax', notificationType: 'x', tenantId: null, body: 'b' }],
     ['no body', { channel: 'email', notificationType: 'x', tenantId: null }],
     ['a subject on SMS', { channel: 'sms', notificationType: 'x', tenantId: null, subject: 'Hi', body: 'b' }],
+    ['isHtml in-app', { channel: 'in_app', notificationType: 'x', tenantId: null, isHtml: true, body: 'b' }],
     ['isHtml on SMS', { channel: 'sms', notificationType: 'x', tenantId: null, isHtml: true, body: 'b' }],
     ['isHtml not a boolean', { channel: 'email', notificationType: 'x', tenantId: null, isHtml: 'yes', body: 'b' }],
     ['a NUL in the body', { channel: 'email', notificationType: 'x', tenantId: null, body: 'a\u0000b' }],

@@ -197,6 +197,15 @@ describe('configCoverageGaps', () => {
     });
   });
 
+  it('in-app needs no provider credential — the app is the provider', async () => {
+    const db = fakeDb((text) => {
+      if (/from commons_notification_channel_route/i.test(text)) return [{ notification_type: 'x', tenant_id: null, channels: ['in_app'] }];
+      if (/from commons_notification_template/i.test(text)) return [{ channel: 'in_app', notification_type: 'x', tenant_id: null }];
+      return [];
+    });
+    expect(await svc(db).configCoverageGaps(undefined, ['t1'])).toEqual([]);
+  });
+
   it("WhatsApp needs no template row — its templates live on Meta's side", async () => {
     const db = fakeDb((text) =>
       /from commons_notification_channel_route/i.test(text) ? [{ notification_type: 'x', tenant_id: null, channels: ['whatsapp'] }] : [],

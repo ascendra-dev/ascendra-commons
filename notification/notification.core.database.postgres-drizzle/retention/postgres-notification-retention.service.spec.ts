@@ -48,6 +48,12 @@ describe('PostgresNotificationRetentionService', () => {
     expect(params).toEqual(['a', now, 5_000, 'a']);
   });
 
+  it('pruneInbox deletes inbox items created before the cutoff', async () => {
+    const db = fakeDb(1);
+    await expect(new PostgresNotificationRetentionService(db, 'a').pruneInbox(cutoff)).resolves.toBe(1);
+    expect(dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).sql).toMatch(/delete from commons_notification_inbox/i);
+  });
+
   it('nothing to do is one query', async () => {
     const db = fakeDb(0);
     await expect(new PostgresNotificationRetentionService(db, 'a').pruneDeliveries(cutoff)).resolves.toBe(0);

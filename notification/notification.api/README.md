@@ -19,6 +19,10 @@ tokens.
 | DELETE | `/notifications/suppressions/:id` | `notification.manage_config` | send to them again — audited |
 | GET | `/notifications/preferences/me` | signed in | my types, the channels each reaches me on, on or off — `required` ones always on |
 | PUT | `/notifications/preferences/me` | signed in | `{ notificationType, channel, enabled }` (either may be `*`) — my own rule only |
+| GET | `/notifications/inbox` | signed in | my in-app inbox, newest first — `?unread=true`, `{ data, meta }` |
+| GET | `/notifications/inbox/unread-count` | signed in | `{ unread }` — the badge |
+| POST | `/notifications/inbox/:id/read` | signed in | mark one of mine read (404 if not mine) |
+| POST | `/notifications/inbox/read-all` | signed in | `{ marked }` |
 | GET | `/notifications/types` | `notification.view` | the declared types (`NotificationModule.forRoot({ types })`) joined with their default channels, templates and gap counts — plus configured types nobody declared |
 | GET | `/notifications/types/:name` | `notification.view` | one type: definition, every route and template the actor may see, its gaps |
 | GET | `/notifications/config/routes` \| `/templates` \| `/credentials` | `notification.view` | `list*` — a tenant admin sees the defaults + their own tenant; credentials redacted (channel + tenant only) |

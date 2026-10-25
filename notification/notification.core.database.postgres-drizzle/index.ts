@@ -8,6 +8,7 @@ export { notificationDelivery } from './persistence/delivery.schema';
 export { notificationSuppression } from './persistence/suppression.schema';
 export { notificationDedupe } from './persistence/dedupe.schema';
 export { notificationPreference } from './persistence/preference.schema';
+export { notificationInbox } from './persistence/inbox.schema';
 export type { SqlExecutor } from './persistence/sql-executor';
 
 // Seed — behaviour-preserving model: 'static' -> database
@@ -41,6 +42,11 @@ export { PostgresNotificationPreferences } from './preferences/postgres-notifica
 export { PostgresNotificationPreferencesModule } from './preferences/postgres-notification-preferences.module';
 export type { PostgresNotificationPreferencesModuleConfig } from './preferences/postgres-notification-preferences.module';
 
+// The in-app inbox — where the in_app channel delivers, and what a user reads
+export { PostgresNotificationInbox } from './inbox/postgres-notification-inbox';
+export { PostgresNotificationInboxModule } from './inbox/postgres-notification-inbox.module';
+export type { PostgresNotificationInboxModuleConfig } from './inbox/postgres-notification-inbox.module';
+
 // Retention — the consumer schedules it
 export { PostgresNotificationRetentionService } from './retention/postgres-notification-retention.service';
 export { PostgresNotificationRetentionModule } from './retention/postgres-notification-retention.module';
@@ -58,6 +64,7 @@ export {
   POSTGRES_NOTIFICATION_SUPPRESSION_LIST,
   POSTGRES_NOTIFICATION_DEDUPLICATOR,
   POSTGRES_NOTIFICATION_PREFERENCES,
+  POSTGRES_NOTIFICATION_INBOX,
   NOTIFICATION_CONFIG_SQL_EXECUTOR,
   NOTIFICATION_ADMIN_SQL_EXECUTOR,
 } from './tokens';

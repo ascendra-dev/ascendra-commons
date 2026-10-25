@@ -76,7 +76,7 @@ describe('NotificationModule.forRoot — token wiring', () => {
     }).compile();
 
     const senders = moduleRef.get(NOTIFICATION_CHANNEL_SENDERS);
-    expect([...senders.keys()].sort()).toEqual(['email', 'sms', 'whatsapp']);
+    expect([...senders.keys()].sort()).toEqual(['email', 'in_app', 'sms', 'whatsapp']);
   });
 
   it("senders replaces one channel's stub with a real sender, built here so it can inject the config", async () => {
@@ -95,7 +95,7 @@ describe('NotificationModule.forRoot — token wiring', () => {
     const senders = moduleRef.get(NOTIFICATION_CHANNEL_SENDERS);
     expect(senders.get('email')).toBeInstanceOf(RealEmailSender);
     expect(senders.get('email')).not.toBeInstanceOf(EmailNotificationSender);
-    expect([...senders.keys()].sort()).toEqual(['email', 'sms', 'whatsapp']);
+    expect([...senders.keys()].sort()).toEqual(['email', 'in_app', 'sms', 'whatsapp']);
 
     const result = await moduleRef.get<Notifier>(NOTIFIER).notify({
       recipient: { type: 'raw', email: 'payer@example.com' },

@@ -156,8 +156,9 @@ export class PostgresNotificationObservabilityService implements NotificationObs
 
     const credSet = new Set(creds.rows.map((r) => `${r.channel}|${r.tenant_id ?? ''}`));
     // With the fallback on, a tenant with no account of its own sends through the platform's — not a gap if it exists.
+    // in_app needs none — the app is the provider.
     const hasCredential = (channel: string, tenantId: string) =>
-      credSet.has(`${channel}|${tenantId}`) || (this.tenantCredentialFallback && credSet.has(`${channel}|`));
+      channel === 'in_app' || credSet.has(`${channel}|${tenantId}`) || (this.tenantCredentialFallback && credSet.has(`${channel}|`));
 
     const gaps: CoverageGap[] = [];
     const gap = (notificationType: string, tenantId: string | null, channel: string, kind: CoverageGap['kind']) =>

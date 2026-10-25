@@ -4,6 +4,7 @@ import { NotificationSender } from './notification-sender.port';
 import { EmailNotificationSender } from './email-notification-sender';
 import { WhatsappNotificationSender } from './whatsapp-notification-sender';
 import { SMSNotificationSender } from './sms-notification-sender';
+import { InAppNotificationSender } from './in-app-notification-sender';
 import { Notifier } from './notifier';
 import { NoopNotificationDeliveryRecorder } from './noop-notification-delivery-recorder';
 import { NullUserContactResolver } from './user-contact-resolver';
@@ -14,6 +15,7 @@ import {
   NOTIFIER,
   NOTIFICATION_DEDUPE_WINDOW_MS,
   NOTIFICATION_DEDUPLICATOR,
+  NOTIFICATION_INBOX,
   NOTIFICATION_PREFERENCES,
   NOTIFICATION_RECIPIENT_HASHER,
   NOTIFICATION_SUPPRESSION_LIST,
@@ -100,6 +102,12 @@ export interface NotificationModuleConfig {
    * opt-outs; Notifier skips an opted-out channel unless the type is `required`. Omit and nothing is opted out.
    */
   preferencesToken?: OverrideToken;
+
+  /**
+   * The token a `NotificationInbox` is provided under (e.g. `POSTGRES_NOTIFICATION_INBOX`) — where the `in_app`
+   * channel delivers. Omit and an `in_app` route fails `no_inbox`.
+   */
+  inboxToken?: OverrideToken;
   /** How long a dedupe key holds. Default 24 h. */
   dedupeWindowMs?: number;
 
@@ -112,6 +120,7 @@ const STUBS: Record<NotificationChannel, Type<NotificationSender>> = {
   email: EmailNotificationSender,
   whatsapp: WhatsappNotificationSender,
   sms: SMSNotificationSender,
+  in_app: InAppNotificationSender,
 };
 
 /**
@@ -163,6 +172,7 @@ export class NotificationModule {
         ...(config.suppressionListToken ? [{ provide: NOTIFICATION_SUPPRESSION_LIST, useExisting: config.suppressionListToken }] : []),
         ...(config.deduplicatorToken ? [{ provide: NOTIFICATION_DEDUPLICATOR, useExisting: config.deduplicatorToken }] : []),
         ...(config.preferencesToken ? [{ provide: NOTIFICATION_PREFERENCES, useExisting: config.preferencesToken }] : []),
+        ...(config.inboxToken ? [{ provide: NOTIFICATION_INBOX, useExisting: config.inboxToken }] : []),
         { provide: NOTIFICATION_DEDUPE_WINDOW_MS, useValue: Math.max(1_000, config.dedupeWindowMs ?? 24 * 60 * 60 * 1000) },
         Notifier,
         { provide: NOTIFIER, useExisting: Notifier },

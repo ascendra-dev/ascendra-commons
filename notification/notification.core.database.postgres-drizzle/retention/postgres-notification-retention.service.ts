@@ -65,6 +65,19 @@ export class PostgresNotificationRetentionService {
     `);
   }
 
+  /** Deletes this application's in-app inbox items created before `before`, read or not. */
+  async pruneInbox(before: Date, batchSize = DEFAULT_BATCH_SIZE): Promise<number> {
+    return this.inBatches(batchSize, (limit) => sql`
+      with doomed as (
+        select id from commons_notification_inbox
+        where application = ${this.application} and created_at < ${before}
+        limit ${limit}
+      )
+      delete from commons_notification_inbox where id in (select id from doomed)
+      returning id
+    `);
+  }
+
   private async inBatches(batchSize: number, statement: (limit: number) => ReturnType<typeof sql>): Promise<number> {
     const limit = Math.max(1, Math.floor(batchSize));
     let total = 0;

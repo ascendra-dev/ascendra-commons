@@ -37,6 +37,9 @@ export const NOTIFICATION_DELIVERY_RECORDER = Symbol('NOTIFICATION_DELIVERY_RECO
 /** The `NotificationSuppressionList` `Notifier` asks before each send — none unless `forRoot({ suppressionListToken })`. */
 export const NOTIFICATION_SUPPRESSION_LIST = Symbol('NOTIFICATION_SUPPRESSION_LIST');
 
+/** Where the `in_app` channel delivers — none unless `forRoot({ inboxToken })`. */
+export const NOTIFICATION_INBOX = Symbol('NOTIFICATION_INBOX');
+
 /** The `NotificationPreferences` Notifier asks for a user recipient — none unless `forRoot({ preferencesToken })`. */
 export const NOTIFICATION_PREFERENCES = Symbol('NOTIFICATION_PREFERENCES');
 
