@@ -1,12 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Module } from '@nestjs/common';
+import { Inject, Injectable, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { NotificationModule } from './notification.module';
 import { Notifier } from './notifier';
 import type { NotificationConfig } from './notification-config.port';
 import type { UserContactResolver } from './user-contact-resolver';
 import type { NotificationDeliveryRecorder } from './notification-delivery-recorder.port';
+import { EmailNotificationSender } from './email-notification-sender';
+import type { NotificationSender } from './notification-sender.port';
+import type { NotificationRequest } from './notification.types';
 import {
+  NOTIFICATION_CONFIG,
   NOTIFICATION_CHANNEL_SENDERS,
   NOTIFICATION_DELIVERY_RECORDER,
   NOTIFIER,
@@ -72,6 +76,33 @@ describe('NotificationModule.forRoot — token wiring', () => {
 
     const senders = moduleRef.get(NOTIFICATION_CHANNEL_SENDERS);
     expect([...senders.keys()].sort()).toEqual(['email', 'sms', 'whatsapp']);
+  });
+
+  it("senders replaces one channel's stub with a real sender, built here so it can inject the config", async () => {
+    @Injectable()
+    class RealEmailSender implements NotificationSender {
+      constructor(@Inject(NOTIFICATION_CONFIG) private readonly config: NotificationConfig) {}
+      async send(request: NotificationRequest) {
+        const credential = await this.config.providerConfigFor('email', request.tenantId ?? null);
+        return { status: 'sent' as const, providerMessageId: `ses-${String(credential?.apiKey)}` };
+      }
+    }
+    const moduleRef = await Test.createTestingModule({
+      imports: [NotificationModule.forRoot({ configToken: CONFIG_TOKEN, senders: { email: RealEmailSender }, imports: [FakeProvidersModule] })],
+    }).compile();
+
+    const senders = moduleRef.get(NOTIFICATION_CHANNEL_SENDERS);
+    expect(senders.get('email')).toBeInstanceOf(RealEmailSender);
+    expect(senders.get('email')).not.toBeInstanceOf(EmailNotificationSender);
+    expect([...senders.keys()].sort()).toEqual(['email', 'sms', 'whatsapp']);
+
+    const result = await moduleRef.get<Notifier>(NOTIFIER).notify({
+      recipient: { type: 'raw', email: 'payer@example.com' },
+      notificationType: 'invoice.sent',
+      variables: {},
+      tenantId: 'tenant-1',
+    });
+    expect(result.channels?.email).toEqual({ status: 'sent', providerMessageId: 'ses-k' });
   });
 
   it('defaults USER_CONTACT_RESOLVER to the null resolver; userContactResolverToken overrides it', async () => {

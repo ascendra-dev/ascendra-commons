@@ -65,9 +65,11 @@ screen.
   each taking `tenantId`. Model 1's `tenantId` asymmetry (routing/templates
   deployment-wide, credentials per-tenant) is documented in `notification.core.static`.
 - **`NotificationSender`** — one per channel. The three shipped are **stubs**
-  (render + log). A real provider integration is a future
-  `notification.<channel>.<provider>` package — swapping one in is a binding
-  change, never a change to `Notifier`, `NotificationConfig`, or templates.
+  (render + a redacted log line). Plug in a real one per channel with
+  `NotificationModule.forRoot({ senders: { email: SesEmailSender } })` — the class is
+  built inside the module, so it injects `NOTIFICATION_CONFIG` (credentials, templates)
+  and `USER_CONTACT_RESOLVER`; never a change to `Notifier`, `NotificationConfig`, or
+  templates. A shared one may later ship as `notification.<channel>.<provider>`.
 - **`NotificationDeliveryRecorder`** — the delivery-log port; `Noop` by default,
   the Postgres impl opt-in via `deliveryRecorderToken`. `recipientRef` is
   redacted; `content` (rendered message) is stored only with `storeContent: true`.

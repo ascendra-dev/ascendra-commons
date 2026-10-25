@@ -1,4 +1,4 @@
-import { DynamicModule, Module, Provider } from '@nestjs/common';
+import { DynamicModule, Module, Provider, Type } from '@nestjs/common';
 import { NotificationChannel } from './notification.types';
 import { NotificationSender } from './notification-sender.port';
 import { EmailNotificationSender } from './email-notification-sender';
@@ -51,9 +51,25 @@ export interface NotificationModuleConfig {
    */
   deliveryRecorderToken?: OverrideToken;
 
+  /**
+   * The real sender for a channel, replacing its stub — e.g. `{ email: SesEmailSender }`. Each is a class implementing
+   * `NotificationSender`, constructed **inside this module**, so it can inject `NOTIFICATION_CONFIG` (its
+   * credentials, via `providerConfigFor`, and its template), `USER_CONTACT_RESOLVER`, and anything a module in
+   * `imports` exports (an SDK client). A channel not named keeps its stub. A real sender returns `providerMessageId`
+   * (so a webhook can update the row) and `rendered` (so the delivery log can store the message).
+   */
+  senders?: Partial<Record<NotificationChannel, Type<NotificationSender>>>;
+
   /** Whatever module(s) export the token(s) above — `useExisting` only resolves a token this module can already see. */
   imports?: DynamicModule['imports'];
 }
+
+/** Each channel's sender class — the stub unless `senders` names a real one. */
+const STUBS: Record<NotificationChannel, Type<NotificationSender>> = {
+  email: EmailNotificationSender,
+  whatsapp: WhatsappNotificationSender,
+  sms: SMSNotificationSender,
+};
 
 /**
  * The model-agnostic core. `forRoot()` is pure token wiring: it aliases
@@ -78,6 +94,9 @@ export class NotificationModule {
       ? { provide: USER_CONTACT_RESOLVER, useExisting: config.userContactResolverToken }
       : { provide: USER_CONTACT_RESOLVER, useClass: NullUserContactResolver };
 
+    const channels = Object.keys(STUBS) as NotificationChannel[];
+    const senderClasses = channels.map((channel) => config.senders?.[channel] ?? STUBS[channel]);
+
     const deliveryRecorderProvider: Provider = config.deliveryRecorderToken
       ? { provide: NOTIFICATION_DELIVERY_RECORDER, useExisting: config.deliveryRecorderToken }
       : { provide: NOTIFICATION_DELIVERY_RECORDER, useClass: NoopNotificationDeliveryRecorder };
@@ -90,19 +109,12 @@ export class NotificationModule {
         userResolverProvider,
         deliveryRecorderProvider,
 
-        EmailNotificationSender,
-        WhatsappNotificationSender,
-        SMSNotificationSender,
-
+        ...senderClasses,
         {
           provide: NOTIFICATION_CHANNEL_SENDERS,
-          useFactory: (email: EmailNotificationSender, whatsapp: WhatsappNotificationSender, sms: SMSNotificationSender) =>
-            new Map<NotificationChannel, NotificationSender>([
-              ['email', email],
-              ['whatsapp', whatsapp],
-              ['sms', sms],
-            ]),
-          inject: [EmailNotificationSender, WhatsappNotificationSender, SMSNotificationSender],
+          useFactory: (...instances: NotificationSender[]) =>
+            new Map<NotificationChannel, NotificationSender>(channels.map((channel, i) => [channel, instances[i]])),
+          inject: senderClasses,
         },
 
         Notifier,
