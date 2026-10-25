@@ -253,6 +253,16 @@ describe('Notifier — delivery log', () => {
     await expect(notifier.notify(REQUEST)).resolves.toMatchObject({ status: 'sent' });
   });
 
+  it('flushDeliveryLog writes a buffering recorder now — a no-op for one that has no flush, never a throw', async () => {
+    const flush = vi.fn().mockResolvedValue(undefined);
+    await new Notifier(fakeConfig(['email']), new Map(), { ...fakeRecorder(), flush }).flushDeliveryLog();
+    expect(flush).toHaveBeenCalledTimes(1);
+
+    await expect(new Notifier(fakeConfig(['email']), new Map(), fakeRecorder()).flushDeliveryLog()).resolves.toBeUndefined();
+    const failing = { ...fakeRecorder(), flush: vi.fn().mockRejectedValue(new Error('log db down')) };
+    await expect(new Notifier(fakeConfig(['email']), new Map(), failing).flushDeliveryLog()).resolves.toBeUndefined();
+  });
+
   it('does not record when channel config resolution fails (nothing was attempted)', async () => {
     const recorder = fakeRecorder();
     const notifier = new Notifier(throwingConfig(new Error('boom')), new Map(), recorder);

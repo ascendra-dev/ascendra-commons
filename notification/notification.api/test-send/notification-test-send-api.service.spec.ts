@@ -6,7 +6,7 @@ import type { Actor } from '../../../authorization/authorization.core';
 import { NotificationTypeCatalog } from '../types/notification-type-catalog';
 
 function deps(users?: UserContactResolver, types = new NotificationTypeCatalog()) {
-  const notifier = { notify: vi.fn().mockResolvedValue({ status: 'sent', channels: { email: { status: 'sent' } } }) } as unknown as Notifier;
+  const notifier = { flushDeliveryLog: vi.fn().mockResolvedValue(undefined), notify: vi.fn().mockResolvedValue({ status: 'sent', channels: { email: { status: 'sent' } } }) } as unknown as Notifier;
   const svc = new NotificationTestSendApiService(notifier, { isPlatformAdmin: (a) => a.tenantId === null }, users, types);
   return { notifier, svc };
 }

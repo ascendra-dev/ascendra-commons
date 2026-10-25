@@ -15,7 +15,7 @@ const tenantAdmin: Actor = { id: 'a1', persona: 'admin', tenantId: 't1' };
 
 function deps(delivery: DeliveryRecord | null, content: unknown = stored) {
   const port = { getDelivery: vi.fn().mockResolvedValue(delivery), getDeliveryContent: vi.fn().mockResolvedValue(content) } as unknown as NotificationObservabilityPort;
-  const notifier = { notify: vi.fn().mockResolvedValue({ status: 'sent', channels: { sms: { status: 'sent' } } }) } as unknown as Notifier;
+  const notifier = { flushDeliveryLog: vi.fn().mockResolvedValue(undefined), notify: vi.fn().mockResolvedValue({ status: 'sent', channels: { sms: { status: 'sent' } } }) } as unknown as Notifier;
   const audit = { record: vi.fn() };
   return { notifier, audit, svc: new NotificationRetryApiService(port, notifier, { isPlatformAdmin: (a) => a.tenantId === null }, audit) };
 }
@@ -29,6 +29,8 @@ describe('NotificationRetryApiService', () => {
       tenantId: 't1', channels: ['sms'], retryOf: '41', correlationId: 'corr-1',
     });
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'notification.delivery_retried', entityId: '41', tenantId: 't1' }));
+    // The retry's row is written before the answer — the retried row names it at once.
+    expect(notifier.flushDeliveryLog).toHaveBeenCalledTimes(1);
   });
 
   it("another tenant's delivery is the same 404 as a missing one", async () => {

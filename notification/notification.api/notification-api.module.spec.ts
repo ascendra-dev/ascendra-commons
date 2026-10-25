@@ -54,7 +54,7 @@ const auditRecord = vi.fn();
         deleteSuppression: vi.fn(),
       },
     },
-    { provide: NOTIFIER, useValue: { notify } },
+    { provide: NOTIFIER, useValue: { notify, flushDeliveryLog: vi.fn().mockResolvedValue(undefined) } },
     { provide: 'MY_AUDIT', useValue: { record: auditRecord } },
   ],
   exports: [NOTIFICATION_OBSERVABILITY_PORT, NOTIFICATION_CONFIG_ADMIN_PORT, NOTIFIER, 'MY_AUDIT'],
