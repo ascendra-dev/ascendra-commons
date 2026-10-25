@@ -2,12 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Notification — Admin Console Mocks</title>
+<title>Notification — Console Mocks</title>
 <style>
-  /* Tokens transcribed from ../ascendra-ui/app/globals.css (:root and .dark). Component
-     shadow/radius/gradient values transcribed from the real component source under
-     ../ascendra-ui/ascendra-ui/components/. Light is the base; dark mirrors globals.css's
-     .dark and is applied by the OS setting only (no toggle — zero JS). */
   :root {
     --background: oklch(1 0 0);
     --foreground: oklch(0.2928 0.0163 285.35);
@@ -18,9 +14,8 @@
     --card: oklch(1 0 0);
     --primary: oklch(0.5573 0.2543 283.67);
     --radius: 0.625rem;
-    --positive: #15892b; --negative: #e02e2e; --warning: #fd7224; --info: #236dd7; --dimmed: #adadb7;
-    --gray-50: #fafafb; --gray-700: #767684;
-    --shadow-xs: 0px 0px 2px 0px #00000014, 0px 1px 2px 0px #0000000f, 0px 0px 0px 1px #0000000a;
+    --positive: #15892b; --negative: #e02e2e; --warning: #fd7224; --info: #236dd7;
+    --gray-700: #767684;
     --text-caption: 0.6875rem; --text-label: 0.75rem; --text-body-sm: 0.875rem; --text-body: 1rem;
     --text-heading-sm: 1.125rem; --text-heading: 1.25rem; --text-heading-lg: 1.5rem;
     --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -28,409 +23,668 @@
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --background: oklch(0.2238 0.0077 285.76);
-      --foreground: oklch(0.9734 0.0013 286.37);
-      --muted: oklch(0.1785 0.0041 285.98);
-      --muted-foreground: oklch(0.7507 0.0142 286.05);
-      --secondary-foreground: oklch(0.985 0.001 106.423);
-      --border: oklch(0.2582 0.0093 285.73);
-      --card: oklch(0.216 0.006 285.76);
-      --primary: oklch(0.5573 0.2543 283.67);
-      --positive: #31c854; --negative: #f73d3d; --warning: #fd7224; --info: #307ff6; --dimmed: #5f5f6f;
-      --gray-50: #232328; --gray-700: #adadb7;
-      --shadow-xs: 0px 1.5px 2px 0px #00000052, 0px -1px 0px 0px #ffffff0a, 0px 0px 0px 1px #ffffff1f;
+      --background: oklch(0.2238 0.0077 285.76); --foreground: oklch(0.9734 0.0013 286.37);
+      --muted: oklch(0.1785 0.0041 285.98); --muted-foreground: oklch(0.7507 0.0142 286.05);
+      --secondary-foreground: oklch(0.985 0.001 106.423); --border: oklch(0.2582 0.0093 285.73);
+      --card: oklch(0.216 0.006 285.76); --primary: oklch(0.5573 0.2543 283.67);
+      --positive: #31c854; --negative: #f73d3d; --warning: #fd7224; --info: #307ff6; --gray-700: #adadb7;
     }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans);
-         font-size: var(--text-body-sm); line-height: 1.5; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); font-size: var(--text-body-sm); line-height: 1.5; }
   code, pre, .mono { font-family: var(--font-mono); }
-
   .shell { display: flex; min-height: 100vh; }
-  .sidebar { width: 248px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.25rem 0.75rem; }
-  .brand { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem; font-weight: 600; }
+  .sidebar { width: 248px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.25rem 0.75rem; background: var(--background); }
+  .brand { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem; font-weight: 600; font-size: var(--text-body-sm); }
   .brand span { width: 18px; height: 18px; border-radius: 5px; background: var(--primary); display: inline-block; }
   .nav-group { margin-bottom: 1rem; }
-  .nav-group-title { color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase;
-                     letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem; }
-  .nav-item { display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem; border-radius: 0.375rem;
-              color: var(--muted-foreground); font-size: var(--text-body-sm); text-decoration: none; position: relative; }
+  .nav-group-title { color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase; letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem; }
+  .nav-item { display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem; border-radius: 0.375rem; color: var(--muted-foreground); font-size: var(--text-body-sm); text-decoration: none; position: relative; }
   .nav-item.active { background: color-mix(in oklab, var(--foreground) 8%, transparent); color: var(--foreground); }
   .nav-item.active::before { content: ""; position: absolute; left: 2px; top: 6px; bottom: 6px; width: 1px; background: var(--foreground); }
-  .nav-item .pill { margin-left: auto; font-size: 9px; line-height: 11px; padding: 1px 4px; border-radius: 4px;
-                    background: color-mix(in oklab, var(--warning) 12%, transparent); color: var(--warning);
-                    text-transform: uppercase; letter-spacing: 0.02em; }
-
   .main { flex: 1; min-width: 0; padding: 1.75rem 2rem 4rem; max-width: 1180px; }
+  .page-head { margin-bottom: 0.375rem; }
   .page-title { font-size: var(--text-heading-lg); font-weight: 600; margin: 0; }
-  .page-sub { color: var(--muted-foreground); margin: 0.25rem 0 0; max-width: 74ch; }
-
-  .note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem;
-          background: color-mix(in oklab, var(--info) 6%, transparent);
-          border: 1px solid color-mix(in oklab, var(--info) 22%, transparent); margin: 1.25rem 0; }
+  .page-sub { color: var(--muted-foreground); margin: 0.25rem 0 0; max-width: 70ch; }
+  .note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; background: color-mix(in oklab, var(--info) 6%, transparent); border: 1px solid color-mix(in oklab, var(--info) 22%, transparent); color: var(--foreground); font-size: var(--text-body-sm); margin: 1.25rem 0; }
   .note b { color: var(--info); }
-
-  .cov { width: 100%; border-collapse: collapse; margin: 0.75rem 0 0.5rem; }
-  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
-            padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  .note.warn { background: color-mix(in oklab, var(--warning) 7%, transparent); border-color: color-mix(in oklab, var(--warning) 26%, transparent); }
+  .note.warn b { color: var(--warning); }
+  .cov { width: 100%; border-collapse: collapse; margin: 0.75rem 0 0.5rem; font-size: var(--text-body-sm); }
+  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
   .cov td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
   .cov td:first-child { font-weight: 500; white-space: nowrap; }
-
-  .screen { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin: 1.5rem 0; }
+  .screen { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin: 1.5rem 0; background: var(--background); }
   .screen-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-bottom: 0.25rem; }
   .screen-name { font-size: var(--text-heading); font-weight: 600; margin: 0; }
   .screen-purpose { color: var(--muted-foreground); margin: 0.25rem 0 1rem; }
-  .endpoint { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--text-caption);
-              padding: 0.15rem 0.45rem; border-radius: 4px; background: var(--muted); border: 1px solid var(--border); }
+  .endpoint { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--text-caption); padding: 0.15rem 0.45rem; border-radius: 4px; background: var(--muted); border: 1px solid var(--border); color: var(--foreground); }
   .endpoint .m { font-weight: 700; color: var(--info); }
-  .status { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em;
-            padding: 0.1rem 0.35rem; border-radius: 4px; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .status { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
   .status.live { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 22%, transparent); }
-  .status.partial { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 24%, transparent); }
-  .status.proposed { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent); }
   .gating { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0 0 1rem; padding-left: 0.75rem; border-left: 2px solid var(--border); }
   .gating code { color: var(--foreground); }
-  .proposed-note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; margin: 0 0 1rem;
-                   background: color-mix(in oklab, var(--primary) 5%, transparent);
-                   border: 1px dashed color-mix(in oklab, var(--primary) 35%, transparent); }
-  .proposed-note b { color: var(--primary); }
-  .proposed-note .sig { font-family: var(--font-mono); font-size: var(--text-caption); }
-
   .filterbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
-  .field { height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--background);
-           font-size: var(--text-body-sm); display: inline-flex; align-items: center; gap: 0.35rem; }
+  .field { height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--background); color: var(--foreground); font-size: var(--text-body-sm); display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; }
   .field .lbl { color: var(--muted-foreground); }
-  .btn { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
-         font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary); position: relative; overflow: hidden;
-         box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16), 0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255); }
+  .field .val { color: var(--foreground); }
+  .btn { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer; font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary); position: relative; overflow: hidden; box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16), 0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255); }
   .btn::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(255,255,255,0.2), transparent); }
-  .btn-secondary { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
-                   font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card);
-                   box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06), 0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1); }
-
-  .table { width: 100%; border-collapse: separate; border-spacing: 0; }
-  .table th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
-              padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .btn-secondary { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer; font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card); box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06), 0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1); }
+  .table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--text-body-sm); }
+  .table th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
   .table td { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); vertical-align: top; }
   .table tbody tr:hover { background: color-mix(in oklab, var(--gray-700) 4%, transparent); }
   .table .t-time { color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .table .t-id { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted-foreground); }
-
-  .badge { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em;
-           padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
-  .badge.ok    { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 20%, transparent); }
-  .badge.fail  { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 20%, transparent); }
-  .badge.warn  { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 20%, transparent); }
-  .badge.info  { color: var(--info); background-color: color-mix(in oklab, var(--info) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 16%, transparent); }
-  .badge.neutral { color: var(--muted-foreground); background-color: color-mix(in oklab, var(--gray-700) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gray-700) 16%, transparent); }
-  .badge.brand { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent); }
-
-  .dot { width: 6px; height: 6px; border-radius: 999px; display: inline-block; flex-shrink: 0; }
-  .dot.emerald { background: #31c854; box-shadow: 0 0 0 3px color-mix(in oklab, #31c854 25%, transparent); }
-  .dot.rose { background: #f86969; box-shadow: 0 0 0 3px color-mix(in oklab, #f86969 25%, transparent); }
-  .dot.amber { background: #f59e0b; box-shadow: 0 0 0 3px color-mix(in oklab, #f59e0b 25%, transparent); }
-  .dot.sky { background: #6694f8; box-shadow: 0 0 0 3px color-mix(in oklab, #6694f8 25%, transparent); }
-
-  .pagebar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.25rem 0; color: var(--muted-foreground); }
+  .table .t-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .badge { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .badge.action { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent); }
+  .badge.bad { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 16%, transparent); }
+  .pagebar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.25rem 0; color: var(--muted-foreground); font-size: var(--text-body-sm); }
   .pagebar .pager { display: flex; gap: 0.25rem; }
-  .pagebar .pager span { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem;
-                         padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption); }
-
-  .empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1rem; padding: 2.5rem;
-           border: 1px dashed var(--border); border-radius: 0.75rem; color: var(--muted-foreground); }
-  .empty .ic { width: 3rem; height: 3rem; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;
-               background: color-mix(in oklab, var(--gray-700) 4%, transparent); box-shadow: inset 0 0 0 1px var(--border); font-size: 1.1rem; }
-
-  .drawer { position: relative; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
-            padding: 1.5rem; margin: 1.5rem 0 1.5rem 2rem; max-width: 580px; box-shadow: var(--shadow-xs); }
-  .drawer::before { content: attr(data-label); display: block; font-size: var(--text-caption); color: var(--muted-foreground);
-                    text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.875rem; }
-  .drawer > .x { position: absolute; top: 1.25rem; right: 1.25rem; color: var(--muted-foreground); font-size: 0.9rem; }
-
-  .sheet { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); padding: 1.5rem;
-           margin: 1rem 0 0 2rem; max-width: 520px; box-shadow: var(--shadow-xs); }
-  .sheet::before { content: attr(data-label); display: block; font-size: var(--text-caption); color: var(--muted-foreground);
-                   text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.75rem; }
-  .form-row { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.875rem; }
-  .form-row label { font-size: var(--text-label); color: var(--muted-foreground); }
-  .form-row .control { height: 2rem; border: 1px solid var(--border); border-radius: 0.375rem; padding: 0 0.6rem; display: flex; align-items: center; }
-  .form-row textarea.control { height: auto; min-height: 4.5rem; padding: 0.5rem 0.6rem; font-family: var(--font-mono); font-size: var(--text-caption); }
-
-  .kv { display: grid; grid-template-columns: 140px 1fr; gap: 0.4rem 1rem; margin: 0; }
-  .kv dt { color: var(--muted-foreground); }
-  .kv dd { margin: 0; word-break: break-word; }
-
-  .diff { margin: 1rem 0 0; border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; }
-  .diff > summary { cursor: pointer; padding: 0.5rem 0.75rem; font-size: var(--text-label); color: var(--secondary-foreground);
-                    background: var(--muted); list-style: none; }
-  .diff > summary::-webkit-details-marker { display: none; }
-  .diff pre { margin: 0; padding: 0.75rem; font-size: var(--text-caption); overflow-x: auto; white-space: pre-wrap; }
-
+  .pagebar .pager span { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem; padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption); }
   .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
   .kpi { background: var(--muted); border-radius: 0.75rem; padding: 0.875rem 1rem; }
+  .kpi.alert { background: color-mix(in oklab, var(--negative) 6%, var(--muted)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 20%, transparent); }
   .kpi .k-label { color: var(--muted-foreground); font-size: var(--text-label); }
   .kpi .k-value { font-size: var(--text-heading); font-weight: 600; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
-
-  .bars { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding: 0.5rem 0; }
-  .bars .bar { flex: 1; background: color-mix(in oklab, var(--primary) 55%, transparent); border-radius: 3px 3px 0 0; }
-
-  .breadcrumb { color: var(--muted-foreground); margin-bottom: 0.75rem; }
+  .kpi.alert .k-value { color: var(--negative); }
+  .timeline { position: relative; margin: 0; padding: 0 0 0 1.25rem; list-style: none; }
+  .timeline::before { content: ""; position: absolute; left: 3px; top: 4px; bottom: 4px; width: 1px; background: var(--border); }
+  .tl-item { position: relative; padding: 0 0 1.1rem; }
+  .tl-item::before { content: ""; position: absolute; left: -1.25rem; top: 5px; width: 7px; height: 7px; border-radius: 999px; background: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent); }
+  .tl-time { color: var(--muted-foreground); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
+  .tl-title { font-size: var(--text-body-sm); margin-top: 0.1rem; }
+  .breadcrumb { color: var(--muted-foreground); font-size: var(--text-body-sm); margin-bottom: 0.75rem; }
   .breadcrumb b { color: var(--foreground); font-weight: 500; }
   .scrollx { overflow-x: auto; }
   h3.sub { font-size: var(--text-heading-sm); font-weight: 600; margin: 1.5rem 0 0.5rem; }
+  .seg { display: inline-flex; padding: 2px; border-radius: 0.5rem; background: var(--muted); border: 1px solid var(--border); gap: 2px; }
+  .seg span { padding: 0.2rem 0.65rem; border-radius: 0.375rem; font-size: var(--text-label); color: var(--muted-foreground); }
+  .seg span.on { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+  .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+  .panel { border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.125rem; }
+  .panel h4 { margin: 0 0 0.75rem; font-size: var(--text-body-sm); font-weight: 600; }
+  .bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.625rem; }
+  .bars a { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.75rem; color: inherit; text-decoration: none; }
+  .bars .bar { grid-column: 1 / -1; height: 6px; border-radius: 999px; background: var(--muted); overflow: hidden; }
+  .bars .bar i { display: block; height: 100%; background: color-mix(in oklab, var(--negative) 70%, transparent); border-radius: 999px; }
+  .bars .n { font-variant-numeric: tabular-nums; font-weight: 500; }
+  .src { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .src:last-child { border-bottom: 0; }
+  .src .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .muted { color: var(--muted-foreground); }
+  .link { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: color-mix(in oklab, var(--primary) 40%, transparent); }
+  .empty { text-align: center; padding: 2.5rem 1rem; color: var(--muted-foreground); border: 1px dashed var(--border); border-radius: var(--radius); }
+  .empty b { display: block; color: var(--foreground); font-size: var(--text-body); margin-bottom: 0.25rem; }
+  .sheet { margin-left: auto; max-width: 420px; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; box-shadow: 0 12px 32px -12px rgba(0,0,0,0.25); }
+  .sheet h4 { margin: 0; font-size: var(--text-heading-sm); }
+  .sheet .desc { color: var(--muted-foreground); font-size: var(--text-label); margin: 0.25rem 0 1.25rem; }
+  .ann { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0.5rem 0 0; }
+  .ann li { margin: 0.2rem 0; }
+  .vchart { display: flex; align-items: flex-end; gap: 3px; height: 96px; padding: 0.5rem 0 0; border-bottom: 1px solid var(--border); }
+  .vchart a { flex: 1; background: color-mix(in oklab, var(--negative) 65%, transparent); border-radius: 2px 2px 0 0; min-height: 1px; }
+  .vchart a.zero { background: var(--border); }
+  .vaxis { display: flex; justify-content: space-between; color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.25rem; }
+
+  .badge.good { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 16%, transparent); }
+  .badge.warn { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 16%, transparent); }
+  .badge.info { color: var(--info); background-color: color-mix(in oklab, var(--info) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 16%, transparent); }
+  .kpi.warn { background: color-mix(in oklab, var(--warning) 6%, var(--muted)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 22%, transparent); }
+  .kpi.warn .k-value { color: var(--warning); }
+  .kpi .k-sub { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.1rem; }
+  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 0.4rem 1rem; margin: 0; font-size: var(--text-body-sm); }
+  .kv dt { color: var(--muted-foreground); }
+  .kv dd { margin: 0; word-break: break-word; }
+  .saved { margin-top: 1.25rem; border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; }
+  .saved .head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.75rem; background: var(--muted); font-size: var(--text-label); color: var(--secondary-foreground); }
+  .saved pre { margin: 0; padding: 0.75rem; font-size: var(--text-caption); overflow-x: auto; }
+  .saved .locked { padding: 0.75rem; color: var(--muted-foreground); font-size: var(--text-label); }
+  .variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1rem; align-items: start; }
+  .variants .sheet { margin: 0; max-width: none; }
+  .vlabel { font-size: var(--text-caption); color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 0.5rem; }
+  .bars .bar i.dup { background: color-mix(in oklab, var(--info) 65%, transparent); }
+  .pend { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .pend:last-child { border-bottom: 0; }
+  .pend .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .table .t-id { white-space: nowrap; }
+  .footnote { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.75rem; }
+  .wire td .lst { display: flex; flex-direction: column; gap: 0.15rem; }
+  .wire td .lst span { white-space: nowrap; }
+  .check { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+  .kv pre, .err { margin: 0; padding: 0.75rem; font-size: var(--text-caption); background: var(--muted); border: 1px solid var(--border); border-radius: 0.5rem; overflow-x: auto; white-space: pre; }
+  .refs { list-style: none; margin: 0; padding: 0; font-family: var(--font-mono); font-size: var(--text-caption); }
+  .refs li { padding: 0.3rem 0; border-bottom: 1px solid var(--border); }
+  .refs li:last-child { border-bottom: 0; }
+  .jobrow { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.55rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .jobrow:last-child { border-bottom: 0; }
+  .jobrow .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .header-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1rem; }
+  .toast { display: inline-flex; gap: 0.5rem; align-items: center; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 0.5rem; box-shadow: 0 8px 24px -12px rgba(0,0,0,0.25); font-size: var(--text-label); margin: 0.25rem 0.5rem 0.25rem 0; }
+  .vchart a { display: flex; flex-direction: column-reverse; background: color-mix(in oklab, var(--info) 55%, transparent); }
+  .vchart a i { display: block; background: color-mix(in oklab, var(--negative) 70%, transparent); }
+  .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+</style>
+<style>
+  .badge.scope-p { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 22%, transparent); }
+  .badge.muted { color: var(--muted-foreground); background-color: var(--muted); box-shadow: inset 0 0 0 1px var(--border); }
+  .badge.lapsed { color: var(--muted-foreground); text-decoration: line-through; background-color: var(--muted); box-shadow: inset 0 0 0 1px var(--border); }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+  .person { display: flex; flex-direction: column; }
+  .person .em { color: var(--muted-foreground); font-size: var(--text-caption); }
+  .persona-tag { display: inline-flex; gap: 0.35rem; align-items: center; font-size: var(--text-caption); color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem; align-items: start; }
+  .card { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .card .ch { padding: 0.9rem 1.125rem 0.5rem; }
+  .card .ch h4 { margin: 0; font-size: var(--text-body-sm); font-weight: 600; }
+  .card .ch p { margin: 0.15rem 0 0; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .card .cf { display: flex; gap: 0.5rem; padding: 0.6rem 1.125rem; color: var(--muted-foreground); font-size: var(--text-caption); border-top: 0; }
+  .card .table th, .card .table td { padding-left: 1.125rem; padding-right: 1.125rem; }
+  .modgroup { padding: 0.5rem 1.125rem 0.75rem; }
+  .modgroup .mt { font-size: var(--text-caption); color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; margin: 0.4rem 0 0.35rem; }
+  .act { display: grid; grid-template-columns: 1fr auto; gap: 0 0.75rem; padding: 0.3rem 0; border-bottom: 1px solid var(--border); }
+  .act:last-child { border-bottom: 0; }
+  .act .d { color: var(--muted-foreground); font-size: var(--text-caption); grid-column: 1 / -1; }
+  .verdict { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.75rem 0.9rem; border-radius: 0.5rem; margin: 0.75rem 0; }
+  .verdict.ok { background: color-mix(in oklab, var(--positive) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 22%, transparent); }
+  .verdict.no { background: color-mix(in oklab, var(--negative) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 22%, transparent); }
+  .verdict b { display: block; }
+  .picker { border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.35rem; max-width: 420px; box-shadow: 0 12px 32px -12px rgba(0,0,0,0.25); }
+  .picker .opt { display: grid; grid-template-columns: 1fr auto; gap: 0 0.5rem; padding: 0.45rem 0.6rem; border-radius: 0.375rem; }
+  .picker .opt.off { opacity: 0.55; }
+  .picker .opt .why { grid-column: 1 / -1; font-size: var(--text-caption); color: var(--muted-foreground); }
+  .picker .opt.hover { background: var(--muted); }
+  .proposed { color: var(--info); background-color: color-mix(in oklab, var(--info) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 22%, transparent); }
+  .persona-cmp { width: 100%; border-collapse: collapse; font-size: var(--text-body-sm); margin: 0.5rem 0 0; }
+  .persona-cmp th, .persona-cmp td { text-align: left; padding: 0.45rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .persona-cmp th { color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; }
+</style>
+<style>
+  .chan { display: inline-flex; align-items: center; gap: 0.25rem; font-size: var(--text-caption); padding: 0.1rem 0.4rem; border-radius: 4px; background: var(--muted); box-shadow: inset 0 0 0 1px var(--border); white-space: nowrap; }
+  .grid-cred { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--text-body-sm); }
+  .grid-cred th, .grid-cred td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+  .grid-cred th { color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; }
+  .cell { display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; }
+  .cell .s { font-size: var(--text-caption); color: var(--muted-foreground); }
+  .msg { border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.75rem 0.9rem; background: var(--muted); white-space: pre-wrap; font-size: var(--text-label); }
+  .msg .subj { font-weight: 600; margin-bottom: 0.4rem; }
+  .vars { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .var { font-family: var(--font-mono); font-size: var(--text-caption); padding: 0.1rem 0.35rem; border-radius: 4px; background: color-mix(in oklab, var(--primary) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 18%, transparent); color: var(--primary); }
+  .editor { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .ta { border: 1px solid var(--border); border-radius: 0.375rem; padding: 0.6rem; min-height: 120px; font-family: var(--font-mono); font-size: var(--text-caption); white-space: pre-wrap; background: var(--background); }
+  .ta .bad { text-decoration: underline wavy var(--negative); }
+  .err-line { color: var(--negative); font-size: var(--text-caption); margin-top: 0.35rem; }
+  .toggle { display: inline-block; width: 28px; height: 16px; border-radius: 999px; background: var(--border); position: relative; vertical-align: middle; }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 999px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+  .toggle.on { background: var(--primary); }
+  .toggle.on::after { left: 14px; }
+  .toggle.fixed { opacity: 0.5; }
+  .pref { display: grid; grid-template-columns: 1fr repeat(4, 84px); align-items: center; gap: 0.5rem; padding: 0.7rem 1.125rem; border-bottom: 1px solid var(--border); }
+  .pref.head { color: var(--secondary-foreground); font-size: var(--text-label); padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  .pref .na { color: var(--muted-foreground); font-size: var(--text-caption); }
+  .inbox-item { display: grid; grid-template-columns: 10px 1fr auto; gap: 0 0.75rem; padding: 0.75rem 1.125rem; border-bottom: 1px solid var(--border); }
+  .inbox-item .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--primary); margin-top: 0.45rem; }
+  .inbox-item.read .dot { background: transparent; }
+  .inbox-item.read .t { color: var(--muted-foreground); font-weight: 400; }
+  .inbox-item .t { font-weight: 600; }
+  .inbox-item .b { grid-column: 2 / 3; color: var(--muted-foreground); font-size: var(--text-label); }
+  .bell { position: relative; display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 0.5rem; }
+  .bell i { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; border-radius: 999px; background: var(--negative); color: #fff; font-size: 10px; font-style: normal; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; }
+  .stack { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--muted); }
+  .stack i { display: block; height: 100%; }
+  .stack .ok { background: color-mix(in oklab, var(--positive) 65%, transparent); }
+  .stack .wait { background: color-mix(in oklab, var(--info) 45%, transparent); border: 0; padding: 0; }
+  .stack .fail { background: color-mix(in oklab, var(--negative) 70%, transparent); }
+  .stack .skip { background: color-mix(in oklab, var(--gray-700) 35%, transparent); }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.75rem; color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.4rem; }
+  .legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 0.3rem; vertical-align: -0.05em; }
+  .legend .ok::before { background: color-mix(in oklab, var(--positive) 65%, transparent); }
+  .legend .wait::before { background: color-mix(in oklab, var(--info) 45%, transparent); }
+  .legend .fail::before { background: color-mix(in oklab, var(--negative) 70%, transparent); }
+  .legend .skip::before { background: color-mix(in oklab, var(--gray-700) 35%, transparent); }
+  .rowx { display: grid; grid-template-columns: 1fr auto; gap: 0.3rem 0.75rem; padding: 0.6rem 1.125rem; border-bottom: 1px solid var(--border); }
+  .rowx:last-child { border-bottom: 0; }
+  .rowx > .var, .rowx > .chips, .rowx > .badge { justify-self: start; }
+  .rowx > .badge, .rowx > .chips { justify-self: end; }
+  .rowx .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .lock { color: var(--muted-foreground); font-size: var(--text-label); padding: 0.75rem; border: 1px dashed var(--border); border-radius: 0.5rem; }
 </style>
 </head>
 <body>
 <div class="shell">
   <nav class="sidebar">
-    <div class="brand"><span></span>Notification Console</div>
+    <div class="brand"><span></span>Notifications</div>
     <div class="nav-group">
-      <div class="nav-group-title">Deliverability</div>
-      <a class="nav-item active" href="#deliveries">Delivery Log</a>
-      <a class="nav-item" href="#config-health">Config Health</a>
-      <a class="nav-item" href="#test-send">Test Send</a>
+      <div class="nav-group-title">Notification console</div>
+      <a class="nav-item active" href="#overview">Overview</a>
+      <a class="nav-item" href="#deliveries">Deliveries</a>
+      <a class="nav-item" href="#delivery">· Delivery sheet</a>
+      <a class="nav-item" href="#types">Notification types</a>
+      <a class="nav-item" href="#type">· Type page</a>
+      <a class="nav-item" href="#template">· Template editor</a>
+      <a class="nav-item" href="#testsend">· Test send</a>
+      <a class="nav-item" href="#credentials">Provider accounts</a>
+      <a class="nav-item" href="#suppressions">Suppressions</a>
+      <a class="nav-item" href="#retention">Volume &amp; retention</a>
     </div>
     <div class="nav-group">
-      <div class="nav-group-title">Configuration</div>
-      <a class="nav-item" href="#routes">Routing</a>
-      <a class="nav-item" href="#templates">Templates</a>
-      <a class="nav-item" href="#credentials">Provider Credentials</a>
-    </div>
-    <div class="nav-group">
-      <div class="nav-group-title">Insight</div>
-      <a class="nav-item" href="#overview">Overview</a>
-      <a class="nav-item" href="#suppressions">Bounces &amp; Suppressions <span class="pill">new API</span></a>
+      <div class="nav-group-title">Everyone</div>
+      <a class="nav-item" href="#inbox">Inbox (bell)</a>
+      <a class="nav-item" href="#prefs">My notifications</a>
     </div>
   </nav>
 
   <main class="main">
-    <h1 class="page-title">Notification — Admin Console</h1>
-    <p class="page-sub">Screen mocks for the <code>notification</code> module's admin surface, each mapped to its
-    endpoint. Reads gated <code>@RequiresAction('notification.view')</code>; config writes
-    <code>'notification.manage_config'</code>; test send <code>'notification.test_send'</code>. A non-platform
-    actor may only touch their own tenant's rows (a <code>tenant_id IS NULL</code> deployment default is
-    platform-admin only). Screens marked <b>Proposed</b> are legitimate but unserved.</p>
+    <div class="page-head">
+      <h1 class="page-title">Notification — Console</h1>
+      <p class="page-sub">
+        Screen mocks for the <code>notification</code> module's console — what went out, what didn't and why, and the
+        configuration that decides it. One console for two audiences: a <b>platform admin</b> sees every tenant and the
+        platform's own defaults and accounts; a <b>tenant admin</b> sees its own tenant and the defaults it inherits — the
+        API forces it, the screens just don't offer the rest. Every signed-in user gets an <b>Inbox</b> and
+        <b>My notifications</b>. Numbers are the sandbox's seeded data.
+      </p>
+    </div>
 
-    <div class="note"><div><b>Credentials never leave the server.</b> The config surface returns which
-    <code>(channel, tenant)</code> pairs have a credential, never the values. Stored content is opt-in
-    (<code>storeContent</code>) and pruned with its delivery row — not a long-retention archive.</div></div>
+    <div class="note warn">
+      <div><b>Why this console exists.</b> A notification fails quietly — nobody tells you the reminder never left. A
+      template with a typo shows a customer <code>{{invoiceNo}}</code>; a revoked provider key fails every SMS for ten
+      days; a dead mailbox keeps bouncing and wears down the sender's reputation. This is where you see that, fix the
+      configuration, and check the fix with a test send.</div>
+    </div>
 
-    <h3 class="sub">Endpoint coverage map</h3>
-    <div class="scrollx">
-    <table class="cov">
-      <thead><tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr></thead>
+    <div class="note">
+      <div><b>The model.</b> The app <b>declares</b> its notification <b>types</b> in code (name, audience, variables
+      with samples; some <b>required</b> — always sent). Each type is <b>routed</b> to channels — <b>email</b>,
+      <b>SMS</b>, <b>WhatsApp</b>, <b>in-app</b> — by a default route a tenant may override; each channel needs a
+      <b>template</b> (default, or a tenant's white-label) and, except in-app, a <b>provider account</b>: the tenant's
+      own, or the platform's when the app allows the fallback. Every send attempt is a <b>delivery</b> row per channel:
+      <i>sent</i> → <i>delivered</i> / <i>bounced</i> (the provider's callback), <i>failed</i>, or <i>skipped</i>
+      (suppressed after a hard bounce, or the user opted out).</div>
+    </div>
+
+    <h3 class="sub">Who sees what</h3>
+    <table class="persona-cmp">
+      <thead><tr><th></th><th>Platform admin</th><th>Tenant admin</th><th>Platform support</th><th>Anyone</th></tr></thead>
       <tbody>
-        <tr><td>Delivery Log</td><td><span class="endpoint"><span class="m">GET</span>/notifications/deliveries</span></td><td><span class="status live">Live</span></td><td>Filter by type / channel / tenant / recipient / status / correlation / date. Keyset-paginated.</td></tr>
-        <tr><td>Delivery Detail</td><td><span class="endpoint"><span class="m">GET</span>/notifications/deliveries/:id</span> <span class="endpoint"><span class="m">GET</span>/notifications/deliveries/:id/content</span></td><td><span class="status live">Live</span></td><td>Metadata fetch plus the rendered-content fetch, both tenant-ceiling scoped — a non-platform actor gets a 404 (not a 403) for another tenant's row, so existence isn't leaked.</td></tr>
-        <tr><td>Config Health</td><td><span class="endpoint"><span class="m">GET</span>/notifications/config/coverage-gaps</span></td><td><span class="status live">Live</span></td><td>Routed (type, tenant, channel) with no usable template, or a tenant route with no credential.</td></tr>
-        <tr><td>Routing</td><td><span class="endpoint"><span class="m">GET/PUT/DELETE</span>/notifications/config/routes</span></td><td><span class="status live">Live</span></td><td>CRUD. Tenant-ceiling scoped.</td></tr>
-        <tr><td>Templates</td><td><span class="endpoint"><span class="m">GET/PUT/DELETE</span>/notifications/config/templates</span></td><td><span class="status live">Live</span></td><td>CRUD. No render/preview endpoint.</td></tr>
-        <tr><td>Template Preview</td><td><span class="endpoint"><span class="m">POST</span>/notifications/config/templates/preview</span></td><td><span class="status live">Live</span></td><td>Renders a candidate subject/body against sample variables — a pure call into <code>renderTemplate()</code>, no read or write to stored config.</td></tr>
-        <tr><td>Provider Credentials</td><td><span class="endpoint"><span class="m">GET/PUT/DELETE</span>/notifications/config/credentials</span></td><td><span class="status live">Live</span></td><td>CRUD, values redacted on read.</td></tr>
-        <tr><td>Credential Verify</td><td><span class="endpoint"><span class="m">POST</span>/notifications/config/credentials/verify</span></td><td><span class="status proposed">Proposed</span></td><td>"Does this key actually authenticate?" — no health check; a bad key only surfaces on a real send failure.</td></tr>
-        <tr><td>Test Send</td><td><span class="endpoint"><span class="m">POST</span>/notifications/test-send</span></td><td><span class="status live">Live</span></td><td>Fires a real notification via <code>Notifier</code>, tenant = the actor's.</td></tr>
-        <tr><td>Overview</td><td><span class="endpoint"><span class="m">GET</span>/notifications/stats</span></td><td><span class="status live">Live</span></td><td>Send volume grouped by channel/status, type/status and day over a <code>?window=</code> (default 7d). Tenant-ceiling scoped.</td></tr>
-        <tr><td>Bounces &amp; Suppressions</td><td><span class="endpoint"><span class="m">GET</span>/notifications/suppressions</span></td><td><span class="status proposed">Proposed</span></td><td>Recipients that keep bouncing — today every send just fails again. Needs a suppression list + <code>Notifier</code> honoring it.</td></tr>
-        <tr><td>Retry a delivery</td><td><span class="endpoint"><span class="m">POST</span>/notifications/deliveries/:id/retry</span></td><td><span class="status proposed">Proposed</span></td><td>Re-attempt one failed delivery (vs. crafting a fresh test send).</td></tr>
+        <tr><td>Scope</td><td>Every tenant + tenantless sends; tenant picker in the header</td><td>Its own tenant — no picker</td><td>Every tenant, read-only</td><td>Itself</td></tr>
+        <tr><td>Deliveries</td><td>All; message content (<code>notification.view_content</code>, audited)</td><td>Its tenant's — not the message text</td><td>All — not the message text</td><td>—</td></tr>
+        <tr><td>Routes / templates</td><td>Defaults + any tenant's</td><td>Its overrides; sees the defaults it inherits</td><td>Read</td><td>—</td></tr>
+        <tr><td>Provider accounts</td><td>The platform's + any tenant's; verify</td><td>Its own; sees whether the platform's exists</td><td>Read</td><td>—</td></tr>
+        <tr><td>Test send</td><td>To anyone, any address, any tenant</td><td>To itself or a colleague in its tenant</td><td>—</td><td>—</td></tr>
+        <tr><td>Retry · Suppressions</td><td>Any</td><td>Its tenant's</td><td>Read</td><td>—</td></tr>
+        <tr><td>Volume &amp; retention</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+        <tr><td>Inbox · My notifications</td><td colspan="4">Every signed-in user — their own only</td></tr>
       </tbody>
     </table>
-    </div>
 
-    <!-- 1 · DELIVERY LOG -->
-    <section class="screen" id="deliveries">
-      <div class="screen-head"><h2 class="screen-name">Delivery Log</h2><span class="endpoint"><span class="m">GET</span>/notifications/deliveries</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Every send attempt — "did the invoice email go out, and if not, why". Newest first, keyset-paginated.</p>
-      <p class="gating">Gate: <code>notification.view</code>. Non-platform actor → filtered to their own tenant.</p>
-      <div class="filterbar">
-        <span class="field"><span class="lbl">Type</span>invoice.sent</span>
-        <span class="field"><span class="lbl">Channel</span>any</span>
-        <span class="field"><span class="lbl">Status</span>any</span>
-        <span class="field"><span class="lbl">Recipient</span>—</span>
-        <span class="field"><span class="lbl">Since</span>2026-09-06</span>
-        <button class="btn-secondary" type="button">Apply</button>
-      </div>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Attempted</th><th>Type</th><th>Channel</th><th>Recipient</th><th>Status</th><th>Reason</th><th>Provider msg</th></tr></thead>
-        <tbody>
-          <tr><td class="t-time">2026-09-07 09:41:03</td><td>invoice.paid</td><td><span class="badge brand">email</span></td><td>user:5f2a (redacted)</td><td><span class="badge ok">delivered</span></td><td>—</td><td class="t-id">sg_9920…</td></tr>
-          <tr><td class="t-time">2026-09-07 09:22:11</td><td>payment.confirmed</td><td><span class="badge info">sms</span></td><td>user:88c1 (redacted)</td><td><span class="badge ok">sent</span></td><td>—</td><td class="t-id">tw_SM12…</td></tr>
-          <tr><td class="t-time">2026-09-07 08:55:40</td><td>invoice.sent</td><td><span class="badge brand">email</span></td><td>user:3b09 (redacted)</td><td><span class="badge fail">bounced</span></td><td>550 mailbox unavailable</td><td class="t-id">sg_9918…</td></tr>
-          <tr><td class="t-time">2026-09-07 08:40:02</td><td>reminder.due</td><td><span class="badge brand">email</span></td><td>user:1c07 (redacted)</td><td><span class="badge fail">failed</span></td><td>no_provider_config (tenant t_meridian)</td><td class="t-id">—</td></tr>
-        </tbody>
-      </table>
-      </div>
-      <div class="pagebar"><span>4 of ~9,300 · page size 50</span><span class="pager"><span>Newer</span><span>Older</span></span></div>
-    </section>
+    <h3 class="sub">Endpoint coverage</h3>
+    <table class="cov">
+      <thead><tr><th>Screen</th><th>Endpoints</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Overview</td><td><code>GET /notifications/stats?window=&amp;tz=</code> · <code>/config/coverage-gaps</code></td><td><span class="status live">Live</span> + <span class="status proposed">Proposed</span> <span class="muted">byReason</span></td></tr>
+        <tr><td>Deliveries · sheet</td><td><code>GET /deliveries</code> · <code>/deliveries/:id</code> · <code>/deliveries/:id/content</code> · <code>POST /deliveries/:id/retry</code></td><td><span class="status live">Live</span></td></tr>
+        <tr><td>Notification types · type page</td><td><code>GET /types</code> · <code>/types/:name</code> · <code>PUT/DELETE /config/routes|templates</code> · <code>POST /config/templates/preview</code></td><td><span class="status live">Live</span></td></tr>
+        <tr><td>Test send</td><td><code>POST /notifications/test-send</code></td><td><span class="status live">Live</span></td></tr>
+        <tr><td>Provider accounts</td><td><code>GET/PUT/DELETE /config/credentials</code> · <code>POST /config/credentials/:channel/verify</code></td><td><span class="status live">Live</span></td></tr>
+        <tr><td>Suppressions</td><td><code>GET /suppressions</code> · <code>DELETE /suppressions/:id</code></td><td><span class="status live">Live</span> + <span class="status proposed">Proposed</span> <span class="muted">tenant visibility</span></td></tr>
+        <tr><td>Volume &amp; retention</td><td><code>GET /notifications/volume?tz=</code></td><td><span class="status live">Live</span></td></tr>
+        <tr><td>Inbox · My notifications</td><td><code>GET /inbox</code> · <code>/inbox/unread-count</code> · <code>POST /inbox/:id/read</code> · <code>/inbox/read-all</code> · <code>GET/PUT /preferences/me</code></td><td><span class="status live">Live</span></td></tr>
+      </tbody>
+    </table>
 
-    <!-- 2 · DELIVERY DETAIL (drawer) -->
-    <div class="drawer" data-label="Drawer — Delivery detail" id="delivery-detail">
-      <span class="x">✕</span>
-      <div class="screen-head" style="margin-bottom:0.5rem">
-        <h2 class="screen-name" style="font-size:var(--text-heading-sm)">Delivery detail</h2>
-        <span class="endpoint"><span class="m">GET</span>/notifications/deliveries/:id</span><span class="status live">Live</span>
-      </div>
-      <p class="gating">Gate: <code>notification.view</code>. Tenant-ceiling scoped — a non-platform actor gets a 404 (not a 403) for another tenant's row, so existence isn't leaked. Rendered content loads separately via <code>GET /notifications/deliveries/:id/content</code> and is present only when <code>storeContent</code> was on for that recorder.</p>
-      <dl class="kv">
-        <dt>Delivery id</dt><dd class="mono">nd_71A2Qk</dd>
-        <dt>Type / channel</dt><dd>invoice.sent · <span class="badge brand">email</span></dd>
-        <dt>Tenant</dt><dd>t_kairos</dd>
-        <dt>Recipient</dt><dd>user:3b09 <span class="badge neutral">redacted</span></dd>
-        <dt>Status</dt><dd><span class="badge fail">bounced</span> — 550 mailbox unavailable</dd>
-        <dt>Provider msg id</dt><dd class="mono">sg_99181c…</dd>
-        <dt>Correlation</dt><dd class="mono">22a0…f5</dd>
-      </dl>
-      <details class="diff" open>
-        <summary>rendered content (storeContent = on)</summary>
-        <pre>Subject: Invoice INV-2231 is ready
-
-Hi Acme Ltd, your invoice for 4,820.00 USD is attached.
-Pay by 2026-09-17. — Kairos Billing</pre>
-      </details>
-    </div>
-
-    <!-- 3 · CONFIG HEALTH -->
-    <section class="screen" id="config-health">
-      <div class="screen-head"><h2 class="screen-name">Config Health</h2><span class="endpoint"><span class="m">GET</span>/notifications/config/coverage-gaps</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Holes in the config: a routed (type, tenant, channel) with no usable template, or a tenant route with no credential. The "why did that send fail with no_template" answered before it happens.</p>
-      <p class="gating">Gate: <code>notification.view</code>.</p>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Notification type</th><th>Tenant</th><th>Channel</th><th>Gap</th></tr></thead>
-        <tbody>
-          <tr><td>reminder.due</td><td>t_meridian</td><td><span class="badge brand">email</span></td><td><span class="badge fail">missing_provider_credential</span></td></tr>
-          <tr><td>payout.reversed</td><td class="t-time">null <span class="badge info">default</span></td><td><span class="badge info">sms</span></td><td><span class="badge warn">missing_template</span></td></tr>
-        </tbody>
-      </table>
-      </div>
-    </section>
-
-    <!-- 4 · ROUTING -->
-    <section class="screen" id="routes">
-      <div class="screen-head"><h2 class="screen-name">Routing</h2><span class="endpoint"><span class="m">GET / PUT / DELETE</span>/notifications/config/routes</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Which channel(s) each notification type uses. A tenant-specific row overrides the deployment default.</p>
-      <p class="gating">List: <code>notification.view</code>. Write: <code>notification.manage_config</code> — a non-platform actor may only write rows for their own tenant; a <code>null</code> (default) row is platform-admin only.</p>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Notification type</th><th>Tenant</th><th>Channels</th><th></th></tr></thead>
-        <tbody>
-          <tr><td>invoice.sent</td><td class="t-time">null <span class="badge info">default</span></td><td><span class="badge brand">email</span></td><td class="t-time">edit · delete</td></tr>
-          <tr><td>payment.confirmed</td><td class="t-time">null <span class="badge info">default</span></td><td><span class="badge brand">email</span> <span class="badge info">sms</span></td><td class="t-time">edit · delete</td></tr>
-          <tr><td>invoice.sent</td><td>t_meridian</td><td><span class="badge brand">email</span> <span class="badge info">sms</span></td><td class="t-time">edit · delete</td></tr>
-        </tbody>
-      </table>
-      </div>
-      <div class="sheet" data-label="Sheet — Edit route (shown open)">
-        <div class="form-row"><label>Notification type</label><div class="control">invoice.sent</div></div>
-        <div class="form-row"><label>Tenant</label><div class="control">t_meridian</div></div>
-        <div class="form-row"><label>Channels</label><div class="control">email, sms</div></div>
-        <button class="btn" type="button">Save route</button>
-      </div>
-    </section>
-
-    <!-- 5 · TEMPLATES -->
-    <section class="screen" id="templates">
-      <div class="screen-head"><h2 class="screen-name">Templates</h2><span class="endpoint"><span class="m">GET / PUT / DELETE</span>/notifications/config/templates</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Per-channel, per-type template text. <code>subject</code>/<code>isHtml</code> are email-only. A tenant row overrides the default — the mechanism behind white-labeled notices.</p>
-      <p class="gating">List: <code>notification.view</code>. Write: <code>notification.manage_config</code>, tenant-scoped.</p>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Channel</th><th>Type</th><th>Tenant</th><th>Subject</th><th>HTML</th></tr></thead>
-        <tbody>
-          <tr><td><span class="badge brand">email</span></td><td>invoice.sent</td><td class="t-time">null</td><td>Invoice {{invoiceNumber}} is ready</td><td>yes</td></tr>
-          <tr><td><span class="badge info">sms</span></td><td>payment.confirmed</td><td class="t-time">null</td><td>—</td><td>—</td></tr>
-          <tr><td><span class="badge brand">email</span></td><td>invoice.sent</td><td>t_kairos</td><td>Your Kairos invoice {{invoiceNumber}}</td><td>yes</td></tr>
-        </tbody>
-      </table>
-      </div>
-      <div class="note"><div><b>Preview.</b> <code>POST /notifications/config/templates/preview</code> renders a candidate subject/body against sample <code>variables</code> before saving — a pure, stateless call, no read or write to stored config.</div></div>
-    </section>
-
-    <!-- 6 · CREDENTIALS -->
-    <section class="screen" id="credentials">
-      <div class="screen-head"><h2 class="screen-name">Provider Credentials</h2><span class="endpoint"><span class="m">GET / PUT / DELETE</span>/notifications/config/credentials</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Which <code>(channel, tenant)</code> pairs have a delivery-provider credential. Always per-tenant — never falls through to a default.</p>
-      <p class="gating">List: <code>notification.view</code> — <b>values are never returned</b>, only presence. Write: <code>notification.manage_config</code>, tenant-scoped.</p>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Channel</th><th>Tenant</th><th>Credential</th><th></th></tr></thead>
-        <tbody>
-          <tr><td><span class="badge brand">email</span></td><td>t_kairos</td><td><span class="badge ok">present</span></td><td class="t-time">replace · delete</td></tr>
-          <tr><td><span class="badge info">sms</span></td><td>t_kairos</td><td><span class="badge ok">present</span></td><td class="t-time">replace · delete</td></tr>
-          <tr><td><span class="badge brand">email</span></td><td>t_meridian</td><td><span class="badge fail">missing</span></td><td class="t-time">add</td></tr>
-        </tbody>
-      </table>
-      </div>
-      <div class="proposed-note"><div><b>Enhancement — Verify.</b> <span class="sig">POST /notifications/config/credentials/verify</span> → a lightweight provider auth check ("SendGrid: 200, sender verified"). Today a wrong key is invisible until a real send returns a provider error.</div></div>
-    </section>
-
-    <!-- 7 · TEST SEND -->
-    <section class="screen" id="test-send">
-      <div class="screen-head"><h2 class="screen-name">Test Send</h2><span class="endpoint"><span class="m">POST</span>/notifications/test-send</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Fire a real notification through the full pipeline — routing, template, credential, provider — to confirm a config end to end.</p>
-      <p class="gating">Gate: <code>notification.test_send</code>. Tenant defaults to the request actor's; a platform admin may pass a <code>tenantId</code> to test another tenant's config. A non-platform actor is still restricted to their own tenant.</p>
-      <div class="sheet" data-label="Form — Test send">
-        <div class="form-row"><label>Notification type</label><div class="control">invoice.sent</div></div>
-        <div class="form-row"><label>Recipient ref</label><div class="control">user:me</div></div>
-        <div class="form-row"><label>Variables (JSON)</label><textarea class="control">{ "invoiceNumber": "TEST-0001", "amount": "10.00" }</textarea></div>
-        <button class="btn" type="button">Send test</button>
-      </div>
-      <details class="diff" open style="max-width:520px; margin-left:2rem">
-        <summary>result</summary>
-        <pre>status: partial
-channels:
-  email  → sent    (sg_TEST9931)
-  sms    → failed  (no_provider_config)</pre>
-      </details>
-    </section>
-
-    <!-- 8 · OVERVIEW (proposed) -->
+    <!-- ===================== OVERVIEW ===================== -->
     <section class="screen" id="overview">
-      <div class="screen-head"><h2 class="screen-name">Overview</h2><span class="endpoint"><span class="m">GET</span>/notifications/stats</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Deliverability at a glance — send volume and the failed/bounced rate by channel, so a bounce spike or a provider outage is noticed without reading the log row by row.</p>
-      <p class="gating">Gate: <code>notification.view</code>. Tenant-ceiling scoped. <code>?window=24h|7d|30d</code> (default 7d) → <code>{ since, until, byChannel[], byType[], byDay[] }</code> from <code>GROUP BY</code> over <code>commons_notification_delivery</code>.</p>
+      <div class="screen-head"><h2 class="screen-name">Overview</h2><span class="endpoint"><span class="m">GET</span>/notifications/stats?window=7d&amp;tz=Asia/Karachi</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">Is the app reaching people? The landing page: the period's sends by outcome, which channel and which type is failing, why — and whether the configuration has holes that will fail the next send. Every number links to the Deliveries log filtered to exactly what it counted.</p>
+      <p class="gating">Gate <code>notification.view</code>. A tenant admin's numbers are its tenant's; a platform admin's every tenant's (tenant picker). Test sends are left out. Days are whole calendar days in the viewer's zone.</p>
+      <div class="header-actions"><span class="seg"><span>24h</span><span class="on">7d</span><span>30d</span></span><span class="field"><span class="lbl">Tenant</span><span class="val">All tenants</span></span></div>
       <div class="kpi-row">
-        <div class="kpi"><div class="k-label">Sent (24h)</div><div class="k-value">1,904</div></div>
-        <div class="kpi"><div class="k-label">Delivered rate</div><div class="k-value">96.2%</div></div>
-        <div class="kpi"><div class="k-label">Bounced (24h)</div><div class="k-value">41</div></div>
-        <div class="kpi"><div class="k-label">Failed — config</div><div class="k-value">12</div></div>
+        <div class="kpi"><div class="k-label">Sends</div><div class="k-value">289</div><div class="k-sub">delivery attempts, all channels</div></div>
+        <div class="kpi"><div class="k-label">Reached</div><div class="k-value">220</div><div class="k-sub">76% — 161 confirmed delivered</div></div>
+        <div class="kpi alert"><div class="k-label">Failed</div><div class="k-value">52</div><div class="k-sub">50 failed · 2 bounced</div></div>
+        <div class="kpi"><div class="k-label">Skipped</div><div class="k-value">17</div><div class="k-sub">15 suppressed · 2 opted out</div></div>
+        <div class="kpi warn"><div class="k-label">Config gaps</div><div class="k-value">3</div><div class="k-sub">will fail the next send</div></div>
       </div>
-      <h3 class="sub">Volume by day (30d)</h3>
-      <div class="bars">
-        <div class="bar" style="height:50%"></div><div class="bar" style="height:62%"></div><div class="bar" style="height:44%"></div>
-        <div class="bar" style="height:70%"></div><div class="bar" style="height:66%"></div><div class="bar" style="height:30%"></div>
-        <div class="bar" style="height:24%"></div><div class="bar" style="height:58%"></div><div class="bar" style="height:72%"></div>
-        <div class="bar" style="height:80%"></div><div class="bar" style="height:76%"></div><div class="bar" style="height:60%"></div>
-        <div class="bar" style="height:48%"></div><div class="bar" style="height:88%"></div><div class="bar" style="height:100%"></div>
+      <div class="two">
+        <div class="card"><div class="ch"><h4>By channel</h4><p>Reached · waiting for the provider · failed · skipped</p></div>
+          <div class="rowx"><span>Email <span class="muted">· 189</span></span><span class="t-num">83% reached</span><div class="meta" style="display:block"><div class="stack"><i class="ok" style="width:66%"></i><i class="wait" style="width:16%"></i><i class="fail" style="width:10%"></i><i class="skip" style="width:8%"></i></div></div></div>
+          <div class="rowx"><span>SMS <span class="muted">· 39</span></span><span class="t-num badge bad">82% failed</span><div class="meta" style="display:block"><div class="stack"><i class="ok" style="width:10%"></i><i class="wait" style="width:3%"></i><i class="fail" style="width:82%"></i><i class="skip" style="width:5%"></i></div></div></div>
+          <div class="rowx"><span>WhatsApp <span class="muted">· 40</span></span><span class="t-num">95% reached</span><div class="meta" style="display:block"><div class="stack"><i class="ok" style="width:80%"></i><i class="wait" style="width:15%"></i><i class="fail" style="width:5%"></i></div></div></div>
+          <div class="rowx"><span>In-app <span class="muted">· 21</span></span><span class="t-num">100%</span><div class="meta" style="display:block"><div class="stack"><i class="ok" style="width:100%"></i></div></div></div>
+          <div class="cf"><div class="legend"><span class="ok">reached</span><span class="wait">sent, no callback yet</span><span class="fail">failed / bounced</span><span class="skip">skipped</span></div></div>
+        </div>
+        <div class="card"><div class="ch"><h4>Why sends failed</h4><p>Failed and skipped, by reason — <span class="status proposed">Proposed</span> <code>byReason</code> on <code>/stats</code></p></div>
+          <div class="rowx"><span>Suppressed — the address bounced before</span><span class="t-num">15</span><div class="meta"><span class="badge muted">skipped</span><span>email</span></div></div>
+          <div class="rowx"><span>No template for the channel</span><span class="t-num">14</span><div class="meta"><span class="badge warn">config</span><span>Meridian · payment.confirmed · SMS</span></div></div>
+          <div class="rowx"><span>Provider rejected the key (401)</span><span class="t-num">13</span><div class="meta"><span class="badge warn">config</span><span>Globex · SMS — its own key is revoked</span></div></div>
+          <div class="rowx"><span>Provider rejected the address</span><span class="t-num">12</span><div class="meta"><span class="badge bad">recipient</span><span>a guest address — 550</span></div></div>
+          <div class="rowx"><span>No phone or email on file</span><span class="t-num">7</span><div class="meta"><span class="badge bad">recipient</span></div></div>
+          <div class="rowx"><span>Provider timed out</span><span class="t-num">4</span><div class="meta"><span class="badge info">transient — retryable</span></div></div>
+          <div class="rowx"><span>Opted out by the user</span><span class="t-num">2</span><div class="meta"><span class="badge muted">skipped</span></div></div>
+        </div>
+      </div>
+      <div class="two" style="margin-top:1rem">
+        <div class="card"><div class="ch"><h4>By type</h4><p>Failure rate — the worst first</p></div>
+          <div class="rowx"><span>invoice.reminder</span><span class="t-num">16 of 47 failed</span></div>
+          <div class="rowx"><span>payout.approved</span><span class="t-num">7 of 25</span></div>
+          <div class="rowx"><span>payment.confirmed</span><span class="t-num">22 of 106</span></div>
+          <div class="rowx"><span>invoice.sent</span><span class="t-num">6 of 90</span></div>
+          <div class="rowx"><span>job.failed <span class="badge muted">no tenant</span></span><span class="t-num">1 of 12</span></div>
+          <div class="cf">4 more types without failures · <a class="link" href="#types">All types</a></div>
+        </div>
+        <div class="card"><div class="ch"><h4>Configuration health</h4><p>Holes that will fail the next send — <code>/config/coverage-gaps</code></p></div>
+          <div class="rowx"><span>payment.confirmed · SMS</span><span class="badge warn">no template</span><div class="meta">Meridian's own route — it adds SMS; nobody wrote the SMS text</div></div>
+          <div class="rowx"><span>payout.approved · SMS</span><span class="badge warn">no template</span><div class="meta">The default route — every tenant</div></div>
+          <div class="rowx"><span>invoice.overdue · email</span><span class="badge warn">no template</span><div class="meta"><span class="badge muted">not declared</span> a leftover route — delete it</div></div>
+          <div class="cf">Provider accounts are fine on paper — <a class="link" href="#credentials">verify them</a> to find a revoked key.</div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:1rem"><div class="ch"><h4>Sends per day</h4><p>Last 7 days, Asia/Karachi — failed on top</p></div>
+        <div style="padding:0 1.125rem 0.75rem"><div class="vchart"><a style="height:72%"><i style="height:20%"></i></a><a style="height:44%"><i style="height:16%"></i></a><a style="height:45%"><i style="height:18%"></i></a><a style="height:60%"><i style="height:22%"></i></a><a style="height:47%"><i style="height:19%"></i></a><a style="height:47%"><i style="height:15%"></i></a><a style="height:21%"><i style="height:9%"></i></a></div><div class="vaxis"><span>20 Oct</span><span>today (partial)</span></div></div>
       </div>
     </section>
 
-    <!-- 9 · BOUNCES & SUPPRESSIONS (proposed) -->
-    <section class="screen" id="suppressions">
-      <div class="screen-head"><h2 class="screen-name">Bounces &amp; Suppressions</h2><span class="endpoint"><span class="m">GET</span>/notifications/suppressions</span><span class="status proposed">Proposed</span></div>
-      <p class="screen-purpose">Recipients that repeatedly bounce or complain — so the app stops hammering a dead address (and its sender reputation) every send.</p>
-      <div class="proposed-note"><div><b>Missing API.</b> Bounces are recorded per delivery row but never aggregated into a list, and <code>Notifier</code> doesn't consult one. Proposed: a <code>commons_notification_suppression</code> table (recipient, reason, since, source), populated from webhook bounce events, checked by <code>Notifier</code> before send; <span class="sig">GET /notifications/suppressions</span> + <span class="sig">DELETE /notifications/suppressions/:ref</span> to clear a false positive.</div></div>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Recipient</th><th>Reason</th><th>Since</th><th>Bounces</th><th>Source</th></tr></thead>
+    <!-- ===================== DELIVERIES ===================== -->
+    <section class="screen" id="deliveries">
+      <div class="screen-head"><h2 class="screen-name">Deliveries</h2><span class="endpoint"><span class="m">GET</span>/notifications/deliveries</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">Every send attempt, one row per channel — "did the invoice email reach Northwind, and if not, why". Newest first, keyset-paginated; a focus-mode page. A row opens the delivery sheet.</p>
+      <p class="gating">Gate <code>notification.view</code>, tenant-scoped. Filters: type, channel, status, tenant (platform), recipient — a user, or a guest's <b>address</b> (hashed before it reaches the database; the log never stores it), correlation id, date range; <b>test sends hidden</b> unless asked for.</p>
+      <div class="filterbar"><span class="field"><span class="lbl">Recent failures</span> · Failed and bounced, last 7 days</span><span class="field"><span class="lbl">Search</span><span class="val muted">Address, user or correlation…</span></span><span class="btn-secondary">Columns</span><span class="btn-secondary">Test sends: hidden</span></div>
+      <div class="scrollx"><table class="table">
+        <thead><tr><th>Attempted</th><th>Type</th><th>Channel</th><th>Recipient</th><th>Tenant</th><th>Status</th><th>Correlation</th></tr></thead>
         <tbody>
-          <tr><td>user:3b09 <span class="badge neutral">redacted</span></td><td>hard bounce — mailbox unavailable</td><td class="t-time">2026-09-04</td><td>6</td><td>provider webhook</td></tr>
-          <tr><td>user:0f77 <span class="badge neutral">redacted</span></td><td>spam complaint</td><td class="t-time">2026-08-30</td><td>1</td><td>provider webhook</td></tr>
+          <tr><td class="t-time">26 Oct, 00:58</td><td>payout.approved</td><td><span class="chan">SMS</span></td><td><div class="person"><span>Hana Ito</span><span class="em">hana.ito@acme.test</span></div></td><td>Acme</td><td><span class="badge muted">skipped</span> <span class="muted">opted out</span></td><td class="t-id">8f2c…41a0</td></tr>
+          <tr><td class="t-time">26 Oct, 00:58</td><td>invoice.sent</td><td><span class="chan">Email</span></td><td><div class="person"><span>Guest</span><span class="em">address hidden · <a class="link">all to this address</a></span></div></td><td>Globex</td><td><span class="badge muted">skipped</span> <span class="muted">suppressed</span></td><td class="t-id">—</td></tr>
+          <tr><td class="t-time">25 Oct, 17:42</td><td>invoice.reminder</td><td><span class="chan">SMS</span></td><td><div class="person"><span>Guest</span><span class="em">address hidden</span></div></td><td>Globex</td><td><span class="badge bad">failed</span> <span class="muted">provider: 401 invalid api key</span></td><td class="t-id">c91d…07be</td></tr>
+          <tr><td class="t-time">25 Oct, 14:03</td><td>payment.confirmed</td><td><span class="chan">SMS</span></td><td><div class="person"><span>Guest</span><span class="em">address hidden</span></div></td><td>Meridian</td><td><span class="badge bad">failed</span> <span class="muted">no template</span></td><td class="t-id">5a77…e3f2</td></tr>
+          <tr><td class="t-time">25 Oct, 11:20</td><td>payout.approved</td><td><span class="chan">Email</span></td><td><div class="person"><span>Li Wei</span><span class="em">li.wei@meridian.test</span></div></td><td>Meridian</td><td><span class="badge bad">failed</span> <span class="muted">provider timeout</span> <span class="badge info">retried</span></td><td class="t-id">b02e…9c11</td></tr>
+          <tr><td class="t-time">25 Oct, 09:12</td><td>invoice.sent</td><td><span class="chan">Email</span></td><td><div class="person"><span>Guest</span><span class="em">address hidden</span></div></td><td>Acme</td><td><span class="badge good">delivered</span></td><td class="t-id">e4a9…77d0</td></tr>
+          <tr><td class="t-time">25 Oct, 02:30</td><td>job.failed</td><td><span class="chan">In-app</span></td><td><div class="person"><span>Platform Admin</span><span class="em">platform.admin@ascendra.test</span></div></td><td><span class="badge muted">no tenant</span></td><td><span class="badge good">sent</span></td><td class="t-id">1f6b…a2c4</td></tr>
+        </tbody>
+      </table></div>
+      <div class="pagebar"><span>1–50</span><span class="pager"><span>‹</span><span>›</span></span></div>
+      <ul class="ann">
+        <li>Recipient: a user by name (the app's user directory) — a guest is "Guest · address hidden"; <b>all to this address</b> filters by its key.</li>
+        <li>Status: the reason in plain words beside it. <i>retried</i> marks a row a later retry links to.</li>
+        <li>A tenant admin's has no Tenant column.</li>
+      </ul>
+    </section>
+
+    <!-- ===================== DELIVERY SHEET ===================== -->
+    <section class="screen" id="delivery">
+      <div class="screen-head"><h2 class="screen-name">Delivery sheet</h2><span class="endpoint"><span class="m">GET</span>/deliveries/:id · /content</span><span class="endpoint"><span class="m">POST</span>/deliveries/:id/retry</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">One attempt in full: what happened when, the message as sent, and what to do about it — retry it, see everything sent to the same recipient, or trace the request across modules.</p>
+      <div class="variants">
+        <div>
+          <p class="vlabel">Platform admin — a failed one, retryable</p>
+          <div class="sheet">
+            <h4>payout.approved · Email</h4>
+            <p class="desc">Meridian · to Li Wei</p>
+            <ol class="timeline">
+              <li class="tl-item"><div class="tl-time">25 Oct, 11:20:04</div><div class="tl-title">Failed — provider timeout: no answer within 10s</div></li>
+              <li class="tl-item"><div class="tl-time">26 Oct, 00:58:31</div><div class="tl-title">Retried by Platform Admin → <a class="link">delivery #3549</a> sent</div></li>
+            </ol>
+            <dl class="kv"><dt>Recipient</dt><dd>li.wei@meridian.test</dd><dt>Provider id</dt><dd class="muted">—</dd><dt>Correlation</dt><dd><a class="link mono">b02e…9c11</a> <span class="muted">· trace</span></dd></dl>
+            <div class="saved"><div class="head"><span>Message</span><span class="badge muted">not rendered — the send failed first</span></div>
+              <div style="padding:0.75rem"><div class="muted" style="font-size:var(--text-caption);margin-bottom:0.35rem">Its variables, kept for a retry:</div><div class="vars"><span class="var">amount = 12,000.00</span><span class="var">currency = GBP</span><span class="var">approvedBy = Fatima Sheikh</span></div></div></div>
+            <div class="header-actions" style="margin-top:1rem"><button class="btn">Retry</button><button class="btn-secondary">Everything to Li Wei</button></div>
+            <p class="footnote">Retry resends on this channel only, through the same rules (preferences, suppression) — audited.</p>
+          </div>
+        </div>
+        <div>
+          <p class="vlabel">Tenant admin — a delivered one</p>
+          <div class="sheet">
+            <h4>invoice.sent · Email</h4>
+            <p class="desc">Acme · to a guest</p>
+            <ol class="timeline">
+              <li class="tl-item"><div class="tl-time">25 Oct, 09:12:40</div><div class="tl-title">Sent — accepted by the provider (fake-ses-3c1e…)</div></li>
+              <li class="tl-item"><div class="tl-time">25 Oct, 09:12:52</div><div class="tl-title">Delivered — the provider's callback</div></li>
+            </ol>
+            <dl class="kv"><dt>Recipient</dt><dd>Guest · address hidden · <a class="link">everything to this address</a></dd><dt>Account</dt><dd>Acme's own (email)</dd></dl>
+            <div class="saved"><div class="head"><span>Message</span></div><div class="locked">Reading the message takes <code>notification.view_content</code> — the platform admin's. Each read is audited.</div></div>
+            <p class="footnote">A guest's delivery can't be retried — the address isn't stored. Notify again from where the invoice is.</p>
+          </div>
+        </div>
+      </div>
+      <div class="variants" style="margin-top:1rem">
+        <div>
+          <p class="vlabel">Platform admin — the message (audited read)</p>
+          <div class="sheet">
+            <div class="msg"><div class="subj">Acme Holdings — invoice INV-ACM-1043</div>Dear Northwind Traders,
+
+Your Acme Holdings invoice INV-ACM-1043 for 2,300.00 PKR is attached. Due 2026-11-15.
+
+Acme Holdings Billing</div>
+            <p class="footnote">White-labeled — Acme's own template. Stored 30 days, then cleared (the row stays).</p>
+          </div>
+        </div>
+        <div>
+          <p class="vlabel">States</p>
+          <ul class="ann">
+            <li><b>Skipped · suppressed</b> — "This address bounced on 16 Sep and is suppressed" + link to the suppression.</li>
+            <li><b>Skipped · opted out</b> — "Hana turned SMS off" (no retry; it's her choice).</li>
+            <li><b>Bounced</b> — the provider's detail ("550 5.1.1 mailbox unavailable"); a hard bounce suppresses.</li>
+            <li><b>Test send</b> — a "Test" badge; no retry.</li>
+            <li><b>Content cleared</b> — older than 30 days: "The message is no longer kept".</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== TYPES ===================== -->
+    <section class="screen" id="types">
+      <div class="screen-head"><h2 class="screen-name">Notification types</h2><span class="endpoint"><span class="m">GET</span>/notifications/types</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">What the app sends — the types it declares, each with who gets it and the channels it goes out on. The configuration's front door: a type opens its page (routing, templates, coverage, test send).</p>
+      <p class="gating">Gate <code>notification.view</code>. A tenant admin sees the defaults and its own overrides. Grouped by audience.</p>
+      <div class="card">
+        <div class="modgroup"><div class="mt">Payer</div>
+          <div class="rowx"><span><b>invoice.sent</b> — The payer is told their invoice is ready, with a link to pay</span><span class="chips"><span class="chan">Email</span></span><div class="meta"><span class="badge info">Acme white-labels it</span></div></div>
+          <div class="rowx"><span><b>invoice.reminder</b> — A reminder before — and after — an invoice falls due</span><span class="chips"><span class="chan">Email</span><span class="chan">SMS</span></span><div class="meta"><span class="badge info">Acme: email only</span></div></div>
+          <div class="rowx"><span><b>payment.confirmed</b> — The payer is told their payment arrived</span><span class="chips"><span class="chan">Email</span><span class="chan">WhatsApp</span></span><div class="meta"><span class="badge info">Meridian adds SMS</span><span class="badge warn">1 gap</span></div></div>
+        </div>
+        <div class="modgroup"><div class="mt">Tenant staff</div>
+          <div class="rowx"><span><b>payout.approved</b> — A tenant's finance staff are told a payout was approved</span><span class="chips"><span class="chan">Email</span><span class="chan">SMS</span><span class="chan">In-app</span></span><div class="meta"><span class="badge warn">1 gap — no SMS template</span></div></div>
+          <div class="rowx"><span><b>role.assigned</b> — Someone is told they were given a role</span><span class="chips"><span class="chan">Email</span><span class="chan">In-app</span></span></div>
+          <div class="rowx"><span><b>report.ready</b> — An exported report is ready to download</span><span class="chips"><span class="chan">In-app</span></span></div>
+        </div>
+        <div class="modgroup"><div class="mt">Everyone · platform staff</div>
+          <div class="rowx"><span><b>password.reset</b> — A password-reset link</span><span class="chips"><span class="chan">Email</span></span><div class="meta"><span class="badge scope-p">required — can't be turned off</span></div></div>
+          <div class="rowx"><span><b>job.failed</b> — Platform staff are told a background job failed</span><span class="chips"><span class="chan">Email</span><span class="chan">In-app</span></span><div class="meta"><span class="badge muted">no tenant — the platform's account</span></div></div>
+        </div>
+        <div class="modgroup"><div class="mt">Not declared</div>
+          <div class="rowx"><span><b>invoice.overdue</b> — <span class="muted">a route for a type this app no longer declares</span></span><span class="chips"><span class="chan">Email</span></span><div class="meta"><span class="badge warn">leftover — nothing sends it</span><a class="link">Delete its route</a></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== TYPE PAGE ===================== -->
+    <section class="screen" id="type">
+      <div class="screen-head"><h2 class="screen-name">Type page — payment.confirmed</h2><span class="endpoint"><span class="m">GET</span>/notifications/types/:name</span><span class="status live">Live</span></div>
+      <p class="breadcrumb">← Notification types · <b>payment.confirmed</b></p>
+      <p class="screen-purpose">Everything that decides how one type goes out: its routes (the default and each tenant's), its templates per channel, its variables, and whether every tenant it reaches can actually be sent to.</p>
+      <div class="header-actions"><button class="btn">Test send</button><button class="btn-secondary">Deliveries of this type</button></div>
+      <div class="two">
+        <div class="card"><div class="ch"><h4>Routing</h4><p>Which channels it goes out on</p></div>
+          <div class="rowx"><span>Default <span class="muted">· every tenant</span></span><span class="chips"><span class="chan">Email</span><span class="chan">WhatsApp</span></span><div class="meta"><a class="link">Edit</a></div></div>
+          <div class="rowx"><span>Meridian</span><span class="chips"><span class="chan">Email</span><span class="chan">SMS</span></span><div class="meta">overrides the default · <a class="link">Edit</a> · <a class="link">Remove (use the default)</a></div></div>
+          <div class="cf">A tenant admin sees the default and its own row; editing the default is the platform's.</div>
+        </div>
+        <div class="card"><div class="ch"><h4>Templates</h4><p>The text per channel — a tenant's own wins over the default</p></div>
+          <div class="rowx"><span>Email <span class="muted">· default</span></span><span><a class="link">Edit</a></span><div class="meta">Payment received for {{invoiceNumber}}</div></div>
+          <div class="rowx"><span>WhatsApp</span><span class="badge muted">on Meta's side</span><div class="meta">Pre-approved at the provider — nothing to write here</div></div>
+          <div class="rowx"><span>SMS <span class="muted">· Meridian routes it</span></span><span class="badge warn">missing</span><div class="meta"><a class="link">Write the SMS template</a></div></div>
+        </div>
+      </div>
+      <div class="two" style="margin-top:1rem">
+        <div class="card"><div class="ch"><h4>Variables</h4><p>What its templates may use — with the samples a preview and a test send fill in</p></div>
+          <div class="rowx"><span class="var">customerName</span><span class="muted">Acme Ltd</span></div>
+          <div class="rowx"><span class="var">invoiceNumber</span><span class="muted">INV-0042</span></div>
+          <div class="rowx"><span class="var">amount</span><span class="muted">4,820.00</span></div>
+          <div class="rowx"><span class="var">currency</span><span class="muted">USD</span></div>
+        </div>
+        <div class="card"><div class="ch"><h4>Coverage</h4><p>Can it be sent — to every tenant it reaches, on every channel?</p></div>
+          <div class="rowx"><span>Meridian · SMS</span><span class="badge warn">no template</span><div class="meta">14 sends failed since 20 Oct</div></div>
+          <div class="rowx"><span>Acme · Globex · Meridian · Email, WhatsApp</span><span class="badge good">ready</span><div class="meta">Acme's own email account; the others use the platform's</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== TEMPLATE EDITOR ===================== -->
+    <section class="screen" id="template">
+      <div class="screen-head"><h2 class="screen-name">Template editor</h2><span class="endpoint"><span class="m">PUT</span>/config/templates</span><span class="endpoint"><span class="m">POST</span>/config/templates/preview</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">A dialog from the type page. Write the text, insert variables from the palette, see it rendered with the samples as you type — and a variable the type doesn't have is caught before it reaches a customer.</p>
+      <div class="sheet" style="max-width:none">
+        <h4>Email template — invoice.sent · Acme</h4>
+        <p class="desc">Acme's own — overrides the default for Acme's payers. <a class="link">Compare with the default</a></p>
+        <div class="editor">
+          <div>
+            <div class="vlabel">Subject</div>
+            <div class="ta" style="min-height:auto">Acme Holdings — invoice <span class="bad">{{invoiceNo}}</span></div>
+            <div class="err-line">{{invoiceNo}} is not a variable of "invoice.sent" — it has {{invoiceNumber}}, …</div>
+            <div class="vlabel" style="margin-top:0.75rem">Body</div>
+            <div class="ta">Dear {{customerName}},
+
+Your Acme Holdings invoice {{invoiceNumber}} for {{amount}} {{currency}} is attached. Due {{dueDate}}.
+
+Acme Holdings Billing</div>
+            <div class="vars" style="margin-top:0.5rem"><span class="var">+ customerName</span><span class="var">+ invoiceNumber</span><span class="var">+ amount</span><span class="var">+ currency</span><span class="var">+ dueDate</span></div>
+          </div>
+          <div>
+            <div class="vlabel">Preview — with the samples</div>
+            <div class="msg"><div class="subj">Acme Holdings — invoice {{invoiceNo}}</div>Dear Acme Ltd,
+
+Your Acme Holdings invoice INV-0042 for 4,820.00 USD is attached. Due 2026-11-15.
+
+Acme Holdings Billing</div>
+          </div>
+        </div>
+        <div class="header-actions" style="margin-top:1rem"><button class="btn" disabled>Save</button><button class="btn-secondary">Cancel</button><button class="btn-secondary">Delete — use the default</button></div>
+        <p class="footnote">An SMS template has no subject; in-app's subject is its title; WhatsApp has none here. Saving is audited with before and after; the next send uses it at once.</p>
+      </div>
+    </section>
+
+    <!-- ===================== TEST SEND ===================== -->
+    <section class="screen" id="testsend">
+      <div class="screen-head"><h2 class="screen-name">Test send</h2><span class="endpoint"><span class="m">POST</span>/notifications/test-send</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">A dialog from the type page — check a route, template and account end to end with a real send. Marked as a test: hidden from the log by default, left out of the numbers.</p>
+      <p class="gating">Gate <code>notification.test_send</code>. A tenant admin sends to <b>itself or a colleague in its tenant</b>, never to a typed address; a platform admin may type an address and pick a tenant.</p>
+      <div class="variants">
+        <div class="sheet"><h4>Test send — payment.confirmed</h4><p class="desc">Meridian's configuration</p>
+          <dl class="kv"><dt>To</dt><dd><span class="field"><span class="val">Me — admin@meridian.test</span></span></dd><dt>Variables</dt><dd><div class="vars"><span class="var">customerName = Acme Ltd</span><span class="var">invoiceNumber = INV-0042</span><span class="var">amount = 4,820.00</span><span class="var">currency = USD</span></div><span class="muted" style="font-size:var(--text-caption)">The type's samples — edit any</span></dd></dl>
+          <div class="header-actions" style="margin-top:1rem"><button class="btn">Send test</button></div>
+        </div>
+        <div class="sheet"><h4>Result — partial</h4><p class="desc">One channel went, one didn't</p>
+          <div class="rowx"><span>Email</span><span class="badge good">sent</span><div class="meta">fake-ses-273a… · <a class="link">see it in the log</a></div></div>
+          <div class="rowx"><span>SMS</span><span class="badge bad">failed</span><div class="meta">No SMS template — <a class="link">write it</a></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== CREDENTIALS ===================== -->
+    <section class="screen" id="credentials">
+      <div class="screen-head"><h2 class="screen-name">Provider accounts</h2><span class="endpoint"><span class="m">GET/PUT/DELETE</span>/config/credentials</span><span class="endpoint"><span class="m">POST</span>/config/credentials/:channel/verify</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">Which account each tenant sends through on each channel — its own, or the platform's — and whether it works. Keys are write-only: the screen only ever shows that one exists.</p>
+      <p class="gating">Gate <code>notification.view</code> to read, <code>notification.manage_config</code> to set, verify or remove. A tenant admin sees its own row and the platform's (read-only). In-app needs none.</p>
+      <table class="grid-cred">
+        <thead><tr><th></th><th>Email</th><th>SMS</th><th>WhatsApp</th></tr></thead>
+        <tbody>
+          <tr><td><b>Platform</b><div class="muted" style="font-size:var(--text-caption)">tenantless sends · the fallback</div></td><td><div class="cell"><span class="badge good">verified</span><span class="s">fake-ses · checked 1 min ago</span></div></td><td><div class="cell"><span class="badge muted">set</span><span class="s"><a class="link">Verify</a></span></div></td><td><div class="cell"><span class="badge muted">set</span><span class="s"><a class="link">Verify</a></span></div></td></tr>
+          <tr><td><b>Acme</b></td><td><div class="cell"><span class="badge good">own · verified</span><span class="s">fake-ses</span></div></td><td><div class="cell"><span class="muted">platform's</span></div></td><td><div class="cell"><span class="muted">platform's</span></div></td></tr>
+          <tr><td><b>Globex</b></td><td><div class="cell"><span class="muted">platform's</span></div></td><td><div class="cell"><span class="badge bad">own · rejected</span><span class="s">401 — the API key was revoked · <a class="link">Replace</a></span></div></td><td><div class="cell"><span class="muted">platform's</span></div></td></tr>
+          <tr><td><b>Meridian</b></td><td><div class="cell"><span class="muted">platform's</span></div></td><td><div class="cell"><span class="muted">platform's</span></div></td><td><div class="cell"><span class="muted">platform's</span></div></td></tr>
         </tbody>
       </table>
+      <div class="variants" style="margin-top:1rem">
+        <div class="sheet"><h4>Set Globex's SMS account</h4><p class="desc">Replaces the one there — the old key is never shown</p>
+          <div class="ta" style="min-height:70px">{ "provider": "twilio", "accountSid": "AC…", "authToken": "…", "from": "+15550301" }</div>
+          <p class="footnote">Stored as given (the provider's own shape); never returned. Audited without the value.</p>
+          <div class="header-actions"><button class="btn">Save and verify</button><button class="btn-secondary">Cancel</button></div>
+        </div>
+        <div><p class="vlabel">Notes</p><ul class="ann">
+          <li><b>platform's</b> — no own account; sends through the platform's (the app allows the fallback). Without the fallback it would read <i>missing</i>.</li>
+          <li><b>Verify</b> asks the provider whether the key works; a stub provider answers "can't check".</li>
+          <li>Removing a tenant's own account falls back to the platform's — the dialog says so.</li>
+        </ul></div>
       </div>
     </section>
 
-    <!-- EMPTY STATE -->
-    <section class="screen">
-      <div class="screen-head"><h2 class="screen-name">Delivery Log — empty state</h2><span class="endpoint"><span class="m">GET</span>/notifications/deliveries</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Nothing has been sent, or the <code>PostgresNotificationDeliveryRecorder</code> isn't wired (delivery logging is opt-in).</p>
-      <div class="empty">
-        <div class="ic">✉</div>
-        <div><div style="color:var(--foreground);font-weight:500">No deliveries recorded</div>
-        <div>Bind <code>deliveryRecorderToken: POSTGRES_NOTIFICATION_DELIVERY_RECORDER</code> in <code>NotificationModule.forRoot</code>.</div></div>
+    <!-- ===================== SUPPRESSIONS ===================== -->
+    <section class="screen" id="suppressions">
+      <div class="screen-head"><h2 class="screen-name">Suppressions</h2><span class="endpoint"><span class="m">GET</span>/notifications/suppressions</span><span class="endpoint"><span class="m">DELETE</span>/suppressions/:id</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">Recipients a channel stopped sending to — a hard bounce or a spam complaint reported by the provider. Every send to them is skipped until someone removes the entry (the mailbox was fixed, the number re-verified).</p>
+      <p class="gating">Gate <code>notification.view</code>; removing takes <code>notification.manage_config</code> — audited. An entry applies to the whole app (a dead address is dead for every tenant).</p>
+      <div class="card"><table class="table">
+        <thead><tr><th>Recipient</th><th>Channel</th><th>Why</th><th>Since</th><th class="t-num">Bounces</th><th></th></tr></thead>
+        <tbody><tr><td><div class="person"><span>Guest</span><span class="em">address hidden · <a class="link">sends to it</a></span></div></td><td><span class="chan">Email</span></td><td>bounced <span class="muted">— 550 5.1.1 mailbox unavailable</span></td><td class="t-time">16 Sep</td><td class="t-num">6</td><td><a class="link">Remove</a></td></tr></tbody>
+      </table></div>
+      <div class="note warn"><div><b>Decision — who sees an entry.</b> Today an entry belongs to the tenant whose send bounced first: this one is Acme's, so Globex — whose sends to the same address are skipped too — doesn't see why. <span class="status proposed">Proposed</span> show a tenant every entry that has skipped one of its sends (and the platform all); removing stays the platform's when it spans tenants.</div></div>
+    </section>
+
+    <!-- ===================== RETENTION ===================== -->
+    <section class="screen" id="retention">
+      <div class="screen-head"><h2 class="screen-name">Volume &amp; retention</h2><span class="endpoint"><span class="m">GET</span>/notifications/volume?tz=</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">How big the delivery log is, how far back it goes, and how much stored message text it still holds — the same screen every module has.</p>
+      <p class="gating">Platform admins only — the table holds every tenant's rows.</p>
+      <div class="kpi-row">
+        <div class="kpi"><div class="k-label">Rows</div><div class="k-value">3,532</div><div class="k-sub">oldest 28 Jul</div></div>
+        <div class="kpi"><div class="k-label">Holding the message</div><div class="k-value">950</div><div class="k-sub">oldest 26 Sep — cleared at 30 days</div></div>
+        <div class="kpi"><div class="k-label">Table size</div><div class="k-value">5.7 MB</div><div class="k-sub">every application in it</div></div>
+      </div>
+      <div class="card"><div class="ch"><h4>Rows per day — last 30 days</h4><p>Deliveries · failed · still holding the message</p></div><div style="padding:0 1.125rem 0.75rem"><div class="vchart" style="height:72px"><a style="height:81%"><i style="height:6%"></i></a><a style="height:74%"><i style="height:7%"></i></a><a style="height:89%"><i style="height:18%"></i></a><a style="height:70%"><i style="height:17%"></i></a><a style="height:80%"><i style="height:11%"></i></a><a style="height:90%"><i style="height:10%"></i></a><a style="height:85%"><i style="height:17%"></i></a><a style="height:63%"><i style="height:11%"></i></a><a style="height:72%"><i style="height:22%"></i></a><a style="height:49%"><i style="height:18%"></i></a><a style="height:69%"><i style="height:2%"></i></a><a style="height:69%"><i style="height:10%"></i></a><a style="height:78%"><i style="height:16%"></i></a><a style="height:74%"><i style="height:9%"></i></a><a style="height:67%"><i style="height:2%"></i></a><a style="height:98%"><i style="height:3%"></i></a><a style="height:81%"><i style="height:13%"></i></a><a style="height:76%"><i style="height:16%"></i></a><a style="height:76%"><i style="height:9%"></i></a><a style="height:67%"><i style="height:8%"></i></a><a style="height:83%"><i style="height:8%"></i></a><a style="height:60%"><i style="height:18%"></i></a><a style="height:69%"><i style="height:21%"></i></a><a style="height:80%"><i style="height:18%"></i></a><a style="height:100%"><i style="height:23%"></i></a><a style="height:58%"><i style="height:18%"></i></a><a style="height:60%"><i style="height:12%"></i></a><a style="height:80%"><i style="height:18%"></i></a><a style="height:61%"><i style="height:17%"></i></a><a style="height:92%"><i style="height:13%"></i></a></div><div class="vaxis"><span>27 Sep</span><span>today</span></div></div>
+        <div class="cf">Kept: the message 30 days, rows 90 days, inbox items 90 days, dedupe keys until they expire — the nightly <code>notification-retention</code> job.</div></div>
+    </section>
+
+    <!-- ===================== INBOX ===================== -->
+    <section class="screen" id="inbox">
+      <div class="screen-head"><h2 class="screen-name">Inbox — the bell</h2><span class="endpoint"><span class="m">GET</span>/inbox · /inbox/unread-count</span><span class="endpoint"><span class="m">POST</span>/inbox/:id/read · /inbox/read-all</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">What the in-app channel delivers — a bell in the app's top bar with the unread count, a short dropdown, and a full Inbox page. Every signed-in user, their own items only.</p>
+      <div class="variants">
+        <div>
+          <p class="vlabel">The bell (top bar)</p>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:0.5rem"><span class="bell">🔔<i>2</i></span></div>
+          <div class="sheet" style="margin:0">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem"><h4>Notifications</h4><a class="link" style="font-size:var(--text-caption)">Mark all read</a></div>
+            <div class="inbox-item" style="padding-left:0;padding-right:0"><span class="dot"></span><span class="t">Payout approved</span><span class="t-time" style="font-size:var(--text-caption)">2m</span><span class="b">18,400.00 PKR, approved by Ayesha Malik.</span></div>
+            <div class="inbox-item" style="padding-left:0;padding-right:0"><span class="dot"></span><span class="t">New role: billing-clerk</span><span class="t-time" style="font-size:var(--text-caption)">5m</span><span class="b">Ayesha Malik gave you the billing-clerk role.</span></div>
+            <div class="inbox-item read" style="padding-left:0;padding-right:0;border-bottom:0"><span class="dot"></span><span class="t">Your report is ready</span><span class="t-time" style="font-size:var(--text-caption)">1d</span><span class="b">October statements is ready to download.</span></div>
+            <p class="footnote"><a class="link">See all</a> · <a class="link">Notification settings</a></p>
+          </div>
+        </div>
+        <div>
+          <p class="vlabel">States</p>
+          <ul class="ann">
+            <li>Opening the dropdown doesn't mark anything read; clicking an item does (and opens what it's about, when it links somewhere).</li>
+            <li>Empty: "You're all caught up".</li>
+            <li>The full Inbox page: the same list with <b>Unread / All</b>, paged.</li>
+            <li>The badge polls <code>/inbox/unread-count</code> (no push yet).</li>
+          </ul>
+        </div>
       </div>
     </section>
+
+    <!-- ===================== MY NOTIFICATIONS ===================== -->
+    <section class="screen" id="prefs">
+      <div class="screen-head"><h2 class="screen-name">My notifications</h2><span class="endpoint"><span class="m">GET/PUT</span>/notifications/preferences/me</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">What reaches me, and how — every type that reaches this user, on the channels it's routed to, each a switch. A type the app requires (a password reset) is always on.</p>
+      <div class="card">
+        <div class="pref head"><span>Notification</span><span>Email</span><span>SMS</span><span>WhatsApp</span><span>In-app</span></div>
+        <div class="pref" style="background:var(--muted)"><span><b>Every notification</b> <span class="muted">— a channel off for all</span></span><span class="toggle on"></span><span class="toggle"></span><span class="toggle on"></span><span class="toggle on"></span></div>
+        <div class="pref"><span>Payout approved <div class="muted" style="font-size:var(--text-caption)">When a payout you can see is approved</div></span><span class="toggle on"></span><span class="toggle"></span><span class="na">—</span><span class="toggle on"></span></div>
+        <div class="pref"><span>Role assigned</span><span class="toggle on"></span><span class="na">—</span><span class="na">—</span><span class="toggle on"></span></div>
+        <div class="pref"><span>Report ready</span><span class="na">—</span><span class="na">—</span><span class="na">—</span><span class="toggle on"></span></div>
+        <div class="pref"><span>Password reset <span class="badge muted">always sent</span></span><span class="toggle on fixed"></span><span class="na">—</span><span class="na">—</span><span class="na">—</span></div>
+        <div class="cf">"—": this notification doesn't go out on that channel. Changes save as you switch.</div>
+      </div>
+    </section>
+
+    <div class="note"><div><b>Proposed backend additions this mock uses</b> (small — decide with the mock):
+      <ol style="margin:0.4rem 0 0;padding-left:1.1rem">
+        <li><code>byReason</code> on <code>GET /notifications/stats</code> — failed / skipped counts by reason (the "Why sends failed" card).</li>
+        <li>Suppression visibility — a tenant sees every entry that skipped one of its sends.</li>
+        <li>Recipient names — the log shows a user by name, through the app's user directory (the module stores only ids; the console resolves them, as the access console does).</li>
+      </ol></div></div>
   </main>
 </div>
 </body>
