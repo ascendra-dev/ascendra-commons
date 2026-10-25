@@ -48,8 +48,10 @@ export interface SetProviderCredentialBody {
 export interface DeliveryStatsQueryDto {
   /** Non-platform actors are restricted to their own tenant regardless of this value. */
   tenantId?: string;
-  /** e.g. `'24h'`, `'7d'`, `'30d'`. Default `'7d'`. */
+  /** e.g. `'24h'` (rolling), `'7d'`, `'30d'` (whole calendar days in `tz`). Default `'7d'`. */
   window?: string;
+  /** IANA zone the days are counted in. Default `'UTC'`. */
+  tz?: string;
 }
 
 export interface PreviewTemplateBody {

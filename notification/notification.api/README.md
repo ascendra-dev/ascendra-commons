@@ -12,7 +12,8 @@ tokens.
 | GET | `/notifications/deliveries` | `notification.view` | `getDeliveryHistory` — filtered, keyset-paginated, `{ data, meta: { nextCursor } }` |
 | GET | `/notifications/deliveries/:id` | `notification.view` | one delivery's metadata (404 for another tenant's) |
 | GET | `/notifications/deliveries/:id/content` | `notification.view_content` | the stored rendered message (404 if not stored) — **every read audited** |
-| GET | `/notifications/stats` | `notification.view` | volume by channel/type/day over `?window=` (`24h`, `7d`, `30d`) |
+| GET | `/notifications/stats` | `notification.view` | counts by channel/type/day over `?window=` — `24h` rolling, `7d` / `30d` whole calendar days in `?tz=`; test sends left out |
+| GET | `/notifications/volume` | `notification.view` + platform admin | per-day rows over 30 days in `?tz=`, the table's size and age, rows still holding content |
 | GET | `/notifications/config/coverage-gaps` | `notification.view` | holes in routing/templates/credentials |
 | GET | `/notifications/config/routes` \| `/templates` \| `/credentials` | `notification.view` | `list*` — a tenant admin sees the defaults + their own tenant; credentials redacted (channel + tenant only) |
 | PUT | `/notifications/config/routes` \| `/templates` \| `/credentials` | `notification.manage_config` | upsert one row (actor-scoped, validated, audited) |

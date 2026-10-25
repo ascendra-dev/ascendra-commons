@@ -1,5 +1,6 @@
 // Stack-agnostic utilities
 export { ConfigCache } from './config-cache';
+export { calendarDays, isValidTimeZone } from './calendar-days';
 export { encodeKeysetCursor, decodeKeysetCursor, isDeliveryId, InvalidDeliveryCursorError } from './keyset-cursor';
 
 // Ports a stack adapter implements
@@ -17,6 +18,8 @@ export type {
   DeliveryChannelStatusCount,
   DeliveryTypeStatusCount,
   DeliveryDayCount,
+  DeliveryVolume,
+  DeliveryVolumeDay,
   CoverageGap,
   ConfigScope,
   ChannelRouteView,

@@ -191,7 +191,7 @@ describe('getDeliveryStats', () => {
     const db = fakeDb((text) => {
       if (/group by channel, status/i.test(text)) return [{ channel: 'email', status: 'sent', count: 5 }];
       if (/group by notification_type, status/i.test(text)) return [{ notification_type: 'invoice.sent', status: 'sent', count: 5 }];
-      if (/group by day/i.test(text)) return [{ day: new Date('2026-06-01T00:00:00Z'), count: 5 }];
+      if (/as day/i.test(text)) return [{ day: '2026-06-01', count: 5 }];
       return [];
     });
     const since = new Date('2026-05-25T00:00:00Z');
@@ -212,11 +212,59 @@ describe('getDeliveryStats', () => {
     }
   });
 
+  it("a day window: whole calendar days in the viewer's zone, every day listed, a quiet one at 0", async () => {
+    const db = fakeDb((text) => {
+      if (/as since/i.test(text)) return [{ since: new Date('2026-05-29T19:00:00Z') }];
+      if (/as day/i.test(text)) return [{ day: '2026-06-01', count: 3 }];
+      return [];
+    });
+    const now = new Date('2026-06-01T12:00:00Z');
+    const stats = await svc(db).getDeliveryStats({ days: 3, timeZone: 'Asia/Karachi' }, now);
+    expect(stats.since).toEqual(new Date('2026-05-29T19:00:00Z'));
+    expect(stats.byDay).toEqual([
+      { day: '2026-05-30', count: 0 },
+      { day: '2026-05-31', count: 0 },
+      { day: '2026-06-01', count: 3 },
+    ]);
+    const first = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(first.sql).toMatch(/::date::timestamp at time zone \$\d+\) as since/i);
+    expect(first.params).toEqual(['2026-05-30', 'Asia/Karachi']);
+    const byDay = db.execute.mock.calls.map((c) => dialect.sqlToQuery(c[0] as SQL)).find((q) => /as day/i.test(q.sql))!;
+    expect(byDay.sql).toMatch(/to_char\(attempted_at at time zone \$\d+, 'YYYY-MM-DD'\)/i);
+    expect(byDay.params).toContain('Asia/Karachi');
+  });
+
   it('defaults to a 7-day window ending now when none is given', async () => {
     const db = fakeDb(() => []);
     const before = Date.now();
     const stats = await svc(db).getDeliveryStats();
     expect(stats.until.getTime()).toBeGreaterThanOrEqual(before);
     expect(stats.until.getTime() - stats.since.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
+  });
+});
+
+describe('volume', () => {
+  it("30 calendar days in the viewer's zone, the table's extent and what still holds content", async () => {
+    const db = fakeDb((text) => {
+      if (/group by 1/i.test(text)) return [{ day: '2026-06-01', deliveries: 9, failed: 2, with_content: 4 }];
+      if (/min\(attempted_at\)/i.test(text)) {
+        return [{ oldest: new Date('2026-03-01T00:00:00Z'), total: '120', with_content: '40', oldest_content: new Date('2026-05-02T00:00:00Z') }];
+      }
+      if (/pg_total_relation_size/i.test(text)) return [{ bytes: '65536' }];
+      return [];
+    });
+    const v = await svc(db).volume('Asia/Dubai', new Date('2026-06-01T12:00:00Z'));
+    expect(v).toMatchObject({
+      oldestAttemptedAt: new Date('2026-03-01T00:00:00Z'),
+      rowCount: 120,
+      contentRowCount: 40,
+      oldestContentAt: new Date('2026-05-02T00:00:00Z'),
+      tableSizeBytes: 65536,
+    });
+    expect(v.perDay).toHaveLength(30);
+    expect(v.perDay[0]).toEqual({ day: '2026-05-03', deliveries: 0, failed: 0, withContent: 0 });
+    expect(v.perDay[29]).toEqual({ day: '2026-06-01', deliveries: 9, failed: 2, withContent: 4 });
+    const perDay = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(perDay.params).toEqual(expect.arrayContaining(['Asia/Dubai', 'ascendra-pay', '2026-05-03']));
   });
 });

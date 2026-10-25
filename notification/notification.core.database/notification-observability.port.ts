@@ -1,6 +1,7 @@
 import type {
   ConfigScope,
   CoverageGap,
+  DeliveryVolume,
   DeliveryContentRecord,
   DeliveryHistoryPage,
   DeliveryHistoryQuery,
@@ -24,6 +25,8 @@ export interface NotificationObservabilityPort {
   getDeliveryContent(id: string): Promise<DeliveryContentRecord | null>;
   /** For every routed (notificationType, tenant, channel): is there a usable template, and (for a tenant route) a credential? */
   configCoverageGaps(scope?: ConfigScope): Promise<CoverageGap[]>;
-  /** Send volume grouped by channel/status, type/status and day, over one window. */
+  /** Send volume grouped by channel/status, type/status and day, over one window. Test sends are left out. */
   getDeliveryStats(query?: DeliveryStatsQuery): Promise<DeliveryStats>;
+  /** The delivery table's size and age, and per-day rows over the last 30 calendar days in `timeZone`. */
+  volume(timeZone?: string, now?: Date): Promise<DeliveryVolume>;
 }

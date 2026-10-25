@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { NotificationObservabilityApiService } from './notification-observability-api.service';
 import { InvalidDeliveryCursorError, type NotificationObservabilityPort } from '../../notification.core.database';
 import type { NotificationApiOptions } from '../notification-api.options';
@@ -12,6 +12,7 @@ function fakePort(): NotificationObservabilityPort {
     getDeliveryContent: vi.fn().mockResolvedValue(null),
     configCoverageGaps: vi.fn().mockResolvedValue([]),
     getDeliveryStats: vi.fn().mockResolvedValue({ since: new Date(), until: new Date(), byChannel: [], byType: [], byDay: [] }),
+    volume: vi.fn().mockResolvedValue({ oldestAttemptedAt: null, rowCount: 0, contentRowCount: 0, oldestContentAt: null, tableSizeBytes: null, perDay: [] }),
   };
 }
 
@@ -181,13 +182,22 @@ describe('NotificationObservabilityApiService', () => {
   });
 
   describe('getDeliveryStats', () => {
-    it('defaults to a 7-day window ending now', async () => {
+    it('defaults to 7 whole calendar days in UTC', async () => {
       const port = fakePort();
-      const before = Date.now();
       await new NotificationObservabilityApiService(port, options(), audit).getDeliveryStats(platformActor, {});
-      const call = (port.getDeliveryStats as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      expect(call.until.getTime()).toBeGreaterThanOrEqual(before);
-      expect(call.until.getTime() - call.since.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
+      expect(port.getDeliveryStats).toHaveBeenCalledWith({ tenantId: undefined, days: 7, timeZone: 'UTC' });
+    });
+
+    it("a day window counts in the viewer's zone", async () => {
+      const port = fakePort();
+      await new NotificationObservabilityApiService(port, options(), audit).getDeliveryStats(platformActor, { window: '30d', tz: 'Asia/Karachi' });
+      expect(port.getDeliveryStats).toHaveBeenCalledWith(expect.objectContaining({ days: 30, timeZone: 'Asia/Karachi' }));
+    });
+
+    it('an unknown zone is a 400', async () => {
+      await expect(
+        new NotificationObservabilityApiService(fakePort(), options(), audit).getDeliveryStats(platformActor, { tz: 'Mars/Olympus' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('parses an hour window', async () => {
@@ -207,6 +217,21 @@ describe('NotificationObservabilityApiService', () => {
       const port = fakePort();
       await new NotificationObservabilityApiService(port, options(), audit).getDeliveryStats(platformActor, { tenantId: 't9' });
       expect(port.getDeliveryStats).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't9' }));
+    });
+  });
+
+  describe('volume', () => {
+    it("is the platform's — a tenant admin gets a 403 (the table holds every tenant's rows)", async () => {
+      const port = fakePort();
+      await expect(new NotificationObservabilityApiService(port, options(), audit).volume(tenantActor)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(port.volume).not.toHaveBeenCalled();
+    });
+
+    it("a platform admin's, in their zone; a bad zone is a 400", async () => {
+      const port = fakePort();
+      await new NotificationObservabilityApiService(port, options(), audit).volume(platformActor, 'Asia/Dubai');
+      expect(port.volume).toHaveBeenCalledWith('Asia/Dubai');
+      await expect(new NotificationObservabilityApiService(port, options(), audit).volume(platformActor, 'nope')).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 });

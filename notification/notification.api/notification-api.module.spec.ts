@@ -29,6 +29,7 @@ const auditRecord = vi.fn();
         getDeliveryContent: vi.fn().mockResolvedValue(null),
         configCoverageGaps: vi.fn().mockResolvedValue([]),
         getDeliveryStats: vi.fn().mockResolvedValue({ since: new Date(), until: new Date(), byChannel: [], byType: [], byDay: [] }),
+        volume: vi.fn().mockResolvedValue({ oldestAttemptedAt: null, rowCount: 0, contentRowCount: 0, oldestContentAt: null, tableSizeBytes: null, perDay: [] }),
       },
     },
     {

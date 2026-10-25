@@ -61,10 +61,17 @@ export interface DeliveryHistoryPage {
 
 export interface DeliveryStatsQuery {
   tenantId?: string;
-  /** Inclusive start of the window. Defaults to 7 days before `until`. */
+  /**
+   * Whole calendar days in `timeZone`, ending today — the window starts at the first day's local midnight. Takes
+   * precedence over `since`. (A per-day chart over a rolling window would show a partial first day.)
+   */
+  days?: number;
+  /** Inclusive start of a rolling window (e.g. the last 24 hours). Defaults to 7 days before `until`. */
   since?: Date;
   /** Exclusive end of the window. Defaults to now. */
   until?: Date;
+  /** IANA zone the days are counted in — `byDay` buckets by local date. Default `'UTC'`. */
+  timeZone?: string;
 }
 
 export interface DeliveryChannelStatusCount {
@@ -80,9 +87,31 @@ export interface DeliveryTypeStatusCount {
 }
 
 export interface DeliveryDayCount {
-  /** UTC calendar day, `YYYY-MM-DD`. */
+  /** Calendar day in the query's time zone, `YYYY-MM-DD`. */
   day: string;
   count: number;
+}
+
+/** One calendar day of the Volume & Retention chart. */
+export interface DeliveryVolumeDay {
+  /** `YYYY-MM-DD` in the requested time zone. */
+  day: string;
+  deliveries: number;
+  failed: number;
+  /** Rows still holding their stored message — what `clearContent` empties. */
+  withContent: number;
+}
+
+/** Per-day deliveries over 30 calendar days, and the table's extent — the Volume & Retention screen. */
+export interface DeliveryVolume {
+  oldestAttemptedAt: Date | null;
+  rowCount: number;
+  /** Rows holding stored content, and the oldest of them — what the content retention has left. */
+  contentRowCount: number;
+  oldestContentAt: Date | null;
+  /** `pg_total_relation_size` — the whole table, every application in it; `null` where the store can't say. */
+  tableSizeBytes: number | null;
+  perDay: DeliveryVolumeDay[];
 }
 
 /** `GET /notifications/stats` — send volume grouped a few ways over one window. */

@@ -1,8 +1,9 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Actor } from '../../../authorization/authorization.core';
 import { NOTIFICATION_CHANNELS } from '../../notification.core';
 import {
   InvalidDeliveryCursorError,
+  isValidTimeZone,
   NOTIFICATION_OBSERVABILITY_PORT,
   type DeliveryHistoryPage,
   type NotificationObservabilityPort,
@@ -102,8 +103,20 @@ export class NotificationObservabilityApiService {
 
   async getDeliveryStats(actor: Actor, query: DeliveryStatsQueryDto) {
     const tenantId = await this.resolveTenantFilter(actor, idParam('tenantId', query.tenantId, true));
-    const { since, until } = resolveWindow(query.window);
-    return this.port.getDeliveryStats({ tenantId, since, until });
+    const timeZone = timeZoneParam(query.tz);
+    const window = resolveWindow(query.window);
+    // '7d' is seven whole calendar days in the viewer's zone; '24h' a rolling window.
+    return 'days' in window
+      ? this.port.getDeliveryStats({ tenantId, days: window.days, timeZone })
+      : this.port.getDeliveryStats({ tenantId, since: window.since, until: window.until, timeZone });
+  }
+
+  /** The table's size and age — the whole app's, every tenant's rows: a platform admin's. */
+  async volume(actor: Actor, tz?: string) {
+    if (!(await this.options.isPlatformAdmin(actor))) {
+      throw new ForbiddenException("the delivery log's volume and retention are the platform's — every tenant's rows");
+    }
+    return this.port.volume(timeZoneParam(tz));
   }
 
   /** Non-platform actor → forced to their own tenant, regardless of what was requested. */
@@ -113,14 +126,22 @@ export class NotificationObservabilityApiService {
   }
 }
 
-/** `'24h'`, `'7d'`, `'30d'` — anything else is a 400, not a silent 7 days. */
-function resolveWindow(window?: string): { since: Date; until: Date } {
-  const until = new Date();
+/** `'24h'` — a rolling window; `'7d'`, `'30d'` — whole calendar days. Anything else is a 400, not a silent 7 days. */
+function resolveWindow(window?: string): { days: number } | { since: Date; until: Date } {
   const match = WINDOW_RE.exec(window || DEFAULT_WINDOW);
   const amount = match ? Number(match[1]) : NaN;
   const hours = match?.[2] === 'h' ? amount : amount * 24;
   if (!match || amount < 1 || hours > MAX_WINDOW_DAYS * 24) {
     throw new BadRequestException(`"window" must look like '24h' or '7d' (up to ${MAX_WINDOW_DAYS} days)`);
   }
+  if (match[2] === 'd') return { days: amount };
+  const until = new Date();
   return { since: new Date(until.getTime() - hours * 60 * 60 * 1000), until };
+}
+
+/** An IANA zone (`Asia/Dubai`, `UTC`) — the days are counted in it. Default UTC. */
+function timeZoneParam(tz?: string): string {
+  if (tz === undefined || tz === '') return 'UTC';
+  if (tz.length > 64 || !isValidTimeZone(tz)) throw new BadRequestException('"tz" must be an IANA time zone, e.g. Asia/Dubai');
+  return tz;
 }

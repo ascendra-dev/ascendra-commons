@@ -73,7 +73,19 @@ export class NotificationObservabilityController {
 
   @Get('stats')
   @RequiresAction(NOTIFICATION_ACTIONS.VIEW)
-  stats(@CurrentActor() actor: Actor, @Query('tenantId') tenantId?: string, @Query('window') window?: string) {
-    return this.service.getDeliveryStats(actor, { tenantId, window });
+  stats(
+    @CurrentActor() actor: Actor,
+    @Query('tenantId') tenantId?: string,
+    @Query('window') window?: string,
+    @Query('tz') tz?: string,
+  ) {
+    return this.service.getDeliveryStats(actor, { tenantId, window, tz });
+  }
+
+  /** Volume & retention — per-day rows over 30 days in `?tz=`, the table's size and age. Platform admins only. */
+  @Get('volume')
+  @RequiresAction(NOTIFICATION_ACTIONS.VIEW)
+  volume(@CurrentActor() actor: Actor, @Query('tz') tz?: string) {
+    return this.service.volume(actor, tz);
   }
 }

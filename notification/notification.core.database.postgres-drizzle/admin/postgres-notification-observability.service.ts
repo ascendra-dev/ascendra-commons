@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { sql, type SQL } from 'drizzle-orm';
 import type { DeliveryContent, NotificationChannel } from '../../notification.core';
 import {
+  calendarDays,
   decodeKeysetCursor,
   encodeKeysetCursor,
   InvalidDeliveryCursorError,
@@ -14,6 +15,7 @@ import {
   type DeliveryRecord,
   type DeliveryStats,
   type DeliveryStatsQuery,
+  type DeliveryVolume,
   type NotificationObservabilityPort,
 } from '../../notification.core.database';
 import type { SqlExecutor } from '../persistence/sql-executor';
@@ -22,6 +24,9 @@ import {
   NOTIFICATION_ADMIN_CREDENTIAL_FALLBACK,
   NOTIFICATION_ADMIN_SQL_EXECUTOR,
 } from '../tokens';
+
+/** The Volume & Retention chart's span. */
+const VOLUME_DAYS = 30;
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -176,9 +181,21 @@ export class PostgresNotificationObservabilityService implements NotificationObs
     return gaps;
   }
 
-  async getDeliveryStats(query: DeliveryStatsQuery = {}): Promise<DeliveryStats> {
-    const until = query.until ?? new Date();
-    const since = query.since ?? new Date(until.getTime() - 7 * 24 * 60 * 60 * 1000);
+  async getDeliveryStats(query: DeliveryStatsQuery = {}, now: Date = new Date()): Promise<DeliveryStats> {
+    const timeZone = query.timeZone ?? 'UTC';
+    const until = query.until ?? now;
+    // Whole calendar days in the viewer's zone: from the first day's local midnight (a per-day chart over a rolling
+    // window would open on a partial day). Otherwise a rolling window — the last 24 hours.
+    const days = query.days ? calendarDays(until, query.days, timeZone) : null;
+    let since: Date;
+    if (days) {
+      const { rows } = await this.db.execute<{ since: string | Date }>(
+        sql`select (${days[0]}::date::timestamp at time zone ${timeZone}) as since`,
+      );
+      since = asDate(rows[0].since);
+    } else {
+      since = query.since ?? new Date(until.getTime() - 7 * 24 * 60 * 60 * 1000);
+    }
 
     const conds: SQL[] = [
       sql`application = ${this.application}`,
@@ -203,15 +220,16 @@ export class PostgresNotificationObservabilityService implements NotificationObs
         where ${where}
         group by notification_type, status
       `),
-      this.db.execute<{ day: string | Date; count: number }>(sql`
-        select date_trunc('day', attempted_at) as day, count(*)::int as count
+      this.db.execute<{ day: string; count: number }>(sql`
+        select to_char(attempted_at at time zone ${timeZone}, 'YYYY-MM-DD') as day, count(*)::int as count
         from commons_notification_delivery
         where ${where}
-        group by day
-        order by day
+        group by 1
+        order by 1
       `),
     ]);
 
+    const counted = new Map(byDay.rows.map((r) => [String(r.day), Number(r.count)]));
     return {
       since,
       until,
@@ -225,7 +243,46 @@ export class PostgresNotificationObservabilityService implements NotificationObs
         status: r.status as DeliveryRecord['status'],
         count: Number(r.count),
       })),
-      byDay: byDay.rows.map((r) => ({ day: asDate(r.day).toISOString().slice(0, 10), count: Number(r.count) })),
+      // Every day of a day window, a quiet one at 0; a rolling window lists the days it touched.
+      byDay: (days ?? [...counted.keys()]).map((day) => ({ day, count: counted.get(day) ?? 0 })),
+    };
+  }
+
+  async volume(timeZone = 'UTC', now: Date = new Date()): Promise<DeliveryVolume> {
+    const app = sql`application = ${this.application}`;
+    const days = calendarDays(now, VOLUME_DAYS, timeZone);
+    const [perDay, totals, size] = await Promise.all([
+      this.db.execute<{ day: string; deliveries: number; failed: number; with_content: number }>(sql`
+        select
+          to_char(attempted_at at time zone ${timeZone}, 'YYYY-MM-DD') as day,
+          count(*)::int as deliveries,
+          count(*) filter (where status in ('failed', 'bounced'))::int as failed,
+          count(*) filter (where content is not null)::int as with_content
+        from commons_notification_delivery
+        where ${app} and attempted_at >= (${days[0]}::date::timestamp at time zone ${timeZone})
+        group by 1
+      `),
+      this.db.execute<{ oldest: string | Date | null; total: string | number; with_content: string | number; oldest_content: string | Date | null }>(sql`
+        select min(attempted_at) as oldest, count(*)::bigint as total,
+               count(*) filter (where content is not null)::bigint as with_content,
+               min(attempted_at) filter (where content is not null) as oldest_content
+        from commons_notification_delivery
+        where ${app}
+      `),
+      this.db.execute<{ bytes: string | number | null }>(sql`select pg_total_relation_size('commons_notification_delivery') as bytes`),
+    ]);
+    const t = totals.rows[0];
+    const byDay = new Map(perDay.rows.map((r) => [String(r.day), r]));
+    return {
+      oldestAttemptedAt: t?.oldest == null ? null : asDate(t.oldest),
+      rowCount: Number(t?.total ?? 0),
+      contentRowCount: Number(t?.with_content ?? 0),
+      oldestContentAt: t?.oldest_content == null ? null : asDate(t.oldest_content),
+      tableSizeBytes: size.rows[0]?.bytes == null ? null : Number(size.rows[0].bytes),
+      perDay: days.map((day) => {
+        const r = byDay.get(day);
+        return { day, deliveries: Number(r?.deliveries ?? 0), failed: Number(r?.failed ?? 0), withContent: Number(r?.with_content ?? 0) };
+      }),
     };
   }
 }
