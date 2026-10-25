@@ -7,7 +7,7 @@ import {
   type DeliveryHistoryPage,
   type NotificationObservabilityPort,
 } from '../../notification.core.database';
-import { correlationIdParam, dateParam, enumParam, idParam } from '../shared/params';
+import { correlationIdParam, dateParam, enumParam, flagParam, idParam } from '../shared/params';
 import { NOTIFICATION_API_OPTIONS, NOTIFICATION_AUDIT_EMITTER } from '../tokens';
 import type { NotificationAuditEmitter } from '../notification-audit.port';
 import type { NotificationApiOptions } from '../notification-api.options';
@@ -53,6 +53,7 @@ export class NotificationObservabilityApiService {
         recipientRef: idParam('recipientRef', query.recipientRef, true),
         status: enumParam('status', query.status, STATUSES),
         correlationId: correlationIdParam('correlationId', query.correlationId),
+        test: query.test === undefined || query.test === '' ? undefined : flagParam('test', query.test),
         since: dateParam('since', query.since),
         until: dateParam('until', query.until),
         limit: query.limit,

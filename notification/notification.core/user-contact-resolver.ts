@@ -9,7 +9,11 @@ import { Injectable } from '@nestjs/common';
  * resolving "this user's contact info" is one concern, not two.
  */
 export interface UserContactResolver {
-  findById(id: string): Promise<{ email?: string; phone?: string } | null>;
+  /**
+   * `tenantId` is optional: when the resolver reports it, `notification.api`'s test send lets a tenant admin pick a
+   * colleague in their own tenant; when it doesn't, a tenant admin may test-send to themselves only.
+   */
+  findById(id: string): Promise<{ email?: string; phone?: string; tenantId?: string | null } | null>;
 }
 
 /**
@@ -22,7 +26,7 @@ export interface UserContactResolver {
  */
 @Injectable()
 export class NullUserContactResolver implements UserContactResolver {
-  async findById(): Promise<{ email?: string; phone?: string } | null> {
+  async findById(): Promise<{ email?: string; phone?: string; tenantId?: string | null } | null> {
     return null;
   }
 }

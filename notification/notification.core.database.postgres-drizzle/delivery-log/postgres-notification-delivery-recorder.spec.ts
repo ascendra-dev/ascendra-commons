@@ -48,6 +48,14 @@ describe('PostgresNotificationDeliveryRecorder', () => {
     expect(params).toEqual(expect.arrayContaining(['ascendra-erp', 'invoice.sent', 'email', 'sms', 'user:u1', 'm1', 'no_phone']));
   });
 
+  it('writes is_test — a test send is marked, a real one (or one that says nothing) is not', async () => {
+    const db = fakeDb();
+    await recorder(db, 'a').recordAttempts([attempt({ test: true }), attempt()]);
+    const { sql: text, params } = rendered(db);
+    expect(text).toMatch(/content, is_test\)/i);
+    expect(params.filter((p) => typeof p === 'boolean')).toEqual([true, false]);
+  });
+
   it('with storeContent off (default), the content column is written NULL even when the attempt carries content', async () => {
     const db = fakeDb();
     await recorder(db, 'a').recordAttempts([

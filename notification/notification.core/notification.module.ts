@@ -108,7 +108,8 @@ export class NotificationModule {
         Notifier,
         { provide: NOTIFIER, useExisting: Notifier },
       ],
-      exports: [NOTIFIER],
+      // The resolver too — notification.api's test send checks a recipient's tenant with it.
+      exports: [NOTIFIER, USER_CONTACT_RESOLVER],
     };
   }
 }

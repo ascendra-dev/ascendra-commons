@@ -101,6 +101,7 @@ export class Notifier {
       providerMessageId: result.providerMessageId,
       attemptedAt: now,
       correlationId: request.correlationId,
+      test: request.test ?? false,
       content: result.rendered
         ? {
             subject: result.rendered.subject ?? null,

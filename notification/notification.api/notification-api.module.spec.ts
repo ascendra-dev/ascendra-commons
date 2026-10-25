@@ -114,9 +114,9 @@ describe('NotificationApiModule.forRoot — real DI wiring', () => {
     const moduleRef = await build();
     await moduleRef.get(NotificationTestSendController).testSend(
       { id: 'a1', persona: 'issuer', tenantId: 't1' },
-      { recipient: { type: 'raw', email: 'p@e.com' }, notificationType: 'invoice.sent' },
+      { recipient: { type: 'user', id: 'a1' }, notificationType: 'invoice.sent' },
     );
-    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't1' }));
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't1', test: true }));
   });
 
   it('falls back to the no-op audit emitter when auditEmitterToken is omitted', async () => {

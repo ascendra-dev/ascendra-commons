@@ -31,6 +31,8 @@ export interface DeliveryAttempt {
   attemptedAt: Date;
   /** The ambient correlation id, when the consumer threads one in. */
   correlationId?: string;
+  /** A verification send — recorded, but left out of the stats. */
+  test?: boolean;
   /**
    * The rendered message (from the sender) + the request variables. Carried
    * whenever the sender rendered a template; the recorder persists it only

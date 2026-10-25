@@ -14,6 +14,8 @@ export interface DeliveryHistoryQueryDto {
   recipientRef?: string;
   status?: string;
   correlationId?: string;
+  /** `'true'` = test sends only, `'false'` = real sends only. */
+  test?: string;
   since?: string;
   until?: string;
   limit?: number;

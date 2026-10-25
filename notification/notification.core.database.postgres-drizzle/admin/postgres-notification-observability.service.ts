@@ -48,6 +48,7 @@ export class PostgresNotificationObservabilityService implements NotificationObs
     if (query.recipientRef !== undefined) conds.push(sql`recipient_ref = ${query.recipientRef}`);
     if (query.status !== undefined) conds.push(sql`status = ${query.status}`);
     if (query.correlationId !== undefined) conds.push(sql`correlation_id = ${query.correlationId}`);
+    if (query.test !== undefined) conds.push(sql`is_test = ${query.test}`);
     if (query.since) conds.push(sql`attempted_at >= ${query.since}`);
     if (query.until) conds.push(sql`attempted_at < ${query.until}`);
 
@@ -65,7 +66,7 @@ export class PostgresNotificationObservabilityService implements NotificationObs
       await this.db.execute<DeliveryRow & { attempted_at_key: string }>(sql`
         select id, notification_type, channel, tenant_id, recipient_ref, status, reason,
                provider_message_id, attempted_at, updated_at, correlation_id,
-               (content is not null) as has_content, ${ATTEMPTED_AT_KEY}
+               (content is not null) as has_content, is_test, ${ATTEMPTED_AT_KEY}
         from commons_notification_delivery
         where ${sql.join(conds, sql` and `)}
         order by attempted_at desc, id desc
@@ -87,7 +88,7 @@ export class PostgresNotificationObservabilityService implements NotificationObs
     const { rows } = await this.db.execute<DeliveryRow>(sql`
       select id, notification_type, channel, tenant_id, recipient_ref, status, reason,
              provider_message_id, attempted_at, updated_at, correlation_id,
-             (content is not null) as has_content
+             (content is not null) as has_content, is_test
       from commons_notification_delivery
       where application = ${this.application} and id = ${id}::bigint
     `);
@@ -175,6 +176,8 @@ export class PostgresNotificationObservabilityService implements NotificationObs
       sql`application = ${this.application}`,
       sql`attempted_at >= ${since}`,
       sql`attempted_at < ${until}`,
+      // A test send checks the config — it isn't deliverability.
+      sql`not is_test`,
     ];
     if (query.tenantId !== undefined) conds.push(sql`tenant_id = ${query.tenantId}`);
     const where = sql.join(conds, sql` and `);
@@ -232,6 +235,7 @@ interface DeliveryRow {
   updated_at: string | Date;
   correlation_id: string | null;
   has_content: boolean;
+  is_test: boolean;
 }
 
 function mapRow(row: DeliveryRow): DeliveryRecord {
@@ -248,6 +252,7 @@ function mapRow(row: DeliveryRow): DeliveryRecord {
     updatedAt: asDate(row.updated_at),
     correlationId: row.correlation_id,
     hasContent: row.has_content === true,
+    isTest: row.is_test === true,
   };
 }
 

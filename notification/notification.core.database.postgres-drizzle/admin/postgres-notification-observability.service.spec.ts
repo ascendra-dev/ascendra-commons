@@ -61,6 +61,14 @@ describe('getDeliveryHistory', () => {
     expect(params).toEqual(expect.arrayContaining(['2026-06-01T08:00:00.000121Z', '201']));
   });
 
+  it('test=false shows real sends only, test=true test sends only', async () => {
+    const db = fakeDb();
+    await svc(db).getDeliveryHistory({ test: false });
+    const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(text).toMatch(/is_test = \$\d+/i);
+    expect(params).toContain(false);
+  });
+
   it('a cursor it never issued is an error — never page one again', async () => {
     const db = fakeDb();
     await expect(svc(db).getDeliveryHistory({ cursor: 'garbage' })).rejects.toBeInstanceOf(InvalidDeliveryCursorError);
@@ -77,6 +85,7 @@ describe('getDeliveryHistory', () => {
     expect(text).toMatch(/notification_type =/i);
     expect(text).toMatch(/recipient_ref =/i);
     expect(text).toMatch(/attempted_at >=/i);
+    expect(text).not.toMatch(/is_test =/i);
     expect(params).toEqual(expect.arrayContaining(['invoice.sent', 'sms', 't9', 'user:u5', 'bounced']));
   });
 });
@@ -183,8 +192,10 @@ describe('getDeliveryStats', () => {
     expect(stats.byDay).toEqual([{ day: '2026-06-01', count: 5 }]);
 
     for (const call of db.execute.mock.calls) {
-      const { params } = dialect.sqlToQuery(call[0] as SQL);
+      const { sql: text, params } = dialect.sqlToQuery(call[0] as SQL);
       expect(params).toEqual(expect.arrayContaining(['ascendra-pay', since, until, 't1']));
+      // a test send checks config — it isn't deliverability
+      expect(text).toMatch(/not is_test/i);
     }
   });
 

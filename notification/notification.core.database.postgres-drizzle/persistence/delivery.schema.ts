@@ -1,4 +1,4 @@
-import { bigserial, index, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { bigserial, boolean, index, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import type { DeliveryContent } from '../../notification.core';
 
 /**
@@ -41,6 +41,8 @@ export const notificationDelivery = pgTable(
      * pruned with the row. The "light" message archive (rollout item 6).
      */
     content: jsonb('content').$type<DeliveryContent>(),
+    /** A verification send (`POST /notifications/test-send`) — recorded, left out of the stats. */
+    isTest: boolean('is_test').notNull().default(false),
   },
   (t) => [
     index('commons_notification_delivery_type_time_idx').on(t.application, t.notificationType, t.attemptedAt),

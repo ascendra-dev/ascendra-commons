@@ -39,7 +39,7 @@ export class PostgresNotificationDeliveryRecorder implements NotificationDeliver
           return sql`(
             ${this.application}, ${a.notificationType}, ${a.channel}, ${a.tenantId},
             ${a.recipientRef}, ${a.status}, ${a.reason ?? null}, ${a.providerMessageId ?? null},
-            ${a.attemptedAt}, ${a.attemptedAt}, ${a.correlationId ?? null}, ${content}
+            ${a.attemptedAt}, ${a.attemptedAt}, ${a.correlationId ?? null}, ${content}, ${a.test ?? false}
           )`;
         }),
         sql`, `,
@@ -47,7 +47,7 @@ export class PostgresNotificationDeliveryRecorder implements NotificationDeliver
       await this.db.execute(sql`
         insert into commons_notification_delivery
           (application, notification_type, channel, tenant_id, recipient_ref, status, reason,
-           provider_message_id, attempted_at, updated_at, correlation_id, content)
+           provider_message_id, attempted_at, updated_at, correlation_id, content, is_test)
         values ${rows}
       `);
     } catch (err) {

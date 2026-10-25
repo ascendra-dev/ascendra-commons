@@ -19,7 +19,7 @@ ports/DTOs are stack-agnostic and live in `notification.core.database`.
 
 ### 1. Tables
 
-Apply `migrations/` (`0001_config`, `0002_delivery`) (delivered into your migrations by `ascendra-commons.js`)
+Apply `migrations/` (`0001_config`, `0002_delivery`, `0003_delivery_test_flag`) (delivered into your migrations by `ascendra-commons.js`)
 with your own migration tool — never re-export the schema tables to `drizzle-kit` too, or it
 generates them a second time (MODULE-STANDARD dimension 7).
 **Requires PostgreSQL 15+** (`NULLS NOT DISTINCT`).

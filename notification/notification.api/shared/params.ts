@@ -66,6 +66,13 @@ export function booleanParam(name: string, value: unknown): boolean | undefined 
   return value;
 }
 
+/** A query flag — the strings `true` / `false`; anything else (`1`, `TRUE`) is a 400, never a silently ignored filter. */
+export function flagParam(name: string, value: string): boolean {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw new BadRequestException(`"${name}" must be true or false`);
+}
+
 /** A plain JSON object — `{ ... }`, not an array or a scalar. */
 export function objectParam(name: string, value: unknown): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {

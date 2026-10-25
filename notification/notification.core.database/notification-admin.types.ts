@@ -22,6 +22,8 @@ export interface DeliveryRecord {
   correlationId: string | null;
   /** Whether the rendered `content` was stored for this row (the recorder's `storeContent`). */
   hasContent: boolean;
+  /** A verification send (test send) — left out of the stats. */
+  isTest: boolean;
 }
 
 /** One row's stored rendered content — from `getDeliveryContent(id)`, null when not stored. */
@@ -43,6 +45,8 @@ export interface DeliveryHistoryQuery {
   status?: DeliveryRecord['status'];
   /** Join to the same id in audit / job-run history for a cross-module trace. */
   correlationId?: string;
+  /** `true` = test sends only, `false` = real sends only; omitted = both. */
+  test?: boolean;
   since?: Date;
   until?: Date;
   /** Default 50, capped at 200. */

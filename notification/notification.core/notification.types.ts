@@ -55,6 +55,11 @@ export interface NotificationRequest {
    * nothing here derives it.
    */
   correlationId?: string;
+  /**
+   * A verification send (`POST /notifications/test-send`), not a real one — it goes out the same way, but its delivery
+   * rows are marked `is_test` so the stats and a deliverability view leave it out.
+   */
+  test?: boolean;
 }
 
 /**
