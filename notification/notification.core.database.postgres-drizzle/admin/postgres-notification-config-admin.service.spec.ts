@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 import { PostgresNotificationConfigAdminService } from './postgres-notification-config-admin.service';
+import { ConfigCache } from '../../notification.core.database';
 import type { SqlExecutor } from '../persistence/sql-executor';
 
 const dialect = new PgDialect();
@@ -91,6 +92,22 @@ describe('PostgresNotificationConfigAdminService', () => {
     await expect(svc(db).getTemplate('email', 'x', 't1')).resolves.toEqual({
       channel: 'email', notificationType: 'x', tenantId: 't1', subject: null, body: 'b', isHtml: false,
     });
+  });
+
+  it('every write empties the config caches — the next send reads the new row', async () => {
+    const invalidate = vi.spyOn(ConfigCache, 'invalidateAll');
+    const db = fakeDb();
+    const s = svc(db);
+    await s.setChannelRoute({ notificationType: 'x', tenantId: null, channels: ['email'] });
+    await s.deleteChannelRoute({ notificationType: 'x', tenantId: null });
+    await s.setTemplate({ channel: 'email', notificationType: 'x', tenantId: null, body: 'b' });
+    await s.deleteTemplate({ channel: 'email', notificationType: 'x', tenantId: null });
+    await s.setProviderCredential({ channel: 'email', tenantId: 't1', config: { k: 1 } });
+    await s.deleteProviderCredential({ channel: 'email', tenantId: 't1' });
+    expect(invalidate).toHaveBeenCalledTimes(6);
+    await s.listTemplates();
+    expect(invalidate).toHaveBeenCalledTimes(6);
+    invalidate.mockRestore();
   });
 
   it('unscoped lists filter by application only', async () => {

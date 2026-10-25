@@ -11,14 +11,32 @@
  *
  * Stack-agnostic — it lives here in the family package, so a MySQL (or any
  * other) `NotificationConfig` adapter reuses it rather than re-implementing.
+ *
+ * An edit through the admin API calls `ConfigCache.invalidateAll()`, so this process sends with the new route or
+ * template at once — an admin who saves a template and test-sends gets the new text. Another instance of the app
+ * still serves its cached copy until the TTL runs out.
  */
 export class ConfigCache {
+  /** Every cache in this process — what `invalidateAll` empties. */
+  private static readonly instances = new Set<ConfigCache>();
+
+  /** Empties every config cache in this process — called after a config write. */
+  static invalidateAll(): void {
+    for (const cache of ConfigCache.instances) cache.clear();
+  }
+
   private readonly entries = new Map<string, { value: unknown; expiresAt: number }>();
 
   constructor(
     private readonly ttlMs: number,
     private readonly maxEntries = 500,
-  ) {}
+  ) {
+    ConfigCache.instances.add(this);
+  }
+
+  clear(): void {
+    this.entries.clear();
+  }
 
   async get<T>(key: string, load: () => Promise<T>): Promise<T> {
     if (this.ttlMs <= 0) return load();

@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import type { NotificationChannel } from '../../notification.core';
+import { ConfigCache } from '../../notification.core.database';
 import type {
   ChannelRouteView,
   ConfigScope,
@@ -23,6 +24,8 @@ import { NOTIFICATION_ADMIN_APPLICATION_ID, NOTIFICATION_ADMIN_SQL_EXECUTOR } fr
  * `commons_notification_*` config tables. Every write is one upsert or delete,
  * `application`-stamped, on the table's own unique key (`tenant_id` NULL = the
  * deployment default). Requires PostgreSQL 15+ (`NULLS NOT DISTINCT`).
+ *
+ * Every write empties the process's config caches (`ConfigCache.invalidateAll`), so the next send uses it.
  *
  * Provider-credential *values* are never returned by `listProviderCredentials`.
  * Audit + actor-scoping are `notification.api`'s.
@@ -50,6 +53,7 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
       on conflict on constraint commons_notification_channel_route_uq
       do update set channels = excluded.channels
     `);
+    ConfigCache.invalidateAll();
   }
 
   async deleteChannelRoute(input: DeleteChannelRouteInput): Promise<void> {
@@ -58,6 +62,7 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
       where application = ${this.application} and notification_type = ${input.notificationType}
         and ${tenantCond(input.tenantId)}
     `);
+    ConfigCache.invalidateAll();
   }
 
   async listChannelRoutes(scope?: ConfigScope): Promise<ChannelRouteView[]> {
@@ -103,6 +108,7 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
       on conflict on constraint commons_notification_template_uq
       do update set subject = excluded.subject, body = excluded.body, is_html = excluded.is_html
     `);
+    ConfigCache.invalidateAll();
   }
 
   async deleteTemplate(input: DeleteTemplateInput): Promise<void> {
@@ -111,6 +117,7 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
       where application = ${this.application} and channel = ${input.channel}
         and notification_type = ${input.notificationType} and ${tenantCond(input.tenantId)}
     `);
+    ConfigCache.invalidateAll();
   }
 
   async listTemplates(scope?: ConfigScope): Promise<TemplateView[]> {
@@ -153,6 +160,7 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
       on conflict (application, channel, tenant_id)
       do update set config = excluded.config
     `);
+    ConfigCache.invalidateAll();
   }
 
   async deleteProviderCredential(input: DeleteProviderCredentialInput): Promise<void> {
@@ -160,6 +168,7 @@ export class PostgresNotificationConfigAdminService implements NotificationConfi
       delete from commons_notification_provider_credential
       where application = ${this.application} and channel = ${input.channel} and tenant_id = ${input.tenantId}
     `);
+    ConfigCache.invalidateAll();
   }
 
   async listProviderCredentials(scope?: ConfigScope): Promise<ProviderCredentialView[]> {

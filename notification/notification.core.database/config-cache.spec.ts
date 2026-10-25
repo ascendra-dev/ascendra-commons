@@ -19,6 +19,18 @@ describe('ConfigCache', () => {
     vi.useRealTimers();
   });
 
+  it('invalidateAll empties every cache in the process — the next read loads again', async () => {
+    const load = vi.fn(async () => 'v');
+    const a = new ConfigCache(60_000);
+    const b = new ConfigCache(60_000);
+    await a.get('k', load);
+    await b.get('k', load);
+    ConfigCache.invalidateAll();
+    await a.get('k', load);
+    await b.get('k', load);
+    expect(load).toHaveBeenCalledTimes(4);
+  });
+
   it('keys are independent', async () => {
     const load = vi.fn(async (v: string) => v);
     const cache = new ConfigCache(1000);
