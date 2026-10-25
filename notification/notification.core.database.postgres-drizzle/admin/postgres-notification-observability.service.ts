@@ -77,7 +77,7 @@ export class PostgresNotificationObservabilityService implements NotificationObs
       await this.db.execute<DeliveryRow & { attempted_at_key: string }>(sql`
         select id, notification_type, channel, tenant_id, recipient_ref, recipient_key, status, reason,
                provider_message_id, attempted_at, updated_at, correlation_id,
-               (content is not null) as has_content, is_test, ${ATTEMPTED_AT_KEY}
+               (content is not null) as has_content, is_test, retry_of, ${ATTEMPTED_AT_KEY}
         from commons_notification_delivery
         where ${sql.join(conds, sql` and `)}
         order by attempted_at desc, id desc
@@ -99,7 +99,7 @@ export class PostgresNotificationObservabilityService implements NotificationObs
     const { rows } = await this.db.execute<DeliveryRow>(sql`
       select id, notification_type, channel, tenant_id, recipient_ref, recipient_key, status, reason,
              provider_message_id, attempted_at, updated_at, correlation_id,
-             (content is not null) as has_content, is_test
+             (content is not null) as has_content, is_test, retry_of
       from commons_notification_delivery
       where application = ${this.application} and id = ${id}::bigint
     `);
@@ -312,6 +312,7 @@ interface DeliveryRow {
   correlation_id: string | null;
   has_content: boolean;
   is_test: boolean;
+  retry_of: string | number | null;
 }
 
 function mapRow(row: DeliveryRow): DeliveryRecord {
@@ -330,6 +331,7 @@ function mapRow(row: DeliveryRow): DeliveryRecord {
     correlationId: row.correlation_id,
     hasContent: row.has_content === true,
     isTest: row.is_test === true,
+    retryOf: row.retry_of == null ? null : String(row.retry_of),
   };
 }
 

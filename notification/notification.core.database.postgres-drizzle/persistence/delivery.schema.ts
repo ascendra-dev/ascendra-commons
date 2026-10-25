@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { bigserial, boolean, index, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { bigint, bigserial, boolean, index, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import type { DeliveryContent } from '../../notification.core';
 
 /**
@@ -46,6 +46,8 @@ export const notificationDelivery = pgTable(
     content: jsonb('content').$type<DeliveryContent>(),
     /** A verification send (`POST /notifications/test-send`) — recorded, left out of the stats. */
     isTest: boolean('is_test').notNull().default(false),
+    /** The delivery this one retries (`POST /deliveries/:id/retry`). */
+    retryOf: bigint('retry_of', { mode: 'number' }),
   },
   (t) => [
     // Each read the screens make — see migrations/0005_delivery_read_indexes.sql.

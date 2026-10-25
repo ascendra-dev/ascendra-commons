@@ -20,6 +20,8 @@ export const NOTIFICATION_ACTIONS = {
   MANAGE_CONFIG: 'notification.manage_config',
   /** Fire a real test notification via `Notifier.notify()`. */
   TEST_SEND: 'notification.test_send',
+  /** Resend a failed delivery to its real recipient — `POST /notifications/deliveries/:id/retry`. */
+  RETRY: 'notification.retry',
 } as const;
 
 export interface NotificationApiModuleConfig {

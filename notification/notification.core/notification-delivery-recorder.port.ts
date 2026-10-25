@@ -38,6 +38,8 @@ export interface DeliveryAttempt {
   correlationId?: string;
   /** A verification send — recorded, but left out of the stats. */
   test?: boolean;
+  /** The delivery this attempt retries. */
+  retryOf?: string;
   /**
    * The rendered message (from the sender) + the request variables. Carried
    * whenever the sender rendered a template; the recorder persists it only

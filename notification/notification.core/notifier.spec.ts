@@ -362,3 +362,19 @@ describe('Notifier — a user’s preferences', () => {
     await expect(broken.notifier.notify({ recipient: user, notificationType: 'x', variables: {} })).resolves.toMatchObject({ status: 'sent' });
   });
 });
+
+describe('Notifier — channels (a retry of one)', () => {
+  it('sends only on the channels asked for, of those routed — never adds one', async () => {
+    const email = fakeSender({ status: 'sent' });
+    const sms = fakeSender({ status: 'sent' });
+    const recorder = { recordAttempts: vi.fn(), updateDeliveryStatus: vi.fn() };
+    const notifier = new Notifier(fakeConfig(['email', 'sms']), new Map([['email', email], ['sms', sms]]), recorder);
+    const result = await notifier.notify({ recipient: { type: 'user', id: 'u1' }, notificationType: 'x', variables: {}, channels: ['sms'], retryOf: '41' });
+    expect(result.channels).toEqual({ sms: { status: 'sent' } });
+    expect(email.send).not.toHaveBeenCalled();
+    expect(recorder.recordAttempts.mock.calls[0][0][0]).toMatchObject({ channel: 'sms', retryOf: '41' });
+    await expect(
+      notifier.notify({ recipient: { type: 'user', id: 'u1' }, notificationType: 'x', variables: {}, channels: ['whatsapp'] }),
+    ).resolves.toEqual({ status: 'failed', reason: 'channel_not_routed', channels: {} });
+  });
+});

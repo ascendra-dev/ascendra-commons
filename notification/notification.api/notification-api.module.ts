@@ -17,6 +17,8 @@ import { NotificationPreferencesApiService } from './preferences/notification-pr
 import { NotificationPreferencesController } from './preferences/notification-preferences.controller';
 import { NotificationInboxApiService } from './inbox/notification-inbox-api.service';
 import { NotificationInboxController } from './inbox/notification-inbox.controller';
+import { NotificationRetryApiService } from './retry/notification-retry-api.service';
+import { NotificationRetryController } from './retry/notification-retry.controller';
 
 /**
  * HTTP endpoints for a notification admin / observability UI, over the
@@ -52,6 +54,7 @@ export class NotificationApiModule {
         NotificationSuppressionsController,
         NotificationPreferencesController,
         NotificationInboxController,
+        NotificationRetryController,
       ],
       providers: [
         { provide: NOTIFICATION_API_OPTIONS, useValue: resolveNotificationApiOptions(config) },
@@ -67,6 +70,7 @@ export class NotificationApiModule {
         NotificationSuppressionsApiService,
         NotificationPreferencesApiService,
         NotificationInboxApiService,
+        NotificationRetryApiService,
       ],
     };
   }

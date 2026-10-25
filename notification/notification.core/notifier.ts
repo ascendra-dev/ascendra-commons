@@ -123,6 +123,11 @@ export class Notifier {
     if (channels.length === 0) {
       return { status: 'failed', reason: 'no_channel_configured', channels: {} };
     }
+    // A retry of one channel: only those asked for, of the ones routed — never one the type isn't routed to.
+    if (request.channels) {
+      channels = channels.filter((c) => request.channels!.includes(c));
+      if (channels.length === 0) return { status: 'failed', reason: 'channel_not_routed', channels: {} };
+    }
 
     const entries = await Promise.all(
       channels.map((channel): Promise<[NotificationChannel, NotificationChannelResult]> => this.dispatch(channel, request)),
@@ -166,6 +171,7 @@ export class Notifier {
       attemptedAt: now,
       correlationId: request.correlationId,
       test: request.test ?? false,
+      retryOf: request.retryOf,
       content: result.rendered
         ? {
             subject: result.rendered.subject ?? null,

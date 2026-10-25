@@ -25,7 +25,7 @@ export interface PostgresNotificationDeliveryRecorderOptions {
 
 const DEFAULT_FLUSH_INTERVAL_MS = 2_000;
 const DEFAULT_MAX_BUFFERED_ROWS = 50_000;
-/** A batch this big is written at once, without waiting for the timer. 1,000 rows × 14 params stays far under 65,535. */
+/** A batch this big is written at once, without waiting for the timer. 1,000 rows × 15 params stays far under 65,535. */
 const ROWS_PER_INSERT = 1_000;
 const MAX_TEXT = 256;
 const MAX_REASON = 1_000;
@@ -45,6 +45,7 @@ interface BufferedRow {
   /** Already serialized jsonb text — or null (not stored, or it wouldn't serialize). */
   content: string | null;
   test: boolean;
+  retryOf: string | null;
 }
 
 /** Storable text: no NUL (Postgres `text` rejects it), bounded. */
@@ -193,6 +194,7 @@ export class PostgresNotificationDeliveryRecorder implements NotificationDeliver
       correlationId,
       content: this.storeContent && a.content ? serializeContent(a.content) : null,
       test: a.test === true,
+      retryOf: typeof a.retryOf === 'string' && /^\d{1,19}$/.test(a.retryOf) ? a.retryOf : null,
     };
   }
 
@@ -201,13 +203,14 @@ export class PostgresNotificationDeliveryRecorder implements NotificationDeliver
       (r) => sql`(
         ${this.application}, ${r.notificationType}, ${r.channel}, ${r.tenantId},
         ${r.recipientRef}, ${r.recipientKey}, ${r.status}, ${r.reason}, ${r.providerMessageId},
-        ${r.attemptedAt}, ${r.attemptedAt}, ${r.correlationId}, ${r.content === null ? sql`null` : sql`${r.content}::jsonb`}, ${r.test}
+        ${r.attemptedAt}, ${r.attemptedAt}, ${r.correlationId}, ${r.content === null ? sql`null` : sql`${r.content}::jsonb`}, ${r.test},
+        ${r.retryOf === null ? sql`null` : sql`${r.retryOf}::bigint`}
       )`,
     );
     await this.db.execute(sql`
       insert into commons_notification_delivery
         (application, notification_type, channel, tenant_id, recipient_ref, recipient_key, status, reason,
-         provider_message_id, attempted_at, updated_at, correlation_id, content, is_test)
+         provider_message_id, attempted_at, updated_at, correlation_id, content, is_test, retry_of)
       values ${sql.join(values, sql`, `)}
     `);
   }

@@ -66,6 +66,13 @@ export interface NotificationRequest {
    * app binds a deduplicator (`forRoot({ deduplicatorToken })`). Up to 256 characters.
    */
   dedupeKey?: string;
+  /**
+   * Send on these channels only — of those the type is routed to (a retry of one failed channel). A channel not
+   * routed is not added.
+   */
+  channels?: NotificationChannel[];
+  /** The delivery this send retries — recorded on its rows, so the log links them. */
+  retryOf?: string;
 }
 
 /**

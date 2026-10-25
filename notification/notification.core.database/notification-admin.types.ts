@@ -27,6 +27,8 @@ export interface DeliveryRecord {
   hasContent: boolean;
   /** A verification send (test send) — left out of the stats. */
   isTest: boolean;
+  /** The delivery this one retries — `null` for a first send. */
+  retryOf: string | null;
 }
 
 /** One row's stored rendered content — from `getDeliveryContent(id)`, null when not stored. */

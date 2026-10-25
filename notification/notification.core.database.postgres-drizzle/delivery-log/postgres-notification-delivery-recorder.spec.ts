@@ -123,11 +123,21 @@ describe('PostgresNotificationDeliveryRecorder — each row normalized as it is 
     expect(params).toContain('h:abc');
   });
 
+  it('writes retry_of as a bigint — or NULL for a first send (or a malformed id)', async () => {
+    const db = fakeDb();
+    await recordAndFlush(recorder(db), [attempt({ retryOf: '41' }), attempt(), attempt({ retryOf: 'x41' })]);
+    const { sql: text, params } = query(db);
+    expect(text).toMatch(/is_test, retry_of\)/i);
+    expect(text).toMatch(/\$\d+::bigint/i);
+    expect(params).toContain('41');
+    expect(params).not.toContain('x41');
+  });
+
   it('writes is_test — a test send is marked, a real one (or one that says nothing) is not', async () => {
     const db = fakeDb();
     await recordAndFlush(recorder(db), [attempt({ test: true }), attempt()]);
     const { sql: text, params } = query(db);
-    expect(text).toMatch(/content, is_test\)/i);
+    expect(text).toMatch(/content, is_test, retry_of\)/i);
     expect(params.filter((p) => typeof p === 'boolean')).toEqual([true, false]);
   });
 
