@@ -118,13 +118,15 @@ describe('PostgresNotificationConfigAdminService', () => {
     invalidate.mockRestore();
   });
 
-  it('listSuppressions: newest first, a tenant scope binds it, a foreign cursor is an error', async () => {
+  it("listSuppressions: newest first; a tenant sees what it's affected by — filed under it, or a recipient it sent to", async () => {
     const db = fakeDb();
     await svc(db).listSuppressions({ limit: 10 }, { tenantId: 't1' });
     const { sql: text, params } = rendered(db);
-    expect(text).toMatch(/from commons_notification_suppression/i);
-    expect(text).toMatch(/order by last_at desc, id desc/i);
-    expect(params).toEqual(['ascendra-pay', 't1', 11]);
+    expect(text).toMatch(/from commons_notification_suppression s/i);
+    expect(text).toMatch(/order by s\.last_at desc, s\.id desc/i);
+    expect(text).toMatch(/s\.tenant_id = \$\d+ or exists \(\s*select 1 from commons_notification_delivery d/i);
+    expect(text).toMatch(/d\.recipient_key = s\.recipient_key and d\.channel = s\.channel and d\.tenant_id = \$\d+/i);
+    expect(params).toEqual(['ascendra-pay', 't1', 't1', 11]);
     await expect(svc(fakeDb()).listSuppressions({ cursor: 'junk' })).rejects.toThrow(/Unrecognized cursor/);
   });
 

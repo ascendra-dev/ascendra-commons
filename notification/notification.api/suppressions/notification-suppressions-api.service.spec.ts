@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InvalidDeliveryCursorError, type NotificationConfigAdminPort, type SuppressionView } from '../../notification.core.database';
 import { NotificationSuppressionsApiService } from './notification-suppressions-api.service';
 import type { Actor } from '../../../authorization/authorization.core';
@@ -22,12 +22,16 @@ function deps() {
 }
 
 describe('NotificationSuppressionsApiService', () => {
-  it("a tenant admin lists their own tenant's entries; a platform admin every one", async () => {
+  it('a tenant admin lists the entries its sends are affected by — removable only those filed under it', async () => {
     const { svc, port } = deps();
-    await svc.list(tenantAdmin, { limit: 20 });
+    vi.mocked(port.listSuppressions).mockResolvedValueOnce({ suppressions: [entry('t1'), { ...entry('t2'), id: '8' }] });
+    const page = await svc.list(tenantAdmin, { limit: 20 });
     expect(port.listSuppressions).toHaveBeenLastCalledWith({ limit: 20, cursor: undefined }, { tenantId: 't1' });
-    await svc.list(platform, {});
+    expect(page.suppressions.map((s) => [s.id, s.removable])).toEqual([['7', true], ['8', false]]);
+    vi.mocked(port.listSuppressions).mockResolvedValueOnce({ suppressions: [entry('t2')] });
+    const all = await svc.list(platform, {});
     expect(port.listSuppressions).toHaveBeenLastCalledWith({ limit: undefined, cursor: undefined }, undefined);
+    expect(all.suppressions[0].removable).toBe(true);
   });
 
   it('a cursor it never issued is a 400', async () => {
@@ -36,14 +40,19 @@ describe('NotificationSuppressionsApiService', () => {
     await expect(svc.list(platform, { cursor: 'x' })).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it("removing one: another tenant's entry is the same 404 as a missing one", async () => {
+  it("removing: one the tenant isn't affected by is a 404; one another tenant's bounce filed, a 403", async () => {
     const { svc, port } = deps();
     await expect(svc.remove(tenantAdmin, '7')).rejects.toBeInstanceOf(NotFoundException);
+    expect(port.getSuppression).toHaveBeenLastCalledWith('7', { tenantId: 't1' });
     vi.mocked(port.getSuppression).mockResolvedValueOnce(entry('t2'));
-    await expect(svc.remove(tenantAdmin, '7')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(svc.remove(tenantAdmin, '7')).rejects.toBeInstanceOf(ForbiddenException);
     vi.mocked(port.getSuppression).mockResolvedValueOnce(entry(null));
-    await expect(svc.remove(tenantAdmin, '7')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(svc.remove(tenantAdmin, '7')).rejects.toBeInstanceOf(ForbiddenException);
     expect(port.deleteSuppression).not.toHaveBeenCalled();
+    vi.mocked(port.getSuppression).mockResolvedValueOnce(entry('t2'));
+    await svc.remove(platform, '7');
+    expect(port.getSuppression).toHaveBeenLastCalledWith('7', undefined);
+    expect(port.deleteSuppression).toHaveBeenCalledWith('7');
   });
 
   it("removes and audits under the entry's tenant — the recipient is sent to again", async () => {

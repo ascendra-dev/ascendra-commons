@@ -16,8 +16,8 @@ tokens.
 | GET | `/notifications/stats` | `notification.view` | counts by channel, type, day and failure reason over `?window=` — `24h` rolling, `7d` / `30d` whole calendar days in `?tz=`; test sends left out |
 | GET | `/notifications/volume` | `notification.view` + platform admin | per-day rows over 30 days in `?tz=`, the table's size and age, rows still holding content |
 | GET | `/notifications/config/coverage-gaps` | `notification.view` | holes in routing/templates/credentials — a default route is checked for every tenant (`tenantDirectoryToken`, else the tenants the config names) |
-| GET | `/notifications/suppressions` | `notification.view` | recipients a channel stopped sending to (hard bounce, complaint) — tenant-scoped, `{ data, meta }` |
-| DELETE | `/notifications/suppressions/:id` | `notification.manage_config` | send to them again — audited |
+| GET | `/notifications/suppressions` | `notification.view` | recipients a channel stopped sending to (hard bounce, complaint) — an entry applies app-wide; a tenant admin sees every one its sends are affected by, each with `removable`; `{ data, meta }` |
+| DELETE | `/notifications/suppressions/:id` | `notification.manage_config` | send to them again — audited; one another tenant's bounce filed is a 403 for a tenant admin (the platform's to remove) |
 | GET | `/notifications/preferences/me` | signed in | my types, the channels each reaches me on, on or off — `required` ones always on |
 | PUT | `/notifications/preferences/me` | signed in | `{ notificationType, channel, enabled }` (either may be `*`) — my own rule only |
 | GET | `/notifications/inbox` | signed in | my in-app inbox, newest first — `?unread=true`, `{ data, meta }` |
