@@ -58,8 +58,8 @@ export class NotificationObservabilityController {
 
   @Get('deliveries/:id/content')
   @RequiresAction(NOTIFICATION_ACTIONS.VIEW)
-  deliveryContent(@Param('id') id: string) {
-    return this.service.getDeliveryContent(id);
+  deliveryContent(@CurrentActor() actor: Actor, @Param('id') id: string) {
+    return this.service.getDeliveryContent(actor, id);
   }
 
   @Get('config/coverage-gaps')

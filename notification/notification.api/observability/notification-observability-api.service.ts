@@ -72,7 +72,12 @@ export class NotificationObservabilityApiService {
     return record;
   }
 
-  async getDeliveryContent(id: string) {
+  /**
+   * The rendered message — scoped like the row itself: another tenant's delivery is the same 404 as a missing one.
+   * (The content is the most sensitive thing here: names, amounts, addresses in the variables.)
+   */
+  async getDeliveryContent(actor: Actor, id: string) {
+    await this.getDelivery(actor, id);
     const record = await this.port.getDeliveryContent(id);
     if (!record) throw new NotFoundException('no stored content for that delivery');
     return record;

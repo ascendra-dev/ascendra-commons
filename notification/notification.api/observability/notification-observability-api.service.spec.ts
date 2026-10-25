@@ -119,19 +119,40 @@ describe('NotificationObservabilityApiService', () => {
     });
   });
 
-  describe('getDeliveryContent', () => {
-    it('404s when there is no stored content for a delivery', async () => {
+  describe('getDeliveryContent — scoped like the row', () => {
+    const row = (tenantId: string | null) => ({ id: '7', tenantId, notificationType: 'x' });
+    const content = { id: '7', notificationType: 'x', channel: 'email' as const, recipientRef: 'r', attemptedAt: new Date(), content: { subject: null, body: 'b', isHtml: false, variables: {} } };
+
+    it("another tenant's delivery is the same 404 as a missing one — its content is never read", async () => {
       const port = fakePort();
-      await expect(new NotificationObservabilityApiService(port, options()).getDeliveryContent('7')).rejects.toBeInstanceOf(
+      vi.mocked(port.getDelivery).mockResolvedValueOnce(row('t2') as never);
+      await expect(new NotificationObservabilityApiService(port, options()).getDeliveryContent(tenantActor, '7')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(port.getDeliveryContent).not.toHaveBeenCalled();
+    });
+
+    it('a missing delivery is a 404', async () => {
+      const port = fakePort();
+      await expect(new NotificationObservabilityApiService(port, options()).getDeliveryContent(tenantActor, '7')).rejects.toBeInstanceOf(
         NotFoundException,
       );
     });
 
-    it('returns the content record when present', async () => {
+    it('own tenant, no stored content — a 404', async () => {
       const port = fakePort();
-      const record = { id: '7', notificationType: 'x', channel: 'email' as const, recipientRef: 'r', attemptedAt: new Date(), content: { subject: null, body: 'b', isHtml: false, variables: {} } };
-      (port.getDeliveryContent as ReturnType<typeof vi.fn>).mockResolvedValueOnce(record);
-      await expect(new NotificationObservabilityApiService(port, options()).getDeliveryContent('7')).resolves.toBe(record);
+      vi.mocked(port.getDelivery).mockResolvedValueOnce(row('t1') as never);
+      await expect(new NotificationObservabilityApiService(port, options()).getDeliveryContent(tenantActor, '7')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('own tenant — the content; a platform admin reads any tenant', async () => {
+      const port = fakePort();
+      vi.mocked(port.getDelivery).mockResolvedValue(row('t1') as never);
+      vi.mocked(port.getDeliveryContent).mockResolvedValue(content);
+      await expect(new NotificationObservabilityApiService(port, options()).getDeliveryContent(tenantActor, '7')).resolves.toBe(content);
+      await expect(new NotificationObservabilityApiService(port, options()).getDeliveryContent(platformActor, '7')).resolves.toBe(content);
     });
   });
 
