@@ -331,3 +331,34 @@ describe('Notifier — dedupeKey', () => {
     await expect(make(null).notifier.notify(request)).resolves.toMatchObject({ status: 'sent' });
   });
 });
+
+describe('Notifier — a user’s preferences', () => {
+  const user = { type: 'user' as const, id: 'u1' };
+  const prefs = (optedOut: string[]) => ({ isOptedOut: vi.fn(async (_u: string, _t: string, channel: string) => optedOut.includes(channel)) });
+  const make = (preferences: unknown, types: unknown[] = []) => {
+    const email = fakeSender({ status: 'sent' });
+    const sms = fakeSender({ status: 'sent' });
+    const notifier = new Notifier(
+      fakeConfig(['email', 'sms']), new Map([['email', email], ['sms', sms]]), undefined, null, null, null, undefined,
+      preferences as never, types as never,
+    );
+    return { notifier, email, sms };
+  };
+
+  it('skips a channel the user turned off — opted_out — and sends the rest', async () => {
+    const { notifier, sms } = make(prefs(['sms']));
+    const result = await notifier.notify({ recipient: user, notificationType: 'invoice.reminder', variables: {} });
+    expect(result.channels).toEqual({ email: { status: 'sent' }, sms: { status: 'skipped', reason: 'opted_out' } });
+    expect(sms.send).not.toHaveBeenCalled();
+  });
+
+  it('a required type always sends; a guest has no preferences; a broken store means send', async () => {
+    const required = make(prefs(['email', 'sms']), [{ name: 'password.reset', required: true }]);
+    await expect(required.notifier.notify({ recipient: user, notificationType: 'password.reset', variables: {} })).resolves.toMatchObject({ status: 'sent' });
+    const p = prefs(['email', 'sms']);
+    await make(p).notifier.notify({ recipient: { type: 'raw', email: 'a@b.c' }, notificationType: 'x', variables: {} });
+    expect(p.isOptedOut).not.toHaveBeenCalled();
+    const broken = make({ isOptedOut: vi.fn().mockRejectedValue(new Error('down')) });
+    await expect(broken.notifier.notify({ recipient: user, notificationType: 'x', variables: {} })).resolves.toMatchObject({ status: 'sent' });
+  });
+});

@@ -19,7 +19,7 @@ ports/DTOs are stack-agnostic and live in `notification.core.database`.
 
 ### 1. Tables
 
-Apply `migrations/` (`0001_config`, `0002_delivery`, `0003_delivery_test_flag`, `0004_platform_credential`, `0005_delivery_read_indexes`, `0006_delivery_recipient_key`, `0007_suppression`, `0008_dedupe`) (delivered into your migrations by `ascendra-commons.js`)
+Apply `migrations/` (`0001_config`, `0002_delivery`, `0003_delivery_test_flag`, `0004_platform_credential`, `0005_delivery_read_indexes`, `0006_delivery_recipient_key`, `0007_suppression`, `0008_dedupe`, `0009_preferences`) (delivered into your migrations by `ascendra-commons.js`)
 with your own migration tool — never re-export the schema tables to `drizzle-kit` too, or it
 generates them a second time (MODULE-STANDARD dimension 7).
 **Requires PostgreSQL 15+** (`NULLS NOT DISTINCT`).
@@ -79,6 +79,13 @@ Each row is normalized as it's queued. A failed write is logged with how many ro
 thrown). While the database is slow, at most `maxBufferedRows` (50,000) wait; past it the oldest are dropped and
 counted. Call `app.enableShutdownHooks()` so the last rows are written on shutdown. A provider webhook's
 `updateDeliveryStatus` writes the queue first, so it never misses a row still waiting.
+
+## Users' preferences
+
+`PostgresNotificationPreferencesModule.forRoot({ sqlExecutorToken, application, imports })` — pass
+`POSTGRES_NOTIFICATION_PREFERENCES` as `NotificationModule.forRoot({ preferencesToken })`, and import the module into
+`NotificationApiModule` too for "my preferences". A rule is a type (or `*`) on a channel (or `*`); the most specific
+wins; a `required` type always sends. A user's rules are cached 30 s, cleared when one changes in this process.
 
 ## Dedupe keys
 

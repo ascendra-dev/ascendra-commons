@@ -16,6 +16,11 @@ export interface NotificationTypeDefinition {
   audience?: string;
   /** The variables its templates may use. */
   variables?: NotificationVariableDefinition[];
+  /**
+   * Always sent — a user can't turn it off in their preferences: a password reset, a security alert, a legally required
+   * notice. Default `false`.
+   */
+  required?: boolean;
 }
 
 export interface NotificationVariableDefinition {

@@ -17,6 +17,8 @@ tokens.
 | GET | `/notifications/config/coverage-gaps` | `notification.view` | holes in routing/templates/credentials — a default route is checked for every tenant (`tenantDirectoryToken`, else the tenants the config names) |
 | GET | `/notifications/suppressions` | `notification.view` | recipients a channel stopped sending to (hard bounce, complaint) — tenant-scoped, `{ data, meta }` |
 | DELETE | `/notifications/suppressions/:id` | `notification.manage_config` | send to them again — audited |
+| GET | `/notifications/preferences/me` | signed in | my types, the channels each reaches me on, on or off — `required` ones always on |
+| PUT | `/notifications/preferences/me` | signed in | `{ notificationType, channel, enabled }` (either may be `*`) — my own rule only |
 | GET | `/notifications/types` | `notification.view` | the declared types (`NotificationModule.forRoot({ types })`) joined with their default channels, templates and gap counts — plus configured types nobody declared |
 | GET | `/notifications/types/:name` | `notification.view` | one type: definition, every route and template the actor may see, its gaps |
 | GET | `/notifications/config/routes` \| `/templates` \| `/credentials` | `notification.view` | `list*` — a tenant admin sees the defaults + their own tenant; credentials redacted (channel + tenant only) |

@@ -9,3 +9,6 @@ export const NOTIFICATION_OBSERVABILITY_PORT = Symbol('NOTIFICATION_OBSERVABILIT
 
 /** A stack adapter's `NotificationConfigAdminPort` implementation — CRUD on routes / templates / credentials. */
 export const NOTIFICATION_CONFIG_ADMIN_PORT = Symbol('NOTIFICATION_CONFIG_ADMIN_PORT');
+
+/** A user's preference rules — `NotificationPreferenceStore`, bound by a stack adapter. */
+export const NOTIFICATION_PREFERENCE_STORE = Symbol('NOTIFICATION_PREFERENCE_STORE');

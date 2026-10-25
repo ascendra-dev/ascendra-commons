@@ -14,6 +14,7 @@ import {
   NOTIFIER,
   NOTIFICATION_DEDUPE_WINDOW_MS,
   NOTIFICATION_DEDUPLICATOR,
+  NOTIFICATION_PREFERENCES,
   NOTIFICATION_RECIPIENT_HASHER,
   NOTIFICATION_SUPPRESSION_LIST,
   NOTIFICATION_TYPES,
@@ -93,6 +94,12 @@ export interface NotificationModuleConfig {
    * `notify({ dedupeKey })` send once per key. Omit and `dedupeKey` is ignored.
    */
   deduplicatorToken?: OverrideToken;
+
+  /**
+   * The token a `NotificationPreferences` is provided under (e.g. `POSTGRES_NOTIFICATION_PREFERENCES`) — a user's
+   * opt-outs; Notifier skips an opted-out channel unless the type is `required`. Omit and nothing is opted out.
+   */
+  preferencesToken?: OverrideToken;
   /** How long a dedupe key holds. Default 24 h. */
   dedupeWindowMs?: number;
 
@@ -155,6 +162,7 @@ export class NotificationModule {
 
         ...(config.suppressionListToken ? [{ provide: NOTIFICATION_SUPPRESSION_LIST, useExisting: config.suppressionListToken }] : []),
         ...(config.deduplicatorToken ? [{ provide: NOTIFICATION_DEDUPLICATOR, useExisting: config.deduplicatorToken }] : []),
+        ...(config.preferencesToken ? [{ provide: NOTIFICATION_PREFERENCES, useExisting: config.preferencesToken }] : []),
         { provide: NOTIFICATION_DEDUPE_WINDOW_MS, useValue: Math.max(1_000, config.dedupeWindowMs ?? 24 * 60 * 60 * 1000) },
         Notifier,
         { provide: NOTIFIER, useExisting: Notifier },

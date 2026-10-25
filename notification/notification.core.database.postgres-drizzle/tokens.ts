@@ -18,6 +18,9 @@ export const POSTGRES_NOTIFICATION_CONFIG = Symbol('POSTGRES_NOTIFICATION_CONFIG
 export const NOTIFICATION_ADMIN_SQL_EXECUTOR = Symbol('NOTIFICATION_ADMIN_SQL_EXECUTOR');
 export const NOTIFICATION_ADMIN_APPLICATION_ID = Symbol('NOTIFICATION_ADMIN_APPLICATION_ID');
 
+/** What `PostgresNotificationPreferencesModule` exports — pass it as `NotificationModule.forRoot({ preferencesToken })`. */
+export const POSTGRES_NOTIFICATION_PREFERENCES = Symbol('POSTGRES_NOTIFICATION_PREFERENCES');
+
 /** What `PostgresNotificationDedupeModule` exports — pass it as `NotificationModule.forRoot({ deduplicatorToken })`. */
 export const POSTGRES_NOTIFICATION_DEDUPLICATOR = Symbol('POSTGRES_NOTIFICATION_DEDUPLICATOR');
 

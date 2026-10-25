@@ -13,14 +13,18 @@ import { recipientRef } from './recipient-ref';
 import { recipientKey, type NotificationRecipientHasher } from './recipient-hasher';
 import type { NotificationSuppressionList } from './notification-suppression.port';
 import type { DedupeClaim, NotificationDeduplicator } from './notification-deduplicator.port';
+import type { NotificationPreferences } from './notification-preferences.port';
+import type { NotificationTypeDefinition } from './notification-type';
 import {
   NOTIFICATION_CHANNEL_SENDERS,
   NOTIFICATION_CONFIG,
   NOTIFICATION_DEDUPE_WINDOW_MS,
   NOTIFICATION_DEDUPLICATOR,
   NOTIFICATION_DELIVERY_RECORDER,
+  NOTIFICATION_PREFERENCES,
   NOTIFICATION_RECIPIENT_HASHER,
   NOTIFICATION_SUPPRESSION_LIST,
+  NOTIFICATION_TYPES,
 } from './tokens';
 
 /** Carries the full NotificationResult so a caller catching this can still see per-channel detail. */
@@ -43,6 +47,8 @@ export class NotificationDeliveryError extends Error {
 export class Notifier {
   private readonly logger = new Logger(Notifier.name);
   private readonly deliveryRecorder: NotificationDeliveryRecorder;
+  /** Types a user can't opt out of. */
+  private readonly required: ReadonlySet<string>;
 
   constructor(
     @Inject(NOTIFICATION_CONFIG) private readonly config: NotificationConfig,
@@ -52,7 +58,10 @@ export class Notifier {
     @Optional() @Inject(NOTIFICATION_SUPPRESSION_LIST) private readonly suppressions: NotificationSuppressionList | null = null,
     @Optional() @Inject(NOTIFICATION_DEDUPLICATOR) private readonly deduplicator: NotificationDeduplicator | null = null,
     @Optional() @Inject(NOTIFICATION_DEDUPE_WINDOW_MS) private readonly dedupeWindowMs: number = 24 * 60 * 60 * 1000,
+    @Optional() @Inject(NOTIFICATION_PREFERENCES) private readonly preferences: NotificationPreferences | null = null,
+    @Optional() @Inject(NOTIFICATION_TYPES) types: readonly NotificationTypeDefinition[] = [],
   ) {
+    this.required = new Set(types.filter((t) => t.required).map((t) => t.name));
     // NotificationModule.forRoot() always binds the token; the fallback keeps
     // `new Notifier(config, senders)` (tests, ad hoc wiring) working.
     this.deliveryRecorder = deliveryRecorder ?? new NoopNotificationDeliveryRecorder();
@@ -201,6 +210,17 @@ export class Notifier {
     return result;
   }
 
+  /** A user's own opt-out — never for a `required` type, never for a guest. A broken store means "send". */
+  private async isOptedOut(channel: NotificationChannel, request: NotificationRequest): Promise<boolean> {
+    if (!this.preferences || request.recipient.type !== 'user' || this.required.has(request.notificationType)) return false;
+    try {
+      return await this.preferences.isOptedOut(request.recipient.id, request.notificationType, channel);
+    } catch (err) {
+      this.logger.warn(`preferences check failed for ${channel} — sending anyway: ${err instanceof Error ? err.message : String(err)}`);
+      return false;
+    }
+  }
+
   /** A broken suppression list mustn't stop every notification — on an error, the send goes ahead. */
   private async isSuppressed(channel: NotificationChannel, request: NotificationRequest): Promise<boolean> {
     const key = this.suppressions ? recipientKey(channel, request.recipient, this.hasher) : null;
@@ -222,6 +242,7 @@ export class Notifier {
       return [channel, { status: 'failed', reason: 'channel_not_registered' }];
     }
 
+    if (await this.isOptedOut(channel, request)) return [channel, { status: 'skipped', reason: 'opted_out' }];
     if (await this.isSuppressed(channel, request)) return [channel, { status: 'skipped', reason: 'suppressed' }];
 
     try {

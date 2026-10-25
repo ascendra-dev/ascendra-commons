@@ -13,6 +13,8 @@ import { NotificationTypesApiService } from './types/notification-types-api.serv
 import { NotificationTypesController } from './types/notification-types.controller';
 import { NotificationSuppressionsApiService } from './suppressions/notification-suppressions-api.service';
 import { NotificationSuppressionsController } from './suppressions/notification-suppressions.controller';
+import { NotificationPreferencesApiService } from './preferences/notification-preferences-api.service';
+import { NotificationPreferencesController } from './preferences/notification-preferences.controller';
 
 /**
  * HTTP endpoints for a notification admin / observability UI, over the
@@ -46,6 +48,7 @@ export class NotificationApiModule {
         NotificationTestSendController,
         NotificationTypesController,
         NotificationSuppressionsController,
+        NotificationPreferencesController,
       ],
       providers: [
         { provide: NOTIFICATION_API_OPTIONS, useValue: resolveNotificationApiOptions(config) },
@@ -59,6 +62,7 @@ export class NotificationApiModule {
         ...(config.tenantDirectoryToken ? [{ provide: NOTIFICATION_TENANT_DIRECTORY, useExisting: config.tenantDirectoryToken }] : []),
         NotificationTypesApiService,
         NotificationSuppressionsApiService,
+        NotificationPreferencesApiService,
       ],
     };
   }

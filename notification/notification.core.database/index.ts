@@ -36,4 +36,6 @@ export type {
   DeleteProviderCredentialInput,
 } from './notification-admin.types';
 
-export { NOTIFICATION_OBSERVABILITY_PORT, NOTIFICATION_CONFIG_ADMIN_PORT } from './tokens';
+export { NOTIFICATION_OBSERVABILITY_PORT, NOTIFICATION_CONFIG_ADMIN_PORT, NOTIFICATION_PREFERENCE_STORE } from './tokens';
+export { ANY, preferenceAllows } from './notification-preference-store.port';
+export type { NotificationPreferenceStore, PreferenceRule } from './notification-preference-store.port';
