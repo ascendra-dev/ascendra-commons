@@ -147,6 +147,63 @@ describe('configCoverageGaps', () => {
     expect(withFallback).toEqual([]);
   });
 
+  describe('a default route, across tenants', () => {
+    const config = (creds: Array<{ channel: string; tenant_id: string | null }>, extraRoutes: unknown[] = []) => (text: string) => {
+      if (/from commons_notification_channel_route/i.test(text)) {
+        return [{ notification_type: 'invoice.sent', tenant_id: null, channels: ['email', 'sms'] }, ...extraRoutes];
+      }
+      if (/from commons_notification_template/i.test(text)) {
+        return [
+          { channel: 'email', notification_type: 'invoice.sent', tenant_id: null },
+          { channel: 'sms', notification_type: 'invoice.sent', tenant_id: null },
+        ];
+      }
+      if (/from commons_notification_provider_credential/i.test(text)) return creds;
+      return [];
+    };
+
+    it('each tenant the directory names needs an account on each channel the default routes it to', async () => {
+      const db = fakeDb(config([{ channel: 'email', tenant_id: 't1' }, { channel: 'sms', tenant_id: 't1' }, { channel: 'email', tenant_id: 't2' }]));
+      const gaps = await svc(db).configCoverageGaps(undefined, ['t1', 't2', 't3']);
+      expect(gaps).toEqual([
+        { notificationType: 'invoice.sent', tenantId: 't2', channel: 'sms', kind: 'missing_provider_credential' },
+        { notificationType: 'invoice.sent', tenantId: 't3', channel: 'email', kind: 'missing_provider_credential' },
+        { notificationType: 'invoice.sent', tenantId: 't3', channel: 'sms', kind: 'missing_provider_credential' },
+      ]);
+    });
+
+    it("a tenant with its own route for the type isn't checked against the default", async () => {
+      const db = fakeDb(config([{ channel: 'email', tenant_id: 't1' }], [{ notification_type: 'invoice.sent', tenant_id: 't1', channels: ['email'] }]));
+      const gaps = await svc(db).configCoverageGaps(undefined, ['t1']);
+      expect(gaps.filter((g) => g.kind === 'missing_provider_credential')).toEqual([]);
+    });
+
+    it('without a directory: the tenants the config names', async () => {
+      const db = fakeDb(config([{ channel: 'email', tenant_id: 't1' }, { channel: 'sms', tenant_id: 't1' }, { channel: 'email', tenant_id: 't2' }]));
+      const gaps = await svc(db).configCoverageGaps();
+      expect(gaps.map((g) => `${g.tenantId}:${g.channel}`)).toEqual(['t2:sms']);
+    });
+
+    it("the platform's account covers every tenant when the fallback is on", async () => {
+      const db = fakeDb(config([{ channel: 'email', tenant_id: null }, { channel: 'sms', tenant_id: null }]));
+      const gaps = await new PostgresNotificationObservabilityService(db, 'ascendra-pay', true).configCoverageGaps(undefined, ['t1', 't2']);
+      expect(gaps).toEqual([]);
+    });
+
+    it("a tenant admin's check covers their own tenant only", async () => {
+      const db = fakeDb(config([]));
+      const gaps = await svc(db).configCoverageGaps({ tenantId: 't1' });
+      expect(new Set(gaps.map((g) => g.tenantId))).toEqual(new Set(['t1']));
+    });
+  });
+
+  it("WhatsApp needs no template row — its templates live on Meta's side", async () => {
+    const db = fakeDb((text) =>
+      /from commons_notification_channel_route/i.test(text) ? [{ notification_type: 'x', tenant_id: null, channels: ['whatsapp'] }] : [],
+    );
+    expect(await svc(db).configCoverageGaps(undefined, [])).toEqual([]);
+  });
+
   it('scoped: every query reads only the defaults and that tenant', async () => {
     const db = fakeDb();
     await svc(db).configCoverageGaps({ tenantId: 't1' });
@@ -181,8 +238,10 @@ describe('configCoverageGaps', () => {
 
     expect(gaps).toContainEqual({ notificationType: 'invoice.sent', tenantId: null, channel: 'sms', kind: 'missing_template' });
     expect(gaps).toContainEqual({ notificationType: 'payment.confirmed', tenantId: 't1', channel: 'email', kind: 'missing_provider_credential' });
-    // invoice.sent/email has a (null-tenant) template → not a gap; null-tenant route needs no credential
-    expect(gaps).not.toContainEqual(expect.objectContaining({ notificationType: 'invoice.sent', channel: 'email' }));
+    // invoice.sent/email has a (null-tenant) template → not a template gap
+    expect(gaps).not.toContainEqual(expect.objectContaining({ notificationType: 'invoice.sent', channel: 'email', kind: 'missing_template' }));
+    // …but the default route also serves t1 (the config names it), which has no email account
+    expect(gaps).toContainEqual({ notificationType: 'invoice.sent', tenantId: 't1', channel: 'email', kind: 'missing_provider_credential' });
   });
 });
 

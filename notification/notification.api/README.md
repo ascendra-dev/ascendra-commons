@@ -14,7 +14,7 @@ tokens.
 | GET | `/notifications/deliveries/:id/content` | `notification.view_content` | the stored rendered message (404 if not stored) — **every read audited** |
 | GET | `/notifications/stats` | `notification.view` | counts by channel/type/day over `?window=` — `24h` rolling, `7d` / `30d` whole calendar days in `?tz=`; test sends left out |
 | GET | `/notifications/volume` | `notification.view` + platform admin | per-day rows over 30 days in `?tz=`, the table's size and age, rows still holding content |
-| GET | `/notifications/config/coverage-gaps` | `notification.view` | holes in routing/templates/credentials |
+| GET | `/notifications/config/coverage-gaps` | `notification.view` | holes in routing/templates/credentials — a default route is checked for every tenant (`tenantDirectoryToken`, else the tenants the config names) |
 | GET | `/notifications/types` | `notification.view` | the declared types (`NotificationModule.forRoot({ types })`) joined with their default channels, templates and gap counts — plus configured types nobody declared |
 | GET | `/notifications/types/:name` | `notification.view` | one type: definition, every route and template the actor may see, its gaps |
 | GET | `/notifications/config/routes` \| `/templates` \| `/credentials` | `notification.view` | `list*` — a tenant admin sees the defaults + their own tenant; credentials redacted (channel + tenant only) |

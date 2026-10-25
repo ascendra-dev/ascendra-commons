@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type { Actor } from '../../../authorization/authorization.core';
 import type { NotificationChannel, NotificationVariableDefinition } from '../../notification.core';
 import {
@@ -11,7 +11,8 @@ import {
   type NotificationObservabilityPort,
   type TemplateView,
 } from '../../notification.core.database';
-import { NOTIFICATION_API_OPTIONS } from '../tokens';
+import { NOTIFICATION_API_OPTIONS, NOTIFICATION_TENANT_DIRECTORY } from '../tokens';
+import type { NotificationTenantDirectory } from '../notification-tenant-directory.port';
 import type { NotificationApiOptions } from '../notification-api.options';
 import { idParam } from '../shared/params';
 import { NotificationTypeCatalog } from './notification-type-catalog';
@@ -52,6 +53,7 @@ export class NotificationTypesApiService {
     @Inject(NOTIFICATION_OBSERVABILITY_PORT) private readonly observability: NotificationObservabilityPort,
     @Inject(NOTIFICATION_API_OPTIONS) private readonly options: NotificationApiOptions,
     @Inject(NotificationTypeCatalog) private readonly catalog: NotificationTypeCatalog,
+    @Optional() @Inject(NOTIFICATION_TENANT_DIRECTORY) private readonly tenants?: NotificationTenantDirectory,
   ) {}
 
   async list(actor: Actor): Promise<NotificationTypeSummary[]> {
@@ -103,7 +105,7 @@ export class NotificationTypesApiService {
     const [routes, templates, gaps] = await Promise.all([
       this.config.listChannelRoutes(scope),
       this.config.listTemplates(scope),
-      this.observability.configCoverageGaps(scope),
+      this.observability.configCoverageGaps(scope, scope ? undefined : await this.tenants?.listTenantIds()),
     ]);
     return { routes, templates, gaps };
   }

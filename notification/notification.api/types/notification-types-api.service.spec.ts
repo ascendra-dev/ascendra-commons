@@ -58,7 +58,7 @@ describe('NotificationTypesApiService', () => {
     await svc.list(tenantAdmin);
     expect(config.listChannelRoutes).toHaveBeenCalledWith({ tenantId: 't1' });
     expect(config.listTemplates).toHaveBeenCalledWith({ tenantId: 't1' });
-    expect(observability.configCoverageGaps).toHaveBeenCalledWith({ tenantId: 't1' });
+    expect(observability.configCoverageGaps).toHaveBeenCalledWith({ tenantId: 't1' }, undefined);
   });
 
   it("a type's page: its definition, routes, templates and gaps", async () => {

@@ -1,5 +1,5 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { NOTIFICATION_API_OPTIONS, NOTIFICATION_AUDIT_EMITTER } from './tokens';
+import { NOTIFICATION_API_OPTIONS, NOTIFICATION_AUDIT_EMITTER, NOTIFICATION_TENANT_DIRECTORY } from './tokens';
 import { resolveNotificationApiOptions, type NotificationApiModuleConfig } from './notification-api.options';
 import { NoopNotificationAuditEmitter } from './notification-audit.port';
 import { NotificationObservabilityApiService } from './observability/notification-observability-api.service';
@@ -53,6 +53,7 @@ export class NotificationApiModule {
         NotificationConfigAdminApiService,
         NotificationTestSendApiService,
         NotificationTypeCatalog,
+        ...(config.tenantDirectoryToken ? [{ provide: NOTIFICATION_TENANT_DIRECTORY, useExisting: config.tenantDirectoryToken }] : []),
         NotificationTypesApiService,
       ],
     };

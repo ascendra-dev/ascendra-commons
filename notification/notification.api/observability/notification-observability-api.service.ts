@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type { Actor } from '../../../authorization/authorization.core';
 import { NOTIFICATION_CHANNELS } from '../../notification.core';
 import {
@@ -9,7 +9,8 @@ import {
   type NotificationObservabilityPort,
 } from '../../notification.core.database';
 import { correlationIdParam, dateParam, enumParam, flagParam, idParam } from '../shared/params';
-import { NOTIFICATION_API_OPTIONS, NOTIFICATION_AUDIT_EMITTER } from '../tokens';
+import { NOTIFICATION_API_OPTIONS, NOTIFICATION_AUDIT_EMITTER, NOTIFICATION_TENANT_DIRECTORY } from '../tokens';
+import type { NotificationTenantDirectory } from '../notification-tenant-directory.port';
 import type { NotificationAuditEmitter } from '../notification-audit.port';
 import type { NotificationApiOptions } from '../notification-api.options';
 import type { DeliveryHistoryQueryDto, DeliveryStatsQueryDto } from '../dto/notification-api.dto';
@@ -39,6 +40,7 @@ export class NotificationObservabilityApiService {
     @Inject(NOTIFICATION_OBSERVABILITY_PORT) private readonly port: NotificationObservabilityPort,
     @Inject(NOTIFICATION_API_OPTIONS) private readonly options: NotificationApiOptions,
     @Inject(NOTIFICATION_AUDIT_EMITTER) private readonly audit: NotificationAuditEmitter,
+    @Optional() @Inject(NOTIFICATION_TENANT_DIRECTORY) private readonly tenants?: NotificationTenantDirectory,
   ) {}
 
   async getDeliveryHistory(actor: Actor, query: DeliveryHistoryQueryDto): Promise<DeliveryHistoryPage> {
@@ -95,10 +97,13 @@ export class NotificationObservabilityApiService {
     return record;
   }
 
-  /** Scoped like the config reads — a tenant admin sees gaps in the defaults and their own tenant only. */
+  /**
+   * Scoped like the config reads — a tenant admin sees gaps in the defaults and their own tenant only. A platform
+   * admin's checks the default routes for every tenant the app's directory names (when bound).
+   */
   async coverageGaps(actor: Actor) {
-    const platform = await this.options.isPlatformAdmin(actor);
-    return this.port.configCoverageGaps(platform ? undefined : { tenantId: actor.tenantId ?? '' });
+    if (!(await this.options.isPlatformAdmin(actor))) return this.port.configCoverageGaps({ tenantId: actor.tenantId ?? '' });
+    return this.port.configCoverageGaps(undefined, await this.tenants?.listTenantIds());
   }
 
   async getDeliveryStats(actor: Actor, query: DeliveryStatsQueryDto) {

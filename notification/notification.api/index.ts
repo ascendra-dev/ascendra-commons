@@ -4,7 +4,8 @@ export { NOTIFICATION_ACTIONS } from './notification-api.options';
 
 export type { NotificationAuditEmitter, NotificationAuditEvent } from './notification-audit.port';
 export { NoopNotificationAuditEmitter } from './notification-audit.port';
-export { NOTIFICATION_AUDIT_EMITTER, NOTIFICATION_API_OPTIONS } from './tokens';
+export type { NotificationTenantDirectory } from './notification-tenant-directory.port';
+export { NOTIFICATION_AUDIT_EMITTER, NOTIFICATION_API_OPTIONS, NOTIFICATION_TENANT_DIRECTORY } from './tokens';
 export type { NotificationTypeSummary, NotificationTypeDetail } from './types/notification-types-api.service';
 
 export type {

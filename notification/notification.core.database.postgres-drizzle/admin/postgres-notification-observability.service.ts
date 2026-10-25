@@ -132,7 +132,7 @@ export class PostgresNotificationObservabilityService implements NotificationObs
     };
   }
 
-  async configCoverageGaps(scope?: ConfigScope): Promise<CoverageGap[]> {
+  async configCoverageGaps(scope?: ConfigScope, tenants?: readonly string[]): Promise<CoverageGap[]> {
     // Scoped: the defaults plus one tenant's rows — a tenant admin's gaps, never another tenant's config.
     const rowsIn = scope ? sql`(tenant_id is null or tenant_id = ${scope.tenantId})` : sql`true`;
     const [routes, templates, creds] = await Promise.all([
@@ -149,8 +149,9 @@ export class PostgresNotificationObservabilityService implements NotificationObs
 
     const templateKey = (c: string, nt: string, t: string | null) => `${c}|${nt}|${t ?? ''}`;
     const templateSet = new Set(templates.rows.map((r) => templateKey(r.channel, r.notification_type, r.tenant_id)));
+    // WhatsApp's templates live on Meta's side — it needs no row here.
     const hasTemplate = (channel: string, nt: string, tenantId: string | null) =>
-      templateSet.has(templateKey(channel, nt, tenantId)) || templateSet.has(templateKey(channel, nt, null));
+      channel === 'whatsapp' || templateSet.has(templateKey(channel, nt, tenantId)) || templateSet.has(templateKey(channel, nt, null));
 
     const credSet = new Set(creds.rows.map((r) => `${r.channel}|${r.tenant_id ?? ''}`));
     // With the fallback on, a tenant with no account of its own sends through the platform's — not a gap if it exists.
@@ -158,23 +159,30 @@ export class PostgresNotificationObservabilityService implements NotificationObs
       credSet.has(`${channel}|${tenantId}`) || (this.tenantCredentialFallback && credSet.has(`${channel}|`));
 
     const gaps: CoverageGap[] = [];
+    const gap = (notificationType: string, tenantId: string | null, channel: string, kind: CoverageGap['kind']) =>
+      gaps.push({ notificationType, tenantId, channel: channel as NotificationChannel, kind });
+
     for (const route of routes.rows) {
       for (const channel of route.channels) {
-        if (!hasTemplate(channel, route.notification_type, route.tenant_id)) {
-          gaps.push({
-            notificationType: route.notification_type,
-            tenantId: route.tenant_id,
-            channel: channel as NotificationChannel,
-            kind: 'missing_template',
-          });
-        }
+        if (!hasTemplate(channel, route.notification_type, route.tenant_id)) gap(route.notification_type, route.tenant_id, channel, 'missing_template');
         if (route.tenant_id !== null && !hasCredential(channel, route.tenant_id)) {
-          gaps.push({
-            notificationType: route.notification_type,
-            tenantId: route.tenant_id,
-            channel: channel as NotificationChannel,
-            kind: 'missing_provider_credential',
-          });
+          gap(route.notification_type, route.tenant_id, channel, 'missing_provider_credential');
+        }
+      }
+    }
+
+    // A default route serves every tenant without a route of its own for that type — each needs an account on each of
+    // its channels. (A missing default template is already reported once, for the default row.) Which tenants: the
+    // scoped one; else the caller's list (the app's tenant directory); else every tenant the config names.
+    const tenantIds = scope
+      ? [scope.tenantId]
+      : (tenants ?? [...new Set([...routes.rows, ...templates.rows, ...creds.rows].map((r) => r.tenant_id).filter((t): t is string => t !== null))]);
+    const ownRoute = new Set(routes.rows.filter((r) => r.tenant_id !== null).map((r) => `${r.notification_type}|${r.tenant_id}`));
+    for (const route of routes.rows.filter((r) => r.tenant_id === null)) {
+      for (const tenantId of tenantIds) {
+        if (ownRoute.has(`${route.notification_type}|${tenantId}`)) continue;
+        for (const channel of route.channels) {
+          if (!hasCredential(channel, tenantId)) gap(route.notification_type, tenantId, channel, 'missing_provider_credential');
         }
       }
     }

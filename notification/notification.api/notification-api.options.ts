@@ -30,6 +30,11 @@ export interface NotificationApiModuleConfig {
    * `NotificationModule.forRoot`).
    */
   imports?: DynamicModule['imports'];
+  /**
+   * Optional token a `NotificationTenantDirectory` is provided under (bound in `imports`) — every tenant the coverage
+   * gaps check default routes for. Omit → the tenants the config names.
+   */
+  tenantDirectoryToken?: string | symbol | (new (...args: never[]) => unknown);
   /** Optional token a `NotificationAuditEmitter` is provided under (bound in `imports`). Omit → mutations are not audited. */
   auditEmitterToken?: string | symbol | (new (...args: never[]) => unknown);
   /**

@@ -173,12 +173,22 @@ describe('NotificationObservabilityApiService', () => {
     });
   });
 
+  it("coverage gaps: a platform admin's checks every tenant the app's directory names", async () => {
+    const port = fakePort();
+    const directory = { listTenantIds: vi.fn().mockResolvedValue(['t1', 't2']) };
+    await new NotificationObservabilityApiService(port, options(), audit, directory).coverageGaps(platformActor);
+    expect(port.configCoverageGaps).toHaveBeenLastCalledWith(undefined, ['t1', 't2']);
+    await new NotificationObservabilityApiService(port, options(), audit, directory).coverageGaps(tenantActor);
+    expect(port.configCoverageGaps).toHaveBeenLastCalledWith({ tenantId: 't1' });
+    expect(directory.listTenantIds).toHaveBeenCalledTimes(1);
+  });
+
   it('coverage gaps: a tenant admin only their own tenant and the defaults; a platform admin all', async () => {
     const port = fakePort();
     await new NotificationObservabilityApiService(port, options(), audit).coverageGaps(tenantActor);
     expect(port.configCoverageGaps).toHaveBeenLastCalledWith({ tenantId: 't1' });
     await new NotificationObservabilityApiService(port, options(), audit).coverageGaps(platformActor);
-    expect(port.configCoverageGaps).toHaveBeenLastCalledWith(undefined);
+    expect(port.configCoverageGaps).toHaveBeenLastCalledWith(undefined, undefined);
   });
 
   describe('getDeliveryStats', () => {
