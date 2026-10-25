@@ -27,6 +27,16 @@ const tenantActor: Actor = { id: 'u1', persona: 'issuer', tenantId: 't1' };
 const platformActor: Actor = { id: 'p1', persona: 'platform', tenantId: null };
 
 describe('NotificationObservabilityApiService', () => {
+  it("names a page's user recipients through the app's resolver; a guest has none", async () => {
+    const port = fakePort();
+    vi.mocked(port.getDeliveryHistory).mockResolvedValueOnce({
+      deliveries: [{ id: '1', recipientRef: 'user:u1' }, { id: '2', recipientRef: 'raw:email' }] as never,
+    });
+    const users = { findById: vi.fn(), findByIds: vi.fn().mockResolvedValue([{ id: 'u1', name: 'Hana Ito' }]) };
+    const page = await new NotificationObservabilityApiService(port, options(), audit, undefined, null, users).getDeliveryHistory(platformActor, {});
+    expect(page.deliveries.map((d) => d.recipientName)).toEqual(['Hana Ito', null]);
+  });
+
   describe('searching by recipient', () => {
     const hasher = new NotificationRecipientHasher('a-test-secret-of-32-characters!!');
 
@@ -147,14 +157,14 @@ describe('NotificationObservabilityApiService', () => {
       const port = fakePort();
       const record = { id: '7', notificationType: 'x', channel: 'email' as const, tenantId: 't1', recipientRef: 'r', status: 'sent' as const, reason: null, providerMessageId: null, attemptedAt: new Date(), updatedAt: new Date(), correlationId: null, hasContent: false };
       (port.getDelivery as ReturnType<typeof vi.fn>).mockResolvedValueOnce(record);
-      await expect(new NotificationObservabilityApiService(port, options(), audit).getDelivery(tenantActor, '7')).resolves.toBe(record);
+      await expect(new NotificationObservabilityApiService(port, options(), audit).getDelivery(tenantActor, '7')).resolves.toEqual({ ...record, recipientName: null });
     });
 
     it('returns a row from any tenant for a platform admin', async () => {
       const port = fakePort();
       const record = { id: '7', notificationType: 'x', channel: 'email' as const, tenantId: 't2', recipientRef: 'r', status: 'sent' as const, reason: null, providerMessageId: null, attemptedAt: new Date(), updatedAt: new Date(), correlationId: null, hasContent: false };
       (port.getDelivery as ReturnType<typeof vi.fn>).mockResolvedValueOnce(record);
-      await expect(new NotificationObservabilityApiService(port, options(), audit).getDelivery(platformActor, '7')).resolves.toBe(record);
+      await expect(new NotificationObservabilityApiService(port, options(), audit).getDelivery(platformActor, '7')).resolves.toEqual({ ...record, recipientName: null });
     });
   });
 

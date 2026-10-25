@@ -1,4 +1,6 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { USER_CONTACT_RESOLVER, type UserContactResolver } from '../../notification.core';
+import { recipientNames } from '../shared/recipient-names';
 import type { Actor } from '../../../authorization/authorization.core';
 import {
   InvalidDeliveryCursorError,
@@ -11,7 +13,7 @@ import type { NotificationApiOptions } from '../notification-api.options';
 import type { NotificationAuditEmitter } from '../notification-audit.port';
 
 /** An entry, and whether this actor may remove it. */
-export type SuppressionEntry = SuppressionView & { removable: boolean };
+export type SuppressionEntry = SuppressionView & { removable: boolean; recipientName: string | null };
 
 /**
  * The suppression list — recipients a channel stopped sending to after a hard bounce or a complaint. An entry applies
@@ -25,6 +27,7 @@ export class NotificationSuppressionsApiService {
     @Inject(NOTIFICATION_CONFIG_ADMIN_PORT) private readonly port: NotificationConfigAdminPort,
     @Inject(NOTIFICATION_API_OPTIONS) private readonly options: NotificationApiOptions,
     @Inject(NOTIFICATION_AUDIT_EMITTER) private readonly audit: NotificationAuditEmitter,
+    @Optional() @Inject(USER_CONTACT_RESOLVER) private readonly users: UserContactResolver | null = null,
   ) {}
 
   async list(actor: Actor, query: { limit?: number; cursor?: string }): Promise<{ suppressions: SuppressionEntry[]; nextCursor?: string }> {
@@ -32,8 +35,13 @@ export class NotificationSuppressionsApiService {
     const scope = platform ? undefined : { tenantId: actor.tenantId ?? '' };
     try {
       const page = await this.port.listSuppressions({ limit: query.limit, cursor: query.cursor || undefined }, scope);
+      const names = await recipientNames(this.users, page.suppressions.map((s) => s.recipientKey));
       return {
-        suppressions: page.suppressions.map((s) => ({ ...s, removable: platform || s.tenantId === actor.tenantId })),
+        suppressions: page.suppressions.map((s) => ({
+          ...s,
+          removable: platform || s.tenantId === actor.tenantId,
+          recipientName: names.get(s.recipientKey) ?? null,
+        })),
         nextCursor: page.nextCursor,
       };
     } catch (err) {

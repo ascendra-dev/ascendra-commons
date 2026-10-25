@@ -105,7 +105,7 @@ describe('NotificationApiModule.forRoot — real DI wiring', () => {
     const moduleRef = await build();
     getDeliveryHistory.mockResolvedValueOnce({ deliveries: [{ id: '1' }], nextCursor: 'abc' });
     await expect(moduleRef.get(NotificationObservabilityController).deliveries(platformActor)).resolves.toEqual({
-      data: [{ id: '1' }],
+      data: [{ id: '1', recipientName: null }],
       meta: { nextCursor: 'abc' },
     });
   });

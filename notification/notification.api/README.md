@@ -38,6 +38,10 @@ tokens.
 **Declared types.** Once the app declares its types, a route or template for an undeclared type is a 400, a template
 using a variable the type doesn't have is a 400, and a preview or test send fills the type's sample values.
 
+**Recipient names.** Deliveries and suppressions carry `recipientName` for a user recipient when the app's
+`UserContactResolver` returns a `name` (one `findByIds` call per page when it has one); a guest has none — its address
+is never stored.
+
 A caller's mistake is a 400 naming what to fix — never a 500 (bad dates, numbers, enums, cursors, bodies).
 
 Gate names are fixed. A vertical whose catalog uses different names grants its
