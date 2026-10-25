@@ -295,3 +295,39 @@ describe('Notifier — the suppression list', () => {
     expect(list.isSuppressed).not.toHaveBeenCalled();
   });
 });
+
+describe('Notifier — dedupeKey', () => {
+  const request = { recipient: { type: 'user' as const, id: 'u1' }, notificationType: 'invoice.sent', variables: {}, dedupeKey: 'invoice:INV-1:sent' };
+  const make = (dedupe: unknown, sender = fakeSender({ status: 'sent' })) =>
+    ({ sender, notifier: new Notifier(fakeConfig(['email']), new Map([['email', sender]]), undefined, null, null, dedupe as never, 60_000) });
+
+  it('the first call claims the key, sends, and stores its result', async () => {
+    const dedupe = { claim: vi.fn().mockResolvedValue({ claimed: true }), complete: vi.fn() };
+    const { notifier, sender } = make(dedupe);
+    const result = await notifier.notify(request);
+    expect(dedupe.claim).toHaveBeenCalledWith('invoice:INV-1:sent', 60_000);
+    expect(sender.send).toHaveBeenCalledTimes(1);
+    expect(dedupe.complete).toHaveBeenCalledWith('invoice:INV-1:sent', result);
+  });
+
+  it("a duplicate sends nothing and gets the first call's result — or skipped while it's still sending", async () => {
+    const prior = { status: 'sent' as const, channels: { email: { status: 'sent' as const } } };
+    const done = make({ claim: vi.fn().mockResolvedValue({ claimed: false, prior }), complete: vi.fn() });
+    await expect(done.notifier.notify(request)).resolves.toBe(prior);
+    expect(done.sender.send).not.toHaveBeenCalled();
+    const inFlight = make({ claim: vi.fn().mockResolvedValue({ claimed: false, prior: null }), complete: vi.fn() });
+    await expect(inFlight.notifier.notify(request)).resolves.toEqual({ status: 'skipped', reason: 'duplicate_in_flight', channels: {} });
+  });
+
+  it('a failing store never stops the send; no key, an oversized key, or no deduplicator — no claim', async () => {
+    const broken = { claim: vi.fn().mockRejectedValue(new Error('db down')), complete: vi.fn().mockRejectedValue(new Error('db down')) };
+    const { notifier, sender } = make(broken);
+    await expect(notifier.notify(request)).resolves.toMatchObject({ status: 'sent' });
+    expect(sender.send).toHaveBeenCalledTimes(1);
+    const dedupe = { claim: vi.fn(), complete: vi.fn() };
+    await make(dedupe).notifier.notify({ ...request, dedupeKey: undefined });
+    await make(dedupe).notifier.notify({ ...request, dedupeKey: 'k'.repeat(257) });
+    expect(dedupe.claim).not.toHaveBeenCalled();
+    await expect(make(null).notifier.notify(request)).resolves.toMatchObject({ status: 'sent' });
+  });
+});

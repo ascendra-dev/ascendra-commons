@@ -51,6 +51,20 @@ export class PostgresNotificationRetentionService {
     `);
   }
 
+  /** Deletes this application's dedupe keys whose window has passed — they no longer stop a send. */
+  async pruneDedupeKeys(now: Date = new Date(), batchSize = DEFAULT_BATCH_SIZE): Promise<number> {
+    return this.inBatches(batchSize, (limit) => sql`
+      with doomed as (
+        select dedupe_key from commons_notification_dedupe
+        where application = ${this.application} and expires_at < ${now}
+        limit ${limit}
+      )
+      delete from commons_notification_dedupe
+      where application = ${this.application} and dedupe_key in (select dedupe_key from doomed)
+      returning dedupe_key
+    `);
+  }
+
   private async inBatches(batchSize: number, statement: (limit: number) => ReturnType<typeof sql>): Promise<number> {
     const limit = Math.max(1, Math.floor(batchSize));
     let total = 0;

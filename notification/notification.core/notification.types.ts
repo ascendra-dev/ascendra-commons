@@ -60,6 +60,12 @@ export interface NotificationRequest {
    * rows are marked `is_test` so the stats and a deliverability view leave it out.
    */
   test?: boolean;
+  /**
+   * Send this notification once per key — e.g. `invoice:INV-0042:sent` — within the deduplicator's window (24 h by
+   * default): a second call with the same key sends nothing and returns the first call's result. Ignored unless the
+   * app binds a deduplicator (`forRoot({ deduplicatorToken })`). Up to 256 characters.
+   */
+  dedupeKey?: string;
 }
 
 /**

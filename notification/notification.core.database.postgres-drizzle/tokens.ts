@@ -18,6 +18,9 @@ export const POSTGRES_NOTIFICATION_CONFIG = Symbol('POSTGRES_NOTIFICATION_CONFIG
 export const NOTIFICATION_ADMIN_SQL_EXECUTOR = Symbol('NOTIFICATION_ADMIN_SQL_EXECUTOR');
 export const NOTIFICATION_ADMIN_APPLICATION_ID = Symbol('NOTIFICATION_ADMIN_APPLICATION_ID');
 
+/** What `PostgresNotificationDedupeModule` exports — pass it as `NotificationModule.forRoot({ deduplicatorToken })`. */
+export const POSTGRES_NOTIFICATION_DEDUPLICATOR = Symbol('POSTGRES_NOTIFICATION_DEDUPLICATOR');
+
 /** The suppression list's lookup cache. */
 export const NOTIFICATION_SUPPRESSION_OPTIONS = Symbol('NOTIFICATION_SUPPRESSION_OPTIONS');
 

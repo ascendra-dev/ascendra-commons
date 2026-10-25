@@ -12,6 +12,8 @@ import {
   NOTIFICATION_CONFIG,
   NOTIFICATION_DELIVERY_RECORDER,
   NOTIFIER,
+  NOTIFICATION_DEDUPE_WINDOW_MS,
+  NOTIFICATION_DEDUPLICATOR,
   NOTIFICATION_RECIPIENT_HASHER,
   NOTIFICATION_SUPPRESSION_LIST,
   NOTIFICATION_TYPES,
@@ -86,6 +88,14 @@ export interface NotificationModuleConfig {
    */
   suppressionListToken?: OverrideToken;
 
+  /**
+   * The token a `NotificationDeduplicator` is provided under (e.g. `POSTGRES_NOTIFICATION_DEDUPLICATOR`) — makes
+   * `notify({ dedupeKey })` send once per key. Omit and `dedupeKey` is ignored.
+   */
+  deduplicatorToken?: OverrideToken;
+  /** How long a dedupe key holds. Default 24 h. */
+  dedupeWindowMs?: number;
+
   /** Whatever module(s) export the token(s) above — `useExisting` only resolves a token this module can already see. */
   imports?: DynamicModule['imports'];
 }
@@ -144,6 +154,8 @@ export class NotificationModule {
         },
 
         ...(config.suppressionListToken ? [{ provide: NOTIFICATION_SUPPRESSION_LIST, useExisting: config.suppressionListToken }] : []),
+        ...(config.deduplicatorToken ? [{ provide: NOTIFICATION_DEDUPLICATOR, useExisting: config.deduplicatorToken }] : []),
+        { provide: NOTIFICATION_DEDUPE_WINDOW_MS, useValue: Math.max(1_000, config.dedupeWindowMs ?? 24 * 60 * 60 * 1000) },
         Notifier,
         { provide: NOTIFIER, useExisting: Notifier },
         { provide: NOTIFICATION_TYPES, useValue: checkedTypes(config.types ?? []) },

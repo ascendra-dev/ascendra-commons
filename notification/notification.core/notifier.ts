@@ -12,9 +12,12 @@ import { NotificationSender } from './notification-sender.port';
 import { recipientRef } from './recipient-ref';
 import { recipientKey, type NotificationRecipientHasher } from './recipient-hasher';
 import type { NotificationSuppressionList } from './notification-suppression.port';
+import type { DedupeClaim, NotificationDeduplicator } from './notification-deduplicator.port';
 import {
   NOTIFICATION_CHANNEL_SENDERS,
   NOTIFICATION_CONFIG,
+  NOTIFICATION_DEDUPE_WINDOW_MS,
+  NOTIFICATION_DEDUPLICATOR,
   NOTIFICATION_DELIVERY_RECORDER,
   NOTIFICATION_RECIPIENT_HASHER,
   NOTIFICATION_SUPPRESSION_LIST,
@@ -47,6 +50,8 @@ export class Notifier {
     @Optional() @Inject(NOTIFICATION_DELIVERY_RECORDER) deliveryRecorder?: NotificationDeliveryRecorder,
     @Optional() @Inject(NOTIFICATION_RECIPIENT_HASHER) private readonly hasher: NotificationRecipientHasher | null = null,
     @Optional() @Inject(NOTIFICATION_SUPPRESSION_LIST) private readonly suppressions: NotificationSuppressionList | null = null,
+    @Optional() @Inject(NOTIFICATION_DEDUPLICATOR) private readonly deduplicator: NotificationDeduplicator | null = null,
+    @Optional() @Inject(NOTIFICATION_DEDUPE_WINDOW_MS) private readonly dedupeWindowMs: number = 24 * 60 * 60 * 1000,
   ) {
     // NotificationModule.forRoot() always binds the token; the fallback keeps
     // `new Notifier(config, senders)` (tests, ad hoc wiring) working.
@@ -54,6 +59,44 @@ export class Notifier {
   }
 
   async notify(request: NotificationRequest): Promise<NotificationResult> {
+    const dedupeKey = this.dedupeKeyOf(request);
+    if (dedupeKey) {
+      const claim = await this.claim(dedupeKey);
+      // Sent already (or being sent) under this key — nothing goes out again; the first call's result comes back.
+      if (!claim.claimed) return claim.prior ?? { status: 'skipped', reason: 'duplicate_in_flight', channels: {} };
+      const result = await this.send(request);
+      try {
+        await this.deduplicator!.complete(dedupeKey, result);
+      } catch (err) {
+        this.logger.warn(`dedupe: storing the result of "${dedupeKey}" failed — ${err instanceof Error ? err.message : String(err)}`);
+      }
+      return result;
+    }
+    return this.send(request);
+  }
+
+  /** A usable key with a deduplicator bound — else none (a key over 256 characters or with a NUL is ignored, logged). */
+  private dedupeKeyOf(request: NotificationRequest): string | null {
+    const key = request.dedupeKey;
+    if (!key || !this.deduplicator) return null;
+    if (key.length > 256 || key.includes('\u0000')) {
+      this.logger.warn(`dedupe: key ignored — at most 256 characters, no NUL ("${key.slice(0, 40)}…")`);
+      return null;
+    }
+    return key;
+  }
+
+  /** A failing store mustn't stop the notification — a rare duplicate beats a lost send. */
+  private async claim(key: string): Promise<DedupeClaim> {
+    try {
+      return await this.deduplicator!.claim(key, this.dedupeWindowMs);
+    } catch (err) {
+      this.logger.warn(`dedupe: claiming "${key}" failed — sending anyway: ${err instanceof Error ? err.message : String(err)}`);
+      return { claimed: true };
+    }
+  }
+
+  private async send(request: NotificationRequest): Promise<NotificationResult> {
     let channels: NotificationChannel[];
     try {
       channels = await this.config.channelsFor(request.notificationType, request.tenantId ?? null);

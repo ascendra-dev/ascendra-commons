@@ -38,6 +38,16 @@ describe('PostgresNotificationRetentionService', () => {
     expect(params).toEqual(['ascendra-pay', cutoff, 5_000]);
   });
 
+  it('pruneDedupeKeys deletes keys whose window has passed', async () => {
+    const db = fakeDb(3);
+    const now = new Date('2026-07-02T00:00:00Z');
+    await expect(new PostgresNotificationRetentionService(db, 'a').pruneDedupeKeys(now)).resolves.toBe(3);
+    const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(text).toMatch(/delete from commons_notification_dedupe/i);
+    expect(text).toMatch(/expires_at < \$2/i);
+    expect(params).toEqual(['a', now, 5_000, 'a']);
+  });
+
   it('nothing to do is one query', async () => {
     const db = fakeDb(0);
     await expect(new PostgresNotificationRetentionService(db, 'a').pruneDeliveries(cutoff)).resolves.toBe(0);

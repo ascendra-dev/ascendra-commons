@@ -6,6 +6,7 @@ export {
 } from './persistence/config.schema';
 export { notificationDelivery } from './persistence/delivery.schema';
 export { notificationSuppression } from './persistence/suppression.schema';
+export { notificationDedupe } from './persistence/dedupe.schema';
 export type { SqlExecutor } from './persistence/sql-executor';
 
 // Seed — behaviour-preserving model: 'static' -> database
@@ -29,6 +30,11 @@ export type { PostgresNotificationSuppressionListOptions } from './suppression/p
 export { PostgresNotificationSuppressionModule } from './suppression/postgres-notification-suppression.module';
 export type { PostgresNotificationSuppressionModuleConfig } from './suppression/postgres-notification-suppression.module';
 
+// Dedupe keys — notify({ dedupeKey }) sends once per key
+export { PostgresNotificationDeduplicator } from './dedupe/postgres-notification-deduplicator';
+export { PostgresNotificationDedupeModule } from './dedupe/postgres-notification-dedupe.module';
+export type { PostgresNotificationDedupeModuleConfig } from './dedupe/postgres-notification-dedupe.module';
+
 // Retention — the consumer schedules it
 export { PostgresNotificationRetentionService } from './retention/postgres-notification-retention.service';
 export { PostgresNotificationRetentionModule } from './retention/postgres-notification-retention.module';
@@ -44,6 +50,7 @@ export {
   POSTGRES_NOTIFICATION_CONFIG,
   POSTGRES_NOTIFICATION_DELIVERY_RECORDER,
   POSTGRES_NOTIFICATION_SUPPRESSION_LIST,
+  POSTGRES_NOTIFICATION_DEDUPLICATOR,
   NOTIFICATION_CONFIG_SQL_EXECUTOR,
   NOTIFICATION_ADMIN_SQL_EXECUTOR,
 } from './tokens';

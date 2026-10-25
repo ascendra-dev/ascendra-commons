@@ -37,6 +37,12 @@ export const NOTIFICATION_DELIVERY_RECORDER = Symbol('NOTIFICATION_DELIVERY_RECO
 /** The `NotificationSuppressionList` `Notifier` asks before each send — none unless `forRoot({ suppressionListToken })`. */
 export const NOTIFICATION_SUPPRESSION_LIST = Symbol('NOTIFICATION_SUPPRESSION_LIST');
 
+/** The `NotificationDeduplicator` `notify({ dedupeKey })` claims through — none unless `forRoot({ deduplicatorToken })`. */
+export const NOTIFICATION_DEDUPLICATOR = Symbol('NOTIFICATION_DEDUPLICATOR');
+
+/** How long a dedupe key holds — `forRoot({ dedupeWindowMs })`, default 24 h. */
+export const NOTIFICATION_DEDUPE_WINDOW_MS = Symbol('NOTIFICATION_DEDUPE_WINDOW_MS');
+
 /** The `NotificationRecipientHasher` — or `null` when the app gives no `recipientHashKey` (address search off). */
 export const NOTIFICATION_RECIPIENT_HASHER = Symbol('NOTIFICATION_RECIPIENT_HASHER');
 
