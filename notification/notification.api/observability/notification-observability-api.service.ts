@@ -8,7 +8,8 @@ import {
   type NotificationObservabilityPort,
 } from '../../notification.core.database';
 import { correlationIdParam, dateParam, enumParam, idParam } from '../shared/params';
-import { NOTIFICATION_API_OPTIONS } from '../tokens';
+import { NOTIFICATION_API_OPTIONS, NOTIFICATION_AUDIT_EMITTER } from '../tokens';
+import type { NotificationAuditEmitter } from '../notification-audit.port';
 import type { NotificationApiOptions } from '../notification-api.options';
 import type { DeliveryHistoryQueryDto, DeliveryStatsQueryDto } from '../dto/notification-api.dto';
 
@@ -36,6 +37,7 @@ export class NotificationObservabilityApiService {
   constructor(
     @Inject(NOTIFICATION_OBSERVABILITY_PORT) private readonly port: NotificationObservabilityPort,
     @Inject(NOTIFICATION_API_OPTIONS) private readonly options: NotificationApiOptions,
+    @Inject(NOTIFICATION_AUDIT_EMITTER) private readonly audit: NotificationAuditEmitter,
   ) {}
 
   async getDeliveryHistory(actor: Actor, query: DeliveryHistoryQueryDto): Promise<DeliveryHistoryPage> {
@@ -77,9 +79,17 @@ export class NotificationObservabilityApiService {
    * (The content is the most sensitive thing here: names, amounts, addresses in the variables.)
    */
   async getDeliveryContent(actor: Actor, id: string) {
-    await this.getDelivery(actor, id);
+    const delivery = await this.getDelivery(actor, id);
     const record = await this.port.getDeliveryContent(id);
     if (!record) throw new NotFoundException('no stored content for that delivery');
+    // Who read which message — filed under the delivery's tenant, so that tenant's own audit log shows it.
+    await this.audit.record({
+      action: 'notification.content_viewed',
+      actorId: actor.id,
+      tenantId: delivery.tenantId,
+      entityType: 'delivery',
+      entityId: id,
+    });
     return record;
   }
 

@@ -19,12 +19,14 @@ function options(isPlatformAdmin: NotificationApiOptions['isPlatformAdmin'] = (a
   return { isPlatformAdmin };
 }
 
+const audit = { record: vi.fn() };
+
 const tenantActor: Actor = { id: 'u1', persona: 'issuer', tenantId: 't1' };
 const platformActor: Actor = { id: 'p1', persona: 'platform', tenantId: null };
 
 describe('NotificationObservabilityApiService', () => {
   describe("a caller's mistake is a 400, never a 500", () => {
-    const svc = () => new NotificationObservabilityApiService(fakePort(), options());
+    const svc = () => new NotificationObservabilityApiService(fakePort(), options(), audit);
     it.each([
       ['a bad date', { since: 'yesterday' }],
       ['a bad limit', { limit: Number('abc') }],
@@ -41,7 +43,7 @@ describe('NotificationObservabilityApiService', () => {
       const port = fakePort();
       vi.mocked(port.getDeliveryHistory).mockRejectedValueOnce(new InvalidDeliveryCursorError('Unrecognized cursor "x"'));
       await expect(
-        new NotificationObservabilityApiService(port, options()).getDeliveryHistory(platformActor, { cursor: 'x' }),
+        new NotificationObservabilityApiService(port, options(), audit).getDeliveryHistory(platformActor, { cursor: 'x' }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -58,7 +60,7 @@ describe('NotificationObservabilityApiService', () => {
   describe('getDeliveryHistory — tenant ceiling', () => {
     it('parses since/until into Dates and passes filters through for a platform admin', async () => {
       const port = fakePort();
-      await new NotificationObservabilityApiService(port, options()).getDeliveryHistory(platformActor, {
+      await new NotificationObservabilityApiService(port, options(), audit).getDeliveryHistory(platformActor, {
         notificationType: 'invoice.sent',
         since: '2026-01-01T00:00:00Z',
         limit: 10,
@@ -70,19 +72,19 @@ describe('NotificationObservabilityApiService', () => {
 
     it('lets a platform admin request another tenant explicitly', async () => {
       const port = fakePort();
-      await new NotificationObservabilityApiService(port, options()).getDeliveryHistory(platformActor, { tenantId: 't9' });
+      await new NotificationObservabilityApiService(port, options(), audit).getDeliveryHistory(platformActor, { tenantId: 't9' });
       expect(port.getDeliveryHistory).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't9' }));
     });
 
     it('forces a non-platform actor to their own tenant, ignoring a requested tenantId for another tenant', async () => {
       const port = fakePort();
-      await new NotificationObservabilityApiService(port, options()).getDeliveryHistory(tenantActor, { tenantId: 't2' });
+      await new NotificationObservabilityApiService(port, options(), audit).getDeliveryHistory(tenantActor, { tenantId: 't2' });
       expect(port.getDeliveryHistory).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't1' }));
     });
 
     it('scopes a non-platform actor to their own tenant even when no tenantId was requested', async () => {
       const port = fakePort();
-      await new NotificationObservabilityApiService(port, options()).getDeliveryHistory(tenantActor, {});
+      await new NotificationObservabilityApiService(port, options(), audit).getDeliveryHistory(tenantActor, {});
       expect(port.getDeliveryHistory).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't1' }));
     });
   });
@@ -91,7 +93,7 @@ describe('NotificationObservabilityApiService', () => {
     it('404s when the row does not exist', async () => {
       const port = fakePort();
       await expect(
-        new NotificationObservabilityApiService(port, options()).getDelivery(tenantActor, '7'),
+        new NotificationObservabilityApiService(port, options(), audit).getDelivery(tenantActor, '7'),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -100,7 +102,7 @@ describe('NotificationObservabilityApiService', () => {
       const record = { id: '7', notificationType: 'x', channel: 'email' as const, tenantId: 't2', recipientRef: 'r', status: 'sent' as const, reason: null, providerMessageId: null, attemptedAt: new Date(), updatedAt: new Date(), correlationId: null, hasContent: false };
       (port.getDelivery as ReturnType<typeof vi.fn>).mockResolvedValueOnce(record);
       await expect(
-        new NotificationObservabilityApiService(port, options()).getDelivery(tenantActor, '7'),
+        new NotificationObservabilityApiService(port, options(), audit).getDelivery(tenantActor, '7'),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -108,14 +110,14 @@ describe('NotificationObservabilityApiService', () => {
       const port = fakePort();
       const record = { id: '7', notificationType: 'x', channel: 'email' as const, tenantId: 't1', recipientRef: 'r', status: 'sent' as const, reason: null, providerMessageId: null, attemptedAt: new Date(), updatedAt: new Date(), correlationId: null, hasContent: false };
       (port.getDelivery as ReturnType<typeof vi.fn>).mockResolvedValueOnce(record);
-      await expect(new NotificationObservabilityApiService(port, options()).getDelivery(tenantActor, '7')).resolves.toBe(record);
+      await expect(new NotificationObservabilityApiService(port, options(), audit).getDelivery(tenantActor, '7')).resolves.toBe(record);
     });
 
     it('returns a row from any tenant for a platform admin', async () => {
       const port = fakePort();
       const record = { id: '7', notificationType: 'x', channel: 'email' as const, tenantId: 't2', recipientRef: 'r', status: 'sent' as const, reason: null, providerMessageId: null, attemptedAt: new Date(), updatedAt: new Date(), correlationId: null, hasContent: false };
       (port.getDelivery as ReturnType<typeof vi.fn>).mockResolvedValueOnce(record);
-      await expect(new NotificationObservabilityApiService(port, options()).getDelivery(platformActor, '7')).resolves.toBe(record);
+      await expect(new NotificationObservabilityApiService(port, options(), audit).getDelivery(platformActor, '7')).resolves.toBe(record);
     });
   });
 
@@ -126,7 +128,7 @@ describe('NotificationObservabilityApiService', () => {
     it("another tenant's delivery is the same 404 as a missing one — its content is never read", async () => {
       const port = fakePort();
       vi.mocked(port.getDelivery).mockResolvedValueOnce(row('t2') as never);
-      await expect(new NotificationObservabilityApiService(port, options()).getDeliveryContent(tenantActor, '7')).rejects.toBeInstanceOf(
+      await expect(new NotificationObservabilityApiService(port, options(), audit).getDeliveryContent(tenantActor, '7')).rejects.toBeInstanceOf(
         NotFoundException,
       );
       expect(port.getDeliveryContent).not.toHaveBeenCalled();
@@ -134,7 +136,7 @@ describe('NotificationObservabilityApiService', () => {
 
     it('a missing delivery is a 404', async () => {
       const port = fakePort();
-      await expect(new NotificationObservabilityApiService(port, options()).getDeliveryContent(tenantActor, '7')).rejects.toBeInstanceOf(
+      await expect(new NotificationObservabilityApiService(port, options(), audit).getDeliveryContent(tenantActor, '7')).rejects.toBeInstanceOf(
         NotFoundException,
       );
     });
@@ -142,25 +144,39 @@ describe('NotificationObservabilityApiService', () => {
     it('own tenant, no stored content — a 404', async () => {
       const port = fakePort();
       vi.mocked(port.getDelivery).mockResolvedValueOnce(row('t1') as never);
-      await expect(new NotificationObservabilityApiService(port, options()).getDeliveryContent(tenantActor, '7')).rejects.toBeInstanceOf(
+      await expect(new NotificationObservabilityApiService(port, options(), audit).getDeliveryContent(tenantActor, '7')).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+
+    it("each read is audited under the delivery's tenant — a refused one is not", async () => {
+      const port = fakePort();
+      audit.record.mockClear();
+      vi.mocked(port.getDelivery).mockResolvedValue(row('t1') as never);
+      vi.mocked(port.getDeliveryContent).mockResolvedValue(content);
+      await new NotificationObservabilityApiService(port, options(), audit).getDeliveryContent(platformActor, '7');
+      expect(audit.record).toHaveBeenCalledWith({
+        action: 'notification.content_viewed', actorId: 'p1', tenantId: 't1', entityType: 'delivery', entityId: '7',
+      });
+      vi.mocked(port.getDelivery).mockResolvedValue(row('t2') as never);
+      await expect(new NotificationObservabilityApiService(port, options(), audit).getDeliveryContent(tenantActor, '7')).rejects.toThrow();
+      expect(audit.record).toHaveBeenCalledTimes(1);
     });
 
     it('own tenant — the content; a platform admin reads any tenant', async () => {
       const port = fakePort();
       vi.mocked(port.getDelivery).mockResolvedValue(row('t1') as never);
       vi.mocked(port.getDeliveryContent).mockResolvedValue(content);
-      await expect(new NotificationObservabilityApiService(port, options()).getDeliveryContent(tenantActor, '7')).resolves.toBe(content);
-      await expect(new NotificationObservabilityApiService(port, options()).getDeliveryContent(platformActor, '7')).resolves.toBe(content);
+      await expect(new NotificationObservabilityApiService(port, options(), audit).getDeliveryContent(tenantActor, '7')).resolves.toBe(content);
+      await expect(new NotificationObservabilityApiService(port, options(), audit).getDeliveryContent(platformActor, '7')).resolves.toBe(content);
     });
   });
 
   it('coverage gaps: a tenant admin only their own tenant and the defaults; a platform admin all', async () => {
     const port = fakePort();
-    await new NotificationObservabilityApiService(port, options()).coverageGaps(tenantActor);
+    await new NotificationObservabilityApiService(port, options(), audit).coverageGaps(tenantActor);
     expect(port.configCoverageGaps).toHaveBeenLastCalledWith({ tenantId: 't1' });
-    await new NotificationObservabilityApiService(port, options()).coverageGaps(platformActor);
+    await new NotificationObservabilityApiService(port, options(), audit).coverageGaps(platformActor);
     expect(port.configCoverageGaps).toHaveBeenLastCalledWith(undefined);
   });
 
@@ -168,7 +184,7 @@ describe('NotificationObservabilityApiService', () => {
     it('defaults to a 7-day window ending now', async () => {
       const port = fakePort();
       const before = Date.now();
-      await new NotificationObservabilityApiService(port, options()).getDeliveryStats(platformActor, {});
+      await new NotificationObservabilityApiService(port, options(), audit).getDeliveryStats(platformActor, {});
       const call = (port.getDeliveryStats as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(call.until.getTime()).toBeGreaterThanOrEqual(before);
       expect(call.until.getTime() - call.since.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
@@ -176,20 +192,20 @@ describe('NotificationObservabilityApiService', () => {
 
     it('parses an hour window', async () => {
       const port = fakePort();
-      await new NotificationObservabilityApiService(port, options()).getDeliveryStats(platformActor, { window: '24h' });
+      await new NotificationObservabilityApiService(port, options(), audit).getDeliveryStats(platformActor, { window: '24h' });
       const call = (port.getDeliveryStats as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(call.until.getTime() - call.since.getTime()).toBe(24 * 60 * 60 * 1000);
     });
 
     it('forces a non-platform actor to their own tenant', async () => {
       const port = fakePort();
-      await new NotificationObservabilityApiService(port, options()).getDeliveryStats(tenantActor, { tenantId: 't2' });
+      await new NotificationObservabilityApiService(port, options(), audit).getDeliveryStats(tenantActor, { tenantId: 't2' });
       expect(port.getDeliveryStats).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't1' }));
     });
 
     it('lets a platform admin request any tenant', async () => {
       const port = fakePort();
-      await new NotificationObservabilityApiService(port, options()).getDeliveryStats(platformActor, { tenantId: 't9' });
+      await new NotificationObservabilityApiService(port, options(), audit).getDeliveryStats(platformActor, { tenantId: 't9' });
       expect(port.getDeliveryStats).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't9' }));
     });
   });

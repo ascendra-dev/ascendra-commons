@@ -56,8 +56,9 @@ export class NotificationObservabilityController {
     return this.service.getDelivery(actor, id);
   }
 
+  /** The stored rendered message — its own action, `notification.view_content`, and every read is audited. */
   @Get('deliveries/:id/content')
-  @RequiresAction(NOTIFICATION_ACTIONS.VIEW)
+  @RequiresAction(NOTIFICATION_ACTIONS.VIEW_CONTENT)
   deliveryContent(@CurrentActor() actor: Actor, @Param('id') id: string) {
     return this.service.getDeliveryContent(actor, id);
   }

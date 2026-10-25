@@ -9,14 +9,20 @@ tokens.
 
 | Method | Path | Gate | → |
 |---|---|---|---|
-| GET | `/notifications/deliveries` | `notification.view` | `getDeliveryHistory` (paginated, filtered) |
-| GET | `/notifications/deliveries/:id/content` | `notification.view` | `getDeliveryContent` (404 if not stored) |
-| GET | `/notifications/config/coverage-gaps` | `notification.view` | `configCoverageGaps` |
-| GET | `/notifications/config/routes` \| `/templates` \| `/credentials` | `notification.view` | `list*` (credentials redacted — channel+tenant only) |
-| PUT/DELETE | `/notifications/config/routes` | `notification.manage_config` | `setChannelRoute` / `deleteChannelRoute` (actor-scoped) |
-| PUT/DELETE | `/notifications/config/templates` | `notification.manage_config` | `setTemplate` / `deleteTemplate` (actor-scoped) |
-| PUT/DELETE | `/notifications/config/credentials` | `notification.manage_config` | `setProviderCredential` (takes the opaque blob) / `deleteProviderCredential` (actor-scoped) |
+| GET | `/notifications/deliveries` | `notification.view` | `getDeliveryHistory` — filtered, keyset-paginated, `{ data, meta: { nextCursor } }` |
+| GET | `/notifications/deliveries/:id` | `notification.view` | one delivery's metadata (404 for another tenant's) |
+| GET | `/notifications/deliveries/:id/content` | `notification.view_content` | the stored rendered message (404 if not stored) — **every read audited** |
+| GET | `/notifications/stats` | `notification.view` | volume by channel/type/day over `?window=` (`24h`, `7d`, `30d`) |
+| GET | `/notifications/config/coverage-gaps` | `notification.view` | holes in routing/templates/credentials |
+| GET | `/notifications/config/routes` \| `/templates` \| `/credentials` | `notification.view` | `list*` — a tenant admin sees the defaults + their own tenant; credentials redacted (channel + tenant only) |
+| PUT | `/notifications/config/routes` \| `/templates` \| `/credentials` | `notification.manage_config` | upsert one row (actor-scoped, validated, audited) |
+| DELETE | `/notifications/config/routes/:notificationType` | `notification.manage_config` | `?tenantId=` — omitted = the default row; 404 if absent |
+| DELETE | `/notifications/config/templates/:channel/:notificationType` | `notification.manage_config` | `?tenantId=` as above |
+| DELETE | `/notifications/config/credentials/:channel` | `notification.manage_config` | `?tenantId=` required |
+| POST | `/notifications/config/templates/preview` | `notification.view` | render a candidate template against sample variables — stateless |
 | POST | `/notifications/test-send` | `notification.test_send` | `Notifier.notify()` — a real send to verify config |
+
+A caller's mistake is a 400 naming what to fix — never a 500 (bad dates, numbers, enums, cursors, bodies).
 
 Gate names are fixed. A vertical whose catalog uses different names grants its
 admin role these too.

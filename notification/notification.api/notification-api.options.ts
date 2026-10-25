@@ -10,6 +10,12 @@ import type { Actor } from '../../authorization/authorization.core';
 export const NOTIFICATION_ACTIONS = {
   /** Read the delivery log + config-coverage gaps + list config rows. */
   VIEW: 'notification.view',
+  /**
+   * Read a delivery's stored rendered message and the variables behind it — names, amounts, addresses. Its own action
+   * (as `idempotency.view-response` is), so seeing *that* a message went out doesn't mean reading it; every read is
+   * audited.
+   */
+  VIEW_CONTENT: 'notification.view_content',
   /** Create / delete routing, template and credential rows. */
   MANAGE_CONFIG: 'notification.manage_config',
   /** Fire a real test notification via `Notifier.notify()`. */

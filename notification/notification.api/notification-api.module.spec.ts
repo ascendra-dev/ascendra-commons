@@ -56,6 +56,13 @@ const auditRecord = vi.fn();
 class FakePortsModule {}
 
 describe('NotificationApiModule.forRoot — real DI wiring', () => {
+  it('reading stored content takes its own action, notification.view_content', () => {
+    const actions = Reflect.getMetadataKeys(NotificationObservabilityController.prototype.deliveryContent)
+      .map((k) => Reflect.getMetadata(k, NotificationObservabilityController.prototype.deliveryContent))
+      .flat();
+    expect(actions).toContain('notification.view_content');
+  });
+
   it('every controller declares AuthorizationEnforcedGuard — fails closed without the global guard', () => {
     for (const controller of [NotificationObservabilityController, NotificationConfigAdminController, NotificationTestSendController]) {
       expect(Reflect.getMetadata(GUARDS_METADATA, controller)).toContain(AuthorizationEnforcedGuard);
