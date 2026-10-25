@@ -12,6 +12,7 @@ import { NOTIFICATION_API_OPTIONS } from '../tokens';
 import type { NotificationApiOptions } from '../notification-api.options';
 import type { TestSendBody } from '../dto/notification-api.dto';
 import { idParam, tenantParam, textParam, variablesParam } from '../shared/params';
+import { NotificationTypeCatalog } from '../types/notification-type-catalog';
 
 /** Long enough for any real address — RFC 5321 caps a path at 256; a phone number is far shorter. */
 const MAX_ADDRESS = 256;
@@ -35,12 +36,15 @@ export class NotificationTestSendApiService {
     @Inject(NOTIFICATION_API_OPTIONS) private readonly options: NotificationApiOptions,
     // Optional — without it (NotificationModule not visible here) a tenant admin may test-send to themselves only.
     @Optional() @Inject(USER_CONTACT_RESOLVER) private readonly users?: UserContactResolver,
+    @Optional() private readonly types: NotificationTypeCatalog = new NotificationTypeCatalog(),
   ) {}
 
   async send(actor: Actor, body: TestSendBody): Promise<NotificationResult> {
     const notificationType = idParam('notificationType', body?.notificationType);
     const recipient = recipientParam(body?.recipient);
-    const variables = variablesParam('variables', body?.variables);
+    this.types.assertKnown(notificationType);
+    // A declared type's samples fill whatever the caller leaves out — a test needs no hand-typed values.
+    const variables = this.types.withSamples(notificationType, variablesParam('variables', body?.variables));
     const platform = await this.options.isPlatformAdmin(actor);
 
     let tenantId = actor.tenantId;

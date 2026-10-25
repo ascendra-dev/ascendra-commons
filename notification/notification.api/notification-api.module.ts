@@ -8,6 +8,9 @@ import { NotificationConfigAdminApiService } from './config-admin/notification-c
 import { NotificationConfigAdminController } from './config-admin/notification-config-admin.controller';
 import { NotificationTestSendApiService } from './test-send/notification-test-send-api.service';
 import { NotificationTestSendController } from './test-send/notification-test-send.controller';
+import { NotificationTypeCatalog } from './types/notification-type-catalog';
+import { NotificationTypesApiService } from './types/notification-types-api.service';
+import { NotificationTypesController } from './types/notification-types.controller';
 
 /**
  * HTTP endpoints for a notification admin / observability UI, over the
@@ -39,6 +42,7 @@ export class NotificationApiModule {
         NotificationObservabilityController,
         NotificationConfigAdminController,
         NotificationTestSendController,
+        NotificationTypesController,
       ],
       providers: [
         { provide: NOTIFICATION_API_OPTIONS, useValue: resolveNotificationApiOptions(config) },
@@ -48,6 +52,8 @@ export class NotificationApiModule {
         NotificationObservabilityApiService,
         NotificationConfigAdminApiService,
         NotificationTestSendApiService,
+        NotificationTypeCatalog,
+        NotificationTypesApiService,
       ],
     };
   }

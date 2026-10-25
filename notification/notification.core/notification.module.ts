@@ -12,8 +12,10 @@ import {
   NOTIFICATION_CONFIG,
   NOTIFICATION_DELIVERY_RECORDER,
   NOTIFIER,
+  NOTIFICATION_TYPES,
   USER_CONTACT_RESOLVER,
 } from './tokens';
+import type { NotificationTypeDefinition } from './notification-type';
 
 /** Any token NestJS's `provide`/`inject` accepts. */
 type OverrideToken = string | symbol | (new (...args: never[]) => unknown);
@@ -59,6 +61,13 @@ export interface NotificationModuleConfig {
    * (so a webhook can update the row) and `rendered` (so the delivery log can store the message).
    */
   senders?: Partial<Record<NotificationChannel, Type<NotificationSender>>>;
+
+  /**
+   * The notification types this app sends — name, description, audience, variables with samples. Optional; once
+   * given, `notification.api` lists them and validates routes and templates against them (see
+   * `NotificationTypeDefinition`). Exported as `NOTIFICATION_TYPES`.
+   */
+  types?: NotificationTypeDefinition[];
 
   /** Whatever module(s) export the token(s) above — `useExisting` only resolves a token this module can already see. */
   imports?: DynamicModule['imports'];
@@ -119,9 +128,27 @@ export class NotificationModule {
 
         Notifier,
         { provide: NOTIFIER, useExisting: Notifier },
+        { provide: NOTIFICATION_TYPES, useValue: checkedTypes(config.types ?? []) },
       ],
       // The resolver too — notification.api's test send checks a recipient's tenant with it.
-      exports: [NOTIFIER, USER_CONTACT_RESOLVER],
+      exports: [NOTIFIER, USER_CONTACT_RESOLVER, NOTIFICATION_TYPES],
     };
   }
+}
+
+/** A wiring mistake fails at boot, not on a screen: a type declared twice, or a variable twice within one. */
+function checkedTypes(types: NotificationTypeDefinition[]): readonly NotificationTypeDefinition[] {
+  const names = new Set<string>();
+  for (const type of types) {
+    if (!type?.name) throw new Error('NotificationModule.forRoot({ types }): every type needs a name');
+    if (names.has(type.name)) throw new Error(`NotificationModule.forRoot({ types }): '${type.name}' is declared twice`);
+    names.add(type.name);
+    const vars = new Set<string>();
+    for (const v of type.variables ?? []) {
+      if (!/^\w+$/.test(v.name)) throw new Error(`'${type.name}': variable '${v.name}' must be letters, digits or _ — what {{…}} matches`);
+      if (vars.has(v.name)) throw new Error(`'${type.name}': variable '${v.name}' is declared twice`);
+      vars.add(v.name);
+    }
+  }
+  return Object.freeze([...types]);
 }

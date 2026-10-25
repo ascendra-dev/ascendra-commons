@@ -55,6 +55,8 @@ export interface DeliveryStatsQueryDto {
 }
 
 export interface PreviewTemplateBody {
+  /** A declared type: its variables are checked, its samples fill what `variables` leaves out. */
+  notificationType?: string;
   subject?: string;
   body: string;
   isHtml?: boolean;

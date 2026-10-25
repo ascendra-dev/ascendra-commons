@@ -3,10 +3,11 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { NotificationTestSendApiService } from './notification-test-send-api.service';
 import type { Notifier, UserContactResolver } from '../../notification.core';
 import type { Actor } from '../../../authorization/authorization.core';
+import { NotificationTypeCatalog } from '../types/notification-type-catalog';
 
-function deps(users?: UserContactResolver) {
+function deps(users?: UserContactResolver, types = new NotificationTypeCatalog()) {
   const notifier = { notify: vi.fn().mockResolvedValue({ status: 'sent', channels: { email: { status: 'sent' } } }) } as unknown as Notifier;
-  const svc = new NotificationTestSendApiService(notifier, { isPlatformAdmin: (a) => a.tenantId === null }, users);
+  const svc = new NotificationTestSendApiService(notifier, { isPlatformAdmin: (a) => a.tenantId === null }, users, types);
   return { notifier, svc };
 }
 const resolver = (byId: Record<string, { tenantId?: string | null }>): UserContactResolver => ({
@@ -72,5 +73,13 @@ describe('NotificationTestSendApiService', () => {
     const { svc, notifier } = deps();
     await svc.send(platform, { recipient: { type: 'raw', email: 'ops@example.com' }, notificationType: 'x', tenantId: 't9' });
     expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't9', test: true }));
+  });
+
+  it("a declared type's samples fill the variables the caller leaves out; an undeclared type is a 400", async () => {
+    const types = new NotificationTypeCatalog([{ name: 'invoice.sent', variables: [{ name: 'amount', sample: '9.99' }, { name: 'n', sample: 'INV-1' }] }]);
+    const { svc, notifier } = deps(undefined, types);
+    await svc.send(tenantAdmin, { recipient: self, notificationType: 'invoice.sent', variables: { n: 'INV-7' } });
+    expect(notifier.notify).toHaveBeenCalledWith(expect.objectContaining({ variables: { amount: '9.99', n: 'INV-7' } }));
+    await expect(svc.send(tenantAdmin, { recipient: self, notificationType: 'invoice.sentt' })).rejects.toBeInstanceOf(BadRequestException);
   });
 });

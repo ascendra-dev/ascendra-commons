@@ -14,6 +14,7 @@ import {
   NOTIFICATION_CHANNEL_SENDERS,
   NOTIFICATION_DELIVERY_RECORDER,
   NOTIFIER,
+  NOTIFICATION_TYPES,
   USER_CONTACT_RESOLVER,
 } from './tokens';
 
@@ -103,6 +104,20 @@ describe('NotificationModule.forRoot — token wiring', () => {
       tenantId: 'tenant-1',
     });
     expect(result.channels?.email).toEqual({ status: 'sent', providerMessageId: 'ses-k' });
+  });
+
+  it('exports the declared types (none by default), and refuses a type or a variable declared twice', async () => {
+    const none = await Test.createTestingModule({
+      imports: [NotificationModule.forRoot({ configToken: CONFIG_TOKEN, imports: [FakeProvidersModule] })],
+    }).compile();
+    expect(none.get(NOTIFICATION_TYPES)).toEqual([]);
+    const types = [{ name: 'invoice.sent', variables: [{ name: 'amount' }] }];
+    const some = await Test.createTestingModule({
+      imports: [NotificationModule.forRoot({ configToken: CONFIG_TOKEN, types, imports: [FakeProvidersModule] })],
+    }).compile();
+    expect(some.get(NOTIFICATION_TYPES)).toEqual(types);
+    expect(() => NotificationModule.forRoot({ configToken: CONFIG_TOKEN, types: [{ name: 'a' }, { name: 'a' }] })).toThrow(/declared twice/);
+    expect(() => NotificationModule.forRoot({ configToken: CONFIG_TOKEN, types: [{ name: 'a', variables: [{ name: 'x-y' }] }] })).toThrow(/letters, digits/);
   });
 
   it('defaults USER_CONTACT_RESOLVER to the null resolver; userContactResolverToken overrides it', async () => {

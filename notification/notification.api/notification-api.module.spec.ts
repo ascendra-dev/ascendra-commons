@@ -12,6 +12,7 @@ import { NotificationObservabilityController } from './observability/notificatio
 import { NotificationConfigAdminController } from './config-admin/notification-config-admin.controller';
 import { NotificationTestSendController } from './test-send/notification-test-send.controller';
 import { NOTIFICATION_AUDIT_EMITTER } from './tokens';
+import { NotificationTypesController } from './types/notification-types.controller';
 import { AuthorizationEnforcedGuard, type Actor } from '../../authorization/authorization.core';
 
 const getDeliveryHistory = vi.fn().mockResolvedValue({ deliveries: [] });
@@ -65,7 +66,7 @@ describe('NotificationApiModule.forRoot — real DI wiring', () => {
   });
 
   it('every controller declares AuthorizationEnforcedGuard — fails closed without the global guard', () => {
-    for (const controller of [NotificationObservabilityController, NotificationConfigAdminController, NotificationTestSendController]) {
+    for (const controller of [NotificationObservabilityController, NotificationConfigAdminController, NotificationTestSendController, NotificationTypesController]) {
       expect(Reflect.getMetadata(GUARDS_METADATA, controller)).toContain(AuthorizationEnforcedGuard);
     }
   });
@@ -77,6 +78,11 @@ describe('NotificationApiModule.forRoot — real DI wiring', () => {
   }
 
   const platformActor: Actor = { id: 'a1', persona: 'platform', tenantId: null };
+
+  it('the types controller lists through the ports (no declared types: the configured ones only)', async () => {
+    const moduleRef = await build();
+    await expect(moduleRef.get(NotificationTypesController).list({ id: 'a1', persona: 'platform', tenantId: null })).resolves.toEqual([]);
+  });
 
   it('resolves all three controllers', async () => {
     const moduleRef = await build();

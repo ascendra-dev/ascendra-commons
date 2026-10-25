@@ -15,6 +15,8 @@ tokens.
 | GET | `/notifications/stats` | `notification.view` | counts by channel/type/day over `?window=` — `24h` rolling, `7d` / `30d` whole calendar days in `?tz=`; test sends left out |
 | GET | `/notifications/volume` | `notification.view` + platform admin | per-day rows over 30 days in `?tz=`, the table's size and age, rows still holding content |
 | GET | `/notifications/config/coverage-gaps` | `notification.view` | holes in routing/templates/credentials |
+| GET | `/notifications/types` | `notification.view` | the declared types (`NotificationModule.forRoot({ types })`) joined with their default channels, templates and gap counts — plus configured types nobody declared |
+| GET | `/notifications/types/:name` | `notification.view` | one type: definition, every route and template the actor may see, its gaps |
 | GET | `/notifications/config/routes` \| `/templates` \| `/credentials` | `notification.view` | `list*` — a tenant admin sees the defaults + their own tenant; credentials redacted (channel + tenant only) |
 | PUT | `/notifications/config/routes` \| `/templates` \| `/credentials` | `notification.manage_config` | upsert one row (actor-scoped, validated, audited) |
 | DELETE | `/notifications/config/routes/:notificationType` | `notification.manage_config` | `?tenantId=` — omitted = the default row; 404 if absent |
@@ -22,6 +24,9 @@ tokens.
 | DELETE | `/notifications/config/credentials/:channel` | `notification.manage_config` | `?tenantId=` required |
 | POST | `/notifications/config/templates/preview` | `notification.view` | render a candidate template against sample variables — stateless |
 | POST | `/notifications/test-send` | `notification.test_send` | `Notifier.notify()` — a real send to verify config |
+
+**Declared types.** Once the app declares its types, a route or template for an undeclared type is a 400, a template
+using a variable the type doesn't have is a 400, and a preview or test send fills the type's sample values.
 
 A caller's mistake is a 400 naming what to fix — never a 500 (bad dates, numbers, enums, cursors, bodies).
 

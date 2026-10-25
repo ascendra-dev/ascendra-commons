@@ -5,8 +5,9 @@ import type { NotificationConfigAdminPort } from '../../notification.core.databa
 import type { NotificationApiOptions } from '../notification-api.options';
 import type { NotificationAuditEmitter } from '../notification-audit.port';
 import type { Actor } from '../../../authorization/authorization.core';
+import { NotificationTypeCatalog } from '../types/notification-type-catalog';
 
-function deps(isPlatformAdmin: NotificationApiOptions['isPlatformAdmin'] = (a) => a.tenantId === null) {
+function deps(isPlatformAdmin: NotificationApiOptions['isPlatformAdmin'] = (a) => a.tenantId === null, types = new NotificationTypeCatalog()) {
   const port: NotificationConfigAdminPort = {
     getChannelRoute: vi.fn().mockResolvedValue(null),
     getTemplate: vi.fn().mockResolvedValue(null),
@@ -22,7 +23,7 @@ function deps(isPlatformAdmin: NotificationApiOptions['isPlatformAdmin'] = (a) =
     listProviderCredentials: vi.fn().mockResolvedValue([]),
   };
   const audit: NotificationAuditEmitter = { record: vi.fn() };
-  return { port, audit, svc: new NotificationConfigAdminApiService(port, { isPlatformAdmin }, audit) };
+  return { port, audit, svc: new NotificationConfigAdminApiService(port, { isPlatformAdmin }, audit, types) };
 }
 
 const tenantAdmin: Actor = { id: 'admin-1', persona: 'issuer_admin', tenantId: 't1' };
@@ -194,6 +195,43 @@ describe('NotificationConfigAdminApiService — audit', () => {
     const event = vi.mocked(audit.record).mock.calls[0][0];
     expect(event).toMatchObject({ tenantId: 't1', before: { present: true }, after: { present: true } });
     expect(JSON.stringify(event)).not.toContain('secret');
+  });
+});
+
+describe('NotificationConfigAdminApiService — against the declared types', () => {
+  const types = new NotificationTypeCatalog([{ name: 'invoice.sent', variables: [{ name: 'invoiceNumber', sample: 'INV-1' }] }]);
+  const platform = (a: Actor) => a.tenantId === null;
+
+  it("a route or template for a type the app doesn't declare is a 400", async () => {
+    const { svc, port } = deps(platform, types);
+    await expect(svc.setChannelRoute(platformAdmin, { notificationType: 'invoice.sentt', tenantId: null, channels: ['email'] })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    await expect(svc.setTemplate(platformAdmin, { channel: 'sms', notificationType: 'nope', tenantId: null, body: 'b' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(port.setChannelRoute).not.toHaveBeenCalled();
+  });
+
+  it("a template using a variable the type doesn't have is a 400", async () => {
+    const { svc } = deps(platform, types);
+    await expect(
+      svc.setTemplate(platformAdmin, { channel: 'email', notificationType: 'invoice.sent', tenantId: null, subject: 'Invoice {{invoiceNo}}', body: 'b' }),
+    ).rejects.toThrow(/invoiceNo/);
+    await svc.setTemplate(platformAdmin, { channel: 'email', notificationType: 'invoice.sent', tenantId: null, subject: 'Invoice {{invoiceNumber}}', body: 'b' });
+  });
+
+  it("a preview with a declared type checks its variables and fills the samples", () => {
+    const { svc } = deps(platform, types);
+    expect(svc.previewTemplate({ notificationType: 'invoice.sent', body: 'Invoice {{invoiceNumber}}' }).body).toBe('Invoice INV-1');
+    expect(() => svc.previewTemplate({ notificationType: 'invoice.sent', body: '{{other}}' })).toThrow(BadRequestException);
+  });
+
+  it('a delete for an undeclared type is allowed — clearing a leftover', async () => {
+    const { svc, port } = deps(platform, types);
+    vi.mocked(port.getChannelRoute).mockResolvedValueOnce({ notificationType: 'old.type', tenantId: null, channels: ['email'] });
+    await svc.deleteChannelRoute(platformAdmin, 'old.type', undefined);
+    expect(port.deleteChannelRoute).toHaveBeenCalled();
   });
 });
 

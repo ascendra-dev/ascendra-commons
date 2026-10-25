@@ -33,3 +33,6 @@ export const NOTIFIER = Symbol('NOTIFIER');
  * `deliveryRecorderToken` (e.g. `POSTGRES_NOTIFICATION_DELIVERY_RECORDER`).
  */
 export const NOTIFICATION_DELIVERY_RECORDER = Symbol('NOTIFICATION_DELIVERY_RECORDER');
+
+/** The app's declared `NotificationTypeDefinition[]` — `forRoot({ types })`; empty when it declares none. */
+export const NOTIFICATION_TYPES = Symbol('NOTIFICATION_TYPES');

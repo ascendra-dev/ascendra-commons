@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type { Actor } from '../../../authorization/authorization.core';
 import { NOTIFICATION_CHANNELS, renderTemplate, type NotificationChannel } from '../../notification.core';
 import {
@@ -16,6 +16,7 @@ import type {
   SetTemplateBody,
 } from '../dto/notification-api.dto';
 import { booleanParam, enumParam, idParam, objectParam, tenantParam, textParam, variablesParam } from '../shared/params';
+import { NotificationTypeCatalog } from '../types/notification-type-catalog';
 
 /** An email subject line — RFC 5322 caps a header line at 998 characters. */
 const MAX_SUBJECT = 998;
@@ -42,6 +43,7 @@ export class NotificationConfigAdminApiService {
     @Inject(NOTIFICATION_CONFIG_ADMIN_PORT) private readonly port: NotificationConfigAdminPort,
     @Inject(NOTIFICATION_API_OPTIONS) private readonly options: NotificationApiOptions,
     @Inject(NOTIFICATION_AUDIT_EMITTER) private readonly audit: NotificationAuditEmitter,
+    @Optional() private readonly types: NotificationTypeCatalog = new NotificationTypeCatalog(),
   ) {}
 
   // ---- routes ----
@@ -52,6 +54,7 @@ export class NotificationConfigAdminApiService {
       tenantId: tenantParam('tenantId', body?.tenantId),
       channels: channelsParam(body?.channels),
     };
+    this.types.assertKnown(input.notificationType);
     await this.assertTenantWritable(actor, input.tenantId);
     const before = await this.port.getChannelRoute(input.notificationType, input.tenantId);
     await this.port.setChannelRoute(input);
@@ -96,6 +99,8 @@ export class NotificationConfigAdminApiService {
       body: templateBody,
       isHtml,
     };
+    this.types.assertKnown(input.notificationType);
+    this.types.assertVariables(input.notificationType, input.subject, input.body);
     await this.assertTenantWritable(actor, input.tenantId);
     const before = await this.port.getTemplate(input.channel, input.notificationType, input.tenantId);
     await this.port.setTemplate(input);
@@ -124,17 +129,19 @@ export class NotificationConfigAdminApiService {
     return this.port.listTemplates(await this.scopeOf(actor));
   }
 
-  /** Renders a candidate template against sample variables — stateless, no port/persistence involved. */
+  /**
+   * Renders a candidate template — stateless, no port/persistence involved. With a declared `notificationType`, its
+   * variables are checked and its sample values fill whatever `variables` leaves out.
+   */
   previewTemplate(body: PreviewTemplateBody) {
     const templateBody = textParam('body', body?.body, MAX_BODY);
     if (templateBody === undefined) throw new BadRequestException('"body" is required');
+    const subject = textParam('subject', body?.subject, MAX_SUBJECT);
+    const notificationType = idParam('notificationType', body?.notificationType, true);
+    if (notificationType) this.types.assertVariables(notificationType, subject, templateBody);
     return renderTemplate(
-      {
-        subject: textParam('subject', body?.subject, MAX_SUBJECT),
-        body: templateBody,
-        isHtml: booleanParam('isHtml', body?.isHtml),
-      },
-      variablesParam('variables', body?.variables),
+      { subject, body: templateBody, isHtml: booleanParam('isHtml', body?.isHtml) },
+      this.types.withSamples(notificationType, variablesParam('variables', body?.variables)),
     );
   }
 
