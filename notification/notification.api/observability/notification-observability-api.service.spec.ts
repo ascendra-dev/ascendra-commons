@@ -82,6 +82,7 @@ describe('NotificationObservabilityApiService', () => {
       ['an unknown status', { status: 'lost' }],
       ['a NUL byte', { notificationType: 'invoice\u0000sent' }],
       ['a malformed correlation id', { correlationId: 'has spaces' }],
+      ['a reason that is not a code', { reason: "x' or 1=1" }],
     ])('%s', async (_label, query) => {
       await expect(svc().getDeliveryHistory(platformActor, query)).rejects.toBeInstanceOf(BadRequestException);
     });

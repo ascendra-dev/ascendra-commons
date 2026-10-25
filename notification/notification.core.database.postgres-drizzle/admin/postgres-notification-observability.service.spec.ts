@@ -69,6 +69,14 @@ describe('getDeliveryHistory', () => {
     expect(params).toContain(false);
   });
 
+  it("reason matches a code alone or with the provider's text after it — what byReason counts", async () => {
+    const db = fakeDb();
+    await svc(db).getDeliveryHistory({ reason: 'provider_timeout' });
+    const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(text).toMatch(/\(reason = \$\d+ or starts_with\(reason, \$\d+\)\)/i);
+    expect(params).toEqual(expect.arrayContaining(['provider_timeout', 'provider_timeout:']));
+  });
+
   it('a cursor it never issued is an error — never page one again', async () => {
     const db = fakeDb();
     await expect(svc(db).getDeliveryHistory({ cursor: 'garbage' })).rejects.toBeInstanceOf(InvalidDeliveryCursorError);
