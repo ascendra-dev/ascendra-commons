@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Module } from '@nestjs/common';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import {
   NOTIFICATION_CONFIG_ADMIN_PORT,
@@ -11,7 +12,7 @@ import { NotificationObservabilityController } from './observability/notificatio
 import { NotificationConfigAdminController } from './config-admin/notification-config-admin.controller';
 import { NotificationTestSendController } from './test-send/notification-test-send.controller';
 import { NOTIFICATION_AUDIT_EMITTER } from './tokens';
-import type { Actor } from '../../authorization/authorization.core';
+import { AuthorizationEnforcedGuard, type Actor } from '../../authorization/authorization.core';
 
 const getDeliveryHistory = vi.fn().mockResolvedValue({ deliveries: [] });
 const setChannelRoute = vi.fn().mockResolvedValue(undefined);
@@ -52,6 +53,12 @@ const auditRecord = vi.fn();
 class FakePortsModule {}
 
 describe('NotificationApiModule.forRoot — real DI wiring', () => {
+  it('every controller declares AuthorizationEnforcedGuard — fails closed without the global guard', () => {
+    for (const controller of [NotificationObservabilityController, NotificationConfigAdminController, NotificationTestSendController]) {
+      expect(Reflect.getMetadata(GUARDS_METADATA, controller)).toContain(AuthorizationEnforcedGuard);
+    }
+  });
+
   async function build() {
     return Test.createTestingModule({
       imports: [NotificationApiModule.forRoot({ auditEmitterToken: 'MY_AUDIT', imports: [FakePortsModule] })],

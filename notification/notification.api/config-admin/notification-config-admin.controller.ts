@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Post, Put } from '@nestjs/common';
-import { CurrentActor, RequiresAction, type Actor } from '../../../authorization/authorization.core';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Post, Put, UseGuards } from '@nestjs/common';
+import { AuthorizationEnforcedGuard, CurrentActor, RequiresAction, type Actor } from '../../../authorization/authorization.core';
 import { NOTIFICATION_ACTIONS } from '../notification-api.options';
 import { NotificationConfigAdminApiService } from './notification-config-admin-api.service';
 import type {
@@ -16,9 +16,10 @@ import type {
  * CRUD on routing / template / provider-credential rows. `list*` reads are gated
  * on `notification.view`; writes on `notification.manage_config` and
  * tenant-ceiling-scoped to the request actor in the service. Requires
- * `AuthorizationGuard` wired globally as `APP_GUARD`.
+ * `AuthorizationGuard` wired globally as `APP_GUARD` — and fails closed without it (`AuthorizationEnforcedGuard`).
  */
 @Controller('notifications/config')
+@UseGuards(AuthorizationEnforcedGuard)
 export class NotificationConfigAdminController {
   constructor(
     @Inject(NotificationConfigAdminApiService) private readonly service: NotificationConfigAdminApiService,

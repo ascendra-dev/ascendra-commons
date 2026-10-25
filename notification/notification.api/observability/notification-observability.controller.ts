@@ -1,5 +1,5 @@
-import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
-import { CurrentActor, RequiresAction, type Actor } from '../../../authorization/authorization.core';
+import { Controller, Get, Inject, Param, Query, UseGuards } from '@nestjs/common';
+import { AuthorizationEnforcedGuard, CurrentActor, RequiresAction, type Actor } from '../../../authorization/authorization.core';
 import { NOTIFICATION_ACTIONS } from '../notification-api.options';
 import { NotificationObservabilityApiService } from './notification-observability-api.service';
 import type { NotificationChannel } from '../../notification.core';
@@ -14,6 +14,7 @@ import type { DeliveryRecord } from '../../notification.core.database';
  * service — a non-platform actor only ever sees their own tenant's rows.
  */
 @Controller('notifications')
+@UseGuards(AuthorizationEnforcedGuard)
 export class NotificationObservabilityController {
   constructor(
     @Inject(NotificationObservabilityApiService) private readonly service: NotificationObservabilityApiService,
