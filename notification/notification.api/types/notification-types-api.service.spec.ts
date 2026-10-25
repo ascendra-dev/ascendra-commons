@@ -42,15 +42,22 @@ describe('NotificationTypesApiService', () => {
     const list = await svc.list(platform);
     expect(list).toEqual([
       {
-        name: 'invoice.sent', declared: true, description: 'The payer is told their invoice is ready', audience: 'payer',
+        name: 'invoice.sent', declared: true, description: 'The payer is told their invoice is ready', audience: 'payer', required: false,
         variables: INVOICE_SENT.variables, defaultChannels: ['email'], tenantRoutes: 1,
         templates: [{ channel: 'email', tenantId: null }], gaps: 1,
       },
       {
-        name: 'invoice.sentt', declared: false, description: null, audience: null, variables: [],
+        name: 'invoice.sentt', declared: false, description: null, audience: null, required: false, variables: [],
         defaultChannels: ['sms'], tenantRoutes: 0, templates: [], gaps: 0,
       },
     ]);
+  });
+
+  it("says which types a user can't turn off", async () => {
+    const { svc } = service([INVOICE_SENT, { name: 'password.reset', description: 'A reset link', required: true }]);
+    const list = await svc.list(platform);
+    expect(list.find((t) => t.name === 'password.reset')?.required).toBe(true);
+    expect(list.find((t) => t.name === 'invoice.sent')?.required).toBe(false);
   });
 
   it('is scoped like the config reads — a tenant admin reads the defaults plus their own tenant', async () => {
