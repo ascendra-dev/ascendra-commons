@@ -1,4 +1,5 @@
 import { NotificationChannelResult, NotificationRequest } from './notification.types';
+import type { ProviderConfig } from './notification-config.port';
 
 /**
  * An interface — Email/WhatsApp/SMS share no behavior with each other, so
@@ -15,4 +16,9 @@ import { NotificationChannelResult, NotificationRequest } from './notification.t
  */
 export interface NotificationSender {
   send(request: NotificationRequest): Promise<NotificationChannelResult>;
+  /**
+   * Optional — does this credential work? A lightweight call to the provider ("SES: sender verified", "Twilio: 401").
+   * Without it, a wrong key only shows on a real send's failure. `Notifier.verifyCredential` calls it.
+   */
+  verify?(config: ProviderConfig): Promise<{ ok: boolean; detail?: string }>;
 }

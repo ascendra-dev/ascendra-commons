@@ -146,6 +146,21 @@ describe('NotificationConfigAdminApiService — validation: a 400, never a 500',
   });
 });
 
+describe('NotificationConfigAdminApiService — verify a credential', () => {
+  it("asks Notifier — a tenant admin their own tenant's only; omitted tenant is the platform's", async () => {
+    const port = deps().port;
+    const notifier = { verifyCredential: vi.fn().mockResolvedValue({ supported: true, ok: true }) };
+    const svc = new NotificationConfigAdminApiService(port, { isPlatformAdmin: (a) => a.tenantId === null }, { record: vi.fn() }, undefined, notifier as never);
+    await expect(svc.verifyProviderCredential(tenantAdmin, 'email', 't1')).resolves.toEqual({ supported: true, ok: true });
+    expect(notifier.verifyCredential).toHaveBeenCalledWith('email', 't1');
+    await expect(svc.verifyProviderCredential(tenantAdmin, 'email', 't2')).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.verifyProviderCredential(tenantAdmin, 'email', undefined)).rejects.toBeInstanceOf(ForbiddenException);
+    await svc.verifyProviderCredential(platformAdmin, 'sms', undefined);
+    expect(notifier.verifyCredential).toHaveBeenLastCalledWith('sms', null);
+    await expect(svc.verifyProviderCredential(platformAdmin, 'fax', undefined)).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
 describe('NotificationConfigAdminApiService — deletes', () => {
   it('a row that is not there is a 404 — nothing deleted, nothing audited', async () => {
     const { svc, port, audit } = deps();

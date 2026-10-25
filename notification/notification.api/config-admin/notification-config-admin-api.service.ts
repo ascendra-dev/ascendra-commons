@@ -1,6 +1,13 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type { Actor } from '../../../authorization/authorization.core';
-import { NOTIFICATION_CHANNELS, renderTemplate, type NotificationChannel } from '../../notification.core';
+import {
+  NOTIFICATION_CHANNELS,
+  NOTIFIER,
+  renderTemplate,
+  type CredentialCheck,
+  type NotificationChannel,
+  type Notifier,
+} from '../../notification.core';
 import {
   NOTIFICATION_CONFIG_ADMIN_PORT,
   type ConfigScope,
@@ -44,6 +51,7 @@ export class NotificationConfigAdminApiService {
     @Inject(NOTIFICATION_API_OPTIONS) private readonly options: NotificationApiOptions,
     @Inject(NOTIFICATION_AUDIT_EMITTER) private readonly audit: NotificationAuditEmitter,
     @Optional() private readonly types: NotificationTypeCatalog = new NotificationTypeCatalog(),
+    @Optional() @Inject(NOTIFIER) private readonly notifier?: Notifier,
   ) {}
 
   // ---- routes ----
@@ -178,6 +186,18 @@ export class NotificationConfigAdminApiService {
     await this.emit(actor, 'notification.credential_deleted', 'provider_credential', key.tenantId, credentialId(key.channel, key.tenantId), {
       before: { channel: key.channel, tenantId: key.tenantId, present: true },
     });
+  }
+
+  /**
+   * Does the credential a send on `channel` for this tenant (omitted: the platform's) would use work? Asks the
+   * channel's sender to check it with the provider — `supported: false` for one that can't (the stubs). The same
+   * tenant rules as editing it.
+   */
+  async verifyProviderCredential(actor: Actor, channel: string, tenantId: string | undefined): Promise<CredentialCheck> {
+    const key = { channel: requiredChannel(channel), tenantId: idParam('tenantId', tenantId, true) ?? null };
+    await this.assertTenantWritable(actor, key.tenantId);
+    if (!this.notifier) return { supported: false, detail: 'Notifier is not visible to notification.api' };
+    return this.notifier.verifyCredential(key.channel, key.tenantId);
   }
 
   async listProviderCredentials(actor: Actor) {

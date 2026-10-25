@@ -4,6 +4,7 @@ export type {
   NotificationChannel,
   NotificationChannelResult,
   NotificationResult,
+  CredentialCheck,
 } from './notification.types';
 
 export type { NotificationConfig, NotificationConfigData, ProviderConfig } from './notification-config.port';

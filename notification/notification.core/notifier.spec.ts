@@ -378,3 +378,37 @@ describe('Notifier — channels (a retry of one)', () => {
     ).resolves.toEqual({ status: 'failed', reason: 'channel_not_routed', channels: {} });
   });
 });
+
+describe('Notifier.verifyCredential', () => {
+  const withVerify = (verify: unknown) => ({ send: vi.fn(), verify }) as never;
+  const credentialed = (credential: unknown = { apiKey: 'k' }) =>
+    ({ channelsFor: vi.fn(), providerConfigFor: vi.fn().mockResolvedValue(credential) }) as unknown as NotificationConfig;
+
+  it("asks the channel's sender to check the credential a send would use", async () => {
+    const verify = vi.fn().mockResolvedValue({ ok: true, detail: 'sender verified' });
+    const config = credentialed();
+    const notifier = new Notifier(config, new Map([['email', withVerify(verify)]]));
+    await expect(notifier.verifyCredential('email', 't1')).resolves.toEqual({ supported: true, ok: true, detail: 'sender verified' });
+    expect(config.providerConfigFor).toHaveBeenCalledWith('email', 't1');
+    expect(verify).toHaveBeenCalledWith({ apiKey: 'k' });
+  });
+
+  it("a stub can't check; no credential, a throw, or a provider that hangs — ok: false, never a throw", async () => {
+    await expect(new Notifier(fakeConfig(['email']), new Map([['email', fakeSender({ status: 'sent' })]])).verifyCredential('email', 't1')).resolves.toMatchObject({
+      supported: false,
+    });
+    await expect(new Notifier(credentialed(null), new Map([['email', withVerify(vi.fn())]])).verifyCredential('email', 't1')).resolves.toEqual({
+      supported: true, ok: false, detail: 'no credential to check',
+    });
+    const throwing = withVerify(vi.fn().mockRejectedValue(new Error('401 Unauthorized')));
+    await expect(new Notifier(credentialed(), new Map([['email', throwing]])).verifyCredential('email', 't1')).resolves.toEqual({
+      supported: true, ok: false, detail: '401 Unauthorized',
+    });
+    vi.useFakeTimers();
+    const hanging = withVerify(vi.fn(() => new Promise(() => undefined)));
+    const pending = new Notifier(credentialed(), new Map([['email', hanging]])).verifyCredential('email', 't1');
+    await vi.advanceTimersByTimeAsync(10_000);
+    await expect(pending).resolves.toEqual({ supported: true, ok: false, detail: 'the provider did not answer within 10 s' });
+    vi.useRealTimers();
+  });
+});

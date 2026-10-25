@@ -108,6 +108,13 @@ export interface NotificationChannelResult {
   rendered?: { subject?: string; body: string; isHtml?: boolean };
 }
 
+/** `Notifier.verifyCredential`'s answer — `supported: false` when the channel's sender can't check (the stubs). */
+export interface CredentialCheck {
+  supported: boolean;
+  ok?: boolean;
+  detail?: string;
+}
+
 export interface NotificationResult {
   /** Over the channels not skipped: all sent, some, or none — `skipped` when every channel was skipped. */
   status: 'sent' | 'partial' | 'failed' | 'skipped';

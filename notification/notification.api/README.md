@@ -31,6 +31,7 @@ tokens.
 | DELETE | `/notifications/config/routes/:notificationType` | `notification.manage_config` | `?tenantId=` — omitted = the default row; 404 if absent |
 | DELETE | `/notifications/config/templates/:channel/:notificationType` | `notification.manage_config` | `?tenantId=` as above |
 | DELETE | `/notifications/config/credentials/:channel` | `notification.manage_config` | `?tenantId=` required |
+| POST | `/notifications/config/credentials/:channel/verify` | `notification.manage_config` | `?tenantId=` — asks the provider whether the credential works (`{ supported, ok, detail }`; the stubs can't) |
 | POST | `/notifications/config/templates/preview` | `notification.view` | render a candidate template against sample variables — stateless |
 | POST | `/notifications/test-send` | `notification.test_send` | `Notifier.notify()` — a real send to verify config |
 

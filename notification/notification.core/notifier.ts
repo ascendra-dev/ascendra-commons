@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
+  CredentialCheck,
   NotificationChannel,
   NotificationChannelResult,
   NotificationRequest,
@@ -236,6 +237,28 @@ export class Notifier {
     } catch (err) {
       this.logger.warn(`suppression check failed for ${channel} — sending anyway: ${err instanceof Error ? err.message : String(err)}`);
       return false;
+    }
+  }
+
+  /**
+   * Does the credential a send on `channel` for `tenantId` would use work? Reads it the way a send does (the tenant's
+   * own, the platform's for a tenantless send or as the fallback) and asks the channel's sender to check it — at most
+   * 10 s. Never throws.
+   */
+  async verifyCredential(channel: NotificationChannel, tenantId: string | null): Promise<CredentialCheck> {
+    const sender = this.senders.get(channel);
+    if (!sender?.verify) return { supported: false, detail: `the ${channel} sender can't check a credential` };
+    try {
+      const credential = await this.config.providerConfigFor(channel, tenantId);
+      if (!credential) return { supported: true, ok: false, detail: 'no credential to check' };
+      let timer: NodeJS.Timeout | undefined;
+      const timeout = new Promise<{ ok: boolean; detail: string }>((resolve) => {
+        timer = setTimeout(() => resolve({ ok: false, detail: 'the provider did not answer within 10 s' }), 10_000);
+      });
+      const answer = await Promise.race([sender.verify(credential), timeout]).finally(() => clearTimeout(timer));
+      return { supported: true, ...answer };
+    } catch (err) {
+      return { supported: true, ok: false, detail: err instanceof Error ? err.message : String(err) };
     }
   }
 

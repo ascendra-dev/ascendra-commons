@@ -98,6 +98,14 @@ export class NotificationConfigAdminController {
     return this.service.setProviderCredential(actor, body);
   }
 
+  /** Asks the provider whether the credential works — `?tenantId=` as for a delete. */
+  @Post('credentials/:channel/verify')
+  @HttpCode(200)
+  @RequiresAction(NOTIFICATION_ACTIONS.MANAGE_CONFIG)
+  verifyCredential(@CurrentActor() actor: Actor, @Param('channel') channel: string, @Query('tenantId') tenantId?: string) {
+    return this.service.verifyProviderCredential(actor, channel, tenantId);
+  }
+
   /** `?tenantId=` names a tenant's account; omitted, the platform's own (platform admins only). */
   @Delete('credentials/:channel')
   @HttpCode(204)
