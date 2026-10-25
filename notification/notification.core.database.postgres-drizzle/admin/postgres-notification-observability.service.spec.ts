@@ -259,7 +259,7 @@ describe('getDeliveryStats', () => {
     const db = fakeDb((text) => {
       if (/group by channel, status/i.test(text)) return [{ channel: 'email', status: 'sent', count: 5 }];
       if (/group by notification_type, status/i.test(text)) return [{ notification_type: 'invoice.sent', status: 'sent', count: 5 }];
-      if (/as day/i.test(text)) return [{ day: '2026-06-01', count: 5 }];
+      if (/as day/i.test(text)) return [{ day: '2026-06-01', count: 5, failed: 2 }];
       if (/as reason/i.test(text)) return [{ status: 'failed', reason: 'provider_auth_failed', count: 13 }, { status: 'bounced', reason: 'bounced', count: 2 }];
       return [];
     });
@@ -271,7 +271,7 @@ describe('getDeliveryStats', () => {
     expect(stats.until).toEqual(until);
     expect(stats.byChannel).toEqual([{ channel: 'email', status: 'sent', count: 5 }]);
     expect(stats.byType).toEqual([{ notificationType: 'invoice.sent', status: 'sent', count: 5 }]);
-    expect(stats.byDay).toEqual([{ day: '2026-06-01', count: 5 }]);
+    expect(stats.byDay).toEqual([{ day: '2026-06-01', count: 5, failed: 2 }]);
     expect(stats.byReason).toEqual([
       { status: 'failed', reason: 'provider_auth_failed', count: 13 },
       { status: 'bounced', reason: 'bounced', count: 2 },
@@ -291,16 +291,16 @@ describe('getDeliveryStats', () => {
   it("a day window: whole calendar days in the viewer's zone, every day listed, a quiet one at 0", async () => {
     const db = fakeDb((text) => {
       if (/as since/i.test(text)) return [{ since: new Date('2026-05-29T19:00:00Z') }];
-      if (/as day/i.test(text)) return [{ day: '2026-06-01', count: 3 }];
+      if (/as day/i.test(text)) return [{ day: '2026-06-01', count: 3, failed: 1 }];
       return [];
     });
     const now = new Date('2026-06-01T12:00:00Z');
     const stats = await svc(db).getDeliveryStats({ days: 3, timeZone: 'Asia/Karachi' }, now);
     expect(stats.since).toEqual(new Date('2026-05-29T19:00:00Z'));
     expect(stats.byDay).toEqual([
-      { day: '2026-05-30', count: 0 },
-      { day: '2026-05-31', count: 0 },
-      { day: '2026-06-01', count: 3 },
+      { day: '2026-05-30', count: 0, failed: 0 },
+      { day: '2026-05-31', count: 0, failed: 0 },
+      { day: '2026-06-01', count: 3, failed: 1 },
     ]);
     const first = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
     expect(first.sql).toMatch(/::date::timestamp at time zone \$\d+\) as since/i);
