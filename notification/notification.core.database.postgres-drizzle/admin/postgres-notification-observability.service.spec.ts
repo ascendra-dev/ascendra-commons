@@ -260,6 +260,7 @@ describe('getDeliveryStats', () => {
       if (/group by channel, status/i.test(text)) return [{ channel: 'email', status: 'sent', count: 5 }];
       if (/group by notification_type, status/i.test(text)) return [{ notification_type: 'invoice.sent', status: 'sent', count: 5 }];
       if (/as day/i.test(text)) return [{ day: '2026-06-01', count: 5 }];
+      if (/as reason/i.test(text)) return [{ status: 'failed', reason: 'provider_auth_failed', count: 13 }, { status: 'bounced', reason: 'bounced', count: 2 }];
       return [];
     });
     const since = new Date('2026-05-25T00:00:00Z');
@@ -271,6 +272,13 @@ describe('getDeliveryStats', () => {
     expect(stats.byChannel).toEqual([{ channel: 'email', status: 'sent', count: 5 }]);
     expect(stats.byType).toEqual([{ notificationType: 'invoice.sent', status: 'sent', count: 5 }]);
     expect(stats.byDay).toEqual([{ day: '2026-06-01', count: 5 }]);
+    expect(stats.byReason).toEqual([
+      { status: 'failed', reason: 'provider_auth_failed', count: 13 },
+      { status: 'bounced', reason: 'bounced', count: 2 },
+    ]);
+    const reasonQuery = db.execute.mock.calls.map((c) => dialect.sqlToQuery(c[0] as SQL)).find((q) => /as reason/i.test(q.sql))!;
+    expect(reasonQuery.sql).toMatch(/split_part\(reason, ':', 1\)/i);
+    expect(reasonQuery.sql).toMatch(/status in \('failed', 'skipped', 'bounced'\)/i);
 
     for (const call of db.execute.mock.calls) {
       const { sql: text, params } = dialect.sqlToQuery(call[0] as SQL);
