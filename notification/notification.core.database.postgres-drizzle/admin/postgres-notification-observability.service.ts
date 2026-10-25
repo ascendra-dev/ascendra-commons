@@ -4,6 +4,8 @@ import type { DeliveryContent, NotificationChannel } from '../../notification.co
 import {
   decodeKeysetCursor,
   encodeKeysetCursor,
+  InvalidDeliveryCursorError,
+  isDeliveryId,
   type CoverageGap,
   type DeliveryContentRecord,
   type DeliveryHistoryPage,
@@ -18,6 +20,9 @@ import { NOTIFICATION_ADMIN_APPLICATION_ID, NOTIFICATION_ADMIN_SQL_EXECUTOR } fr
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
+
+/** `attempted_at` at the column's own precision (microseconds), for the keyset cursor — a JS `Date` keeps milliseconds. */
+const ATTEMPTED_AT_KEY = sql`to_char(attempted_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as attempted_at_key`;
 
 /**
  * `NotificationObservabilityPort` for Postgres/Drizzle — the delivery log
@@ -45,34 +50,39 @@ export class PostgresNotificationObservabilityService implements NotificationObs
     if (query.since) conds.push(sql`attempted_at >= ${query.since}`);
     if (query.until) conds.push(sql`attempted_at < ${query.until}`);
 
-    const cursor = query.cursor ? decodeKeysetCursor(query.cursor) : null;
-    if (cursor) {
-      conds.push(
-        sql`(attempted_at < ${cursor.timestamp} or (attempted_at = ${cursor.timestamp} and id < ${cursor.id}::bigint))`,
-      );
+    if (query.cursor) {
+      const cursor = decodeKeysetCursor(query.cursor);
+      // A cursor that doesn't decode was never issued here — silently starting from the top would repeat page one.
+      if (!cursor) throw new InvalidDeliveryCursorError(`Unrecognized cursor "${query.cursor}"`);
+      const ts = sql`${cursor.timestamp}::timestamptz`;
+      // Leads with the indexed column, so the index range starts at the cursor — the OR alone is a Filter, scanned
+      // from the top on every page.
+      conds.push(sql`attempted_at <= ${ts} and (attempted_at < ${ts} or id < ${cursor.id}::bigint)`);
     }
 
     const rows = (
-      await this.db.execute<DeliveryRow>(sql`
+      await this.db.execute<DeliveryRow & { attempted_at_key: string }>(sql`
         select id, notification_type, channel, tenant_id, recipient_ref, status, reason,
                provider_message_id, attempted_at, updated_at, correlation_id,
-               (content is not null) as has_content
+               (content is not null) as has_content, ${ATTEMPTED_AT_KEY}
         from commons_notification_delivery
         where ${sql.join(conds, sql` and `)}
         order by attempted_at desc, id desc
         limit ${limit + 1}
       `)
-    ).rows.map(mapRow);
+    ).rows;
 
     if (rows.length > limit) {
-      const deliveries = rows.slice(0, limit);
-      const last = deliveries[deliveries.length - 1];
-      return { deliveries, nextCursor: encodeKeysetCursor(last.attemptedAt, last.id) };
+      const page = rows.slice(0, limit);
+      const last = page[page.length - 1];
+      return { deliveries: page.map(mapRow), nextCursor: encodeKeysetCursor(String(last.attempted_at_key), String(last.id)) };
     }
-    return { deliveries: rows };
+    return { deliveries: rows.map(mapRow) };
   }
 
   async getDelivery(id: string): Promise<DeliveryRecord | null> {
+    // Not a delivery id can't name a row — and `::bigint` would fail the query.
+    if (!isDeliveryId(id)) return null;
     const { rows } = await this.db.execute<DeliveryRow>(sql`
       select id, notification_type, channel, tenant_id, recipient_ref, status, reason,
              provider_message_id, attempted_at, updated_at, correlation_id,
@@ -85,6 +95,7 @@ export class PostgresNotificationObservabilityService implements NotificationObs
   }
 
   async getDeliveryContent(id: string): Promise<DeliveryContentRecord | null> {
+    if (!isDeliveryId(id)) return null;
     const { rows } = await this.db.execute<{
       id: string | number;
       notification_type: string;

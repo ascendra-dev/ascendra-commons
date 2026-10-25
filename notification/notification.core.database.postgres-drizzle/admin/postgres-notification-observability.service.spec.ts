@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 import { PostgresNotificationObservabilityService } from './postgres-notification-observability.service';
+import { decodeKeysetCursor, encodeKeysetCursor, InvalidDeliveryCursorError } from '../../notification.core.database';
 import type { SqlExecutor } from '../persistence/sql-executor';
 
 const dialect = new PgDialect();
@@ -43,6 +44,29 @@ describe('getDeliveryHistory', () => {
     expect(dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL).params).toContain('ascendra-pay');
   });
 
+  it("the next cursor carries the last row's microsecond key and id", async () => {
+    const many = Array.from({ length: 3 }, (_, i) =>
+      deliveryRow({ id: 200 + i, attempted_at_key: `2026-06-01T08:00:00.00012${i}Z` }),
+    );
+    const db = fakeDb((text) => (/from commons_notification_delivery/i.test(text) ? many : []));
+    const page = await svc(db).getDeliveryHistory({ limit: 2 });
+    expect(decodeKeysetCursor(page.nextCursor!)).toEqual({ timestamp: '2026-06-01T08:00:00.000121Z', id: '201' });
+  });
+
+  it('a cursor leads with the indexed column and binds both parts', async () => {
+    const db = fakeDb();
+    await svc(db).getDeliveryHistory({ cursor: encodeKeysetCursor('2026-06-01T08:00:00.000121Z', '201') });
+    const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(text).toMatch(/attempted_at <= \$\d+::timestamptz and \(attempted_at < \$\d+::timestamptz or id < \$\d+::bigint\)/i);
+    expect(params).toEqual(expect.arrayContaining(['2026-06-01T08:00:00.000121Z', '201']));
+  });
+
+  it('a cursor it never issued is an error — never page one again', async () => {
+    const db = fakeDb();
+    await expect(svc(db).getDeliveryHistory({ cursor: 'garbage' })).rejects.toBeInstanceOf(InvalidDeliveryCursorError);
+    expect(db.execute).not.toHaveBeenCalled();
+  });
+
   it('renders the optional filters as bound params', async () => {
     const db = fakeDb();
     await svc(db).getDeliveryHistory({
@@ -71,6 +95,13 @@ describe('getDelivery', () => {
   it('returns null when no row matches', async () => {
     const db = fakeDb(() => []);
     expect(await svc(db).getDelivery('999')).toBeNull();
+  });
+
+  it('an id that is not a delivery id is not found — no query (::bigint would fail it)', async () => {
+    const db = fakeDb();
+    expect(await svc(db).getDelivery('nd_71A2')).toBeNull();
+    expect(await svc(db).getDeliveryContent('99999999999999999999')).toBeNull();
+    expect(db.execute).not.toHaveBeenCalled();
   });
 });
 

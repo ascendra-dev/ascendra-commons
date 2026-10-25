@@ -1,6 +1,6 @@
 // Stack-agnostic utilities
 export { ConfigCache } from './config-cache';
-export { encodeKeysetCursor, decodeKeysetCursor } from './keyset-cursor';
+export { encodeKeysetCursor, decodeKeysetCursor, isDeliveryId, InvalidDeliveryCursorError } from './keyset-cursor';
 
 // Ports a stack adapter implements
 export type { NotificationObservabilityPort } from './notification-observability.port';
