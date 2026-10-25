@@ -39,6 +39,9 @@ describe('PostgresNotificationDeliveryRecorderModule wired into NotificationModu
       notificationType: 'invoice.sent',
       variables: {},
     });
+    // The recorder buffers; closing the app writes what's waiting (as app.enableShutdownHooks() does).
+    expect(execute).not.toHaveBeenCalled();
+    await ref.close();
 
     const insert = execute.mock.calls.find((c) =>
       /insert into commons_notification_delivery/i.test(dialect.sqlToQuery(c[0] as SQL).sql),
@@ -47,6 +50,5 @@ describe('PostgresNotificationDeliveryRecorderModule wired into NotificationModu
     expect(dialect.sqlToQuery(insert![0] as SQL).params).toEqual(
       expect.arrayContaining(['ascendra-pay', 'invoice.sent', 'email', 'user:u1']),
     );
-    await ref.close();
   });
 });

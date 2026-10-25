@@ -18,6 +18,9 @@ export const POSTGRES_NOTIFICATION_CONFIG = Symbol('POSTGRES_NOTIFICATION_CONFIG
 export const NOTIFICATION_ADMIN_SQL_EXECUTOR = Symbol('NOTIFICATION_ADMIN_SQL_EXECUTOR');
 export const NOTIFICATION_ADMIN_APPLICATION_ID = Symbol('NOTIFICATION_ADMIN_APPLICATION_ID');
 
+/** The buffered delivery recorder's flush interval and buffer bound. */
+export const NOTIFICATION_DELIVERY_RECORDER_OPTIONS = Symbol('NOTIFICATION_DELIVERY_RECORDER_OPTIONS');
+
 /** Whether a tenant with no credential falls back to the platform's — so coverage gaps agree with the config reader. */
 export const NOTIFICATION_ADMIN_CREDENTIAL_FALLBACK = Symbol('NOTIFICATION_ADMIN_CREDENTIAL_FALLBACK');
 export const NOTIFICATION_ADMIN_STORE_CONTENT = Symbol('NOTIFICATION_ADMIN_STORE_CONTENT');

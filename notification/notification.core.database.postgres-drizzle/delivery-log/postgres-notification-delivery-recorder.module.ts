@@ -4,6 +4,7 @@ import {
   NOTIFICATION_ADMIN_APPLICATION_ID,
   NOTIFICATION_ADMIN_SQL_EXECUTOR,
   NOTIFICATION_ADMIN_STORE_CONTENT,
+  NOTIFICATION_DELIVERY_RECORDER_OPTIONS,
   POSTGRES_NOTIFICATION_DELIVERY_RECORDER,
 } from '../tokens';
 
@@ -22,6 +23,10 @@ export interface PostgresNotificationDeliveryRecorderModuleConfig {
    */
   storeContent?: boolean;
 
+  /** How often the buffered rows are written (default 2 s) and how many are held while the database is down (50,000). */
+  flushIntervalMs?: number;
+  maxBufferedRows?: number;
+
   /** Whatever module(s) export the provider behind `sqlExecutorToken`. Omit only if that module is `global: true`. */
   imports?: DynamicModule['imports'];
 }
@@ -33,7 +38,6 @@ export interface PostgresNotificationDeliveryRecorderModuleConfig {
  *
  * ```typescript
  * NotificationModule.forRoot({
- *   model: 'database',
  *   configToken: POSTGRES_NOTIFICATION_CONFIG,
  *   deliveryRecorderToken: POSTGRES_NOTIFICATION_DELIVERY_RECORDER,
  *   imports: [
@@ -45,7 +49,8 @@ export interface PostgresNotificationDeliveryRecorderModuleConfig {
  * })
  * ```
  *
- * Requires the `commons_notification_delivery` migration.
+ * Requires the `commons_notification_delivery` migration. The recorder buffers — call `app.enableShutdownHooks()` so
+ * the last rows are written on shutdown.
  */
 @Module({})
 export class PostgresNotificationDeliveryRecorderModule {
@@ -57,6 +62,10 @@ export class PostgresNotificationDeliveryRecorderModule {
         { provide: NOTIFICATION_ADMIN_SQL_EXECUTOR, useExisting: config.sqlExecutorToken },
         { provide: NOTIFICATION_ADMIN_APPLICATION_ID, useValue: config.application },
         { provide: NOTIFICATION_ADMIN_STORE_CONTENT, useValue: config.storeContent ?? false },
+        {
+          provide: NOTIFICATION_DELIVERY_RECORDER_OPTIONS,
+          useValue: { flushIntervalMs: config.flushIntervalMs, maxBufferedRows: config.maxBufferedRows },
+        },
         PostgresNotificationDeliveryRecorder,
         { provide: POSTGRES_NOTIFICATION_DELIVERY_RECORDER, useExisting: PostgresNotificationDeliveryRecorder },
       ],

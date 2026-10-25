@@ -71,6 +71,15 @@ tenant's account. Only a platform admin may set or delete the platform's row.
 It typically holds live secrets — **encrypt at rest** (Supabase Vault, `pgcrypto`
 + decrypting view, or `REVOKE select` from the ordinary read role).
 
+## The delivery log's write path — buffered
+
+`PostgresNotificationDeliveryRecorder` never makes a send wait on the database: `recordAttempts` queues the rows, and
+they're written every `flushIntervalMs` (default 2 s) — or at once when 1,000 are waiting — in multi-row `INSERT`s.
+Each row is normalized as it's queued. A failed write is logged with how many rows it lost (never retried, never
+thrown). While the database is slow, at most `maxBufferedRows` (50,000) wait; past it the oldest are dropped and
+counted. Call `app.enableShutdownHooks()` so the last rows are written on shutdown. A provider webhook's
+`updateDeliveryStatus` writes the queue first, so it never misses a row still waiting.
+
 ## `storeContent` (delivery log)
 
 `PostgresNotificationDeliveryRecorderModule.forRoot({ storeContent: true })` →
