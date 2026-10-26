@@ -7,7 +7,8 @@ Set by the `audit-logging` review (2026-10) — [`audit-logging/GUIDE.md`](./aud
 `idempotency-key` ([`GUIDE.md`](./idempotency-key/GUIDE.md), [`AUDIT-REPORT.md`](./idempotency-key/AUDIT-REPORT.md))
 the third; `domain-events` ([`GUIDE.md`](./domain-events/GUIDE.md), [`AUDIT-REPORT.md`](./domain-events/AUDIT-REPORT.md))
 the fourth; `background-jobs` ([`GUIDE.md`](./background-jobs/GUIDE.md),
-[`AUDIT-REPORT.md`](./background-jobs/AUDIT-REPORT.md)) the fifth. Complements
+[`AUDIT-REPORT.md`](./background-jobs/AUDIT-REPORT.md)) the fifth; `notification` ([`GUIDE.md`](./notification/GUIDE.md),
+[`AUDIT-REPORT.md`](./notification/AUDIT-REPORT.md)) the first product module. Complements
 [`MODULE-STANDARD.md`](./MODULE-STANDARD.md) (how a module is structured), which this doesn't repeat.
 
 ## The three documents
@@ -83,6 +84,9 @@ standards the review set.
 - [ ] An action that can outlast a proxy's timeout (30–60 s) answers once it has started — 202 with an id the caller
       follows (a correlation id + a trace read) — never after it finishes.
 - [ ] Exported CSV neutralizes cells starting with `= + - @`, tab or CR.
+- [ ] A value interpolated into HTML (an email body, a rendered page) is escaped — the template's markup is the author's,
+      the variables are what users typed.
+- [ ] An answer that links to a row a buffered writer holds flushes it first — and a once-only check reads the row.
 - [ ] Inbound headers that end up stored (e.g. `x-correlation-id`) are validated — and one that becomes a key
       (`Idempotency-Key`) is bounded below the index row limit, or the request it protects is a 500.
 - [ ] Nothing stores a resolved URL — record the route *pattern*: a URL can carry a secret (a token) and splits one

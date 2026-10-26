@@ -87,7 +87,10 @@ on `NotificationRequest` and every `NotificationConfig` method.
 
 ## What's not built yet
 
-- No real senders (every stub still only logs).
+- No real senders (every stub still only logs) — write one per channel with `forRoot({ senders })`.
 - No real `WhatsappNotificationSender` — needs its own Meta-side template shape.
+- No provider webhook — the app writes the controller that calls `updateDeliveryStatus`.
 - The `in_app` channel is real (`InAppNotificationSender` + `PostgresNotificationInboxModule`); the other three ship as stubs.
-- The frontend for the admin UI — `ascendra-commons-ui`.
+
+The full list, with priorities: [`AUDIT-REPORT.md`](./AUDIT-REPORT.md#gaps). How it works end to end:
+[`GUIDE.md`](./GUIDE.md). The admin UI is `ascendra-commons-ui`'s `notification.ui`.

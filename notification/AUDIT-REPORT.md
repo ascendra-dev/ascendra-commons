@@ -27,6 +27,7 @@ delivery log**, so the console can't count it.
 ## What's in place
 
 **Send path (`notification.core`)**
+- `renderTemplate` fills `{{variables}}`; in an HTML body every value is escaped.
 - `Notifier.notify()` never throws: route → per channel (opted out? suppressed? → the sender) in parallel → aggregate
   `sent` / `partial` / `failed` / `skipped` → record each attempt best-effort. `notifyCritical()` throws on failure.
 - `forRoot({ senders })` — a real sender per channel, built inside the module (injects config, the contact resolver,
@@ -95,6 +96,10 @@ reason · `dd9040d`! a tenant couldn't see a suppression another tenant's bounce
 message) · `7aac4f0` a retry's row was invisible for up to 2 s, so the retry-once check could pass twice · `9f31cad`!
 per-day failures · `1a4b9fa` filter by reason · `b217b06` types carry `required` · `80d7002` several statuses,
 suppressions by recipient.
+
+Found while writing this guide: `8e38ce0`! **an HTML email didn't escape its variables** — a customer's name like
+`<a href="https://evil.test">Pay here</a>` became a live link in the app's own invoice email (reproduced through the
+preview endpoint, re-probed after). Values are escaped in an HTML body now; the subject and plain text are as given.
 
 ## Gaps
 
