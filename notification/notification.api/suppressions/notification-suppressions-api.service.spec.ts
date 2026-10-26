@@ -34,6 +34,13 @@ describe('NotificationSuppressionsApiService', () => {
     expect(all.suppressions[0].removable).toBe(true);
   });
 
+  it("filters by recipient and channel — a bad channel is a 400", async () => {
+    const { svc, port } = deps();
+    await svc.list(platform, { recipientKey: 'h:abc', channel: 'email' });
+    expect(port.listSuppressions).toHaveBeenCalledWith(expect.objectContaining({ recipientKey: 'h:abc', channel: 'email' }), undefined);
+    await expect(svc.list(platform, { channel: 'fax' })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('a cursor it never issued is a 400', async () => {
     const { svc, port } = deps();
     vi.mocked(port.listSuppressions).mockRejectedValueOnce(new InvalidDeliveryCursorError('x'));

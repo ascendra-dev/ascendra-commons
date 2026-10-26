@@ -118,6 +118,14 @@ describe('NotificationObservabilityApiService', () => {
       );
     });
 
+    it('status=failed,bounced is any of them; an unknown one in the list is a 400', async () => {
+      const port = fakePort();
+      const svc = new NotificationObservabilityApiService(port, options(), audit);
+      await svc.getDeliveryHistory(platformActor, { status: 'failed,bounced' });
+      expect(port.getDeliveryHistory).toHaveBeenCalledWith(expect.objectContaining({ statuses: ['failed', 'bounced'] }));
+      await expect(svc.getDeliveryHistory(platformActor, { status: 'failed,lost' })).rejects.toBeInstanceOf(BadRequestException);
+    });
+
     it('lets a platform admin request another tenant explicitly', async () => {
       const port = fakePort();
       await new NotificationObservabilityApiService(port, options(), audit).getDeliveryHistory(platformActor, { tenantId: 't9' });

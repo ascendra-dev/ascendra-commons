@@ -77,6 +77,14 @@ describe('getDeliveryHistory', () => {
     expect(params).toEqual(expect.arrayContaining(['provider_timeout', 'provider_timeout:']));
   });
 
+  it('statuses renders an IN list', async () => {
+    const db = fakeDb();
+    await svc(db).getDeliveryHistory({ statuses: ['failed', 'bounced'] });
+    const { sql: text, params } = dialect.sqlToQuery(db.execute.mock.calls[0][0] as SQL);
+    expect(text).toMatch(/status in \(\$\d+, \$\d+\)/i);
+    expect(params).toEqual(expect.arrayContaining(['failed', 'bounced']));
+  });
+
   it('a cursor it never issued is an error — never page one again', async () => {
     const db = fakeDb();
     await expect(svc(db).getDeliveryHistory({ cursor: 'garbage' })).rejects.toBeInstanceOf(InvalidDeliveryCursorError);

@@ -130,6 +130,14 @@ describe('PostgresNotificationConfigAdminService', () => {
     await expect(svc(fakeDb()).listSuppressions({ cursor: 'junk' })).rejects.toThrow(/Unrecognized cursor/);
   });
 
+  it('listSuppressions: one recipient on one channel — what a skipped delivery looks up', async () => {
+    const db = fakeDb();
+    await svc(db).listSuppressions({ recipientKey: 'h:abc', channel: 'email' });
+    const { sql: text, params } = rendered(db);
+    expect(text).toMatch(/s\.recipient_key = \$\d+ and s\.channel = \$\d+/i);
+    expect(params).toEqual(expect.arrayContaining(['h:abc', 'email']));
+  });
+
   it('deleteSuppression empties the caches; a non-numeric id touches nothing', async () => {
     const invalidate = vi.spyOn(ConfigCache, 'invalidateAll');
     const db = fakeDb();
