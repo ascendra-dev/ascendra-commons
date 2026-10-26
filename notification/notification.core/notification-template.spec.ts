@@ -28,4 +28,12 @@ describe('renderTemplate', () => {
     const result = renderTemplate({ body: '<p>hi</p>', isHtml: true }, {});
     expect(result.isHtml).toBe(true);
   });
+
+  it("escapes values in an HTML body — a customer's name can't add a link — but not in a plain one or the subject", () => {
+    const name = '<a href="https://evil.test">Pay & "go"</a>';
+    const html = renderTemplate({ subject: 'For {{name}}', body: '<p>Dear {{name}}</p>', isHtml: true }, { name });
+    expect(html.body).toBe('<p>Dear &lt;a href=&quot;https://evil.test&quot;&gt;Pay &amp; &quot;go&quot;&lt;/a&gt;</p>');
+    expect(html.subject).toBe(`For ${name}`);
+    expect(renderTemplate({ body: 'Dear {{name}}' }, { name }).body).toBe(`Dear ${name}`);
+  });
 });
