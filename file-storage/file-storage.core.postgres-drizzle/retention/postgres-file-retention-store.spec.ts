@@ -45,4 +45,13 @@ describe('PostgresFileRetentionStore', () => {
     expect(v.accessLog).toEqual({ rows: 9, oldestAt: null });
     expect(queries(execute).every((q) => /where tenant_id = /.test(q.sql))).toBe(true);
   });
+
+  it('findRecordedRefs looks the refs up in one query', async () => {
+    const execute = vi.fn().mockResolvedValue({ rows: [{ file_ref: 'b/a' }] });
+    const found = await new PostgresFileRetentionStore({ execute } as never).findRecordedRefs(['b/a', 'b/z']);
+    expect([...found]).toEqual(['b/a']);
+    expect(queries(execute)[0].sql).toMatch(/file_ref = any\(ARRAY\[\$1, \$2\]::text\[\]\)/);
+    expect(await new PostgresFileRetentionStore({ execute } as never).findRecordedRefs([])).toEqual(new Set());
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
 });

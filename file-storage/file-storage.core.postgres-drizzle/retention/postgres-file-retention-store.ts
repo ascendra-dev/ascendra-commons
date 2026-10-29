@@ -3,6 +3,7 @@ import { sql, type SQL } from 'drizzle-orm';
 import type { FileRecord, FileRetentionStore, FileRetentionVolume } from '../../file-storage.core';
 import type { SqlExecutor } from '../persistence/sql-executor';
 import { toFileRecord } from '../persistence/row-mappers';
+import { textArray } from '../persistence/sql-helpers';
 import { FILE_STORAGE_SQL_EXECUTOR } from '../tokens';
 
 /**
@@ -37,6 +38,14 @@ export class PostgresFileRetentionStore implements FileRetentionStore {
       limit ${query.limit}
     `);
     return rows.map(toFileRecord);
+  }
+
+  async findRecordedRefs(fileRefs: string[]): Promise<Set<string>> {
+    if (fileRefs.length === 0) return new Set();
+    const { rows } = await this.db.execute(sql`
+      select file_ref from commons_file_record where file_ref = any(${textArray(fileRefs)})
+    `);
+    return new Set(rows.map((r) => r.file_ref as string));
   }
 
   async pruneAccessLog(before: Date, batchSize: number): Promise<number> {

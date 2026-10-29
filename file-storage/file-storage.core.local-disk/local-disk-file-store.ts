@@ -1,7 +1,13 @@
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
-import { dirname, resolve, sep } from 'node:path';
+import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { dirname, relative, resolve, sep } from 'node:path';
 import { Inject, Injectable } from '@nestjs/common';
-import { FILE_STORE_CONFIG, FileStoreError, type FileStore, type FileStoreConfig } from '../file-storage.core';
+import {
+  FILE_STORE_CONFIG,
+  FileStoreError,
+  type FileStoreConfig,
+  type ListableFileStore,
+  type StoredObject,
+} from '../file-storage.core';
 import { LocalDiskSigner } from './local-disk-signer';
 import { LOCAL_DISK_OPTIONS } from './tokens';
 
@@ -27,7 +33,7 @@ const BUCKET = /^[a-z0-9][a-z0-9._-]{0,62}$/i;
  * built from user input can't climb out (`../`), and a bucket is one segment.
  */
 @Injectable()
-export class LocalDiskFileStore implements FileStore {
+export class LocalDiskFileStore implements ListableFileStore {
   private readonly root: string;
   private readonly signer: LocalDiskSigner;
 
@@ -77,6 +83,33 @@ export class LocalDiskFileStore implements FileStore {
     } catch (e) {
       throw new FileStoreError(`local-disk delete failed: ${(e as Error).message}`);
     }
+  }
+
+  /**
+   * A bucket's objects ordered by `fileRef`, after `cursor`. Walks the bucket
+   * directory on every call — fine for the sizes a local disk serves; a store
+   * with millions of objects lists through its provider's own paging.
+   */
+  async listObjects(bucket: string, opts: { cursor?: string; limit: number }): Promise<{ objects: StoredObject[]; nextCursor: string | null }> {
+    if (!BUCKET.test(bucket)) throw new FileStoreError(`not a bucket: ${bucket.slice(0, 64)}`);
+    const bucketDir = resolve(this.root, bucket);
+    const entries = await readdir(bucketDir, { recursive: true, withFileTypes: true }).catch((e: NodeJS.ErrnoException) => {
+      if (e.code === 'ENOENT') return [];
+      throw new FileStoreError(`local-disk list failed: ${e.message}`);
+    });
+    const refs = entries
+      .filter((e) => e.isFile())
+      .map((e) => `${bucket}/${relative(bucketDir, resolve(e.parentPath, e.name)).split(sep).join('/')}`)
+      .filter((ref) => opts.cursor === undefined || ref > opts.cursor)
+      .sort();
+    const page = refs.slice(0, opts.limit);
+    const objects = await Promise.all(
+      page.map(async (fileRef) => {
+        const info = await stat(this.pathOf(fileRef));
+        return { fileRef, sizeBytes: info.size, modifiedAt: info.mtime };
+      }),
+    );
+    return { objects, nextCursor: refs.length > opts.limit ? page[page.length - 1] : null };
   }
 
   /** Verifies a download token → the path to stream and how to serve it; `null` when forged, expired or gone. */

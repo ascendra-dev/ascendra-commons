@@ -25,6 +25,7 @@ export type FileStorageAuditEvent =
       /** Who asked: a person (`request`), the retention run, or an orphan purge. */
       cause: 'request' | 'retention' | 'orphan-purge';
     }
+  | { kind: 'file.stray_blob_deleted'; fileRef: string; sizeBytes: number; actor: Actor }
   | { kind: 'file.hold_placed'; fileRecordId: string; tenantId: string; actor: Actor; reason: string }
   | { kind: 'file.hold_released'; fileRecordId: string; tenantId: string; actor: Actor; before: LegalHold };
 

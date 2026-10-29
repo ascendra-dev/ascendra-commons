@@ -1,5 +1,6 @@
 /* ports & domain types */
-export type { FileStore } from './file-store.port';
+export type { FileStore, ListableFileStore, StoredObject } from './file-store.port';
+export { isListableFileStore } from './file-store.port';
 export type { FileStoreConfig } from './file-store-config';
 export { FileStoreError } from './file-store.error';
 export type { FileRecord, LegalHold } from './file-record.interface';
@@ -35,7 +36,12 @@ export { NoopFileStorageAuditEmitter } from './file-storage-audit.port';
 /* retention */
 export type { FileRetentionStore, FileRetentionVolume } from './file-retention-store.port';
 export { MissingFileRetentionStore, MissingFileRetentionStoreError } from './file-retention-store.port';
-export { FileRetentionService, RETENTION_ACTOR } from './file-retention.service';
+export {
+  FileRetentionService,
+  RETENTION_ACTOR,
+  StrayBlobListingUnsupportedError,
+  NotAStrayBlobError,
+} from './file-retention.service';
 export type { FileRetentionRunResult } from './file-retention.service';
 
 /* orchestration */

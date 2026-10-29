@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotImplementedException } from '@nestjs/common';
 import { FileRetentionApiService } from './file-retention-api.service';
-import { resolveFileStorageOptions } from '../../file-storage.core';
+import { NotAStrayBlobError, resolveFileStorageOptions, StrayBlobListingUnsupportedError } from '../../file-storage.core';
 
 const tenantAdmin = { id: 'ta', persona: 'ops', tenantId: 't1' };
 const platformAdmin = { id: 'pa', persona: 'ops', tenantId: null };
@@ -11,6 +11,8 @@ function make() {
     volume: vi.fn().mockResolvedValue({}),
     run: vi.fn().mockResolvedValue({ filesDeleted: 0 }),
     purgeOrphans: vi.fn().mockResolvedValue({ deleted: 0, bytesFreed: 0 }),
+    findStrayBlobs: vi.fn().mockRejectedValue(new StrayBlobListingUnsupportedError()),
+    deleteStrayBlob: vi.fn().mockRejectedValue(new NotAStrayBlobError('b/x')),
   };
   return { svc: new FileRetentionApiService(retention as never, resolveFileStorageOptions({})), retention };
 }
@@ -38,5 +40,12 @@ describe('FileRetentionApiService', () => {
     await svc.purgeOrphans(platformAdmin, { olderThanDays: 2 });
     const cutoff = retention.purgeOrphans.mock.calls[0][0].olderThan as Date;
     expect(before - cutoff.getTime()).toBeGreaterThanOrEqual(2 * 86_400_000 - 5);
+  });
+
+  it('stray blobs: platform only; unsupported → 501, recorded → 409', async () => {
+    const { svc } = make();
+    await expect(svc.findStrayBlobs(tenantAdmin, { bucket: 'b' })).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.findStrayBlobs(platformAdmin, { bucket: 'b' })).rejects.toBeInstanceOf(NotImplementedException);
+    await expect(svc.deleteStrayBlob(platformAdmin, 'b/x')).rejects.toBeInstanceOf(ConflictException);
   });
 });

@@ -44,6 +44,7 @@ export const fileRecordTable = pgTable(
     index('commons_file_record_tenant_created_idx').on(t.tenantId, t.createdAt.desc(), t.id.desc()),
     index('commons_file_record_uploaded_by_idx').on(t.uploadedBy, t.createdAt.desc()),
     index('commons_file_record_retain_until_idx').on(t.retainUntil).where(sql`${t.retainUntil} IS NOT NULL`),
+    index('commons_file_record_file_ref_idx').on(t.fileRef),
     index('commons_file_record_held_idx').on(t.heldAt.desc()).where(sql`${t.heldAt} IS NOT NULL`),
     index('commons_file_record_created_id_idx').on(t.createdAt.desc(), t.id.desc()),
   ],

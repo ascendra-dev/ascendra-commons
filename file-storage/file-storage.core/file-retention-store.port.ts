@@ -16,6 +16,9 @@ export interface FileRetentionStore {
    */
   findPurgeableOrphans(query: { olderThan: Date; now: Date; tenantId?: string; limit: number }): Promise<FileRecord[]>;
 
+  /** Which of these `fileRef`s a `FileRecord` holds — the rest are stray blobs. */
+  findRecordedRefs(fileRefs: string[]): Promise<Set<string>>;
+
   /** Deletes access-log rows older than `before`. Returns how many went. */
   pruneAccessLog(before: Date, batchSize: number): Promise<number>;
 
@@ -59,6 +62,9 @@ export class MissingFileRetentionStore implements FileRetentionStore {
     throw new MissingFileRetentionStoreError();
   }
   async findPurgeableOrphans(): Promise<never> {
+    throw new MissingFileRetentionStoreError();
+  }
+  async findRecordedRefs(): Promise<never> {
     throw new MissingFileRetentionStoreError();
   }
   async pruneAccessLog(): Promise<never> {

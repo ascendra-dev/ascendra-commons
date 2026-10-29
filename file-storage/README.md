@@ -158,6 +158,9 @@ async upload(@Param('id') invoiceId: string, @UploadedFile() file: Express.Multe
 ```
 
 The blob upload happens before the metadata write and is best-effort rolled
-back if that write fails. A failed rollback leaves an orphaned blob (bytes, not
-correctness) — `GET /files/orphans` surfaces those; a reconciliation job is a
-later concern.
+back if that write fails. A failed rollback (or a failed blob delete) leaves a
+**stray blob** — bytes with no record. Two different leftovers, two checks:
+
+- `GET /files/orphans` — *records* with no attachment (`purgeOrphans` cleans them up);
+- `GET /files/stray-blobs?bucket=` — *objects* with no record, for a store that
+  implements `ListableFileStore` (local-disk does; Supabase doesn't yet).

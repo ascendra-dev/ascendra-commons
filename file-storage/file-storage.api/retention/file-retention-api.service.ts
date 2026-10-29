@@ -1,6 +1,12 @@
-import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Inject, Injectable, NotImplementedException } from '@nestjs/common';
 import type { Actor } from '../../../authorization/authorization.core';
-import { FILE_STORAGE_OPTIONS, FileRetentionService, type FileStorageOptions } from '../../file-storage.core';
+import {
+  FILE_STORAGE_OPTIONS,
+  FileRetentionService,
+  NotAStrayBlobError,
+  StrayBlobListingUnsupportedError,
+  type FileStorageOptions,
+} from '../../file-storage.core';
 
 const DAY_MS = 86_400_000;
 
@@ -21,9 +27,7 @@ export class FileRetentionApiService {
   }
 
   async runNow(actor: Actor) {
-    if (!(await this.options.isPlatformAdmin(actor))) {
-      throw new ForbiddenException('a retention run spans every tenant — platform admins only');
-    }
+    await this.requirePlatform(actor, 'a retention run spans every tenant');
     return this.retention.run();
   }
 
@@ -33,6 +37,32 @@ export class FileRetentionApiService {
       olderThan: new Date(Date.now() - body.olderThanDays * DAY_MS),
       tenantId: await this.scopeTenant(actor, body.tenantId),
     });
+  }
+
+  /** Platform only — a bucket holds every tenant's objects. 501 when the store can't list. */
+  async findStrayBlobs(actor: Actor, query: { bucket: string; cursor?: string; limit?: number }) {
+    await this.requirePlatform(actor, 'a bucket holds every tenant\'s objects');
+    try {
+      return await this.retention.findStrayBlobs(query);
+    } catch (e) {
+      if (e instanceof StrayBlobListingUnsupportedError) throw new NotImplementedException(e.message);
+      throw e;
+    }
+  }
+
+  /** Platform only. 409 when a record holds the blob after all. */
+  async deleteStrayBlob(actor: Actor, fileRef: string) {
+    await this.requirePlatform(actor, 'a bucket holds every tenant\'s objects');
+    try {
+      await this.retention.deleteStrayBlob({ fileRef, actor });
+    } catch (e) {
+      if (e instanceof NotAStrayBlobError) throw new ConflictException(e.message);
+      throw e;
+    }
+  }
+
+  private async requirePlatform(actor: Actor, why: string): Promise<void> {
+    if (!(await this.options.isPlatformAdmin(actor))) throw new ForbiddenException(`${why} — platform admins only`);
   }
 
   private async scopeTenant(actor: Actor, requested: string | undefined): Promise<string | undefined> {

@@ -35,6 +35,9 @@ CREATE INDEX IF NOT EXISTS "commons_file_record_uploaded_by_idx"
 --    The retention run: files past their date, oldest first.
 CREATE INDEX IF NOT EXISTS "commons_file_record_retain_until_idx"
   ON "commons_file_record" ("retain_until") WHERE "retain_until" IS NOT NULL;
+--    The stray-blob check: which listed objects a record holds.
+CREATE INDEX IF NOT EXISTS "commons_file_record_file_ref_idx"
+  ON "commons_file_record" ("file_ref");
 --    Held files — a short list.
 CREATE INDEX IF NOT EXISTS "commons_file_record_held_idx"
   ON "commons_file_record" ("held_at" DESC) WHERE "held_at" IS NOT NULL;

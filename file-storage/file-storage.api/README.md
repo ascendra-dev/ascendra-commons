@@ -26,6 +26,8 @@ the guard (`AuthorizationEnforcedGuard`).
 | `GET /files/rejections` | `file.view` | refused uploads — filter by category / reason |
 | `GET /files/retention` | `file.view` | Volume & retention: files (past retention, expiring in 30 days, indefinite, held), both logs, the log policy |
 | `POST /files/retention/run` | `file.delete` | one retention pass now — platform admins only (it spans every tenant) |
+| `GET /files/stray-blobs?bucket=` | `file.view` | objects in a bucket with no file record (older than an hour) — one store page per call, follow `nextCursor`. Platform only; 501 when the store can't list (Supabase today) |
+| `DELETE /files/stray-blobs?fileRef=` | `file.delete` | delete one stray blob; 409 if a record holds it. Platform only |
 | `POST /files/orphans/purge` | `file.delete` | body `{ olderThanDays, tenantId? }` — delete files with no attachment; held or retained files stay. Tenant-scoped |
 | `DELETE /files/:id` | `file.delete` | hard delete (blob, record and attachments; the access log stays). 409 while held, or — for a tenant actor — before its retention date |
 | `DELETE /files/:id/attachments/:attachmentId` | `file.delete` | detach one link, keep the file; 404 if the attachment isn't on this file |

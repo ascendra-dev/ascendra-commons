@@ -37,3 +37,27 @@ export interface FileStore {
   /** Explicit deletion (a GDPR-style erase, or `AttachmentService.deleteFile`) — detaching an `Attachment` never calls this. */
   delete(fileRef: string): Promise<void>;
 }
+
+/**
+ * A `FileStore` that can list what a bucket holds — what the stray-blob check
+ * needs (an object with no `FileRecord`: a failed rollback, a failed blob
+ * delete). Optional: a backend that can't list cheaply doesn't implement it,
+ * and the check reports it as unsupported.
+ */
+export interface ListableFileStore extends FileStore {
+  /** Objects in `bucket`, ordered by `fileRef`; `cursor` is the last `fileRef` of the previous page. */
+  listObjects(
+    bucket: string,
+    opts: { cursor?: string; limit: number },
+  ): Promise<{ objects: StoredObject[]; nextCursor: string | null }>;
+}
+
+export interface StoredObject {
+  fileRef: string;
+  sizeBytes: number;
+  modifiedAt: Date;
+}
+
+export function isListableFileStore(store: FileStore): store is ListableFileStore {
+  return typeof (store as Partial<ListableFileStore>).listObjects === 'function';
+}

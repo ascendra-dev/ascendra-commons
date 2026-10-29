@@ -5,7 +5,7 @@ import type { FileRecord } from './file-record.interface';
 import type { FileRetentionStore, FileRetentionVolume } from './file-retention-store.port';
 import type { FileStorageAuditEmitter } from './file-storage-audit.port';
 import type { FileStorageOptions } from './file-storage.options';
-import type { FileStore } from './file-store.port';
+import { isListableFileStore, type FileStore, type StoredObject } from './file-store.port';
 import {
   ATTACHMENT_STORE,
   FILE_RETENTION_STORE,
@@ -18,6 +18,24 @@ import {
 export const RETENTION_ACTOR: Actor = { id: 'system:file-retention', persona: 'system', tenantId: null };
 
 const DEFAULT_BATCH = 500;
+/** An object younger than this may be an upload whose record isn't written yet — never called stray. */
+const DEFAULT_STRAY_GRACE_MS = 60 * 60 * 1000;
+
+/** The configured `FileStore` can't list a bucket — `.api` answers 501. */
+export class StrayBlobListingUnsupportedError extends Error {
+  constructor() {
+    super('the configured FileStore cannot list its objects (it does not implement ListableFileStore)');
+    this.name = 'StrayBlobListingUnsupportedError';
+  }
+}
+
+/** The object has a FileRecord after all — not a stray. */
+export class NotAStrayBlobError extends Error {
+  constructor(fileRef: string) {
+    super(`'${fileRef}' belongs to a file record — delete the file, not the blob`);
+    this.name = 'NotAStrayBlobError';
+  }
+}
 const DEFAULT_LOG_BATCH = 5_000;
 const DAY_MS = 86_400_000;
 
@@ -112,6 +130,33 @@ export class FileRetentionService {
       if (removed) await this.finishDelete(removed, input.actor, 'orphan-purge', result);
     }
     return { deleted: result.filesDeleted, bytesFreed: result.bytesFreed };
+  }
+
+  /**
+   * Objects in `bucket` with no `FileRecord` — a blob left by a failed
+   * rollback or a failed blob delete. One page of the store's listing per
+   * call: `data` may be shorter than the page (most objects have records) and
+   * `nextCursor` continues the walk. Objects younger than `graceMs` (1 hour)
+   * are left out — an upload writes its blob before its record.
+   */
+  async findStrayBlobs(input: { bucket: string; cursor?: string; limit?: number; graceMs?: number }): Promise<{ data: StoredObject[]; nextCursor: string | null }> {
+    if (!isListableFileStore(this.fileStore)) throw new StrayBlobListingUnsupportedError();
+    const page = await this.fileStore.listObjects(input.bucket, { cursor: input.cursor, limit: Math.min(Math.max(1, input.limit ?? 200), 1_000) });
+    const cutoff = Date.now() - (input.graceMs ?? DEFAULT_STRAY_GRACE_MS);
+    const old = page.objects.filter((o) => o.modifiedAt.getTime() < cutoff);
+    const recorded = old.length ? await this.retention.findRecordedRefs(old.map((o) => o.fileRef)) : new Set<string>();
+    return { data: old.filter((o) => !recorded.has(o.fileRef)), nextCursor: page.nextCursor };
+  }
+
+  /** Deletes one stray blob — after re-checking no record holds it. Audited `file.stray_blob_deleted`. */
+  async deleteStrayBlob(input: { fileRef: string; sizeBytes?: number; actor: Actor }): Promise<void> {
+    if ((await this.retention.findRecordedRefs([input.fileRef])).has(input.fileRef)) throw new NotAStrayBlobError(input.fileRef);
+    await this.fileStore.delete(input.fileRef);
+    try {
+      await this.audit.emit({ kind: 'file.stray_blob_deleted', fileRef: input.fileRef, sizeBytes: input.sizeBytes ?? 0, actor: input.actor });
+    } catch {
+      /* best-effort */
+    }
   }
 
   /** `tenantId` set → that tenant's rows only (the `.api` forces a tenant actor's own). */

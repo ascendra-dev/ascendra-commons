@@ -66,3 +66,23 @@ describe('LocalDiskFileStore', () => {
     await expect(make().delete('kyc/never/there')).resolves.toBeUndefined();
   });
 });
+
+describe('LocalDiskFileStore.listObjects', () => {
+  it('lists a bucket by fileRef, paging after the cursor', async () => {
+    const store = make();
+    for (const k of ['t1/b', 't1/a', 't2/c']) {
+      key = k;
+      await store.upload(Buffer.from(k), meta);
+    }
+    const first = await store.listObjects('kyc', { limit: 2 });
+    expect(first.objects.map((o) => o.fileRef)).toEqual(['kyc/t1/a', 'kyc/t1/b']);
+    expect(first.objects[0]).toMatchObject({ sizeBytes: 4, modifiedAt: expect.any(Date) });
+    const second = await store.listObjects('kyc', { limit: 2, cursor: first.nextCursor! });
+    expect(second).toEqual({ objects: [expect.objectContaining({ fileRef: 'kyc/t2/c' })], nextCursor: null });
+  });
+
+  it('an empty or missing bucket lists nothing; a bad bucket name is refused', async () => {
+    expect(await make().listObjects('nothing-here', { limit: 10 })).toEqual({ objects: [], nextCursor: null });
+    await expect(make().listObjects('../x', { limit: 10 })).rejects.toBeInstanceOf(FileStoreError);
+  });
+});

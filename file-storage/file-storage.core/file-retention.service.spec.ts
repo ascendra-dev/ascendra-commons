@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { FileRetentionService, RETENTION_ACTOR } from './file-retention.service';
+import { FileRetentionService, NotAStrayBlobError, RETENTION_ACTOR, StrayBlobListingUnsupportedError } from './file-retention.service';
 import { resolveFileStorageOptions } from './file-storage.options';
 import type { FileRecord } from './file-record.interface';
 
@@ -85,5 +85,53 @@ describe('resolveFileStorageOptions logRetention', () => {
   it('refuses a non-positive or fractional day count', () => {
     expect(() => resolveFileStorageOptions({ logRetention: { accessLogDays: 0 } })).toThrow(/accessLogDays/);
     expect(() => resolveFileStorageOptions({ logRetention: { rejectionLogDays: 1.5 } })).toThrow(/rejectionLogDays/);
+  });
+});
+
+describe('FileRetentionService stray blobs', () => {
+  const old = new Date(Date.now() - 2 * 3_600_000);
+  const fresh = new Date();
+  function strays(listable = true) {
+    const retention = { findRecordedRefs: vi.fn(async (refs: string[]) => new Set(refs.filter((r) => r === 'b/recorded'))) };
+    const fileStore = {
+      delete: vi.fn().mockResolvedValue(undefined),
+      ...(listable
+        ? {
+            listObjects: vi.fn().mockResolvedValue({
+              objects: [
+                { fileRef: 'b/recorded', sizeBytes: 1, modifiedAt: old },
+                { fileRef: 'b/stray', sizeBytes: 2, modifiedAt: old },
+                { fileRef: 'b/uploading', sizeBytes: 3, modifiedAt: fresh },
+              ],
+              nextCursor: 'b/uploading',
+            }),
+          }
+        : {}),
+    };
+    const audit = { emit: vi.fn().mockResolvedValue(undefined) };
+    const svc = new FileRetentionService(retention as never, {} as never, fileStore as never, audit, resolveFileStorageOptions({}));
+    return { svc, retention, fileStore, audit };
+  }
+
+  it('reports objects with no record, leaving out ones younger than the grace period', async () => {
+    const { svc, retention } = strays();
+    const page = await svc.findStrayBlobs({ bucket: 'b' });
+    expect(page.data.map((o) => o.fileRef)).toEqual(['b/stray']);
+    expect(page.nextCursor).toBe('b/uploading');
+    expect(retention.findRecordedRefs).toHaveBeenCalledWith(['b/recorded', 'b/stray']);
+  });
+
+  it('says so when the store cannot list', async () => {
+    await expect(strays(false).svc.findStrayBlobs({ bucket: 'b' })).rejects.toBeInstanceOf(StrayBlobListingUnsupportedError);
+  });
+
+  it('deletes a stray after re-checking it, and refuses a recorded one', async () => {
+    const actor = { id: 'pa', persona: 'ops', tenantId: null };
+    const { svc, fileStore, audit } = strays();
+    await svc.deleteStrayBlob({ fileRef: 'b/stray', actor });
+    expect(fileStore.delete).toHaveBeenCalledWith('b/stray');
+    expect(audit.emit).toHaveBeenCalledWith(expect.objectContaining({ kind: 'file.stray_blob_deleted', fileRef: 'b/stray' }));
+    await expect(svc.deleteStrayBlob({ fileRef: 'b/recorded', actor })).rejects.toBeInstanceOf(NotAStrayBlobError);
+    expect(fileStore.delete).toHaveBeenCalledTimes(1);
   });
 });
