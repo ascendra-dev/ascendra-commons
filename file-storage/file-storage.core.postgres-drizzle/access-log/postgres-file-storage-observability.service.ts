@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql, type SQL } from 'drizzle-orm';
 import {
+  calendarDays,
   encodeKeysetCursor,
   requireKeysetCursor,
   type FileAccessLogPage,
@@ -182,41 +183,71 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
   }
 
   /**
-   * Uploads-over-time + by-category counts for the ops Overview screen, both
-   * windowed by `query.windowDays` (default 30). Deliberately no scan-verdict
-   * breakdown — `commons_file_record` has no `scan_verdict` column; adding one
-   * is a schema migration, out of scope here.
+   * The Overview: whole calendar days in the viewer's zone (a per-day chart
+   * over a rolling window would open on a partial day), from the first day's
+   * local midnight to now. Uploads by day / category / scan verdict, and
+   * refusals by day / category / reason — all over that one window.
    */
-  async statsSummary(query: FileStatsQuery = {}): Promise<FileStatsSummary> {
-    const windowDays = query.windowDays && query.windowDays > 0 ? query.windowDays : 30;
-    const cutoff = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
-    const where: SQL[] = [sql`created_at >= ${cutoff}`];
-    if (query.tenantId) where.push(sql`tenant_id = ${query.tenantId}`);
+  async statsSummary(query: FileStatsQuery = {}, now: Date = new Date()): Promise<FileStatsSummary> {
+    const timeZone = query.timeZone ?? 'UTC';
+    const days = calendarDays(now, query.windowDays && query.windowDays > 0 ? query.windowDays : 30, timeZone);
+    const { rows: sinceRows } = await this.db.execute(sql`select (${days[0]}::date::timestamp at time zone ${timeZone}) as since`);
+    const since = new Date(sinceRows[0].since as string);
 
-    const [{ rows: dayRows }, { rows: categoryRows }] = await Promise.all([
+    const tenant = query.tenantId !== undefined ? sql`and tenant_id = ${query.tenantId}` : sql``;
+    const files = sql`created_at >= ${since} and created_at < ${now} ${tenant}`;
+    const refusals = sql`occurred_at >= ${since} and occurred_at < ${now} ${tenant}`;
+
+    const [uploadDays, refusalDays, categories, refusedCategories, verdicts, reasons] = await Promise.all([
       this.db.execute(sql`
-        select to_char(date_trunc('day', created_at), 'YYYY-MM-DD') as day, count(*) as count
-        from commons_file_record
-        where ${and(where)}
-        group by day
-        order by day asc
+        select to_char(created_at at time zone ${timeZone}, 'YYYY-MM-DD') as day, count(*) as uploads, coalesce(sum(size_bytes), 0) as bytes
+        from commons_file_record where ${files} group by 1
+      `),
+      this.db.execute(sql`
+        select to_char(occurred_at at time zone ${timeZone}, 'YYYY-MM-DD') as day, count(*) as rejected
+        from commons_file_rejection where ${refusals} group by 1
       `),
       this.db.execute(sql`
         select category, count(*) as file_count, coalesce(sum(size_bytes), 0) as total_bytes
-        from commons_file_record
-        where ${and(where)}
-        group by category
-        order by category
+        from commons_file_record where ${files} group by category
       `),
+      this.db.execute(sql`select category, count(*) as rejected from commons_file_rejection where ${refusals} group by category`),
+      this.db.execute(sql`
+        select coalesce(scan_verdict, 'unknown') as verdict, count(*) as count
+        from commons_file_record where ${files} group by 1 order by 2 desc
+      `),
+      this.db.execute(sql`select reason, count(*) as count from commons_file_rejection where ${refusals} group by reason order by 2 desc, 1`),
     ]);
 
+    const up = new Map(uploadDays.rows.map((r) => [r.day as string, { uploads: Number(r.uploads), bytes: Number(r.bytes) }]));
+    const rej = new Map(refusalDays.rows.map((r) => [r.day as string, Number(r.rejected)]));
+    const byDay = days.map((date) => ({ date, uploads: up.get(date)?.uploads ?? 0, bytes: up.get(date)?.bytes ?? 0, rejected: rej.get(date) ?? 0 }));
+
+    const cats = new Map<string, { category: string; fileCount: number; totalBytes: number; rejected: number }>();
+    for (const r of categories.rows) {
+      cats.set(r.category as string, { category: r.category as string, fileCount: Number(r.file_count), totalBytes: Number(r.total_bytes), rejected: 0 });
+    }
+    for (const r of refusedCategories.rows) {
+      const key = r.category as string;
+      const row = cats.get(key) ?? { category: key, fileCount: 0, totalBytes: 0, rejected: 0 };
+      row.rejected = Number(r.rejected);
+      cats.set(key, row);
+    }
+    const byScanVerdict = verdicts.rows.map((r) => ({ verdict: r.verdict as 'clean' | 'unscannable' | 'unknown', count: Number(r.count) }));
+
     return {
-      uploadsByDay: dayRows.map((r) => ({ date: r.day as string, count: Number(r.count) })),
-      byCategory: categoryRows.map((r) => ({
-        category: r.category as string,
-        fileCount: Number(r.file_count),
-        totalBytes: Number(r.total_bytes),
-      })),
+      since,
+      until: now,
+      totals: {
+        uploads: byDay.reduce((n, d) => n + d.uploads, 0),
+        bytes: byDay.reduce((n, d) => n + d.bytes, 0),
+        rejected: byDay.reduce((n, d) => n + d.rejected, 0),
+        unscannable: byScanVerdict.find((v) => v.verdict === 'unscannable')?.count ?? 0,
+      },
+      byDay,
+      byCategory: [...cats.values()].sort((a, b) => a.category.localeCompare(b.category)),
+      byScanVerdict,
+      byRejectionReason: reasons.rows.map((r) => ({ reason: r.reason as FileStatsSummary['byRejectionReason'][number]['reason'], count: Number(r.count) })),
     };
   }
 

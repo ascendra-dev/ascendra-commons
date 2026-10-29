@@ -1,6 +1,7 @@
 import type { Attachment } from './attachment.interface';
 import type { FileCategory, ResolvedFileCategory } from './file-category';
 import type { FileRecord } from './file-record.interface';
+import type { FileUploadRejectionReason } from './file-upload-rejection-recorder.port';
 
 /* ─── inventory ─────────────────────────────────────────────────────────── */
 
@@ -116,32 +117,41 @@ export interface CategoryUsageRow {
 export interface FileStatsQuery {
   /** Forced to the actor's own tenant for a non-platform actor by `file-storage.api`. */
   tenantId?: string;
-  /** How many trailing days the summary covers. Default 30. */
+  /** Whole calendar days in `timeZone`, ending today. Default 30. */
   windowDays?: number;
+  /** IANA zone the days are counted in — the viewer's. Default `UTC`. */
+  timeZone?: string;
 }
 
-export interface UploadsByDayRow {
-  /** `YYYY-MM-DD`, UTC day bucket. */
+export interface FileStatsDay {
+  /** `YYYY-MM-DD` in the query's time zone. Every day of the window is present, a quiet one at 0. */
   date: string;
-  count: number;
+  uploads: number;
+  bytes: number;
+  rejected: number;
 }
 
 export interface CategoryStatsRow {
   category: string;
   fileCount: number;
   totalBytes: number;
+  rejected: number;
 }
 
 /**
- * Uploads-over-time + by-category breakdown, both scoped to `windowDays`.
- * Deliberately has **no** scan-verdict breakdown — `commons_file_record`
- * carries no `scan_verdict` column, and adding one is a schema migration
- * out of scope for this port. A scan-verdict KPI stays a mock-only tile
- * until that column exists.
+ * Uploads and refusals over a window of whole calendar days in the viewer's
+ * zone — the Overview screen. Each count is over the same window and tenant,
+ * so a tile and the list it links to agree.
  */
 export interface FileStatsSummary {
-  uploadsByDay: UploadsByDayRow[];
+  since: Date;
+  until: Date;
+  totals: { uploads: number; bytes: number; rejected: number; unscannable: number };
+  byDay: FileStatsDay[];
   byCategory: CategoryStatsRow[];
+  /** `unknown` — rows written before the scan verdict was recorded. */
+  byScanVerdict: Array<{ verdict: 'clean' | 'unscannable' | 'unknown'; count: number }>;
+  byRejectionReason: Array<{ reason: FileUploadRejectionReason; count: number }>;
 }
 
 /* ─── rejected uploads ─────────────────────────────────────────────────── */

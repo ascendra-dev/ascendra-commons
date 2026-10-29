@@ -1,5 +1,5 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { FILE_STORAGE_API_AUDIT_EMITTER } from './tokens';
+import { FILE_STORAGE_API_AUDIT_EMITTER, FILE_STORAGE_API_USER_DIRECTORY } from './tokens';
 import type { FileStorageApiModuleConfig } from './file-storage-api.options';
 import { NoopFileStorageApiAuditEmitter } from './file-storage-audit.port';
 import { FileInventoryApiService } from './inventory/file-inventory-api.service';
@@ -44,6 +44,9 @@ export class FileStorageApiModule {
         config.auditEmitterToken
           ? { provide: FILE_STORAGE_API_AUDIT_EMITTER, useExisting: config.auditEmitterToken }
           : { provide: FILE_STORAGE_API_AUDIT_EMITTER, useClass: NoopFileStorageApiAuditEmitter },
+        config.userDirectoryToken
+          ? { provide: FILE_STORAGE_API_USER_DIRECTORY, useExisting: config.userDirectoryToken }
+          : { provide: FILE_STORAGE_API_USER_DIRECTORY, useValue: null },
         FileInventoryApiService,
         FileCategoryApiService,
         FileRetentionApiService,

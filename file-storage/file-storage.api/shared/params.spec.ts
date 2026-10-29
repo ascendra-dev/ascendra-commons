@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
-import { bodyIntParam, cursorParam, intParam, knownKeys, stringListParam, uuidParam } from './params';
+import { bodyIntParam, cursorParam, intParam, knownKeys, stringListParam, timeZoneParam, uuidParam } from './params';
 import { encodeKeysetCursor } from '../../file-storage.core';
 
 const bad = (fn: () => unknown) => expect(fn).toThrow(BadRequestException);
@@ -39,5 +39,11 @@ describe('file-storage.api params', () => {
 
   it('knownKeys refuses a typo by name', () => {
     expect(() => knownKeys('the body', { maxSize: 1 }, ['maxSizeBytes'])).toThrow(/"maxSize"/);
+  });
+
+  it('timeZoneParam defaults to UTC and refuses an unknown zone', () => {
+    expect(timeZoneParam(undefined)).toBe('UTC');
+    expect(timeZoneParam('Asia/Dubai')).toBe('Asia/Dubai');
+    bad(() => timeZoneParam('Mars/Olympus'));
   });
 });

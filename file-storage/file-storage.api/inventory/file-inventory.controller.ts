@@ -13,6 +13,7 @@ import {
   objectParam,
   knownKeys,
   textParam,
+  timeZoneParam,
   uuidParam,
 } from '../shared/params';
 import { FileInventoryApiService } from './file-inventory-api.service';
@@ -92,10 +93,16 @@ export class FileInventoryController {
 
   @Get('stats')
   @RequiresAction(FILE_STORAGE_ACTIONS.VIEW)
-  stats(@CurrentActor() actor: Actor, @Query('tenantId') tenantId?: string, @Query('windowDays') windowDays?: string) {
+  stats(
+    @CurrentActor() actor: Actor,
+    @Query('tenantId') tenantId?: string,
+    @Query('windowDays') windowDays?: string,
+    @Query('tz') tz?: string,
+  ) {
     return this.service.stats(actor, {
       tenantId: idParam('tenantId', tenantId, true),
       windowDays: intParam('windowDays', windowDays, 1, MAX_WINDOW_DAYS),
+      timeZone: timeZoneParam(tz),
     });
   }
 

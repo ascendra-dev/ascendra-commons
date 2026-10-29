@@ -41,11 +41,7 @@ export interface FileStorageObservabilityPort {
   /** Per-category counts for the catalog screen (`tenantId` omitted → all tenants, platform-admin only). */
   categoryUsage(tenantId?: string): Promise<CategoryUsageRow[]>;
 
-  /**
-   * Uploads-over-time + by-category counts for the ops Overview screen, both
-   * windowed by `query.windowDays`. No scan-verdict breakdown — deferred,
-   * see `FileStatsSummary`.
-   */
+  /** Uploads and refusals per day, category, scan verdict and reason — whole calendar days in `query.timeZone`. */
   statsSummary(query?: FileStatsQuery): Promise<FileStatsSummary>;
 
   /** Rejected upload attempts (bad category, validation failure, failed/rejected scan), newest first, keyset-paginated. */

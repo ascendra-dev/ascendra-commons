@@ -40,6 +40,8 @@ export interface AccessLogQueryDto {
 export interface FileStatsQueryDto {
   tenantId?: string;
   windowDays?: number;
+  /** IANA zone the days are counted in. */
+  timeZone?: string;
 }
 
 export interface FileRejectionQueryDto {

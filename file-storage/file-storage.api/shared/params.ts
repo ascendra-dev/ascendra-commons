@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
-import { decodeKeysetCursor, isUuid } from '../../file-storage.core';
+import { decodeKeysetCursor, isUuid, isValidTimeZone } from '../../file-storage.core';
 
 /**
  * Request validation for `file-storage.api` — `ascendra-commons` carries no validation library. A caller's mistake is
@@ -124,4 +124,11 @@ export function knownKeys(name: string, body: Record<string, unknown>, allowed: 
   if (unknown.length > 0) {
     throw new BadRequestException(`${name} has unknown field${unknown.length > 1 ? 's' : ''} ${unknown.map((k) => `"${k}"`).join(', ')} — allowed: ${allowed.join(', ')}`);
   }
+}
+
+/** An IANA zone (`Asia/Dubai`) — absent is UTC; a zone this runtime doesn't know is a 400, never a Postgres 500. */
+export function timeZoneParam(tz: string | undefined): string {
+  if (tz === undefined || tz === '') return 'UTC';
+  if (tz.length > 64 || !isValidTimeZone(tz)) throw new BadRequestException('"tz" must be an IANA time zone, e.g. Asia/Dubai');
+  return tz;
 }

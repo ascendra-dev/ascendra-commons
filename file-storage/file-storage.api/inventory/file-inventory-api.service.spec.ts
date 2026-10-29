@@ -117,3 +117,23 @@ describe('FileInventoryApiService mutations', () => {
     expect(attachments.releaseLegalHold).toHaveBeenCalledWith({ fileRecordId: 'f1', actor: tenantAdmin });
   });
 });
+
+describe('FileInventoryApiService names', () => {
+  it('adds the uploader and the holder by name, one directory call per page', async () => {
+    const { port, attachments, audit } = make({
+      getFile: { fileRecord: { id: 'f1', tenantId: 't1', uploadedBy: 'u1', legalHold: { heldBy: 'u2' } }, attachments: [] },
+      listFiles: async () => ({ rows: [{ uploadedBy: 'u1' }, { uploadedBy: 'u9' }], nextCursor: null }),
+    });
+    const directory = { findByIds: vi.fn().mockResolvedValue([{ id: 'u1', name: 'Hana Ito' }, { id: 'u2', name: 'Li Wei' }]) };
+    const svc = new FileInventoryApiService(port as never, attachments as never, resolveFileStorageOptions({}), audit as never, directory);
+    const page = await svc.listFiles(tenantAdmin, {});
+    expect(page.rows.map((r) => r.uploadedByName)).toEqual(['Hana Ito', null]);
+    expect(directory.findByIds).toHaveBeenCalledTimes(1);
+    expect(await svc.getFile(tenantAdmin, 'f1')).toMatchObject({ uploadedByName: 'Hana Ito', heldByName: 'Li Wei' });
+  });
+
+  it('without a directory, names are null', async () => {
+    const { svc } = make({ listFiles: async () => ({ rows: [{ uploadedBy: 'u1' }], nextCursor: null }) });
+    expect((await svc.listFiles(tenantAdmin, {})).rows[0].uploadedByName).toBeNull();
+  });
+});

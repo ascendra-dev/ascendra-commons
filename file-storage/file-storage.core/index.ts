@@ -67,7 +67,7 @@ export type {
   FileAccessLogPage,
   CategoryUsageRow,
   FileStatsQuery,
-  UploadsByDayRow,
+  FileStatsDay,
   CategoryStatsRow,
   FileStatsSummary,
   FileRejectionQuery,
@@ -81,6 +81,9 @@ export {
   CategoryLooseningNotAllowedError,
   CategoryOverrideInvalidError,
 } from './file-storage-admin.types';
+
+/* calendar days (stats) */
+export { calendarDays, isValidTimeZone } from './calendar-days';
 
 /* pagination helper */
 export {

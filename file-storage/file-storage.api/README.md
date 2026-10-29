@@ -22,7 +22,7 @@ the guard (`AuthorizationEnforcedGuard`).
 | `GET /files/:id/access-log` | `file.view` | who fetched it, when |
 | `GET /files/storage-usage` | `file.view` | `SUM(bytes)` grouped by tenant + category |
 | `GET /files/orphans` | `file.view` | file records with zero attachments |
-| `GET /files/stats` | `file.view` | uploads per day + by category over `windowDays` (1–366) |
+| `GET /files/stats` | `file.view` | the Overview — whole calendar days (`windowDays` 1–366, default 30) in `?tz=` (IANA, default UTC): uploads and refusals per day, by category, by scan verdict, refusals by reason; totals |
 | `GET /files/rejections` | `file.view` | refused uploads — filter by category / reason |
 | `GET /files/retention` | `file.view` | Volume & retention: files (past retention, expiring in 30 days, indefinite, held), both logs, the log policy |
 | `POST /files/retention/run` | `file.delete` | one retention pass now — platform admins only (it spans every tenant) |
@@ -63,6 +63,14 @@ it touched, with the before/after. Deletes, detaches and legal holds are
 audited once, on the `.core` side via `FileStorageModule.forRoot({ auditEmitterToken })`,
 where `AttachmentService` runs. This package takes no dependency on
 `audit-logging`.
+
+## Names
+
+Optional `userDirectoryToken` — a `FileStorageUserDirectory`
+(`findByIds(ids) → { id, name }[]`) over the app's own users. Bound, inventory
+rows carry `uploadedByName`, a file `uploadedByName` / `heldByName`, access-log
+and rejection rows `actorName` — one call per page. Unbound, or failing, they
+are `null` and the console shows the id.
 
 ## Wiring
 

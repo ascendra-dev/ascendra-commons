@@ -28,6 +28,8 @@ export interface FileStorageApiModuleConfig {
    * — one setting for the handler and the console, so the two can't disagree.
    */
   imports?: DynamicModule['imports'];
-  /** Optional token a `FileStorageApiAuditEmitter` is provided under. Omit → the destructive ops are not audited here. */
+  /** Optional token a `FileStorageApiAuditEmitter` is provided under. Omit → content views and catalog changes are not audited. */
   auditEmitterToken?: string | symbol | (new (...args: never[]) => unknown);
+  /** Optional token a `FileStorageUserDirectory` is provided under. Omit → rows carry user ids without names. */
+  userDirectoryToken?: string | symbol | (new (...args: never[]) => unknown);
 }

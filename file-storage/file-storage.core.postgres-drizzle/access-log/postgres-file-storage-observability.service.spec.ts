@@ -49,36 +49,37 @@ describe('PostgresFileStorageObservabilityService', () => {
     expect(lastQuery(execute).sql).toMatch(/group by tenant_id, category/i);
   });
 
-  it('statsSummary runs an uploads-by-day query and a by-category query, both windowed and tenant-scoped', async () => {
-    const execute = vi
-      .fn()
-      .mockResolvedValueOnce({ rows: [{ day: '2026-09-06', count: 3 }] })
-      .mockResolvedValueOnce({ rows: [{ category: 'kyc.identity-document', file_count: 3, total_bytes: 300 }] });
+  it('statsSummary counts whole calendar days in the viewer zone, every day present, uploads and refusals together', async () => {
+    const sqls: string[] = [];
+    const execute = vi.fn(async (q: SQL) => {
+      const text = dialect.sqlToQuery(q).sql;
+      sqls.push(text);
+      if (/as since/.test(text)) return { rows: [{ since: '2026-10-26T20:00:00Z' }] };
+      if (/from commons_file_record where .* group by 1/.test(text) && /as uploads/.test(text)) return { rows: [{ day: '2026-10-28', uploads: '2', bytes: '300' }] };
+      if (/as rejected\s+from commons_file_rejection where .* group by 1/.test(text)) return { rows: [{ day: '2026-10-29', rejected: '1' }] };
+      if (/as file_count/.test(text)) return { rows: [{ category: 'kyc', file_count: '2', total_bytes: '300' }] };
+      if (/group by category/.test(text)) return { rows: [{ category: 'avatar', rejected: '1' }] };
+      if (/scan_verdict/.test(text)) return { rows: [{ verdict: 'clean', count: '1' }, { verdict: 'unscannable', count: '1' }] };
+      return { rows: [{ reason: 'validation-failed', count: '1' }] };
+    });
     const svc = new PostgresFileStorageObservabilityService({ execute } as SqlExecutor);
+    const now = new Date('2026-10-29T12:00:00Z');
+    const s = await svc.statsSummary({ tenantId: 't1', windowDays: 3, timeZone: 'Asia/Dubai' }, now);
 
-    const summary = await svc.statsSummary({ tenantId: 't1', windowDays: 7 });
-
-    expect(execute).toHaveBeenCalledTimes(2);
-    const dayQuery = dialect.sqlToQuery(execute.mock.calls[0][0] as SQL);
-    expect(dayQuery.sql).toMatch(/date_trunc\('day', created_at\)/i);
-    expect(dayQuery.sql).toMatch(/tenant_id = /);
-    const categoryQuery = dialect.sqlToQuery(execute.mock.calls[1][0] as SQL);
-    expect(categoryQuery.sql).toMatch(/group by category/i);
-    expect(categoryQuery.sql).toMatch(/tenant_id = /);
-
-    expect(summary.uploadsByDay).toEqual([{ date: '2026-09-06', count: 3 }]);
-    expect(summary.byCategory).toEqual([{ category: 'kyc.identity-document', fileCount: 3, totalBytes: 300 }]);
-  });
-
-  it('statsSummary defaults windowDays to 30 and never mentions scan_verdict', async () => {
-    const execute = vi.fn().mockResolvedValue({ rows: [] });
-    const svc = new PostgresFileStorageObservabilityService({ execute } as SqlExecutor);
-    await svc.statsSummary({});
-    const dayQuery = dialect.sqlToQuery(execute.mock.calls[0][0] as SQL);
-    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const boundCutoff = (dayQuery.params[0] as Date).getTime();
-    expect(Math.abs(boundCutoff - thirtyDaysAgo)).toBeLessThan(5000);
-    expect(dayQuery.sql).not.toMatch(/scan_verdict/i);
+    expect(s.byDay).toEqual([
+      { date: '2026-10-27', uploads: 0, bytes: 0, rejected: 0 },
+      { date: '2026-10-28', uploads: 2, bytes: 300, rejected: 0 },
+      { date: '2026-10-29', uploads: 0, bytes: 0, rejected: 1 },
+    ]);
+    expect(s.since).toEqual(new Date('2026-10-26T20:00:00Z'));
+    expect(s.totals).toEqual({ uploads: 2, bytes: 300, rejected: 1, unscannable: 1 });
+    expect(s.byCategory).toEqual([
+      { category: 'avatar', fileCount: 0, totalBytes: 0, rejected: 1 },
+      { category: 'kyc', fileCount: 2, totalBytes: 300, rejected: 0 },
+    ]);
+    expect(s.byRejectionReason).toEqual([{ reason: 'validation-failed', count: 1 }]);
+    expect(sqls.filter((q) => /at time zone \$\d+, 'YYYY-MM-DD'/.test(q))).toHaveLength(2);
+    expect(sqls.slice(1).every((q) => /tenant_id = /.test(q))).toBe(true);
   });
 
   it('listRejections filters by tenant/category/reason and keysets on (occurred_at, id)', async () => {

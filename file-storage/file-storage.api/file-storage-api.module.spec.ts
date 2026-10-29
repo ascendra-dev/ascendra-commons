@@ -5,7 +5,7 @@ import { FileStorageApiModule } from './file-storage-api.module';
 import { FileInventoryApiService } from './inventory/file-inventory-api.service';
 import { FileCategoryApiService } from './categories/file-category-api.service';
 import { FileInventoryController } from './inventory/file-inventory.controller';
-import { FILE_STORAGE_API_AUDIT_EMITTER } from './tokens';
+import { FILE_STORAGE_API_AUDIT_EMITTER, FILE_STORAGE_API_USER_DIRECTORY } from './tokens';
 import { FileCategoryController } from './categories/file-category.controller';
 import { FileRetentionController } from './retention/file-retention.controller';
 import {
@@ -39,6 +39,7 @@ describe('FileStorageApiModule.forRoot', () => {
     expect(ref.get(FileCategoryApiService)).toBeInstanceOf(FileCategoryApiService);
     expect(ref.get(FileInventoryController)).toBeInstanceOf(FileInventoryController);
     expect(ref.get(FILE_STORAGE_API_AUDIT_EMITTER)).toBeDefined();
+    expect(ref.get(FILE_STORAGE_API_USER_DIRECTORY)).toBeNull();
   });
 
   it('binds a supplied audit emitter token', async () => {

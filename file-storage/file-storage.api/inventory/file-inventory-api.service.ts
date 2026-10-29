@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type { Actor } from '../../../authorization/authorization.core';
 import {
   AttachmentService,
@@ -9,8 +9,10 @@ import {
   type FileStorageObservabilityPort,
   type FileStorageOptions,
 } from '../../file-storage.core';
-import { FILE_STORAGE_API_AUDIT_EMITTER } from '../tokens';
+import { FILE_STORAGE_API_AUDIT_EMITTER, FILE_STORAGE_API_USER_DIRECTORY } from '../tokens';
 import type { FileStorageApiAuditEmitter } from '../file-storage-audit.port';
+import type { FileStorageUserDirectory } from '../file-storage-user-directory.port';
+import { userNames } from '../shared/user-names';
 import type {
   AccessLogQueryDto,
   FileInventoryQueryDto,
@@ -35,15 +37,24 @@ export class FileInventoryApiService {
     @Inject(AttachmentService) private readonly attachments: AttachmentService,
     @Inject(FILE_STORAGE_OPTIONS) private readonly options: FileStorageOptions,
     @Inject(FILE_STORAGE_API_AUDIT_EMITTER) private readonly audit: FileStorageApiAuditEmitter,
+    @Optional() @Inject(FILE_STORAGE_API_USER_DIRECTORY) private readonly directory: FileStorageUserDirectory | null = null,
   ) {}
 
   async listFiles(actor: Actor, query: FileInventoryQueryDto) {
-    return this.read(async () => this.port.listFiles({ ...query, tenantId: await this.scopeTenant(actor, query.tenantId) }));
+    const page = await this.read(async () => this.port.listFiles({ ...query, tenantId: await this.scopeTenant(actor, query.tenantId) }));
+    const names = await userNames(this.directory, page.rows.map((r) => r.uploadedBy));
+    return { ...page, rows: page.rows.map((r) => ({ ...r, uploadedByName: names.get(r.uploadedBy) ?? null })) };
   }
 
   /** One file's record and attachments — metadata only. Its content is `issueDownloadUrl`, a separate action. */
-  async getFile(actor: Actor, id: string): Promise<FileDetail> {
-    return this.requireVisible(actor, id);
+  async getFile(actor: Actor, id: string): Promise<FileDetail & { uploadedByName: string | null; heldByName: string | null }> {
+    const detail = await this.requireVisible(actor, id);
+    const names = await userNames(this.directory, [detail.fileRecord.uploadedBy, detail.fileRecord.legalHold?.heldBy]);
+    return {
+      ...detail,
+      uploadedByName: names.get(detail.fileRecord.uploadedBy) ?? null,
+      heldByName: detail.fileRecord.legalHold ? (names.get(detail.fileRecord.legalHold.heldBy) ?? null) : null,
+    };
   }
 
   /**
@@ -66,7 +77,9 @@ export class FileInventoryApiService {
 
   async getAccessLog(actor: Actor, id: string, query: AccessLogQueryDto) {
     await this.requireVisible(actor, id);
-    return this.read(() => this.port.getAccessLog(id, query));
+    const page = await this.read(() => this.port.getAccessLog(id, query));
+    const names = await userNames(this.directory, page.rows.map((r) => r.actorId));
+    return { ...page, rows: page.rows.map((r) => ({ ...r, actorName: r.actorId ? (names.get(r.actorId) ?? null) : null })) };
   }
 
   async storageUsage(actor: Actor, query: StorageUsageQueryDto) {
@@ -84,9 +97,11 @@ export class FileInventoryApiService {
   }
 
   async listRejections(actor: Actor, query: FileRejectionQueryDto) {
-    return this.read(async () =>
+    const page = await this.read(async () =>
       this.port.listRejections({ ...query, tenantId: await this.scopeTenant(actor, query.tenantId) }),
     );
+    const names = await userNames(this.directory, page.rows.map((r) => r.actorId));
+    return { ...page, rows: page.rows.map((r) => ({ ...r, actorName: names.get(r.actorId) ?? null })) };
   }
 
   /** 409 while held or (for a tenant actor) inside retention — see `AttachmentService.deleteFile`. */
