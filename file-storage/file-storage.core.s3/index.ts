@@ -1,3 +1,5 @@
-export { S3FileStore, S3FileStoreNotImplementedError } from './s3-file-store';
+export { S3FileStore } from './s3-file-store';
+export type { S3FileStoreOptions } from './s3-file-store';
 export { S3FileStoreModule } from './s3-file-store.module';
-export { S3_FILE_STORE } from './tokens';
+export type { S3FileStoreModuleConfig } from './s3-file-store.module';
+export { S3_CLIENT, S3_FILE_STORE, S3_FILE_STORE_OPTIONS } from './tokens';

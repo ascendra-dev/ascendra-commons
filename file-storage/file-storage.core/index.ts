@@ -90,6 +90,9 @@ export {
   CategoryOverrideInvalidError,
 } from './file-storage-admin.types';
 
+/* download headers (for a FileStore that sets them per URL) */
+export { INLINE_CONTENT_TYPES, contentDisposition, downloadHeaders } from './download-disposition';
+
 /* calendar days (stats) */
 export { calendarDays, isValidTimeZone } from './calendar-days';
 

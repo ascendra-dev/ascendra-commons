@@ -22,7 +22,7 @@ note below).
 | **`file-storage.core.supabase`** (blob Model 1) | `SupabaseFileStore` + module → `SUPABASE_FILE_STORE`. | `file-storage.core`, `@supabase/supabase-js` |
 | **`file-storage.core.local-disk`** (blob, dev / single node) | `LocalDiskFileStore` + module → `LOCAL_DISK_FILE_STORE`, and the controller that serves its signed URLs (`GET /local-files/:token`). | `file-storage.core`, `authorization.core` |
 | **`file-storage.core.clamav`** (scanner) | `ClamdFileScanner` — ClamAV's `clamd` over TCP `INSTREAM`; anything but OK / FOUND is `unscannable`. Module → `CLAMD_FILE_SCANNER`. | `file-storage.core` |
-| **`file-storage.core.s3`** (blob Model 2) | `S3FileStore` — a stub that throws `S3FileStoreNotImplementedError`. The seam is real; the store isn't built. Its README carries the S3 design notes. | `file-storage.core` |
+| **`file-storage.core.s3`** (blob Model 2) | `S3FileStore` over the app's `S3Client` — presigned GETs with safe response headers, no-overwrite puts, optional SSE / SSE-KMS, listing for the stray-blob check. | `file-storage.core`, `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner` |
 | **`file-storage.core.postgres-drizzle`** (metadata) | 4 schemas + migrations; `PostgresAttachmentStore`; `PostgresFileCategoryRegistry` + `PostgresFileCategoryAdminService` + `seedFileCategories`; `PostgresFileAccessRecorder`; `PostgresFileStorageObservabilityService`. | `file-storage.core`, `drizzle-orm` |
 | **`file-storage.api`** | Opt-in HTTP surface for an ops / compliance file-administration UI — inventory, storage usage, orphans, access log, the file-category catalog, and the two destructive ops. Gated `file.view` / `file.delete` / `file.category.manage`. | `file-storage.core`, `authorization.core` |
 
@@ -95,8 +95,8 @@ placed, or an attachment linked, after the file was found keeps it.
 
 ## Model 1 / Model 2
 
-- **Blob backend** — Model 1 is `file-storage.core.supabase` (shipped); Model 2
-  is `file-storage.core.s3` (stub). Same `FileStore` contract.
+- **Blob backend** — Model 1 is `file-storage.core.supabase`; Model 2 is
+  `file-storage.core.s3` (S3 and S3-compatible stores). Same `FileStore` contract.
   `file-storage.core.local-disk` is the same contract on the local filesystem —
   development, tests, the sandbox, a single-node deployment.
 - **Scanning** — `NoopFileScanner` by default (every file `clean`);

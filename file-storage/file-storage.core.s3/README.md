@@ -1,26 +1,43 @@
 # file-storage.core.s3
 
-The **Model 2** `FileStore` backend — **not built**. The seam is real (its own
-package, token `S3_FILE_STORE`, module, a drop-in `FileStore`); every method of
-`S3FileStore` throws `S3FileStoreNotImplementedError`.
+The **Model 2** `FileStore` backend — Amazon S3, or anything that speaks its
+API (MinIO, Cloudflare R2, …), through the app's own `S3Client`. Same
+`FileStore` contract as Supabase and local-disk: `fileRef` is
+`"{bucket}/{key}"`, so `FileRecord` rows survive a backend swap.
 
-Build this when Supabase Storage's limits (object size, egress, per-bucket
-policy granularity, region control) are genuinely outgrown — not before.
+- `upload` → `PutObject` with the record's content type, `If-None-Match: *`
+  (never overwrite — `preventOverwrite: false` for a store that rejects
+  conditional writes) and optional server-side encryption (`AES256`, or
+  `aws:kms` with an optional `kmsKeyId`).
+- `getUrl` → a presigned `GetObject` that sets the response's `Content-Type`
+  and `Content-Disposition`: inline for PDF and the common image types,
+  an `application/octet-stream` attachment otherwise, with the record's
+  filename — an uploaded HTML or SVG never renders on the bucket's origin.
+- `delete` → `DeleteObject` (succeeds for a key already gone).
+- `listObjects` → `ListObjectsV2` — the stray-blob check works on S3.
+- Provider errors become `FileStoreError`, never the raw SDK error.
 
-## Design notes for when it's built
+Build trigger, met: Supabase Storage's limits (object size, egress, region
+control, per-bucket policy) outgrown, or a deployment already on AWS.
 
-- **Direct-to-bucket transfer.** `upload` should hand back a **presigned `PUT`**
-  so the bytes never transit the API; `getUrl` returns a **presigned `GET`**
-  (replacing Supabase's `createSignedUrl`). This changes `AttachmentService`'s
-  `attach` shape — the scan/validate/persist dance runs around a client-side
-  upload rather than a server-side `upload(Buffer)`. Decide then whether that's
-  a second `attach` variant or a breaking change to the port.
-- **Streaming.** Large files stream past the `FileScanner` (multipart upload +
-  a streaming scan path) instead of buffering — the deferred half of the
-  scanning decision.
-- **Encryption.** SSE-KMS per bucket/category; the key policy is deployment
-  config, not code.
-- **`fileRef`.** Still `"{bucket}/{key}"` — the contract is unchanged, so
-  `FileRecord` rows survive a backend swap.
-- **Multipart cleanup.** Abandoned multipart uploads need a lifecycle rule or a
-  reconciliation sweep, alongside the orphaned-blob story.
+## Wiring
+
+```typescript
+// the app's own client — region, credentials (an IAM role in production), endpoint for MinIO / R2
+{ provide: S3_CLIENT_TOKEN, useFactory: () => new S3Client({ region: 'eu-west-1' }) }
+
+S3FileStoreModule.forRoot({
+  s3ClientToken: S3_CLIENT_TOKEN,
+  fileStoreConfig: { buildObjectKey: ({ tenantId, category }) => `${tenantId}/${category}/${randomUUID()}` },
+  serverSideEncryption: 'aws:kms',      // optional
+  imports: [AwsModule],
+})
+// → binds S3_FILE_STORE; point FileStorageModule.forRoot({ fileStoreToken: S3_FILE_STORE }) at it
+```
+
+npm: `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`.
+
+The bucket needs no public access — every read is a presigned URL. Give the
+API's role `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` and
+`s3:ListBucket` on the buckets the catalog names (and `kms:GenerateDataKey` /
+`kms:Decrypt` on the key, for SSE-KMS).

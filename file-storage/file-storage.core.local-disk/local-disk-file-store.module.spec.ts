@@ -7,9 +7,8 @@ import { ForbiddenException, SetMetadata } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { LocalDiskFileStoreModule } from './local-disk-file-store.module';
 import { LocalDiskFileStore } from './local-disk-file-store';
-import { contentDisposition } from './local-disk-blob.controller';
 import { LOCAL_DISK_FILE_STORE } from './tokens';
-import { FILE_STORE_CONFIG } from '../file-storage.core';
+import { contentDisposition, FILE_STORE_CONFIG } from '../file-storage.core';
 
 let root: string;
 beforeAll(async () => {
