@@ -1,0 +1,42 @@
+import { describe, expect, it, vi } from 'vitest';
+import { ForbiddenException } from '@nestjs/common';
+import { FileRetentionApiService } from './file-retention-api.service';
+import { resolveFileStorageOptions } from '../../file-storage.core';
+
+const tenantAdmin = { id: 'ta', persona: 'ops', tenantId: 't1' };
+const platformAdmin = { id: 'pa', persona: 'ops', tenantId: null };
+
+function make() {
+  const retention = {
+    volume: vi.fn().mockResolvedValue({}),
+    run: vi.fn().mockResolvedValue({ filesDeleted: 0 }),
+    purgeOrphans: vi.fn().mockResolvedValue({ deleted: 0, bytesFreed: 0 }),
+  };
+  return { svc: new FileRetentionApiService(retention as never, resolveFileStorageOptions({})), retention };
+}
+
+describe('FileRetentionApiService', () => {
+  it("scopes a tenant actor's volume and purge to their tenant, and refuses another", async () => {
+    const { svc, retention } = make();
+    await svc.volume(tenantAdmin);
+    await svc.purgeOrphans(tenantAdmin, { olderThanDays: 7 });
+    expect(retention.volume).toHaveBeenCalledWith('t1');
+    expect(retention.purgeOrphans).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't1', actor: tenantAdmin }));
+    await expect(svc.purgeOrphans(tenantAdmin, { olderThanDays: 7, tenantId: 't2' })).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('runs retention for a platform admin only', async () => {
+    const { svc, retention } = make();
+    await expect(svc.runNow(tenantAdmin)).rejects.toBeInstanceOf(ForbiddenException);
+    await svc.runNow(platformAdmin);
+    expect(retention.run).toHaveBeenCalled();
+  });
+
+  it('turns olderThanDays into a cutoff', async () => {
+    const { svc, retention } = make();
+    const before = Date.now();
+    await svc.purgeOrphans(platformAdmin, { olderThanDays: 2 });
+    const cutoff = retention.purgeOrphans.mock.calls[0][0].olderThan as Date;
+    expect(before - cutoff.getTime()).toBeGreaterThanOrEqual(2 * 86_400_000 - 5);
+  });
+});

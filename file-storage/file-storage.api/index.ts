@@ -7,6 +7,8 @@ export { FILE_STORAGE_API_AUDIT_EMITTER } from './tokens';
 export { FileInventoryApiService } from './inventory/file-inventory-api.service';
 export { FileInventoryController } from './inventory/file-inventory.controller';
 export { FileCategoryApiService } from './categories/file-category-api.service';
+export { FileRetentionApiService } from './retention/file-retention-api.service';
+export { FileRetentionController } from './retention/file-retention.controller';
 export { FileCategoryController, parseOverrideBody } from './categories/file-category.controller';
 export type {
   FileInventoryQueryDto,

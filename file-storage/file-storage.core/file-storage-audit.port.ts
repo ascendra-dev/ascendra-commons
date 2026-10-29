@@ -22,6 +22,8 @@ export type FileStorageAuditEvent =
       before: FileRecord;
       /** A platform admin deleted it before its `retainUntil`. */
       overrodeRetention: boolean;
+      /** Who asked: a person (`request`), the retention run, or an orphan purge. */
+      cause: 'request' | 'retention' | 'orphan-purge';
     }
   | { kind: 'file.hold_placed'; fileRecordId: string; tenantId: string; actor: Actor; reason: string }
   | { kind: 'file.hold_released'; fileRecordId: string; tenantId: string; actor: Actor; before: LegalHold };

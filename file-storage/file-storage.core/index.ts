@@ -32,8 +32,14 @@ export { MissingSignedLinkResolver, MissingSignedLinkResolverError } from './sig
 export type { FileStorageAuditEmitter, FileStorageAuditEvent } from './file-storage-audit.port';
 export { NoopFileStorageAuditEmitter } from './file-storage-audit.port';
 
+/* retention */
+export type { FileRetentionStore, FileRetentionVolume } from './file-retention-store.port';
+export { MissingFileRetentionStore, MissingFileRetentionStoreError } from './file-retention-store.port';
+export { FileRetentionService, RETENTION_ACTOR } from './file-retention.service';
+export type { FileRetentionRunResult } from './file-retention.service';
+
 /* orchestration */
-export { AttachmentService } from './attachment.service';
+export { AttachmentService, cleanFilename, retainUntil } from './attachment.service';
 export type { UploadInput, DownloadPurpose } from './attachment.service';
 
 /* observability + category admin ports (implemented by a stack adapter, consumed by file-storage.api) */
@@ -82,7 +88,7 @@ export {
 /* module + options */
 export { FileStorageModule } from './file-storage.module';
 export type { FileStorageModuleConfig } from './file-storage.module';
-export type { FileStorageOptions, DownloadUrlExpiry } from './file-storage.options';
+export type { FileStorageOptions, DownloadUrlExpiry, LogRetention } from './file-storage.options';
 export { resolveFileStorageOptions } from './file-storage.options';
 
 /* tokens */
@@ -96,6 +102,7 @@ export {
   FILE_UPLOAD_REJECTION_RECORDER,
   SIGNED_LINK_RESOLVER,
   FILE_STORAGE_AUDIT_EMITTER,
+  FILE_RETENTION_STORE,
   FILE_STORAGE_OPTIONS,
   FILE_STORE_CONFIG,
   ENTITY_ACCESS_CHECKERS,

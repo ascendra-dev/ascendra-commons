@@ -6,6 +6,8 @@ import { FileInventoryApiService } from './inventory/file-inventory-api.service'
 import { FileInventoryController } from './inventory/file-inventory.controller';
 import { FileCategoryApiService } from './categories/file-category-api.service';
 import { FileCategoryController } from './categories/file-category.controller';
+import { FileRetentionApiService } from './retention/file-retention-api.service';
+import { FileRetentionController } from './retention/file-retention.controller';
 
 /**
  * HTTP endpoints for an ops / compliance file-administration UI, over the
@@ -35,15 +37,16 @@ export class FileStorageApiModule {
     return {
       module: FileStorageApiModule,
       imports: config.imports ?? [],
-      // FileCategoryController first: Express matches in registration order, and
-      // FileInventoryController's `GET files/:id` would otherwise answer `GET files/categories`.
-      controllers: [FileCategoryController, FileInventoryController],
+      // FileInventoryController last: Express matches in registration order, and its
+      // `GET files/:id` would otherwise answer `GET files/categories` / `GET files/retention`.
+      controllers: [FileCategoryController, FileRetentionController, FileInventoryController],
       providers: [
         config.auditEmitterToken
           ? { provide: FILE_STORAGE_API_AUDIT_EMITTER, useExisting: config.auditEmitterToken }
           : { provide: FILE_STORAGE_API_AUDIT_EMITTER, useClass: NoopFileStorageApiAuditEmitter },
         FileInventoryApiService,
         FileCategoryApiService,
+        FileRetentionApiService,
       ],
     };
   }

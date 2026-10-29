@@ -29,3 +29,6 @@ export const POSTGRES_FILE_STORAGE_OBSERVABILITY = Symbol('POSTGRES_FILE_STORAGE
 
 /** `PostgresFileCategoryAdminService`, bound under the core `FILE_CATEGORY_ADMIN_PORT` too. */
 export const POSTGRES_FILE_CATEGORY_ADMIN = Symbol('POSTGRES_FILE_CATEGORY_ADMIN');
+
+/** `PostgresFileRetentionStore`. Point `FileStorageModule.forRoot({ fileRetentionStoreToken })` at this. */
+export const POSTGRES_FILE_RETENTION_STORE = Symbol('POSTGRES_FILE_RETENTION_STORE');

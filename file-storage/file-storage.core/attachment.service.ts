@@ -299,6 +299,7 @@ export class AttachmentService {
       actor: input.actor,
       before: record,
       overrodeRetention: early,
+      cause: 'request',
     });
   }
 

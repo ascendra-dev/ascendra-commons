@@ -62,10 +62,20 @@ describe('PostgresAttachmentStore.deleteFileCascade', () => {
 
     const q = rendered(db)[0];
     expect(q.sql).not.toMatch(/commons_file_access/i);
-    expect(q.sql).toMatch(/held_at is null for update/i);
+    expect(q.sql).toMatch(/f\.held_at is null\s+for update/i);
     expect(q.sql).toMatch(/delete from commons_attachment where file_record_id in \(select id from target\)/i);
     expect(q.sql).toMatch(/delete from commons_file_record where id in \(select id from target\)/i);
     expect(removed?.fileRef).toBe('kyc/f1');
+  });
+
+  it('onlyIf re-checks expiry and orphanhood inside the same statement', async () => {
+    const db = fakeDb([]);
+    const by = new Date('2026-10-29T00:00:00Z');
+    await new PostgresAttachmentStore(db).deleteFileCascade('f1', { onlyIf: { expiredBy: by, orphaned: true } });
+    const q = rendered(db)[0];
+    expect(q.sql).toMatch(/f\.retain_until is not null and f\.retain_until <= /);
+    expect(q.sql).toMatch(/not exists \(select 1 from commons_attachment a where a\.file_record_id = f\.id\)/);
+    expect(q.params).toContain(by);
   });
 
   it('returns null when the record did not exist', async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { FileCategoryApiService } from './file-category-api.service';
-import { CategoryLooseningNotAllowedError, CategoryOverrideInvalidError } from '../../file-storage.core';
+import { CategoryLooseningNotAllowedError, CategoryOverrideInvalidError, resolveFileStorageOptions } from '../../file-storage.core';
 import type { Actor } from '../../../authorization/authorization.core';
 
 const tenantAdmin: Actor = { id: 'ta', persona: 'ops', tenantId: 't1' };
@@ -21,7 +21,7 @@ function make(portOver: Record<string, unknown> = {}) {
   const svc = new FileCategoryApiService(
     port as never,
     observability as never,
-    { isPlatformAdmin: (a: Actor) => a.tenantId === null, downloadUrlExpiry: { inApp: 300, shareableLink: 3600 } },
+    resolveFileStorageOptions({}),
     audit as never,
   );
   return { svc, port, observability, audit };

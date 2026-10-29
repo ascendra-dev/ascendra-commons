@@ -20,6 +20,11 @@ export { PostgresFileStorageObservabilityService } from './access-log/postgres-f
 export { PostgresFileStorageAdminModule } from './access-log/postgres-file-storage-admin.module';
 export type { PostgresFileStorageAdminModuleConfig } from './access-log/postgres-file-storage-admin.module';
 
+/* retention */
+export { PostgresFileRetentionStore } from './retention/postgres-file-retention-store';
+export { PostgresFileRetentionModule } from './retention/postgres-file-retention.module';
+export type { PostgresFileRetentionModuleConfig } from './retention/postgres-file-retention.module';
+
 /* rejected uploads */
 export { PostgresFileUploadRejectionRecorder } from './rejections/postgres-file-upload-rejection-recorder';
 
@@ -32,4 +37,5 @@ export {
   POSTGRES_FILE_ACCESS_RECORDER,
   POSTGRES_FILE_UPLOAD_REJECTION_RECORDER,
   POSTGRES_FILE_STORAGE_OBSERVABILITY,
+  POSTGRES_FILE_RETENTION_STORE,
 } from './tokens';

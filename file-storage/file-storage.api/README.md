@@ -24,6 +24,9 @@ the guard (`AuthorizationEnforcedGuard`).
 | `GET /files/orphans` | `file.view` | file records with zero attachments |
 | `GET /files/stats` | `file.view` | uploads per day + by category over `windowDays` (1–366) |
 | `GET /files/rejections` | `file.view` | refused uploads — filter by category / reason |
+| `GET /files/retention` | `file.view` | Volume & retention: files (past retention, expiring in 30 days, indefinite, held), both logs, the log policy |
+| `POST /files/retention/run` | `file.delete` | one retention pass now — platform admins only (it spans every tenant) |
+| `POST /files/orphans/purge` | `file.delete` | body `{ olderThanDays, tenantId? }` — delete files with no attachment; held or retained files stay. Tenant-scoped |
 | `DELETE /files/:id` | `file.delete` | hard delete (blob, record and attachments; the access log stays). 409 while held, or — for a tenant actor — before its retention date |
 | `DELETE /files/:id/attachments/:attachmentId` | `file.delete` | detach one link, keep the file; 404 if the attachment isn't on this file |
 | `PUT /files/:id/hold` | `file.hold` | place a legal hold — body `{ reason }`; 409 when already held |

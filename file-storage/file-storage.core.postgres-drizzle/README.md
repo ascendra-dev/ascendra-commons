@@ -19,6 +19,14 @@ change is the next numbered file, together with the schema and the adapter SQL.
 | `commons_file_category` | seed + `PostgresFileCategoryAdminService` | two-layer: `tenant_id IS NULL` = base (seeded), non-NULL = per-tenant override; partial unique indexes |
 | `commons_file_access` | `PostgresFileAccessRecorder` | one row per download URL handed out; reads only. No foreign key — deleting a file keeps its access log |
 
+## Retention
+
+`PostgresFileRetentionModule.forRoot({ sqlExecutorToken, imports })` binds
+`PostgresFileRetentionStore` → `POSTGRES_FILE_RETENTION_STORE`; point
+`FileStorageModule.forRoot({ fileRetentionStoreToken })` at it and call
+`FileRetentionService.run()` from the project's scheduler. The finds read the
+partial `retain_until` index; log prunes delete in batches of 5,000.
+
 ## Modules
 
 ### `PostgresAttachmentStoreModule.forRoot({ sqlExecutorToken, imports })`

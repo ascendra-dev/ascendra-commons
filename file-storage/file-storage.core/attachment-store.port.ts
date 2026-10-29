@@ -44,6 +44,10 @@ export interface AttachmentStore {
    * Deletes the FileRecord and all its Attachments in one tx — never a held
    * file (nothing is deleted). Leaves the access log. Returns the removed
    * FileRecord (for its `fileRef`), or `null` if it didn't exist or is held.
+   *
+   * `onlyIf` re-checks, in the same statement, what a retention run or an
+   * orphan purge found a moment earlier — `expiredBy`: its `retainUntil` is at
+   * or before this; `orphaned`: it has no attachment. Not met → `null`, nothing deleted.
    */
-  deleteFileCascade(fileRecordId: string): Promise<FileRecord | null>;
+  deleteFileCascade(fileRecordId: string, opts?: { onlyIf?: { expiredBy?: Date; orphaned?: boolean } }): Promise<FileRecord | null>;
 }

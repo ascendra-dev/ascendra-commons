@@ -70,6 +70,28 @@ signed-link expiry, retention intent). Two layers:
 the caller's tenant plus live per-category counts — the single centralized view
 of every accepted upload type.
 
+## Retention and legal hold
+
+Every file's `retainUntil` is fixed at upload from its category's
+`retention` (`{ keepForDays }` or `'indefinite'`) — a later catalog change
+doesn't move it.
+
+- **Before that date** a tenant actor can't delete the file (409); a platform
+  admin can (an erasure request), and the audit event says `overrodeRetention`.
+- **After it**, `FileRetentionService.run()` deletes it — record, attachments,
+  blob — audited `file.deleted`, cause `retention`. The project schedules the
+  run (a `background-jobs` `ScheduledJob`, a cron); the library never runs it
+  on its own. The same run prunes the access log (`logRetention.accessLogDays`,
+  default 365) and the rejection log (`rejectionLogDays`, default 90 — it
+  carries filenames).
+- **A legal hold** (`placeLegalHold` / `releaseLegalHold`, who + why) stops
+  every delete — a person's, retention's, an orphan purge's — until released.
+- **Orphans** (files with no attachment) are purged on request
+  (`purgeOrphans`), never automatically; held and retained files stay.
+
+Every delete re-checks its reason inside the statement that deletes — a hold
+placed, or an attachment linked, after the file was found keeps it.
+
 ## Model 1 / Model 2
 
 - **Blob backend** — Model 1 is `file-storage.core.supabase` (shipped); Model 2

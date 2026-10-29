@@ -160,11 +160,19 @@ export class PostgresAttachmentStore implements AttachmentStore {
     return rows[0] ? toFileRecord(rows[0]) : null;
   }
 
-  async deleteFileCascade(fileRecordId: string): Promise<FileRecord | null> {
+  async deleteFileCascade(
+    fileRecordId: string,
+    opts: { onlyIf?: { expiredBy?: Date; orphaned?: boolean } } = {},
+  ): Promise<FileRecord | null> {
+    const expiredBy = opts.onlyIf?.expiredBy;
     const { rows } = await this.db.execute(sql`
       with target as (
         -- a held file is never deleted, not even its attachments; the row lock stops a hold landing mid-delete
-        select id from commons_file_record where id = ${fileRecordId} and held_at is null for update
+        select f.id from commons_file_record f
+        where f.id = ${fileRecordId} and f.held_at is null
+          ${expiredBy ? sql`and f.retain_until is not null and f.retain_until <= ${expiredBy}` : sql``}
+          ${opts.onlyIf?.orphaned ? sql`and not exists (select 1 from commons_attachment a where a.file_record_id = f.id)` : sql``}
+        for update
       ), del_attach as (
         delete from commons_attachment where file_record_id in (select id from target) returning 1
       )

@@ -9,15 +9,19 @@ import { NoopFileStorageAuditEmitter } from './file-storage-audit.port';
 import {
   resolveFileStorageOptions,
   type DownloadUrlExpiry,
+  type LogRetention,
 } from './file-storage.options';
 import { RuleBasedFileValidator, type FileValidationDefaults } from './file-validator.port';
 import { NoopFileUploadRejectionRecorder } from './file-upload-rejection-recorder.port';
 import { MissingSignedLinkResolver } from './signed-link-resolver.port';
+import { MissingFileRetentionStore } from './file-retention-store.port';
+import { FileRetentionService } from './file-retention.service';
 import {
   ATTACHMENT_STORE,
   ENTITY_ACCESS_CHECKERS,
   FILE_ACCESS_RECORDER,
   FILE_CATEGORY_REGISTRY,
+  FILE_RETENTION_STORE,
   FILE_SCANNER,
   FILE_STORAGE_AUDIT_EMITTER,
   FILE_STORAGE_OPTIONS,
@@ -50,8 +54,12 @@ export interface FileStorageModuleConfig {
   fileUploadRejectionRecorderToken?: OverrideToken;
   /** `SignedLinkResolver`. Omit → `MissingSignedLinkResolver` (token downloads throw). */
   signedLinkResolverToken?: OverrideToken;
-  /** `FileStorageAuditEmitter` for attach/link/detach/delete. Omit → `NoopFileStorageAuditEmitter`. */
+  /** `FileStorageAuditEmitter` for attach/link/detach/delete/holds. Omit → `NoopFileStorageAuditEmitter`. */
   auditEmitterToken?: OverrideToken;
+  /** `FileRetentionStore` for `FileRetentionService` (retention runs, orphan purges). Omit → `MissingFileRetentionStore` (throws when used). */
+  fileRetentionStoreToken?: OverrideToken;
+  /** How long the access and rejection logs are kept. Default `{ accessLogDays: 365, rejectionLogDays: 90 }`. */
+  logRetention?: Partial<LogRetention>;
 
   /** Platform-admin predicate — exempt from tenant isolation. Default `actor.tenantId === null`. */
   isPlatformAdmin?: (actor: Actor) => boolean | Promise<boolean>;
@@ -118,17 +126,20 @@ export class FileStorageModule {
         optional(FILE_UPLOAD_REJECTION_RECORDER, config.fileUploadRejectionRecorderToken, NoopFileUploadRejectionRecorder),
         optional(SIGNED_LINK_RESOLVER, config.signedLinkResolverToken, MissingSignedLinkResolver),
         optional(FILE_STORAGE_AUDIT_EMITTER, config.auditEmitterToken, NoopFileStorageAuditEmitter),
+        optional(FILE_RETENTION_STORE, config.fileRetentionStoreToken, MissingFileRetentionStore),
 
         {
           provide: FILE_STORAGE_OPTIONS,
           useValue: resolveFileStorageOptions({
             isPlatformAdmin: config.isPlatformAdmin,
             downloadUrlExpiry: config.downloadUrlExpiry,
+            logRetention: config.logRetention,
           }),
         },
         { provide: ENTITY_ACCESS_CHECKERS, useValue: config.entityAccessCheckers ?? {} },
 
         AttachmentService,
+        FileRetentionService,
         RegistryAttachmentAuthorizer,
       ],
       exports: [
@@ -137,6 +148,7 @@ export class FileStorageModule {
         FILE_CATEGORY_REGISTRY,
         FILE_STORAGE_OPTIONS,
         AttachmentService,
+        FileRetentionService,
         RegistryAttachmentAuthorizer,
       ],
     };

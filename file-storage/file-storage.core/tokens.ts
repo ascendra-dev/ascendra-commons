@@ -31,6 +31,9 @@ export const SIGNED_LINK_RESOLVER = Symbol('SIGNED_LINK_RESOLVER');
 /** Best-effort audit hook for attach / link / detach / delete. Defaults to `NoopFileStorageAuditEmitter`. */
 export const FILE_STORAGE_AUDIT_EMITTER = Symbol('FILE_STORAGE_AUDIT_EMITTER');
 
+/** The persistence side of retention — `file-storage.core.postgres-drizzle`'s, or the consumer's own. Defaults to `MissingFileRetentionStore` (throws). */
+export const FILE_RETENTION_STORE = Symbol('FILE_RETENTION_STORE');
+
 /** Resolved `FileStorageOptions` — `isPlatformAdmin` predicate + download-URL expiry defaults. */
 export const FILE_STORAGE_OPTIONS = Symbol('FILE_STORAGE_OPTIONS');
 

@@ -7,6 +7,14 @@ export interface DownloadUrlExpiry {
   shareableLink: number;
 }
 
+/** How long the logs are kept — the retention run deletes older rows. */
+export interface LogRetention {
+  /** Access-log rows ("who downloaded this"). Default 365 days. */
+  accessLogDays: number;
+  /** Rejected-upload rows — they carry the uploader's filenames. Default 90 days. */
+  rejectionLogDays: number;
+}
+
 /** The shape bound under `FILE_STORAGE_OPTIONS`. */
 export interface FileStorageOptions {
   /**
@@ -16,13 +24,24 @@ export interface FileStorageOptions {
    */
   isPlatformAdmin: (actor: Actor) => boolean | Promise<boolean>;
   downloadUrlExpiry: DownloadUrlExpiry;
+  logRetention: LogRetention;
 }
 
 export function resolveFileStorageOptions(config: {
   isPlatformAdmin?: (actor: Actor) => boolean | Promise<boolean>;
   downloadUrlExpiry?: Partial<DownloadUrlExpiry>;
+  logRetention?: Partial<LogRetention>;
 }): FileStorageOptions {
+  const days = (name: string, value: number | undefined, fallback: number) => {
+    if (value === undefined) return fallback;
+    if (!Number.isSafeInteger(value) || value < 1) throw new Error(`FileStorageModule: logRetention.${name} must be a whole number of days, at least 1`);
+    return value;
+  };
   return {
+    logRetention: {
+      accessLogDays: days('accessLogDays', config.logRetention?.accessLogDays, 365),
+      rejectionLogDays: days('rejectionLogDays', config.logRetention?.rejectionLogDays, 90),
+    },
     isPlatformAdmin: config.isPlatformAdmin ?? ((actor) => actor.tenantId === null),
     downloadUrlExpiry: {
       inApp: config.downloadUrlExpiry?.inApp ?? 300,
