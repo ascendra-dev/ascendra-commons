@@ -3,11 +3,12 @@ import type { Actor } from '../../../authorization/authorization.core';
 import {
   AttachmentService,
   FILE_STORAGE_OBSERVABILITY_PORT,
+  FILE_STORAGE_OPTIONS,
   type FileStorageObservabilityPort,
+  type FileStorageOptions,
 } from '../../file-storage.core';
-import { FILE_STORAGE_API_AUDIT_EMITTER, FILE_STORAGE_API_OPTIONS } from '../tokens';
+import { FILE_STORAGE_API_AUDIT_EMITTER } from '../tokens';
 import type { FileStorageApiAuditEmitter } from '../file-storage-audit.port';
-import type { FileStorageApiOptions } from '../file-storage-api.options';
 import type {
   AccessLogQueryDto,
   FileInventoryQueryDto,
@@ -29,7 +30,7 @@ export class FileInventoryApiService {
   constructor(
     @Inject(FILE_STORAGE_OBSERVABILITY_PORT) private readonly port: FileStorageObservabilityPort,
     @Inject(AttachmentService) private readonly attachments: AttachmentService,
-    @Inject(FILE_STORAGE_API_OPTIONS) private readonly options: FileStorageApiOptions,
+    @Inject(FILE_STORAGE_OPTIONS) private readonly options: FileStorageOptions,
     @Inject(FILE_STORAGE_API_AUDIT_EMITTER) private readonly audit: FileStorageApiAuditEmitter,
   ) {}
 

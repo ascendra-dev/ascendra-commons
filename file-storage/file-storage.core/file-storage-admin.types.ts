@@ -164,13 +164,17 @@ export interface FileRejectionPage {
 
 /* ─── category admin ──────────────────────────────────────────────────── */
 
-/** The tunable subset a tenant admin may override. Every field optional; a set field must be *no less restrictive* than the base. */
+/**
+ * The tunable subset a tenant admin may override. Every field optional; a set
+ * field must be *no less restrictive* than the base. `null` clears that field's
+ * override — the tenant inherits the base value again.
+ */
 export interface FileCategoryOverrideInput {
-  allowedContentTypes?: string[];
-  maxSizeBytes?: number;
-  minSizeBytes?: number;
+  allowedContentTypes?: string[] | null;
+  maxSizeBytes?: number | null;
+  minSizeBytes?: number | null;
   allowedExtensions?: string[] | null;
-  onUnscannable?: 'reject' | 'allow';
+  onUnscannable?: 'reject' | 'allow' | null;
   signedLinkExpirySeconds?: number | null;
   active?: boolean;
 }
@@ -188,6 +192,17 @@ export class CategoryNotFoundError extends Error {
   constructor(key: string) {
     super(`no file category '${key}'`);
     this.name = 'CategoryNotFoundError';
+  }
+}
+
+/** A tenant override value that can't be a rule at all — a size of 0, an empty list, a minimum above the maximum. */
+export class CategoryOverrideInvalidError extends Error {
+  constructor(
+    readonly field: string,
+    reason: string,
+  ) {
+    super(`file category override '${field}' ${reason}`);
+    this.name = 'CategoryOverrideInvalidError';
   }
 }
 

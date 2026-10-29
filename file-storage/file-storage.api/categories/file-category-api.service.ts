@@ -10,14 +10,16 @@ import type { Actor } from '../../../authorization/authorization.core';
 import {
   CategoryLooseningNotAllowedError,
   CategoryNotFoundError,
+  CategoryOverrideInvalidError,
   FILE_CATEGORY_ADMIN_PORT,
   FILE_STORAGE_OBSERVABILITY_PORT,
+  FILE_STORAGE_OPTIONS,
   type FileCategoryAdminPort,
   type FileStorageObservabilityPort,
+  type FileStorageOptions,
 } from '../../file-storage.core';
-import { FILE_STORAGE_API_AUDIT_EMITTER, FILE_STORAGE_API_OPTIONS } from '../tokens';
+import { FILE_STORAGE_API_AUDIT_EMITTER } from '../tokens';
 import type { FileStorageApiAuditEmitter } from '../file-storage-audit.port';
-import type { FileStorageApiOptions } from '../file-storage-api.options';
 import type { UpsertCategoryOverrideBody } from '../dto/file-storage-api.dto';
 
 /**
@@ -35,7 +37,7 @@ export class FileCategoryApiService {
   constructor(
     @Inject(FILE_CATEGORY_ADMIN_PORT) private readonly port: FileCategoryAdminPort,
     @Inject(FILE_STORAGE_OBSERVABILITY_PORT) private readonly observability: FileStorageObservabilityPort,
-    @Inject(FILE_STORAGE_API_OPTIONS) private readonly options: FileStorageApiOptions,
+    @Inject(FILE_STORAGE_OPTIONS) private readonly options: FileStorageOptions,
     @Inject(FILE_STORAGE_API_AUDIT_EMITTER) private readonly audit: FileStorageApiAuditEmitter,
   ) {}
 
@@ -65,6 +67,7 @@ export class FileCategoryApiService {
     }
     const { tenantId: _ignored, ...input } = body;
     try {
+      await this.assertExpiryWithinDefault(tenantId, key, input.signedLinkExpirySeconds);
       const view = await this.port.upsertTenantOverride(tenantId, key, input);
       await this.audit.record({
         action: 'file.category_override_set',
@@ -113,8 +116,24 @@ export class FileCategoryApiService {
     return actor.tenantId;
   }
 
+  /**
+   * A base category with no expiry of its own uses the module default — the
+   * ceiling a tenant's shorter link must stay under (`assertOverrideTightens`
+   * only knows the base row, not the module default).
+   */
+  private async assertExpiryWithinDefault(tenantId: string, key: string, seconds: number | null | undefined) {
+    if (seconds == null) return;
+    const view = await this.port.getCategory(tenantId, key);
+    if (!view) throw new CategoryNotFoundError(key);
+    const ceiling = this.options.downloadUrlExpiry.shareableLink;
+    if (view.base.signedLinkExpirySeconds === undefined && seconds > ceiling) {
+      throw new CategoryLooseningNotAllowedError('signedLinkExpirySeconds');
+    }
+  }
+
   private mapError(e: unknown): Error {
     if (e instanceof CategoryLooseningNotAllowedError) return new UnprocessableEntityException(e.message);
+    if (e instanceof CategoryOverrideInvalidError) return new UnprocessableEntityException(e.message);
     if (e instanceof CategoryNotFoundError) return new NotFoundException(e.message);
     return e as Error;
   }

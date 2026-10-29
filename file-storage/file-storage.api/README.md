@@ -32,8 +32,9 @@ deploy-time seed.
 
 ## Actor-scoping
 
-`isPlatformAdmin` (default `actor.tenantId === null`, overridable via
-`forRoot`). A non-platform actor's reads are forced to their own `tenantId`;
+`isPlatformAdmin` comes from `FileStorageModule.forRoot({ isPlatformAdmin })`
+(default `actor.tenantId === null`) — one setting for `AttachmentService` and
+these endpoints, so the two can't disagree. A non-platform actor's reads are forced to their own `tenantId`;
 `PATCH` / `DELETE` on categories are scoped to their tenant. Same pattern as
 `notification.api`.
 

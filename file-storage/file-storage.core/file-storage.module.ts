@@ -135,6 +135,7 @@ export class FileStorageModule {
         FILE_STORE,
         ATTACHMENT_STORE,
         FILE_CATEGORY_REGISTRY,
+        FILE_STORAGE_OPTIONS,
         AttachmentService,
         RegistryAttachmentAuthorizer,
       ],

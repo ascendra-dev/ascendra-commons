@@ -26,7 +26,7 @@ function make(over: { getFile?: unknown } = {}) {
   const svc = new FileInventoryApiService(
     port as never,
     attachments as never,
-    { isPlatformAdmin: (a: Actor) => a.tenantId === null },
+    { isPlatformAdmin: (a: Actor) => a.tenantId === null, downloadUrlExpiry: { inApp: 300, shareableLink: 3600 } },
     audit as never,
   );
   return { svc, port, attachments, audit };

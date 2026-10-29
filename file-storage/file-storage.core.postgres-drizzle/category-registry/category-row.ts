@@ -39,7 +39,8 @@ export function parseOverrideRow(r: Record<string, unknown>): OverrideCategoryRo
     allowedContentTypes: asStringArray(r.allowed_content_types),
     maxSizeBytes: asNumber(r.max_size_bytes),
     minSizeBytes: asNumber(r.min_size_bytes),
-    allowedExtensions: r.allowed_extensions === null ? null : asStringArray(r.allowed_extensions),
+    // NULL = not overridden: the tenant inherits the base list (an override can only narrow it, never remove it).
+    allowedExtensions: asStringArray(r.allowed_extensions),
     onUnscannable: (r.on_unscannable as 'reject' | 'allow' | null) ?? undefined,
     signedLinkExpirySeconds: asNumber(r.signed_link_expiry_seconds),
     active: r.active !== false,

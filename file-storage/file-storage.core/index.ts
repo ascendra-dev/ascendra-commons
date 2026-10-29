@@ -64,7 +64,11 @@ export type {
   FileCategoryOverrideInput,
   FileCategoryView,
 } from './file-storage-admin.types';
-export { CategoryNotFoundError, CategoryLooseningNotAllowedError } from './file-storage-admin.types';
+export {
+  CategoryNotFoundError,
+  CategoryLooseningNotAllowedError,
+  CategoryOverrideInvalidError,
+} from './file-storage-admin.types';
 
 /* pagination helper */
 export { encodeKeysetCursor, decodeKeysetCursor } from './keyset-cursor';

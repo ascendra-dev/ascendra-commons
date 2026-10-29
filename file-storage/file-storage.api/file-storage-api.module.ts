@@ -1,9 +1,6 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { FILE_STORAGE_API_AUDIT_EMITTER, FILE_STORAGE_API_OPTIONS } from './tokens';
-import {
-  resolveFileStorageApiOptions,
-  type FileStorageApiModuleConfig,
-} from './file-storage-api.options';
+import { FILE_STORAGE_API_AUDIT_EMITTER } from './tokens';
+import type { FileStorageApiModuleConfig } from './file-storage-api.options';
 import { NoopFileStorageApiAuditEmitter } from './file-storage-audit.port';
 import { FileInventoryApiService } from './inventory/file-inventory-api.service';
 import { FileInventoryController } from './inventory/file-inventory.controller';
@@ -38,9 +35,10 @@ export class FileStorageApiModule {
     return {
       module: FileStorageApiModule,
       imports: config.imports ?? [],
-      controllers: [FileInventoryController, FileCategoryController],
+      // FileCategoryController first: Express matches in registration order, and
+      // FileInventoryController's `GET files/:id` would otherwise answer `GET files/categories`.
+      controllers: [FileCategoryController, FileInventoryController],
       providers: [
-        { provide: FILE_STORAGE_API_OPTIONS, useValue: resolveFileStorageApiOptions(config) },
         config.auditEmitterToken
           ? { provide: FILE_STORAGE_API_AUDIT_EMITTER, useExisting: config.auditEmitterToken }
           : { provide: FILE_STORAGE_API_AUDIT_EMITTER, useClass: NoopFileStorageApiAuditEmitter },

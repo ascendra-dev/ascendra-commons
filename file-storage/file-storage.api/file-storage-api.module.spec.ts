@@ -6,10 +6,13 @@ import { FileInventoryApiService } from './inventory/file-inventory-api.service'
 import { FileCategoryApiService } from './categories/file-category-api.service';
 import { FileInventoryController } from './inventory/file-inventory.controller';
 import { FILE_STORAGE_API_AUDIT_EMITTER } from './tokens';
+import { FileCategoryController } from './categories/file-category.controller';
 import {
   AttachmentService,
   FILE_CATEGORY_ADMIN_PORT,
   FILE_STORAGE_OBSERVABILITY_PORT,
+  FILE_STORAGE_OPTIONS,
+  resolveFileStorageOptions,
 } from '../file-storage.core';
 
 @Module({
@@ -17,8 +20,9 @@ import {
     { provide: FILE_STORAGE_OBSERVABILITY_PORT, useValue: {} },
     { provide: FILE_CATEGORY_ADMIN_PORT, useValue: {} },
     { provide: AttachmentService, useValue: {} },
+    { provide: FILE_STORAGE_OPTIONS, useValue: resolveFileStorageOptions({}) },
   ],
-  exports: [FILE_STORAGE_OBSERVABILITY_PORT, FILE_CATEGORY_ADMIN_PORT, AttachmentService],
+  exports: [FILE_STORAGE_OBSERVABILITY_PORT, FILE_CATEGORY_ADMIN_PORT, AttachmentService, FILE_STORAGE_OPTIONS],
 })
 class FakePortsModule {}
 
@@ -46,5 +50,9 @@ describe('FileStorageApiModule.forRoot', () => {
 
     (ref.get(FILE_STORAGE_API_AUDIT_EMITTER) as { record: () => void }).record();
     expect(record).toHaveBeenCalled();
+  });
+
+  it('registers the catalog controller before the inventory one — else GET files/:id answers GET files/categories', () => {
+    expect(FileStorageApiModule.forRoot().controllers).toEqual([FileCategoryController, FileInventoryController]);
   });
 });

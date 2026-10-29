@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { FileCategoryApiService } from './file-category-api.service';
-import { CategoryLooseningNotAllowedError } from '../../file-storage.core';
+import { CategoryLooseningNotAllowedError, CategoryOverrideInvalidError } from '../../file-storage.core';
 import type { Actor } from '../../../authorization/authorization.core';
 
 const tenantAdmin: Actor = { id: 'ta', persona: 'ops', tenantId: 't1' };
@@ -20,7 +20,7 @@ function make(portOver: Record<string, unknown> = {}) {
   const svc = new FileCategoryApiService(
     port as never,
     observability as never,
-    { isPlatformAdmin: (a: Actor) => a.tenantId === null },
+    { isPlatformAdmin: (a: Actor) => a.tenantId === null, downloadUrlExpiry: { inApp: 300, shareableLink: 3600 } },
     audit as never,
   );
   return { svc, port, observability, audit };
@@ -65,5 +65,18 @@ describe('FileCategoryApiService', () => {
     const { svc, port } = make();
     await svc.deactivate(platformAdmin, 'kyc');
     expect(port.deactivateCategory).toHaveBeenCalledWith(null, 'kyc');
+  });
+
+  it('maps a value that cannot be a rule to 422', async () => {
+    const { svc } = make({ upsertTenantOverride: vi.fn().mockRejectedValue(new CategoryOverrideInvalidError('maxSizeBytes', 'must be at least 1')) });
+    await expect(svc.upsertOverride(tenantAdmin, 'kyc', { maxSizeBytes: 0 })).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('a base with no expiry of its own caps a tenant link at the module default', async () => {
+    const { svc, port } = make({ getCategory: vi.fn().mockResolvedValue({ key: 'kyc', base: {}, override: null, effective: {} }) });
+    await expect(svc.upsertOverride(tenantAdmin, 'kyc', { signedLinkExpirySeconds: 86_400 })).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(port.upsertTenantOverride).not.toHaveBeenCalled();
+    await svc.upsertOverride(tenantAdmin, 'kyc', { signedLinkExpirySeconds: 600 });
+    expect(port.upsertTenantOverride).toHaveBeenCalled();
   });
 });
