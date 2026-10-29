@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { AttachmentService, cleanFilename, retainUntil } from './attachment.service';
 import type { Actor } from '../../authorization/authorization.core';
 import type { AttachmentStore } from './attachment-store.port';
@@ -68,6 +68,7 @@ function makeService(over: {
     findByEntity: vi.fn().mockResolvedValue([]),
     detach: vi.fn().mockResolvedValue(undefined),
     deleteFileCascade: vi.fn().mockResolvedValue(fileRecord()),
+    setLegalHold: vi.fn(async (_id: string, hold) => fileRecord({ legalHold: hold })),
     ...over.store,
   };
   const registry: FileCategoryRegistry = {
@@ -371,5 +372,68 @@ describe('AttachmentService.listForEntity', () => {
     const { service, store } = makeService();
     await service.listForEntity({ attachedTo: { type: 'invoice', id: 'i1' }, actor: platformAdmin });
     expect(store.findByEntity).toHaveBeenCalledWith('invoice', 'i1', { tenantId: undefined });
+  });
+});
+
+describe('AttachmentService.deleteFile — retention and legal hold', () => {
+  const held = { heldAt: new Date(), heldBy: 'counsel', reason: 'dispute #12' };
+  const future = new Date(Date.now() + 86_400_000);
+
+  it('refuses a held file — even for a platform admin — and deletes nothing', async () => {
+    const { service, store } = makeService({ store: { getFileRecordById: vi.fn().mockResolvedValue(fileRecord({ legalHold: held })) } });
+    await expect(service.deleteFile({ fileRecordId: 'f1', actor: platformAdmin })).rejects.toBeInstanceOf(ConflictException);
+    expect(store.deleteFileCascade).not.toHaveBeenCalled();
+  });
+
+  it('refuses a tenant actor before retainUntil', async () => {
+    const { service, store } = makeService({ store: { getFileRecordById: vi.fn().mockResolvedValue(fileRecord({ retainUntil: future })) } });
+    await expect(service.deleteFile({ fileRecordId: 'f1', actor: issuer })).rejects.toThrow(/must be kept until/);
+    expect(store.deleteFileCascade).not.toHaveBeenCalled();
+  });
+
+  it('lets a platform admin delete early and marks the audit event', async () => {
+    const record = fileRecord({ retainUntil: future });
+    const { service, audit } = makeService({ store: { getFileRecordById: vi.fn().mockResolvedValue(record) } });
+    await service.deleteFile({ fileRecordId: 'f1', actor: platformAdmin });
+    expect(audit.emit).toHaveBeenCalledWith(expect.objectContaining({ kind: 'file.deleted', overrodeRetention: true, before: record }));
+  });
+
+  it('a file past its retainUntil deletes normally', async () => {
+    const { service, audit } = makeService({ store: { getFileRecordById: vi.fn().mockResolvedValue(fileRecord({ retainUntil: new Date(Date.now() - 1000) })) } });
+    await service.deleteFile({ fileRecordId: 'f1', actor: issuer });
+    expect(audit.emit).toHaveBeenCalledWith(expect.objectContaining({ kind: 'file.deleted', overrodeRetention: false }));
+  });
+});
+
+describe('AttachmentService legal hold', () => {
+  it('places a hold with who and why, and audits it', async () => {
+    const { service, store, audit } = makeService();
+    const res = await service.placeLegalHold({ fileRecordId: 'f1', actor: issuer, reason: '  dispute #12 ' });
+    expect(store.setLegalHold).toHaveBeenCalledWith('f1', expect.objectContaining({ heldBy: 'u1', reason: 'dispute #12' }));
+    expect(res.legalHold?.reason).toBe('dispute #12');
+    expect(audit.emit).toHaveBeenCalledWith(expect.objectContaining({ kind: 'file.hold_placed', reason: 'dispute #12' }));
+  });
+
+  it('needs a reason, and 409s a file already held', async () => {
+    const { service } = makeService();
+    await expect(service.placeLegalHold({ fileRecordId: 'f1', actor: issuer, reason: ' ' })).rejects.toThrow(/needs a reason/);
+    const { service: heldService } = makeService({
+      store: { getFileRecordById: vi.fn().mockResolvedValue(fileRecord({ legalHold: { heldAt: new Date(), heldBy: 'x', reason: 'y' } })) },
+    });
+    await expect(heldService.placeLegalHold({ fileRecordId: 'f1', actor: issuer, reason: 'z' })).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('releases a hold and audits what it was; 409 when not held', async () => {
+    const hold = { heldAt: new Date(), heldBy: 'counsel', reason: 'dispute #12' };
+    const { service, store, audit } = makeService({ store: { getFileRecordById: vi.fn().mockResolvedValue(fileRecord({ legalHold: hold })) } });
+    await service.releaseLegalHold({ fileRecordId: 'f1', actor: issuer });
+    expect(store.setLegalHold).toHaveBeenCalledWith('f1', null);
+    expect(audit.emit).toHaveBeenCalledWith(expect.objectContaining({ kind: 'file.hold_released', before: hold }));
+    await expect(makeService().service.releaseLegalHold({ fileRecordId: 'f1', actor: issuer })).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it("refuses another tenant's file", async () => {
+    const { service } = makeService({ store: { getFileRecordById: vi.fn().mockResolvedValue(fileRecord({ tenantId: 't2' })) } });
+    await expect(service.placeLegalHold({ fileRecordId: 'f1', actor: issuer, reason: 'x' })).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

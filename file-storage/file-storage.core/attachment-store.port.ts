@@ -1,5 +1,5 @@
 import type { Attachment } from './attachment.interface';
-import type { FileRecord } from './file-record.interface';
+import type { FileRecord, LegalHold } from './file-record.interface';
 
 /**
  * The persistence port for `FileRecord` + `Attachment`. Atomicity requirements
@@ -10,7 +10,8 @@ import type { FileRecord } from './file-record.interface';
  *   - `attach`            — one new FileRecord + its first Attachment, one tx.
  *   - `link`              — another Attachment onto an existing FileRecord.
  *   - `detach`            — remove one Attachment; the FileRecord is retained.
- *   - `deleteFileCascade` — remove a FileRecord and every Attachment, one tx.
+ *   - `setLegalHold`      — place or release a legal hold.
+ *   - `deleteFileCascade` — remove a FileRecord and every Attachment, one tx; never a held file.
  */
 export interface AttachmentStore {
   attach(input: {
@@ -36,6 +37,13 @@ export interface AttachmentStore {
 
   detach(attachmentId: string): Promise<void>;
 
-  /** Deletes the FileRecord and all its Attachments in one tx. Returns the removed FileRecord (for its `fileRef`), or `null` if it didn't exist. */
+  /** Place (`hold` set) or release (`null`) a legal hold. Returns the updated record, or `null` if it didn't exist. */
+  setLegalHold(fileRecordId: string, hold: LegalHold | null): Promise<FileRecord | null>;
+
+  /**
+   * Deletes the FileRecord and all its Attachments in one tx — never a held
+   * file (nothing is deleted). Leaves the access log. Returns the removed
+   * FileRecord (for its `fileRef`), or `null` if it didn't exist or is held.
+   */
   deleteFileCascade(fileRecordId: string): Promise<FileRecord | null>;
 }

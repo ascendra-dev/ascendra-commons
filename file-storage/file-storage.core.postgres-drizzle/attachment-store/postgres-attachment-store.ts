@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
-import type { Attachment, AttachmentStore, FileRecord } from '../../file-storage.core';
+import type { Attachment, AttachmentStore, FileRecord, LegalHold } from '../../file-storage.core';
 import type { SqlExecutor } from '../persistence/sql-executor';
 import { toAttachment, toFileRecord } from '../persistence/row-mappers';
 import { FILE_STORAGE_SQL_EXECUTOR } from '../tokens';
@@ -150,10 +150,25 @@ export class PostgresAttachmentStore implements AttachmentStore {
     await this.db.execute(sql`delete from commons_attachment where id = ${attachmentId}`);
   }
 
+  async setLegalHold(fileRecordId: string, hold: LegalHold | null): Promise<FileRecord | null> {
+    const { rows } = await this.db.execute(sql`
+      update commons_file_record
+      set held_at = ${hold?.heldAt ?? null}, held_by = ${hold?.heldBy ?? null}, hold_reason = ${hold?.reason ?? null}
+      where id = ${fileRecordId}
+      returning *
+    `);
+    return rows[0] ? toFileRecord(rows[0]) : null;
+  }
+
   async deleteFileCascade(fileRecordId: string): Promise<FileRecord | null> {
     const { rows } = await this.db.execute(sql`
-      with del_attach as (delete from commons_attachment where file_record_id = ${fileRecordId} returning 1)
-      delete from commons_file_record where id = ${fileRecordId}
+      with target as (
+        -- a held file is never deleted, not even its attachments; the row lock stops a hold landing mid-delete
+        select id from commons_file_record where id = ${fileRecordId} and held_at is null for update
+      ), del_attach as (
+        delete from commons_attachment where file_record_id in (select id from target) returning 1
+      )
+      delete from commons_file_record where id in (select id from target)
       returning *
     `);
     return rows[0] ? toFileRecord(rows[0]) : null;

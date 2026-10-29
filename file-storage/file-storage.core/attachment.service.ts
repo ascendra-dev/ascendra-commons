@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -268,10 +269,25 @@ export class AttachmentService {
     });
   }
 
-  /** Hard-delete: every Attachment + the FileRecord (one tx), then the blob (best-effort — a failed blob delete leaves a reconcilable orphan). */
+  /**
+   * Hard-delete: every Attachment + the FileRecord (one tx), then the blob
+   * (best-effort — a failed blob delete leaves a reconcilable orphan).
+   *
+   * Refused (409) while the file is under legal hold — for everyone — and,
+   * for anyone but a platform admin, before its `retainUntil`. A platform
+   * admin's early delete (an erasure request) is marked `overrodeRetention`
+   * in the audit event.
+   */
   async deleteFile(input: { fileRecordId: string; actor: Actor }): Promise<void> {
     const record = await this.requireFileRecord(input.fileRecordId);
     await this.assertTenantAccess(input.actor, record);
+    if (record.legalHold) {
+      throw new ConflictException('this file is under legal hold — release the hold before deleting it');
+    }
+    const early = record.retainUntil !== null && record.retainUntil.getTime() > Date.now();
+    if (early && !(await this.options.isPlatformAdmin(input.actor))) {
+      throw new ConflictException(`this file must be kept until ${record.retainUntil!.toISOString()}`);
+    }
 
     const removed = await this.store.deleteFileCascade(record.id);
     if (removed) await this.safeDeleteBlob(removed.fileRef);
@@ -281,7 +297,41 @@ export class AttachmentService {
       fileRecordId: record.id,
       tenantId: record.tenantId,
       actor: input.actor,
+      before: record,
+      overrodeRetention: early,
     });
+  }
+
+  /** Place a legal hold: nobody deletes the file and retention skips it until it's released. 409 if already held. */
+  async placeLegalHold(input: { fileRecordId: string; actor: Actor; reason: string }): Promise<FileRecord> {
+    const record = await this.requireFileRecord(input.fileRecordId);
+    await this.assertTenantAccess(input.actor, record);
+    if (record.legalHold) throw new ConflictException('this file is already under legal hold');
+    const reason = input.reason.trim();
+    if (!reason) throw new BadRequestException('a legal hold needs a reason');
+
+    const updated = await this.store.setLegalHold(record.id, { heldAt: new Date(), heldBy: input.actor.id, reason });
+    if (!updated) throw new NotFoundException();
+    await this.safeEmit({ kind: 'file.hold_placed', fileRecordId: record.id, tenantId: record.tenantId, actor: input.actor, reason });
+    return updated;
+  }
+
+  /** Release a legal hold. 409 if the file isn't held. */
+  async releaseLegalHold(input: { fileRecordId: string; actor: Actor }): Promise<FileRecord> {
+    const record = await this.requireFileRecord(input.fileRecordId);
+    await this.assertTenantAccess(input.actor, record);
+    if (!record.legalHold) throw new ConflictException('this file is not under legal hold');
+
+    const updated = await this.store.setLegalHold(record.id, null);
+    if (!updated) throw new NotFoundException();
+    await this.safeEmit({
+      kind: 'file.hold_released',
+      fileRecordId: record.id,
+      tenantId: record.tenantId,
+      actor: input.actor,
+      before: record.legalHold,
+    });
+    return updated;
   }
 
   /** A short-lived download URL for an authenticated actor. Enforces the tenant boundary. */

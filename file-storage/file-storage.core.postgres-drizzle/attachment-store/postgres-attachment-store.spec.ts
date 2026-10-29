@@ -62,13 +62,27 @@ describe('PostgresAttachmentStore.deleteFileCascade', () => {
 
     const q = rendered(db)[0];
     expect(q.sql).not.toMatch(/commons_file_access/i);
-    expect(q.sql).toMatch(/with del_attach as \(delete from commons_attachment/i);
-    expect(q.sql).toMatch(/delete from commons_file_record where id = /i);
+    expect(q.sql).toMatch(/held_at is null for update/i);
+    expect(q.sql).toMatch(/delete from commons_attachment where file_record_id in \(select id from target\)/i);
+    expect(q.sql).toMatch(/delete from commons_file_record where id in \(select id from target\)/i);
     expect(removed?.fileRef).toBe('kyc/f1');
   });
 
   it('returns null when the record did not exist', async () => {
     const store = new PostgresAttachmentStore(fakeDb([]));
     expect(await store.deleteFileCascade('gone')).toBeNull();
+  });
+});
+
+describe('PostgresAttachmentStore.setLegalHold', () => {
+  it('sets or clears the three hold columns in one update', async () => {
+    const db = fakeDb([{ id: 'f1', tenant_id: 't1', file_ref: 'r', category: 'c', content_type: 'x', size_bytes: 1, uploaded_by: 'u', created_at: '2026-01-01T00:00:00Z', held_at: '2026-01-02T00:00:00Z', held_by: 'counsel', hold_reason: 'dispute' }]);
+    const res = await new PostgresAttachmentStore(db).setLegalHold('f1', { heldAt: new Date('2026-01-02T00:00:00Z'), heldBy: 'counsel', reason: 'dispute' });
+    expect(rendered(db)[0].sql).toMatch(/update commons_file_record\s+set held_at = .*, held_by = .*, hold_reason = /i);
+    expect(res?.legalHold).toEqual({ heldAt: new Date('2026-01-02T00:00:00Z'), heldBy: 'counsel', reason: 'dispute' });
+
+    const clear = fakeDb([]);
+    expect(await new PostgresAttachmentStore(clear).setLegalHold('gone', null)).toBeNull();
+    expect(rendered(clear)[0].params.slice(0, 3)).toEqual([null, null, null]);
   });
 });
