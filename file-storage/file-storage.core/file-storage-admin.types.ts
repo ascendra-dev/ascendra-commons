@@ -154,6 +154,33 @@ export interface FileStatsSummary {
   byRejectionReason: Array<{ reason: FileUploadRejectionReason; count: number }>;
 }
 
+/* ─── duplicates ──────────────────────────────────────────────────────── */
+
+export interface DuplicateFilesQuery {
+  /** Forced to the actor's own tenant for a non-platform actor by `file-storage.api`. */
+  tenantId?: string;
+  /** How many groups. Default 50, at most 200. */
+  limit?: number;
+}
+
+/**
+ * Files in one tenant with the same bytes (same SHA-256). Reported, never
+ * merged: each file is its own record with its own attachments, retention
+ * and hold — merging would make one delete remove both.
+ */
+export interface DuplicateFileGroup {
+  tenantId: string;
+  contentHash: string;
+  fileCount: number;
+  totalBytes: number;
+  /** Bytes beyond the first copy — what keeping one would save. */
+  wastedBytes: number;
+  /** Up to 10, oldest first. */
+  fileIds: string[];
+  firstUploadedAt: Date;
+  lastUploadedAt: Date;
+}
+
 /* ─── rejected uploads ─────────────────────────────────────────────────── */
 
 export interface FileRejectionQuery {

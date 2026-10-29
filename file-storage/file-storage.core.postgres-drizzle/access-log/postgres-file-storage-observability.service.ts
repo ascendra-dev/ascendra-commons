@@ -18,6 +18,8 @@ import {
   type StorageUsageQuery,
   type StorageUsageRow,
   type CategoryUsageRow,
+  type DuplicateFileGroup,
+  type DuplicateFilesQuery,
   type FileUploadRejectionReason,
 } from '../../file-storage.core';
 import type { SqlExecutor } from '../persistence/sql-executor';
@@ -250,6 +252,31 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
       byScanVerdict,
       byRejectionReason: reasons.rows.map((r) => ({ reason: r.reason as FileStatsSummary['byRejectionReason'][number]['reason'], count: Number(r.count) })),
     };
+  }
+
+  async listDuplicates(query: DuplicateFilesQuery = {}): Promise<DuplicateFileGroup[]> {
+    const { rows } = await this.db.execute(sql`
+      select tenant_id, content_hash, count(*) as file_count, sum(size_bytes) as total_bytes,
+        sum(size_bytes) - min(size_bytes) as wasted_bytes,
+        (array_agg(id order by created_at, id))[1:10] as file_ids,
+        min(created_at) as first_at, max(created_at) as last_at
+      from commons_file_record
+      where content_hash is not null ${query.tenantId !== undefined ? sql`and tenant_id = ${query.tenantId}` : sql``}
+      group by tenant_id, content_hash
+      having count(*) > 1
+      order by wasted_bytes desc, tenant_id, content_hash
+      limit ${clampLimit(query.limit)}
+    `);
+    return rows.map((r) => ({
+      tenantId: r.tenant_id as string,
+      contentHash: r.content_hash as string,
+      fileCount: Number(r.file_count),
+      totalBytes: Number(r.total_bytes),
+      wastedBytes: Number(r.wasted_bytes),
+      fileIds: r.file_ids as string[],
+      firstUploadedAt: new Date(r.first_at as string),
+      lastUploadedAt: new Date(r.last_at as string),
+    }));
   }
 
   async listRejections(query: FileRejectionQuery = {}): Promise<FileRejectionPage> {

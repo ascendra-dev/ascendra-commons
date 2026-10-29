@@ -1,5 +1,7 @@
 import type {
   CategoryUsageRow,
+  DuplicateFileGroup,
+  DuplicateFilesQuery,
   FileAccessLogPage,
   FileDetail,
   FileInventoryPage,
@@ -43,6 +45,9 @@ export interface FileStorageObservabilityPort {
 
   /** Uploads and refusals per day, category, scan verdict and reason — whole calendar days in `query.timeZone`. */
   statsSummary(query?: FileStatsQuery): Promise<FileStatsSummary>;
+
+  /** Same-content files within a tenant, most wasted bytes first. */
+  listDuplicates(query?: DuplicateFilesQuery): Promise<DuplicateFileGroup[]>;
 
   /** Rejected upload attempts (bad category, validation failure, failed/rejected scan), newest first, keyset-paginated. */
   listRejections(query?: FileRejectionQuery): Promise<FileRejectionPage>;

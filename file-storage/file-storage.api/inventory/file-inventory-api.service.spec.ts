@@ -18,6 +18,7 @@ function make(over: { getFile?: unknown; listFiles?: unknown } = {}) {
     categoryUsage: vi.fn().mockResolvedValue([]),
     statsSummary: vi.fn().mockResolvedValue({ uploadsByDay: [], byCategory: [] }),
     listRejections: vi.fn().mockResolvedValue({ rows: [], nextCursor: null }),
+    listDuplicates: vi.fn().mockResolvedValue([]),
   };
   const attachments = {
     getDownloadUrl: vi.fn().mockResolvedValue('https://url'),
@@ -38,6 +39,8 @@ describe('FileInventoryApiService tenant scoping', () => {
     await svc.stats(tenantAdmin, { tenantId: 't2', windowDays: 7 });
     await svc.listRejections(tenantAdmin, { tenantId: 't2', reason: 'validation-failed' });
     await svc.listOrphans(tenantAdmin, { tenantId: 't2' });
+    await svc.listDuplicates(tenantAdmin, { tenantId: 't2' });
+    expect(port.listDuplicates).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't1' }));
     expect(port.listFiles).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't1' }));
     expect(port.statsSummary).toHaveBeenCalledWith({ tenantId: 't1', windowDays: 7 });
     expect(port.listRejections).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't1', reason: 'validation-failed' }));

@@ -76,6 +76,8 @@ export type {
   FileStatsDay,
   CategoryStatsRow,
   FileStatsSummary,
+  DuplicateFilesQuery,
+  DuplicateFileGroup,
   FileRejectionQuery,
   FileRejectionRow,
   FileRejectionPage,

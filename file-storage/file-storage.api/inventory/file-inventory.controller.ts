@@ -126,6 +126,19 @@ export class FileInventoryController {
     return cursorList(page.rows, page.nextCursor ?? undefined);
   }
 
+  /** Same-content files within a tenant, most wasted bytes first. Reported, never merged. */
+  @Get('duplicates')
+  @RequiresAction(FILE_STORAGE_ACTIONS.VIEW)
+  async duplicates(@CurrentActor() actor: Actor, @Query('tenantId') tenantId?: string, @Query('limit') limit?: string) {
+    return {
+      data: await this.service.listDuplicates(actor, {
+        tenantId: idParam('tenantId', tenantId, true),
+        limit: intParam('limit', limit, 1, MAX_LIMIT),
+      }),
+    };
+  }
+
+  // `:id` last — Express matches in declaration order, and the literal routes above would be taken for an id.
   @Get(':id')
   @RequiresAction(FILE_STORAGE_ACTIONS.VIEW)
   getOne(@CurrentActor() actor: Actor, @Param('id') id: string) {

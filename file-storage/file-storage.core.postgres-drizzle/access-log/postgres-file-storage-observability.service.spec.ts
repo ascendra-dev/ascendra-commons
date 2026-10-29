@@ -147,3 +147,17 @@ describe('PostgresFileStorageObservabilityService cursors', () => {
     expect(q.params).toContain('%50\\%\\_off%');
   });
 });
+
+describe('PostgresFileStorageObservabilityService.listDuplicates', () => {
+  it('groups by (tenant, hash) with more than one file, most wasted first', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      rows: [{ tenant_id: 't1', content_hash: 'h', file_count: '3', total_bytes: '300', wasted_bytes: '200', file_ids: ['a', 'b', 'c'], first_at: '2026-10-01T00:00:00Z', last_at: '2026-10-02T00:00:00Z' }],
+    });
+    const groups = await new PostgresFileStorageObservabilityService({ execute } as SqlExecutor).listDuplicates({ tenantId: 't1' });
+    const q = lastQuery(execute);
+    expect(q.sql).toMatch(/group by tenant_id, content_hash\s+having count\(\*\) > 1/);
+    expect(q.sql).toMatch(/order by wasted_bytes desc/);
+    expect(q.sql).toMatch(/and tenant_id = /);
+    expect(groups).toEqual([expect.objectContaining({ fileCount: 3, wastedBytes: 200, fileIds: ['a', 'b', 'c'] })]);
+  });
+});

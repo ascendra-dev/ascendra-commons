@@ -23,6 +23,7 @@ the guard (`AuthorizationEnforcedGuard`).
 | `GET /files/storage-usage` | `file.view` | `SUM(bytes)` grouped by tenant + category |
 | `GET /files/orphans` | `file.view` | file records with zero attachments |
 | `GET /files/stats` | `file.view` | the Overview — whole calendar days (`windowDays` 1–366, default 30) in `?tz=` (IANA, default UTC): uploads and refusals per day, by category, by scan verdict, refusals by reason; totals |
+| `GET /files/duplicates` | `file.view` | same-content files within a tenant (SHA-256), most wasted bytes first — reported, never merged |
 | `GET /files/rejections` | `file.view` | refused uploads — filter by category / reason |
 | `GET /files/retention` | `file.view` | Volume & retention: files (past retention, expiring in 30 days, indefinite, held), both logs, the log policy |
 | `POST /files/retention/run` | `file.delete` | one retention pass now — platform admins only (it spans every tenant) |

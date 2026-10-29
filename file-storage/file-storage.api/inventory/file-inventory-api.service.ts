@@ -96,6 +96,10 @@ export class FileInventoryApiService {
     return this.port.statsSummary({ ...query, tenantId: await this.scopeTenant(actor, query.tenantId) });
   }
 
+  async listDuplicates(actor: Actor, query: { tenantId?: string; limit?: number }) {
+    return this.port.listDuplicates({ ...query, tenantId: await this.scopeTenant(actor, query.tenantId) });
+  }
+
   async listRejections(actor: Actor, query: FileRejectionQueryDto) {
     const page = await this.read(async () =>
       this.port.listRejections({ ...query, tenantId: await this.scopeTenant(actor, query.tenantId) }),
