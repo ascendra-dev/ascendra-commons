@@ -34,7 +34,7 @@ describe('PostgresAttachmentStore.attach', () => {
     const q = rendered(db)[0];
     expect(db.execute).toHaveBeenCalledTimes(1);
     expect(q.sql).toMatch(/with fr as \(\s*insert into commons_file_record/i);
-    expect(q.sql).toMatch(/at as \(\s*insert into commons_attachment/i);
+    expect(q.sql).toMatch(/at as \(\s*insert into commons_file_attachment/i);
     expect(res.fileRecord.id).toBe('f1');
     expect(res.fileRecord.sizeBytes).toBe(12);
     expect(res.attachment.id).toBe('a1');
@@ -63,7 +63,7 @@ describe('PostgresAttachmentStore.deleteFileCascade', () => {
     const q = rendered(db)[0];
     expect(q.sql).not.toMatch(/commons_file_access/i);
     expect(q.sql).toMatch(/f\.held_at is null\s+for update/i);
-    expect(q.sql).toMatch(/delete from commons_attachment where file_record_id in \(select id from target\)/i);
+    expect(q.sql).toMatch(/delete from commons_file_attachment where file_record_id in \(select id from target\)/i);
     expect(q.sql).toMatch(/delete from commons_file_record where id in \(select id from target\)/i);
     expect(removed?.fileRef).toBe('kyc/f1');
   });
@@ -74,7 +74,7 @@ describe('PostgresAttachmentStore.deleteFileCascade', () => {
     await new PostgresAttachmentStore(db).deleteFileCascade('f1', { onlyIf: { expiredBy: by, orphaned: true } });
     const q = rendered(db)[0];
     expect(q.sql).toMatch(/f\.retain_until is not null and f\.retain_until <= /);
-    expect(q.sql).toMatch(/not exists \(select 1 from commons_attachment a where a\.file_record_id = f\.id\)/);
+    expect(q.sql).toMatch(/not exists \(select 1 from commons_file_attachment a where a\.file_record_id = f\.id\)/);
     expect(q.params).toContain(by);
   });
 

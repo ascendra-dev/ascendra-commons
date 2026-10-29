@@ -2,7 +2,7 @@ import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { fileRecordTable } from './file-record.schema';
 
 /**
- * The reference `commons_attachment` table — the polymorphic association from a
+ * The reference `commons_file_attachment` table — the polymorphic association from a
  * `FileRecord` to a business entity. `PostgresAttachmentStore` writes exactly
  * these columns; change this and the store's SQL together, and ship the change
  * as the next numbered file in `../migrations/` (never an edit to a released one).
@@ -13,7 +13,7 @@ import { fileRecordTable } from './file-record.schema';
  * FK still behaves.
  */
 export const attachmentTable = pgTable(
-  'commons_attachment',
+  'commons_file_attachment',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     fileRecordId: uuid('file_record_id')
@@ -25,7 +25,7 @@ export const attachmentTable = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
   (t) => [
-    index('commons_attachment_entity_idx').on(t.attachedToType, t.attachedToId),
-    index('commons_attachment_file_record_idx').on(t.fileRecordId),
+    index('commons_file_attachment_entity_idx').on(t.attachedToType, t.attachedToId),
+    index('commons_file_attachment_file_record_idx').on(t.fileRecordId),
   ],
 );

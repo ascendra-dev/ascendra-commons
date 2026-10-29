@@ -39,7 +39,7 @@ describe('PostgresFileStorageObservabilityService', () => {
     const execute = vi.fn().mockResolvedValue({ rows: [] });
     const svc = new PostgresFileStorageObservabilityService({ execute } as SqlExecutor);
     await svc.listOrphanedFileRecords({});
-    expect(lastQuery(execute).sql).toMatch(/left join commons_attachment a on a\.file_record_id = f\.id\s+where a\.id is null/i);
+    expect(lastQuery(execute).sql).toMatch(/left join commons_file_attachment a on a\.file_record_id = f\.id\s+where a\.id is null/i);
   });
 
   it('storageUsage groups by tenant and category', async () => {

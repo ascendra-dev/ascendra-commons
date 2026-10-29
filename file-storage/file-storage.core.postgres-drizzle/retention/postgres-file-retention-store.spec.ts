@@ -20,7 +20,7 @@ describe('PostgresFileRetentionStore', () => {
     const execute = vi.fn().mockResolvedValue({ rows: [] });
     await new PostgresFileRetentionStore({ execute } as never).findPurgeableOrphans({ olderThan: new Date(), now: new Date(), tenantId: 't1', limit: 10 });
     const q = queries(execute)[0];
-    expect(q.sql).toMatch(/not exists \(select 1 from commons_attachment/);
+    expect(q.sql).toMatch(/not exists \(select 1 from commons_file_attachment/);
     expect(q.sql).toMatch(/f\.held_at is null/);
     expect(q.sql).toMatch(/f\.retain_until is null or f\.retain_until <= /);
     expect(q.sql).toMatch(/f\.tenant_id = /);

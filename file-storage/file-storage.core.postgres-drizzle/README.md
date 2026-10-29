@@ -15,7 +15,7 @@ change is the next numbered file, together with the schema and the adapter SQL.
 | Table | Written by | Notes |
 |---|---|---|
 | `commons_file_record` | `PostgresAttachmentStore` | one row per blob: cleaned `filename`, `scan_verdict`, `retain_until` (fixed at upload), legal hold (`held_at`/`held_by`/`hold_reason`), passive `content_hash`; text `tenant_id` |
-| `commons_attachment` | `PostgresAttachmentStore` | polymorphic link to a business entity; `ON DELETE CASCADE` from `file_record` |
+| `commons_file_attachment` | `PostgresAttachmentStore` | polymorphic link to a business entity; `ON DELETE CASCADE` from `file_record` |
 | `commons_file_category` | seed + `PostgresFileCategoryAdminService` | two-layer: `tenant_id IS NULL` = base (seeded), non-NULL = per-tenant override; partial unique indexes |
 | `commons_file_access` | `PostgresFileAccessRecorder` | one row per download URL handed out; reads only. No foreign key — deleting a file keeps its access log |
 

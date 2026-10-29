@@ -34,7 +34,7 @@ export class PostgresAttachmentStore implements AttachmentStore {
            ${fr.filename}, ${fr.scanVerdict}, ${fr.retainUntil})
         returning *
       ), at as (
-        insert into commons_attachment (file_record_id, attached_to_type, attached_to_id, category)
+        insert into commons_file_attachment (file_record_id, attached_to_type, attached_to_id, category)
         select fr.id, ${at.attachedToType}, ${at.attachedToId}, ${at.category} from fr
         returning *
       )
@@ -82,7 +82,7 @@ export class PostgresAttachmentStore implements AttachmentStore {
   }): Promise<Attachment> {
     const at = input.attachment;
     const { rows } = await this.db.execute(sql`
-      insert into commons_attachment (file_record_id, attached_to_type, attached_to_id, category)
+      insert into commons_file_attachment (file_record_id, attached_to_type, attached_to_id, category)
       values (${input.fileRecordId}, ${at.attachedToType}, ${at.attachedToId}, ${at.category})
       returning *
     `);
@@ -95,7 +95,7 @@ export class PostgresAttachmentStore implements AttachmentStore {
   }
 
   async getAttachmentById(id: string): Promise<Attachment | null> {
-    const { rows } = await this.db.execute(sql`select * from commons_attachment where id = ${id}`);
+    const { rows } = await this.db.execute(sql`select * from commons_file_attachment where id = ${id}`);
     return rows[0] ? toAttachment(rows[0]) : null;
   }
 
@@ -111,7 +111,7 @@ export class PostgresAttachmentStore implements AttachmentStore {
         f.id as f_id, f.tenant_id, f.file_ref, f.category as f_category, f.content_type,
         f.size_bytes, f.content_hash, f.uploaded_by, f.created_at as f_created_at,
         f.filename, f.scan_verdict, f.retain_until, f.held_at, f.held_by, f.hold_reason
-      from commons_attachment a
+      from commons_file_attachment a
       join commons_file_record f on f.id = a.file_record_id
       where a.attached_to_type = ${attachedToType} and a.attached_to_id = ${attachedToId}
         ${opts.tenantId !== undefined ? sql`and f.tenant_id = ${opts.tenantId}` : sql``}
@@ -147,7 +147,7 @@ export class PostgresAttachmentStore implements AttachmentStore {
   }
 
   async detach(attachmentId: string): Promise<void> {
-    await this.db.execute(sql`delete from commons_attachment where id = ${attachmentId}`);
+    await this.db.execute(sql`delete from commons_file_attachment where id = ${attachmentId}`);
   }
 
   async setLegalHold(fileRecordId: string, hold: LegalHold | null): Promise<FileRecord | null> {
@@ -171,10 +171,10 @@ export class PostgresAttachmentStore implements AttachmentStore {
         select f.id from commons_file_record f
         where f.id = ${fileRecordId} and f.held_at is null
           ${expiredBy ? sql`and f.retain_until is not null and f.retain_until <= ${expiredBy}` : sql``}
-          ${opts.onlyIf?.orphaned ? sql`and not exists (select 1 from commons_attachment a where a.file_record_id = f.id)` : sql``}
+          ${opts.onlyIf?.orphaned ? sql`and not exists (select 1 from commons_file_attachment a where a.file_record_id = f.id)` : sql``}
         for update
       ), del_attach as (
-        delete from commons_attachment where file_record_id in (select id from target) returning 1
+        delete from commons_file_attachment where file_record_id in (select id from target) returning 1
       )
       delete from commons_file_record where id in (select id from target)
       returning *

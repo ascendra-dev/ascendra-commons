@@ -59,7 +59,7 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
 
     const { rows } = await this.db.execute(sql`
       select f.*, ${key(sql`f.created_at`)} as created_at_key,
-        (select count(*) from commons_attachment a where a.file_record_id = f.id) as attachment_count
+        (select count(*) from commons_file_attachment a where a.file_record_id = f.id) as attachment_count
       from commons_file_record f
       where ${and(where)}
       order by f.created_at desc, f.id desc
@@ -90,7 +90,7 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
     const { rows } = await this.db.execute(sql`select * from commons_file_record where id = ${id}`);
     if (!rows[0]) return null;
     const { rows: attachments } = await this.db.execute(
-      sql`select * from commons_attachment where file_record_id = ${id} order by created_at asc`,
+      sql`select * from commons_file_attachment where file_record_id = ${id} order by created_at asc`,
     );
     return { fileRecord: toFileRecord(rows[0]), attachments: attachments.map(toAttachment) };
   }
@@ -122,7 +122,7 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
       select f.id, f.tenant_id, f.category, f.file_ref, f.size_bytes, f.created_at, f.filename,
         ${key(sql`f.created_at`)} as created_at_key
       from commons_file_record f
-      left join commons_attachment a on a.file_record_id = f.id
+      left join commons_file_attachment a on a.file_record_id = f.id
       where ${and(where)}
       order by f.created_at desc, f.id desc
       limit ${limit + 1}

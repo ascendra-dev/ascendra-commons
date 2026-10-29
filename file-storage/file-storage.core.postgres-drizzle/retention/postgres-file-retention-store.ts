@@ -33,7 +33,7 @@ export class PostgresFileRetentionStore implements FileRetentionStore {
         and f.held_at is null
         and (f.retain_until is null or f.retain_until <= ${query.now})
         ${query.tenantId !== undefined ? sql`and f.tenant_id = ${query.tenantId}` : sql``}
-        and not exists (select 1 from commons_attachment a where a.file_record_id = f.id)
+        and not exists (select 1 from commons_file_attachment a where a.file_record_id = f.id)
       order by f.created_at, f.id
       limit ${query.limit}
     `);
