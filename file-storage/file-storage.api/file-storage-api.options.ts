@@ -15,6 +15,8 @@ export const FILE_STORAGE_ACTIONS = {
   DELETE: 'file.delete',
   /** Place or release a legal hold. */
   HOLD: 'file.hold',
+  /** Set or remove a tenant's storage limit (platform admins only, whatever the grant). */
+  MANAGE_QUOTA: 'file.quota.manage',
   /** Edit / deactivate a file category (tenant override, or — platform admin — the base row). */
   MANAGE_CATEGORY: 'file.category.manage',
 } as const;

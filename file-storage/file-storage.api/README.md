@@ -33,6 +33,9 @@ the guard (`AuthorizationEnforcedGuard`).
 | `DELETE /files/:id/attachments/:attachmentId` | `file.delete` | detach one link, keep the file; 404 if the attachment isn't on this file |
 | `PUT /files/:id/hold` | `file.hold` | place a legal hold — body `{ reason }`; 409 when already held |
 | `DELETE /files/:id/hold` | `file.hold` | release it; 409 when not held |
+| `GET /files/quotas` | `file.view` | per-tenant storage limits with usage — a tenant admin sees their own |
+| `PUT /files/quotas/:tenantId` | `file.quota.manage` | body `{ maxBytes }` — set a limit; platform only. An upload that would pass it is a 422 and a `quota-exceeded` rejection |
+| `DELETE /files/quotas/:tenantId` | `file.quota.manage` | remove it; 404 when there is none. Platform only |
 | `GET /files/categories` | `file.view` | the effective catalog for the caller's tenant + live per-category counts |
 | `GET /files/categories/:key` | `file.view` | base + override, shown separately |
 | `PATCH /files/categories/:key` | `file.category.manage` | upsert a tenant override (tightening only; `null` clears a field). A platform admin with no `tenantId`: `{ "active": true }` turns a deactivated base back on |

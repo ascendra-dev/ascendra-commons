@@ -32,3 +32,6 @@ export const POSTGRES_FILE_CATEGORY_ADMIN = Symbol('POSTGRES_FILE_CATEGORY_ADMIN
 
 /** `PostgresFileRetentionStore`. Point `FileStorageModule.forRoot({ fileRetentionStoreToken })` at this. */
 export const POSTGRES_FILE_RETENTION_STORE = Symbol('POSTGRES_FILE_RETENTION_STORE');
+
+/** `PostgresStorageQuotaStore`. Point `FileStorageModule.forRoot({ storageQuotaStoreToken })` at this. */
+export const POSTGRES_STORAGE_QUOTA_STORE = Symbol('POSTGRES_STORAGE_QUOTA_STORE');

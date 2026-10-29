@@ -34,6 +34,9 @@ export const FILE_STORAGE_AUDIT_EMITTER = Symbol('FILE_STORAGE_AUDIT_EMITTER');
 /** The persistence side of retention — `file-storage.core.postgres-drizzle`'s, or the consumer's own. Defaults to `MissingFileRetentionStore` (throws). */
 export const FILE_RETENTION_STORE = Symbol('FILE_RETENTION_STORE');
 
+/** Per-tenant storage limits — `file-storage.core.postgres-drizzle`'s, or the consumer's own. Defaults to `NoStorageQuotas`. */
+export const STORAGE_QUOTA_STORE = Symbol('STORAGE_QUOTA_STORE');
+
 /** Resolved `FileStorageOptions` — `isPlatformAdmin` predicate + download-URL expiry defaults. */
 export const FILE_STORAGE_OPTIONS = Symbol('FILE_STORAGE_OPTIONS');
 

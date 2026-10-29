@@ -15,6 +15,7 @@ import { RuleBasedFileValidator, type FileValidationDefaults } from './file-vali
 import { NoopFileUploadRejectionRecorder } from './file-upload-rejection-recorder.port';
 import { MissingSignedLinkResolver } from './signed-link-resolver.port';
 import { MissingFileRetentionStore } from './file-retention-store.port';
+import { NoStorageQuotas } from './storage-quota.port';
 import { FileRetentionService } from './file-retention.service';
 import {
   ATTACHMENT_STORE,
@@ -22,6 +23,7 @@ import {
   FILE_ACCESS_RECORDER,
   FILE_CATEGORY_REGISTRY,
   FILE_RETENTION_STORE,
+  STORAGE_QUOTA_STORE,
   FILE_SCANNER,
   FILE_STORAGE_AUDIT_EMITTER,
   FILE_STORAGE_OPTIONS,
@@ -60,6 +62,8 @@ export interface FileStorageModuleConfig {
   fileRetentionStoreToken?: OverrideToken;
   /** How long the access and rejection logs are kept. Default `{ accessLogDays: 365, rejectionLogDays: 90 }`. */
   logRetention?: Partial<LogRetention>;
+  /** `StorageQuotaStore` — per-tenant storage limits checked on every upload. Omit → `NoStorageQuotas` (no limits). */
+  storageQuotaStoreToken?: OverrideToken;
 
   /** Platform-admin predicate — exempt from tenant isolation. Default `actor.tenantId === null`. */
   isPlatformAdmin?: (actor: Actor) => boolean | Promise<boolean>;
@@ -127,6 +131,7 @@ export class FileStorageModule {
         optional(SIGNED_LINK_RESOLVER, config.signedLinkResolverToken, MissingSignedLinkResolver),
         optional(FILE_STORAGE_AUDIT_EMITTER, config.auditEmitterToken, NoopFileStorageAuditEmitter),
         optional(FILE_RETENTION_STORE, config.fileRetentionStoreToken, MissingFileRetentionStore),
+        optional(STORAGE_QUOTA_STORE, config.storageQuotaStoreToken, NoStorageQuotas),
 
         {
           provide: FILE_STORAGE_OPTIONS,
@@ -147,6 +152,7 @@ export class FileStorageModule {
         ATTACHMENT_STORE,
         FILE_CATEGORY_REGISTRY,
         FILE_STORAGE_OPTIONS,
+        STORAGE_QUOTA_STORE,
         AttachmentService,
         FileRetentionService,
         RegistryAttachmentAuthorizer,

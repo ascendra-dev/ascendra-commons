@@ -1,4 +1,5 @@
 import { bigint, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import type { FileUploadRejectionReason } from '../../file-storage.core';
 
 /**
  * The reference `commons_file_rejection` table — one row per upload attempt
@@ -20,7 +21,7 @@ export const fileRejectionTable = pgTable(
     filename: text('filename').notNull(),
     contentType: text('content_type').notNull(),
     sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
-    reason: text('reason').$type<'category-unavailable' | 'validation-failed' | 'scan-rejected'>().notNull(),
+    reason: text('reason').$type<FileUploadRejectionReason>().notNull(),
     message: text('message').notNull(),
     occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },

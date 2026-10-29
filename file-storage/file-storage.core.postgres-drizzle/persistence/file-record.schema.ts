@@ -47,5 +47,7 @@ export const fileRecordTable = pgTable(
     index('commons_file_record_file_ref_idx').on(t.fileRef),
     index('commons_file_record_held_idx').on(t.heldAt.desc()).where(sql`${t.heldAt} IS NOT NULL`),
     index('commons_file_record_created_id_idx').on(t.createdAt.desc(), t.id.desc()),
+    // 0007: INCLUDE (size_bytes) — drizzle's index builder has no INCLUDE; the migration is the source of truth.
+    index('commons_file_record_tenant_size_idx').on(t.tenantId),
   ],
 );

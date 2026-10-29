@@ -5,15 +5,15 @@
  * `AttachmentService` never changes or fails the rejection response because
  * the recorder itself threw.
  *
- * No blob is ever written for a rejection — metadata only, and only the three
- * `AttachmentService.attach()` throw sites above call it (not, for example,
+ * No blob is ever written for a rejection — metadata only, and only
+ * `AttachmentService.attach()`'s refusals above (and an over-limit tenant) call it (not, for example,
  * the no-tenant-context check, which has no tenant to scope the row to).
  */
 export interface FileUploadRejectionRecorder {
   record(event: FileUploadRejectionEvent): Promise<void>;
 }
 
-export type FileUploadRejectionReason = 'category-unavailable' | 'validation-failed' | 'scan-rejected';
+export type FileUploadRejectionReason = 'category-unavailable' | 'validation-failed' | 'quota-exceeded' | 'scan-rejected';
 
 export interface FileUploadRejectionEvent {
   tenantId: string;

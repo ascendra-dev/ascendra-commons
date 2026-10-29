@@ -21,6 +21,7 @@ import type { FileStore } from './file-store.port';
 import { FileValidationError, type FileValidator } from './file-validator.port';
 import type { FileUploadRejectionEvent, FileUploadRejectionRecorder } from './file-upload-rejection-recorder.port';
 import type { SignedLinkResolver } from './signed-link-resolver.port';
+import type { StorageQuotaStore } from './storage-quota.port';
 import {
   ATTACHMENT_STORE,
   FILE_ACCESS_RECORDER,
@@ -32,6 +33,7 @@ import {
   FILE_UPLOAD_REJECTION_RECORDER,
   FILE_VALIDATOR,
   SIGNED_LINK_RESOLVER,
+  STORAGE_QUOTA_STORE,
 } from './tokens';
 
 export interface UploadInput {
@@ -69,9 +71,14 @@ export class AttachmentService {
     @Inject(SIGNED_LINK_RESOLVER) private readonly signedLinks: SignedLinkResolver,
     @Inject(FILE_STORAGE_AUDIT_EMITTER) private readonly audit: FileStorageAuditEmitter,
     @Inject(FILE_STORAGE_OPTIONS) private readonly options: FileStorageOptions,
+    @Inject(STORAGE_QUOTA_STORE) private readonly quotas: StorageQuotaStore,
   ) {}
 
-  /** Validate → scan → upload → persist (FileRecord + first Attachment, one tx). On persistence failure the blob is best-effort deleted. */
+  /**
+   * Validate → the tenant's storage limit → scan → upload → persist
+   * (FileRecord + first Attachment, one tx). On persistence failure the blob
+   * is best-effort deleted. Every refusal is recorded as a rejection.
+   */
   async attach(input: UploadInput): Promise<{ fileRecord: FileRecord; attachment: Attachment }> {
     if (input.actor.tenantId === null) {
       throw new BadRequestException('cannot attach a file without a tenant context');
@@ -118,6 +125,25 @@ export class AttachmentService {
         throw new UnprocessableEntityException(e.message);
       }
       throw e;
+    }
+
+    const quota = await this.quotas.getQuota(tenantId);
+    if (quota) {
+      const used = await this.quotas.usage(tenantId);
+      if (used + input.file.sizeBytes > quota.maxBytes) {
+        const message = `this tenant's storage is full — ${used} of ${quota.maxBytes} bytes used, and the file is ${input.file.sizeBytes}`;
+        void this.recordRejection({
+          tenantId,
+          actorId: input.actor.id,
+          category: category.key,
+          filename: input.file.filename,
+          contentType: input.file.contentType,
+          sizeBytes: input.file.sizeBytes,
+          reason: 'quota-exceeded',
+          message,
+        });
+        throw new UnprocessableEntityException(message);
+      }
     }
 
     const verdict = await this.scanner.scan(input.file.data, {

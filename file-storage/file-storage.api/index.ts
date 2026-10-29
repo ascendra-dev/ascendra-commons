@@ -10,6 +10,8 @@ export { FileInventoryController } from './inventory/file-inventory.controller';
 export { FileCategoryApiService } from './categories/file-category-api.service';
 export { FileRetentionApiService } from './retention/file-retention-api.service';
 export { FileRetentionController } from './retention/file-retention.controller';
+export { FileQuotaApiService } from './quotas/file-quota-api.service';
+export { FileQuotaController } from './quotas/file-quota.controller';
 export { FileCategoryController, parseOverrideBody } from './categories/file-category.controller';
 export type {
   FileInventoryQueryDto,

@@ -53,6 +53,8 @@ function makeService(over: {
   signedLink?: { fileRecordId: string } | null;
   accessRecord?: () => Promise<void>;
   rejectionRecord?: () => Promise<void>;
+  quota?: { tenantId: string; maxBytes: number; updatedAt: Date; updatedBy: string };
+  used?: number;
 } = {}) {
   const fileStore: FileStore = {
     upload: vi.fn().mockResolvedValue({ fileRef: 'kyc/t1/f1.pdf' }),
@@ -80,6 +82,13 @@ function makeService(over: {
   const accessRecorder = { record: vi.fn(over.accessRecord ?? (() => Promise.resolve())) };
   const rejectionRecorder = { record: vi.fn(over.rejectionRecord ?? (() => Promise.resolve())) };
   const audit = { emit: vi.fn().mockResolvedValue(undefined) };
+  const quotas = {
+    getQuota: vi.fn().mockResolvedValue(over.quota ?? null),
+    usage: vi.fn().mockResolvedValue(over.used ?? 0),
+    setQuota: vi.fn(),
+    clearQuota: vi.fn(),
+    listQuotas: vi.fn(),
+  };
   const signedLinks = {
     resolve: vi.fn().mockResolvedValue('signedLink' in over ? over.signedLink : { fileRecordId: 'f1' }),
   };
@@ -95,8 +104,9 @@ function makeService(over: {
     signedLinks,
     audit,
     resolveFileStorageOptions({}),
+    quotas,
   );
-  return { service, fileStore, store, registry, scanner, accessRecorder, rejectionRecorder, audit, signedLinks };
+  return { service, fileStore, store, registry, scanner, accessRecorder, rejectionRecorder, audit, signedLinks, quotas };
 }
 
 const goodUpload = {
@@ -435,5 +445,29 @@ describe('AttachmentService legal hold', () => {
   it("refuses another tenant's file", async () => {
     const { service } = makeService({ store: { getFileRecordById: vi.fn().mockResolvedValue(fileRecord({ tenantId: 't2' })) } });
     await expect(service.placeLegalHold({ fileRecordId: 'f1', actor: issuer, reason: 'x' })).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe('AttachmentService.attach — storage limit', () => {
+  const quota = { tenantId: 't1', maxBytes: 100, updatedAt: new Date(), updatedBy: 'pa' };
+
+  it('refuses an upload that would pass the limit, records it, and never stores a byte', async () => {
+    const { service, fileStore, rejectionRecorder, scanner } = makeService({ quota, used: 95 });
+    await expect(service.attach(goodUpload)).rejects.toThrow(/storage is full — 95 of 100 bytes used/);
+    expect(fileStore.upload).not.toHaveBeenCalled();
+    expect(scanner.scan).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(rejectionRecorder.record).toHaveBeenCalledWith(expect.objectContaining({ reason: 'quota-exceeded' })));
+  });
+
+  it('lets an upload that fits through', async () => {
+    const { service, fileStore } = makeService({ quota, used: 80 });
+    await service.attach(goodUpload);
+    expect(fileStore.upload).toHaveBeenCalled();
+  });
+
+  it('no limit → usage is never read', async () => {
+    const { service, quotas } = makeService();
+    await service.attach(goodUpload);
+    expect(quotas.usage).not.toHaveBeenCalled();
   });
 });

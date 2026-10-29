@@ -8,12 +8,15 @@ import { FileInventoryController } from './inventory/file-inventory.controller';
 import { FILE_STORAGE_API_AUDIT_EMITTER, FILE_STORAGE_API_USER_DIRECTORY } from './tokens';
 import { FileCategoryController } from './categories/file-category.controller';
 import { FileRetentionController } from './retention/file-retention.controller';
+import { FileQuotaController } from './quotas/file-quota.controller';
 import {
   AttachmentService,
   FileRetentionService,
   FILE_CATEGORY_ADMIN_PORT,
   FILE_STORAGE_OBSERVABILITY_PORT,
   FILE_STORAGE_OPTIONS,
+  STORAGE_QUOTA_STORE,
+  NoStorageQuotas,
   resolveFileStorageOptions,
 } from '../file-storage.core';
 
@@ -24,8 +27,9 @@ import {
     { provide: AttachmentService, useValue: {} },
     { provide: FileRetentionService, useValue: {} },
     { provide: FILE_STORAGE_OPTIONS, useValue: resolveFileStorageOptions({}) },
+    { provide: STORAGE_QUOTA_STORE, useClass: NoStorageQuotas },
   ],
-  exports: [FILE_STORAGE_OBSERVABILITY_PORT, FILE_CATEGORY_ADMIN_PORT, AttachmentService, FileRetentionService, FILE_STORAGE_OPTIONS],
+  exports: [FILE_STORAGE_OBSERVABILITY_PORT, FILE_CATEGORY_ADMIN_PORT, AttachmentService, FileRetentionService, FILE_STORAGE_OPTIONS, STORAGE_QUOTA_STORE],
 })
 class FakePortsModule {}
 
@@ -57,6 +61,11 @@ describe('FileStorageApiModule.forRoot', () => {
   });
 
   it('registers the catalog controller before the inventory one — else GET files/:id answers GET files/categories', () => {
-    expect(FileStorageApiModule.forRoot().controllers).toEqual([FileCategoryController, FileRetentionController, FileInventoryController]);
+    expect(FileStorageApiModule.forRoot().controllers).toEqual([
+      FileCategoryController,
+      FileQuotaController,
+      FileRetentionController,
+      FileInventoryController,
+    ]);
   });
 });

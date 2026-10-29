@@ -18,6 +18,7 @@ import {
   type StorageUsageQuery,
   type StorageUsageRow,
   type CategoryUsageRow,
+  type FileUploadRejectionReason,
 } from '../../file-storage.core';
 import type { SqlExecutor } from '../persistence/sql-executor';
 import { toAttachment, toFileRecord } from '../persistence/row-mappers';
@@ -278,7 +279,7 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
         filename: r.filename as string,
         contentType: r.content_type as string,
         sizeBytes: Number(r.size_bytes),
-        reason: r.reason as 'category-unavailable' | 'validation-failed' | 'scan-rejected',
+        reason: r.reason as FileUploadRejectionReason,
         message: r.message as string,
         occurredAt: new Date(r.occurred_at as string),
       })),

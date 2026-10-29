@@ -5,7 +5,7 @@
  * validation library.
  */
 
-export const FILE_REJECTION_REASONS = ['category-unavailable', 'validation-failed', 'scan-rejected'] as const;
+export const FILE_REJECTION_REASONS = ['category-unavailable', 'validation-failed', 'quota-exceeded', 'scan-rejected'] as const;
 export type FileRejectionReasonParam = (typeof FILE_REJECTION_REASONS)[number];
 
 export interface FileInventoryQueryDto {

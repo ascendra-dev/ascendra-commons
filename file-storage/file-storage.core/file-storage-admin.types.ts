@@ -160,7 +160,7 @@ export interface FileRejectionQuery {
   /** Forced to the actor's own tenant for a non-platform actor by `file-storage.api`. */
   tenantId?: string;
   category?: string;
-  reason?: 'category-unavailable' | 'validation-failed' | 'scan-rejected';
+  reason?: FileUploadRejectionReason;
   limit?: number;
   cursor?: string;
 }
@@ -173,7 +173,7 @@ export interface FileRejectionRow {
   filename: string;
   contentType: string;
   sizeBytes: number;
-  reason: 'category-unavailable' | 'validation-failed' | 'scan-rejected';
+  reason: FileUploadRejectionReason;
   message: string;
   occurredAt: Date;
 }

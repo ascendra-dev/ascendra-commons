@@ -1,5 +1,12 @@
 /* persistence (tables for typed queries — never re-exported to drizzle-kit; the DDL is migrations/) */
-export { fileRecordTable, attachmentTable, fileCategoryTable, fileAccessTable, fileRejectionTable } from './persistence';
+export {
+  fileRecordTable,
+  attachmentTable,
+  fileCategoryTable,
+  fileAccessTable,
+  fileRejectionTable,
+  tenantQuotaTable,
+} from './persistence';
 export type { SqlExecutor } from './persistence/sql-executor';
 
 /* attachment store (Model 1 metadata) */
@@ -25,6 +32,11 @@ export { PostgresFileRetentionStore } from './retention/postgres-file-retention-
 export { PostgresFileRetentionModule } from './retention/postgres-file-retention.module';
 export type { PostgresFileRetentionModuleConfig } from './retention/postgres-file-retention.module';
 
+/* storage limits */
+export { PostgresStorageQuotaStore } from './quota/postgres-storage-quota-store';
+export { PostgresStorageQuotaModule } from './quota/postgres-storage-quota.module';
+export type { PostgresStorageQuotaModuleConfig } from './quota/postgres-storage-quota.module';
+
 /* rejected uploads */
 export { PostgresFileUploadRejectionRecorder } from './rejections/postgres-file-upload-rejection-recorder';
 
@@ -38,4 +50,5 @@ export {
   POSTGRES_FILE_UPLOAD_REJECTION_RECORDER,
   POSTGRES_FILE_STORAGE_OBSERVABILITY,
   POSTGRES_FILE_RETENTION_STORE,
+  POSTGRES_STORAGE_QUOTA_STORE,
 } from './tokens';

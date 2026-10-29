@@ -8,6 +8,8 @@ import { FileCategoryApiService } from './categories/file-category-api.service';
 import { FileCategoryController } from './categories/file-category.controller';
 import { FileRetentionApiService } from './retention/file-retention-api.service';
 import { FileRetentionController } from './retention/file-retention.controller';
+import { FileQuotaApiService } from './quotas/file-quota-api.service';
+import { FileQuotaController } from './quotas/file-quota.controller';
 
 /**
  * HTTP endpoints for an ops / compliance file-administration UI, over the
@@ -38,8 +40,8 @@ export class FileStorageApiModule {
       module: FileStorageApiModule,
       imports: config.imports ?? [],
       // FileInventoryController last: Express matches in registration order, and its
-      // `GET files/:id` would otherwise answer `GET files/categories` / `GET files/retention`.
-      controllers: [FileCategoryController, FileRetentionController, FileInventoryController],
+      // `GET files/:id` would otherwise answer `GET files/categories`, `files/quotas`, `files/retention`.
+      controllers: [FileCategoryController, FileQuotaController, FileRetentionController, FileInventoryController],
       providers: [
         config.auditEmitterToken
           ? { provide: FILE_STORAGE_API_AUDIT_EMITTER, useExisting: config.auditEmitterToken }
@@ -50,6 +52,7 @@ export class FileStorageApiModule {
         FileInventoryApiService,
         FileCategoryApiService,
         FileRetentionApiService,
+        FileQuotaApiService,
       ],
     };
   }

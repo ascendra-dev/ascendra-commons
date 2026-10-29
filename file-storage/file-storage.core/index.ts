@@ -35,6 +35,10 @@ export { MissingSignedLinkResolver, MissingSignedLinkResolverError } from './sig
 export type { FileStorageAuditEmitter, FileStorageAuditEvent } from './file-storage-audit.port';
 export { NoopFileStorageAuditEmitter } from './file-storage-audit.port';
 
+/* storage limits */
+export type { StorageQuotaStore, TenantQuota, TenantQuotaUsage } from './storage-quota.port';
+export { NoStorageQuotas } from './storage-quota.port';
+
 /* retention */
 export type { FileRetentionStore, FileRetentionVolume } from './file-retention-store.port';
 export { MissingFileRetentionStore, MissingFileRetentionStoreError } from './file-retention-store.port';
@@ -114,6 +118,7 @@ export {
   SIGNED_LINK_RESOLVER,
   FILE_STORAGE_AUDIT_EMITTER,
   FILE_RETENTION_STORE,
+  STORAGE_QUOTA_STORE,
   FILE_STORAGE_OPTIONS,
   FILE_STORE_CONFIG,
   ENTITY_ACCESS_CHECKERS,
