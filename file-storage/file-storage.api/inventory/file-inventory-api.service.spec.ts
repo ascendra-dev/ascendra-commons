@@ -1,15 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { FileInventoryApiService } from './file-inventory-api.service';
+import { InvalidFileCursorError, resolveFileStorageOptions } from '../../file-storage.core';
 import type { Actor } from '../../../authorization/authorization.core';
 
 const tenantAdmin: Actor = { id: 'ta', persona: 'ops', tenantId: 't1' };
 const platformAdmin: Actor = { id: 'pa', persona: 'ops', tenantId: null };
+const detail = (tenantId = 't1') => ({ fileRecord: { id: 'f1', tenantId }, attachments: [{ id: 'a1', fileRecordId: 'f1' }] });
 
-function make(over: { getFile?: unknown } = {}) {
+function make(over: { getFile?: unknown; listFiles?: unknown } = {}) {
   const port = {
-    listFiles: vi.fn().mockResolvedValue({ rows: [], nextCursor: null }),
-    getFile: vi.fn().mockResolvedValue('getFile' in over ? over.getFile : { fileRecord: { tenantId: 't1' }, attachments: [] }),
+    listFiles: vi.fn(over.listFiles ? (over.listFiles as () => Promise<unknown>) : async () => ({ rows: [], nextCursor: null })),
+    getFile: vi.fn().mockResolvedValue('getFile' in over ? over.getFile : detail()),
     storageUsage: vi.fn().mockResolvedValue([]),
     listOrphanedFileRecords: vi.fn().mockResolvedValue({ rows: [], nextCursor: null }),
     getAccessLog: vi.fn().mockResolvedValue({ rows: [], nextCursor: null }),
@@ -21,83 +23,97 @@ function make(over: { getFile?: unknown } = {}) {
     getDownloadUrl: vi.fn().mockResolvedValue('https://url'),
     deleteFile: vi.fn().mockResolvedValue(undefined),
     detach: vi.fn().mockResolvedValue(undefined),
+    placeLegalHold: vi.fn().mockResolvedValue({ id: 'f1' }),
+    releaseLegalHold: vi.fn().mockResolvedValue({ id: 'f1' }),
   };
   const audit = { record: vi.fn() };
-  const svc = new FileInventoryApiService(
-    port as never,
-    attachments as never,
-    { isPlatformAdmin: (a: Actor) => a.tenantId === null, downloadUrlExpiry: { inApp: 300, shareableLink: 3600 } },
-    audit as never,
-  );
+  const svc = new FileInventoryApiService(port as never, attachments as never, resolveFileStorageOptions({}), audit as never);
   return { svc, port, attachments, audit };
 }
 
 describe('FileInventoryApiService tenant scoping', () => {
-  it('forces a non-platform actor to their own tenant on list', async () => {
+  it('forces a non-platform actor to their own tenant on every list', async () => {
     const { svc, port } = make();
     await svc.listFiles(tenantAdmin, { tenantId: 't2' });
+    await svc.stats(tenantAdmin, { tenantId: 't2', windowDays: 7 });
+    await svc.listRejections(tenantAdmin, { tenantId: 't2', reason: 'validation-failed' });
+    await svc.listOrphans(tenantAdmin, { tenantId: 't2' });
     expect(port.listFiles).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't1' }));
+    expect(port.statsSummary).toHaveBeenCalledWith({ tenantId: 't1', windowDays: 7 });
+    expect(port.listRejections).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't1', reason: 'validation-failed' }));
+    expect(port.listOrphanedFileRecords).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't1' }));
   });
 
-  it('lets a platform admin filter by any tenant', async () => {
+  it('lets a platform admin filter by any tenant, or none', async () => {
     const { svc, port } = make();
     await svc.listFiles(platformAdmin, { tenantId: 't9' });
+    await svc.stats(platformAdmin, {});
     expect(port.listFiles).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't9' }));
+    expect(port.statsSummary).toHaveBeenCalledWith({ tenantId: undefined });
   });
 
-  it('getFile 404s an unknown id', async () => {
-    const { svc } = make({ getFile: null });
-    await expect(svc.getFile(tenantAdmin, 'x')).rejects.toBeInstanceOf(NotFoundException);
+  it('refuses a non-platform actor with no tenant', async () => {
+    const { port, attachments, audit } = make();
+    const strict = new FileInventoryApiService(port as never, attachments as never, resolveFileStorageOptions({ isPlatformAdmin: () => false }), audit as never);
+    await expect(strict.listFiles({ id: 'x', persona: 'p', tenantId: null }, {})).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('getFile refuses a cross-tenant file for a tenant admin', async () => {
-    const { svc } = make({ getFile: { fileRecord: { tenantId: 't2' }, attachments: [] } });
-    await expect(svc.getFile(tenantAdmin, 'x')).rejects.toBeInstanceOf(ForbiddenException);
+  it('getFile 404s an unknown id and 403s another tenant', async () => {
+    await expect(make({ getFile: null }).svc.getFile(tenantAdmin, 'x')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(make({ getFile: detail('t2') }).svc.getFile(tenantAdmin, 'x')).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('getFile attaches a short-lived in-app URL', async () => {
+  it('a cursor the adapter cannot decode is a 400', async () => {
+    const { svc } = make({ listFiles: async () => Promise.reject(new InvalidFileCursorError('zzz')) });
+    await expect(svc.listFiles(tenantAdmin, { cursor: 'zzz' })).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('FileInventoryApiService content', () => {
+  it('getFile returns the record without minting a URL — opening it is its own action', async () => {
     const { svc, attachments } = make();
     const res = await svc.getFile(tenantAdmin, 'f1');
-    expect(res.url).toBe('https://url');
-    expect(attachments.getDownloadUrl).toHaveBeenCalledWith({ fileRecordId: 'f1', actor: tenantAdmin, purpose: 'in-app' });
+    expect(res).not.toHaveProperty('url');
+    expect(attachments.getDownloadUrl).not.toHaveBeenCalled();
   });
 
-  it('deleteFile delegates to AttachmentService and records an audit event', async () => {
+  it("issueDownloadUrl mints an in-app URL and audits a content view against the file's tenant", async () => {
+    const { svc, attachments, audit } = make({ getFile: detail('t7') });
+    const res = await svc.issueDownloadUrl(platformAdmin, 'f1');
+    expect(res.url).toBe('https://url');
+    expect(res.expiresAt.getTime()).toBeGreaterThan(Date.now());
+    expect(attachments.getDownloadUrl).toHaveBeenCalledWith({ fileRecordId: 'f1', actor: platformAdmin, purpose: 'in-app' });
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'file.content_viewed', tenantId: 't7', entityId: 'f1' }));
+  });
+
+  it("issueDownloadUrl refuses another tenant's file before minting anything", async () => {
+    const { svc, attachments } = make({ getFile: detail('t2') });
+    await expect(svc.issueDownloadUrl(tenantAdmin, 'f1')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(attachments.getDownloadUrl).not.toHaveBeenCalled();
+  });
+});
+
+describe('FileInventoryApiService mutations', () => {
+  it('deleteFile delegates to AttachmentService, which audits it — no second event here', async () => {
     const { svc, attachments, audit } = make();
     await svc.deleteFile(tenantAdmin, 'f1');
     expect(attachments.deleteFile).toHaveBeenCalledWith({ fileRecordId: 'f1', actor: tenantAdmin });
-    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'file.deleted', entityId: 'f1' }));
+    expect(audit.record).not.toHaveBeenCalled();
   });
 
-  it('stats forces a non-platform actor to their own tenant and forwards windowDays', async () => {
-    const { svc, port } = make();
-    await svc.stats(tenantAdmin, { tenantId: 't2', windowDays: 7 });
-    expect(port.statsSummary).toHaveBeenCalledWith({ tenantId: 't1', windowDays: 7 });
+  it("detach 404s an attachment that isn't on this file", async () => {
+    const { svc, attachments } = make();
+    await expect(svc.detach(tenantAdmin, 'f1', 'other')).rejects.toBeInstanceOf(NotFoundException);
+    expect(attachments.detach).not.toHaveBeenCalled();
+    await svc.detach(tenantAdmin, 'f1', 'a1');
+    expect(attachments.detach).toHaveBeenCalledWith({ attachmentId: 'a1', actor: tenantAdmin });
   });
 
-  it('stats lets a platform admin filter by any tenant', async () => {
-    const { svc, port } = make();
-    await svc.stats(platformAdmin, { tenantId: 't9' });
-    expect(port.statsSummary).toHaveBeenCalledWith({ tenantId: 't9', windowDays: undefined });
-  });
-
-  it('listRejections forces a non-platform actor to their own tenant and forwards filters', async () => {
-    const { svc, port } = make();
-    await svc.listRejections(tenantAdmin, { tenantId: 't2', category: 'kyc.identity-document', reason: 'validation-failed', limit: 20 });
-    expect(port.listRejections).toHaveBeenCalledWith({
-      tenantId: 't1',
-      category: 'kyc.identity-document',
-      reason: 'validation-failed',
-      limit: 20,
-      cursor: undefined,
-    });
-  });
-
-  it('listRejections lets a platform admin filter by any tenant', async () => {
-    const { svc, port } = make();
-    await svc.listRejections(platformAdmin, { tenantId: 't9' });
-    expect(port.listRejections).toHaveBeenCalledWith(
-      expect.objectContaining({ tenantId: 't9' }),
-    );
+  it('legal holds delegate to AttachmentService', async () => {
+    const { svc, attachments } = make();
+    await svc.placeLegalHold(tenantAdmin, 'f1', 'dispute');
+    await svc.releaseLegalHold(tenantAdmin, 'f1');
+    expect(attachments.placeLegalHold).toHaveBeenCalledWith({ fileRecordId: 'f1', actor: tenantAdmin, reason: 'dispute' });
+    expect(attachments.releaseLegalHold).toHaveBeenCalledWith({ fileRecordId: 'f1', actor: tenantAdmin });
   });
 });

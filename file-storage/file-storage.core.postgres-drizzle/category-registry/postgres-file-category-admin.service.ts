@@ -88,6 +88,7 @@ export class PostgresFileCategoryAdminService implements FileCategoryAdminPort {
   }
 
   async deactivateCategory(tenantId: string | null, key: string): Promise<void> {
+    await this.requireBase(key);
     if (tenantId === null) {
       await this.db.execute(sql`
         update commons_file_category set active = false, updated_at = now()
@@ -102,6 +103,20 @@ export class PostgresFileCategoryAdminService implements FileCategoryAdminPort {
       `);
     }
     this.cache.clear();
+  }
+
+  async activateBaseCategory(key: string): Promise<FileCategoryView> {
+    await this.requireBase(key);
+    await this.db.execute(sql`
+      update commons_file_category set active = true, updated_at = now() where key = ${key} and tenant_id is null
+    `);
+    this.cache.clear();
+    return (await this.getCategory(null, key))!;
+  }
+
+  private async requireBase(key: string): Promise<void> {
+    const { rows } = await this.db.execute(sql`select 1 from commons_file_category where key = ${key} and tenant_id is null`);
+    if (rows.length === 0) throw new CategoryNotFoundError(key);
   }
 
   private toView(

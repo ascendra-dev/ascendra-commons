@@ -3,6 +3,7 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 import { PostgresFileStorageObservabilityService } from './postgres-file-storage-observability.service';
 import type { SqlExecutor } from '../persistence/sql-executor';
+import { decodeKeysetCursor, encodeKeysetCursor, InvalidFileCursorError } from '../../file-storage.core';
 
 const dialect = new PgDialect();
 const lastQuery = (execute: ReturnType<typeof vi.fn>) =>
@@ -105,5 +106,43 @@ describe('PostgresFileStorageObservabilityService', () => {
     const page = await svc.listRejections({ limit: 2 });
     expect(page.rows).toHaveLength(2);
     expect(page.nextCursor).not.toBeNull();
+  });
+});
+
+describe('PostgresFileStorageObservabilityService cursors', () => {
+  const id = (n: number) => `0b9f6c2e-3c1a-4f7e-9a0b-1c2d3e4f5a6${n}`;
+
+  it("issues the next cursor from the last row's microsecond key — not a millisecond Date", async () => {
+    const rows = [0, 1, 2].map((n) => ({
+      id: id(n), tenant_id: 't1', category: 'kyc', content_type: 'x', size_bytes: 1, uploaded_by: 'u',
+      created_at: '2026-10-29T10:00:00.123Z', created_at_key: `2026-10-29T10:00:00.12345${n}Z`, attachment_count: 0,
+    }));
+    const svc = new PostgresFileStorageObservabilityService({ execute: vi.fn().mockResolvedValue({ rows }) } as SqlExecutor);
+    const page = await svc.listFiles({ limit: 2 });
+    expect(decodeKeysetCursor(page.nextCursor!)).toEqual({ timestamp: '2026-10-29T10:00:00.123451Z', id: id(1) });
+  });
+
+  it('compares against the cursor at full precision', async () => {
+    const execute = vi.fn().mockResolvedValue({ rows: [] });
+    const svc = new PostgresFileStorageObservabilityService({ execute } as SqlExecutor);
+    await svc.listRejections({ cursor: encodeKeysetCursor('2026-10-29T10:00:00.123451Z', id(1)) });
+    const q = lastQuery(execute);
+    expect(q.sql).toMatch(/\(occurred_at, id\) < \(\$\d+::timestamptz, \$\d+::uuid\)/);
+    expect(q.params).toContain('2026-10-29T10:00:00.123451Z');
+  });
+
+  it('throws InvalidFileCursorError for a cursor it never issued', async () => {
+    const svc = new PostgresFileStorageObservabilityService({ execute: vi.fn() } as never);
+    await expect(svc.listFiles({ cursor: 'nope' })).rejects.toBeInstanceOf(InvalidFileCursorError);
+    await expect(svc.getAccessLog('f1', { cursor: 'nope' })).rejects.toBeInstanceOf(InvalidFileCursorError);
+  });
+
+  it('filters by hold and by filename, escaping LIKE wildcards', async () => {
+    const execute = vi.fn().mockResolvedValue({ rows: [] });
+    const svc = new PostgresFileStorageObservabilityService({ execute } as SqlExecutor);
+    await svc.listFiles({ held: true, search: '50%_off' });
+    const q = lastQuery(execute);
+    expect(q.sql).toMatch(/f\.held_at is not null/);
+    expect(q.params).toContain('%50\\%\\_off%');
   });
 });

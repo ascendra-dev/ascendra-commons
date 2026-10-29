@@ -7,7 +7,7 @@ export { FILE_STORAGE_API_AUDIT_EMITTER } from './tokens';
 export { FileInventoryApiService } from './inventory/file-inventory-api.service';
 export { FileInventoryController } from './inventory/file-inventory.controller';
 export { FileCategoryApiService } from './categories/file-category-api.service';
-export { FileCategoryController } from './categories/file-category.controller';
+export { FileCategoryController, parseOverrideBody } from './categories/file-category.controller';
 export type {
   FileInventoryQueryDto,
   StorageUsageQueryDto,
@@ -16,4 +16,7 @@ export type {
   FileStatsQueryDto,
   FileRejectionQueryDto,
   UpsertCategoryOverrideBody,
+  PlaceLegalHoldBody,
+  FileRejectionReasonParam,
 } from './dto/file-storage-api.dto';
+export { FILE_REJECTION_REASONS } from './dto/file-storage-api.dto';

@@ -71,7 +71,13 @@ export {
 } from './file-storage-admin.types';
 
 /* pagination helper */
-export { encodeKeysetCursor, decodeKeysetCursor } from './keyset-cursor';
+export {
+  encodeKeysetCursor,
+  decodeKeysetCursor,
+  requireKeysetCursor,
+  InvalidFileCursorError,
+  isUuid,
+} from './keyset-cursor';
 
 /* module + options */
 export { FileStorageModule } from './file-storage.module';

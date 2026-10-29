@@ -7,10 +7,14 @@ import type { DynamicModule } from '@nestjs/common';
  * admin role to *also* grant these.
  */
 export const FILE_STORAGE_ACTIONS = {
-  /** Read the file inventory, one file, its access log, storage usage, orphans, the category catalog. */
+  /** Read the file inventory, one file's record, its access log, storage usage, orphans, the category catalog. */
   VIEW: 'file.view',
+  /** Open a file's content — a short-lived download URL. Its own action, and every one is audited and access-logged. */
+  VIEW_CONTENT: 'file.view_content',
   /** Delete a file, detach an attachment. */
   DELETE: 'file.delete',
+  /** Place or release a legal hold. */
+  HOLD: 'file.hold',
   /** Edit / deactivate a file category (tenant override, or — platform admin — the base row). */
   MANAGE_CATEGORY: 'file.category.manage',
 } as const;

@@ -12,7 +12,12 @@ export interface FileInventoryQuery {
   uploadedAfter?: Date;
   uploadedBefore?: Date;
   minSizeBytes?: number;
+  /** `true` → only files under legal hold; `false` → only files not held. */
+  held?: boolean;
+  /** Case-insensitive substring of the stored filename. */
+  search?: string;
   limit?: number;
+  /** A cursor this list issued — anything else throws `InvalidFileCursorError`. */
   cursor?: string;
 }
 
@@ -23,6 +28,11 @@ export interface FileInventoryRow {
   contentType: string;
   sizeBytes: number;
   uploadedBy: string;
+  filename: string | null;
+  scanVerdict: 'clean' | 'unscannable' | null;
+  retainUntil: Date | null;
+  /** When a legal hold was placed — `null` when not held. */
+  heldAt: Date | null;
   createdAt: Date;
   attachmentCount: number;
 }
@@ -67,6 +77,7 @@ export interface OrphanedFileRow {
   tenantId: string;
   category: string;
   fileRef: string;
+  filename: string | null;
   sizeBytes: number;
   createdAt: Date;
 }

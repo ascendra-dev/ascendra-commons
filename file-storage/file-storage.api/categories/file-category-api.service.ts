@@ -15,6 +15,7 @@ import {
   FILE_STORAGE_OBSERVABILITY_PORT,
   FILE_STORAGE_OPTIONS,
   type FileCategoryAdminPort,
+  type FileCategoryView,
   type FileStorageObservabilityPort,
   type FileStorageOptions,
 } from '../../file-storage.core';
@@ -29,8 +30,11 @@ import type { UpsertCategoryOverrideBody } from '../dto/file-storage-api.dto';
  *
  *   - reads (`file.view`)          — effective catalog + live counts.
  *   - `PATCH` / `DELETE` (`file.category.manage`) — a tenant admin edits their
- *     own tenant's override; a platform admin may target `?tenantId=` or, on
- *     `DELETE`, the base row.
+ *     own tenant's override; a platform admin may target `?tenantId=` or — with
+ *     no tenant — turn the base row off (`DELETE`) and back on (`PATCH { active: true }`).
+ *
+ * Every write is audited against the tenant it changed (`null` for the base
+ * row), with the override as it was before.
  */
 @Injectable()
 export class FileCategoryApiService {
@@ -56,18 +60,19 @@ export class FileCategoryApiService {
 
   async getCategory(actor: Actor, key: string, requestedTenantId?: string) {
     const view = await this.port.getCategory(await this.viewTenant(actor, requestedTenantId), key);
-    if (!view) throw new NotFoundException();
+    if (!view) throw new NotFoundException(`no file category '${key}'`);
     return view;
   }
 
-  async upsertOverride(actor: Actor, key: string, body: UpsertCategoryOverrideBody) {
+  async upsertOverride(actor: Actor, key: string, body: UpsertCategoryOverrideBody): Promise<FileCategoryView> {
     const tenantId = await this.writeTenant(actor, body.tenantId);
-    if (tenantId === null) {
-      throw new BadRequestException('a category override is always per-tenant — supply tenantId (platform admin) or call as a tenant admin');
-    }
     const { tenantId: _ignored, ...input } = body;
+
+    if (tenantId === null) return this.reactivateBase(actor, key, input);
+
+    const before = await this.requireView(tenantId, key);
     try {
-      await this.assertExpiryWithinDefault(tenantId, key, input.signedLinkExpirySeconds);
+      this.assertExpiryWithinDefault(before, input.signedLinkExpirySeconds);
       const view = await this.port.upsertTenantOverride(tenantId, key, input);
       await this.audit.record({
         action: 'file.category_override_set',
@@ -75,7 +80,8 @@ export class FileCategoryApiService {
         tenantId,
         entityType: 'file_category',
         entityId: `${key}:${tenantId}`,
-        after: input,
+        before: before.override,
+        after: view.override,
       });
       return view;
     } catch (e) {
@@ -85,6 +91,7 @@ export class FileCategoryApiService {
 
   async deactivate(actor: Actor, key: string, requestedTenantId?: string): Promise<void> {
     const tenantId = await this.writeTenant(actor, requestedTenantId);
+    const before = await this.requireView(tenantId, key);
     try {
       await this.port.deactivateCategory(tenantId, key);
     } catch (e) {
@@ -93,10 +100,52 @@ export class FileCategoryApiService {
     await this.audit.record({
       action: 'file.category_deactivated',
       actorId: actor.id,
-      tenantId: actor.tenantId,
+      tenantId,
       entityType: 'file_category',
       entityId: `${key}:${tenantId ?? 'base'}`,
+      before: tenantId === null ? { active: before.base.active } : before.override,
     });
+  }
+
+  /** A platform admin's PATCH with no tenant: the base row's only writable field is `active`, and only `true` (DELETE turns it off). */
+  private async reactivateBase(actor: Actor, key: string, input: Omit<UpsertCategoryOverrideBody, 'tenantId'>) {
+    const fields = Object.keys(input);
+    if (fields.length !== 1 || input.active !== true) {
+      throw new BadRequestException(
+        'a base category is edited in code — with no tenantId, PATCH only turns it back on ({ "active": true }); name a tenantId to write that tenant\'s override',
+      );
+    }
+    const before = await this.requireView(null, key);
+    const view = await this.port.activateBaseCategory(key);
+    await this.audit.record({
+      action: 'file.category_activated',
+      actorId: actor.id,
+      tenantId: null,
+      entityType: 'file_category',
+      entityId: `${key}:base`,
+      before: { active: before.base.active },
+      after: { active: true },
+    });
+    return view;
+  }
+
+  /**
+   * A base category with no expiry of its own uses the module default — the
+   * ceiling a tenant's shorter link must stay under (`assertOverrideTightens`
+   * only knows the base row, not the module default).
+   */
+  private assertExpiryWithinDefault(view: FileCategoryView, seconds: number | null | undefined) {
+    if (seconds == null) return;
+    const ceiling = this.options.downloadUrlExpiry.shareableLink;
+    if (view.base.signedLinkExpirySeconds === undefined && seconds > ceiling) {
+      throw new CategoryLooseningNotAllowedError('signedLinkExpirySeconds');
+    }
+  }
+
+  private async requireView(tenantId: string | null, key: string): Promise<FileCategoryView> {
+    const view = await this.port.getCategory(tenantId, key);
+    if (!view) throw new NotFoundException(`no file category '${key}'`);
+    return view;
   }
 
   /* ─── tenant resolution ─────────────────────────────────────────────── */
@@ -106,7 +155,7 @@ export class FileCategoryApiService {
     return actor.tenantId;
   }
 
-  /** `null` only for a platform admin who did not name a tenant (→ the base row, `DELETE` only). */
+  /** `null` only for a platform admin who did not name a tenant (→ the base row). */
   private async writeTenant(actor: Actor, requested: string | undefined): Promise<string | null> {
     if (await this.options.isPlatformAdmin(actor)) return requested ?? null;
     if (!actor.tenantId) throw new ForbiddenException('no tenant context');
@@ -114,21 +163,6 @@ export class FileCategoryApiService {
       throw new ForbiddenException("cannot edit another tenant's category settings");
     }
     return actor.tenantId;
-  }
-
-  /**
-   * A base category with no expiry of its own uses the module default — the
-   * ceiling a tenant's shorter link must stay under (`assertOverrideTightens`
-   * only knows the base row, not the module default).
-   */
-  private async assertExpiryWithinDefault(tenantId: string, key: string, seconds: number | null | undefined) {
-    if (seconds == null) return;
-    const view = await this.port.getCategory(tenantId, key);
-    if (!view) throw new CategoryNotFoundError(key);
-    const ceiling = this.options.downloadUrlExpiry.shareableLink;
-    if (view.base.signedLinkExpirySeconds === undefined && seconds > ceiling) {
-      throw new CategoryLooseningNotAllowedError('signedLinkExpirySeconds');
-    }
   }
 
   private mapError(e: unknown): Error {

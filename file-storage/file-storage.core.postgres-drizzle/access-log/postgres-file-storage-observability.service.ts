@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql, type SQL } from 'drizzle-orm';
 import {
-  decodeKeysetCursor,
   encodeKeysetCursor,
+  requireKeysetCursor,
   type FileAccessLogPage,
   type FileDetail,
   type FileInventoryPage,
@@ -25,6 +25,17 @@ import { FILE_STORAGE_SQL_EXECUTOR } from '../tokens';
 const and = (parts: SQL[]): SQL =>
   parts.length === 0 ? sql`true` : sql.join(parts, sql` and `);
 
+/** A timestamp column as the cursor's key — UTC, at the column's microsecond precision (a JS Date keeps ms). */
+const key = (column: SQL) => sql`to_char(${column} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+
+/** The keyset condition for a newest-first page: the row comes after the cursor's (timestamp, id). */
+const after = (tsColumn: SQL, idColumn: SQL, cursor: string): SQL => {
+  const c = requireKeysetCursor(cursor);
+  return sql`(${tsColumn}, ${idColumn}) < (${c.timestamp}::timestamptz, ${c.id}::uuid)`;
+};
+
+const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
+
 @Injectable()
 export class PostgresFileStorageObservabilityService implements FileStorageObservabilityPort {
   constructor(@Inject(FILE_STORAGE_SQL_EXECUTOR) private readonly db: SqlExecutor) {}
@@ -38,11 +49,13 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
     if (query.uploadedAfter) where.push(sql`f.created_at >= ${query.uploadedAfter}`);
     if (query.uploadedBefore) where.push(sql`f.created_at <= ${query.uploadedBefore}`);
     if (query.minSizeBytes !== undefined) where.push(sql`f.size_bytes >= ${query.minSizeBytes}`);
-    const cur = query.cursor ? decodeKeysetCursor(query.cursor) : null;
-    if (cur) where.push(sql`(f.created_at, f.id) < (${cur.timestamp}, ${cur.id})`);
+    if (query.held !== undefined) where.push(query.held ? sql`f.held_at is not null` : sql`f.held_at is null`);
+    if (query.search) where.push(sql`f.filename ilike ${`%${escapeLike(query.search)}%`}`);
+    if (query.cursor) where.push(after(sql`f.created_at`, sql`f.id`, query.cursor));
 
     const { rows } = await this.db.execute(sql`
-      select f.*, (select count(*) from commons_attachment a where a.file_record_id = f.id) as attachment_count
+      select f.*, ${key(sql`f.created_at`)} as created_at_key,
+        (select count(*) from commons_attachment a where a.file_record_id = f.id) as attachment_count
       from commons_file_record f
       where ${and(where)}
       order by f.created_at desc, f.id desc
@@ -58,13 +71,14 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
         contentType: r.content_type as string,
         sizeBytes: Number(r.size_bytes),
         uploadedBy: r.uploaded_by as string,
+        filename: (r.filename as string | null) ?? null,
+        scanVerdict: (r.scan_verdict as 'clean' | 'unscannable' | null) ?? null,
+        retainUntil: r.retain_until ? new Date(r.retain_until as string) : null,
+        heldAt: r.held_at ? new Date(r.held_at as string) : null,
         createdAt: new Date(r.created_at as string),
         attachmentCount: Number(r.attachment_count),
       })),
-      nextCursor:
-        rows.length > limit
-          ? encodeKeysetCursor(new Date(page[page.length - 1].created_at as string), page[page.length - 1].id as string)
-          : null,
+      nextCursor: nextCursor(rows, limit, 'created_at_key'),
     };
   }
 
@@ -98,11 +112,11 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
     const where: SQL[] = [sql`a.id is null`];
     if (query.tenantId) where.push(sql`f.tenant_id = ${query.tenantId}`);
     if (query.olderThan) where.push(sql`f.created_at < ${query.olderThan}`);
-    const cur = query.cursor ? decodeKeysetCursor(query.cursor) : null;
-    if (cur) where.push(sql`(f.created_at, f.id) < (${cur.timestamp}, ${cur.id})`);
+    if (query.cursor) where.push(after(sql`f.created_at`, sql`f.id`, query.cursor));
 
     const { rows } = await this.db.execute(sql`
-      select f.id, f.tenant_id, f.category, f.file_ref, f.size_bytes, f.created_at
+      select f.id, f.tenant_id, f.category, f.file_ref, f.size_bytes, f.created_at, f.filename,
+        ${key(sql`f.created_at`)} as created_at_key
       from commons_file_record f
       left join commons_attachment a on a.file_record_id = f.id
       where ${and(where)}
@@ -116,13 +130,11 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
         tenantId: r.tenant_id as string,
         category: r.category as string,
         fileRef: r.file_ref as string,
+        filename: (r.filename as string | null) ?? null,
         sizeBytes: Number(r.size_bytes),
         createdAt: new Date(r.created_at as string),
       })),
-      nextCursor:
-        rows.length > limit
-          ? encodeKeysetCursor(new Date(page[page.length - 1].created_at as string), page[page.length - 1].id as string)
-          : null,
+      nextCursor: nextCursor(rows, limit, 'created_at_key'),
     };
   }
 
@@ -132,11 +144,10 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
   ): Promise<FileAccessLogPage> {
     const limit = clampLimit(opts.limit);
     const where: SQL[] = [sql`file_record_id = ${fileRecordId}`];
-    const cur = opts.cursor ? decodeKeysetCursor(opts.cursor) : null;
-    if (cur) where.push(sql`(occurred_at, id) < (${cur.timestamp}, ${cur.id})`);
+    if (opts.cursor) where.push(after(sql`occurred_at`, sql`id`, opts.cursor));
 
     const { rows } = await this.db.execute(sql`
-      select id, actor_id, via, purpose, occurred_at from commons_file_access
+      select id, actor_id, via, purpose, occurred_at, ${key(sql`occurred_at`)} as occurred_at_key from commons_file_access
       where ${and(where)}
       order by occurred_at desc, id desc
       limit ${limit + 1}
@@ -150,10 +161,7 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
         purpose: r.purpose as string,
         occurredAt: new Date(r.occurred_at as string),
       })),
-      nextCursor:
-        rows.length > limit
-          ? encodeKeysetCursor(new Date(page[page.length - 1].occurred_at as string), page[page.length - 1].id as string)
-          : null,
+      nextCursor: nextCursor(rows, limit, 'occurred_at_key'),
     };
   }
 
@@ -218,11 +226,11 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
     if (query.tenantId) where.push(sql`tenant_id = ${query.tenantId}`);
     if (query.category) where.push(sql`category = ${query.category}`);
     if (query.reason) where.push(sql`reason = ${query.reason}`);
-    const cur = query.cursor ? decodeKeysetCursor(query.cursor) : null;
-    if (cur) where.push(sql`(occurred_at, id) < (${cur.timestamp}, ${cur.id})`);
+    if (query.cursor) where.push(after(sql`occurred_at`, sql`id`, query.cursor));
 
     const { rows } = await this.db.execute(sql`
-      select id, tenant_id, actor_id, category, filename, content_type, size_bytes, reason, message, occurred_at
+      select id, tenant_id, actor_id, category, filename, content_type, size_bytes, reason, message, occurred_at,
+        ${key(sql`occurred_at`)} as occurred_at_key
       from commons_file_rejection
       where ${and(where)}
       order by occurred_at desc, id desc
@@ -243,12 +251,16 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
         message: r.message as string,
         occurredAt: new Date(r.occurred_at as string),
       })),
-      nextCursor:
-        rows.length > limit
-          ? encodeKeysetCursor(new Date(page[page.length - 1].occurred_at as string), page[page.length - 1].id as string)
-          : null,
+      nextCursor: nextCursor(rows, limit, 'occurred_at_key'),
     };
   }
+}
+
+/** The cursor for the page after this one — from its last row's microsecond key — or `null` on the last page. */
+function nextCursor(rows: Array<Record<string, unknown>>, limit: number, keyColumn: string): string | null {
+  if (rows.length <= limit) return null;
+  const last = rows[limit - 1];
+  return encodeKeysetCursor(last[keyColumn] as string, last.id as string);
 }
 
 function clampLimit(limit: number | undefined): number {
