@@ -345,6 +345,8 @@ export class AttachmentService {
 
     const url = await this.fileStore.getUrl(record.fileRef, {
       expirySeconds: await this.resolveExpiry(record, input.purpose),
+      filename: record.filename,
+      contentType: record.contentType,
     });
 
     void this.recordAccess({
@@ -365,6 +367,8 @@ export class AttachmentService {
 
     const url = await this.fileStore.getUrl(record.fileRef, {
       expirySeconds: await this.resolveExpiry(record, 'shareable-link'),
+      filename: record.filename,
+      contentType: record.contentType,
     });
 
     void this.recordAccess({

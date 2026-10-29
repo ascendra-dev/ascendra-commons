@@ -239,7 +239,7 @@ describe('AttachmentService downloads + tenant isolation', () => {
     const { service, fileStore, accessRecorder } = makeService();
     const url = await service.getDownloadUrl({ fileRecordId: 'f1', actor: issuer, purpose: 'in-app' });
     expect(url).toBe('https://signed/url');
-    expect(fileStore.getUrl).toHaveBeenCalledWith('kyc/t1/f1.pdf', { expirySeconds: 300 });
+    expect(fileStore.getUrl).toHaveBeenCalledWith('kyc/t1/f1.pdf', { expirySeconds: 300, filename: 'id.pdf', contentType: 'application/pdf' });
     await vi.waitFor(() => expect(accessRecorder.record).toHaveBeenCalledWith(expect.objectContaining({ via: 'actor', actorId: 'u1' })));
   });
 
@@ -256,7 +256,7 @@ describe('AttachmentService downloads + tenant isolation', () => {
   it('shareable-link expiry comes from the category when set', async () => {
     const { service, fileStore } = makeService();
     await service.getDownloadUrl({ fileRecordId: 'f1', actor: issuer, purpose: 'shareable-link' });
-    expect(fileStore.getUrl).toHaveBeenCalledWith('kyc/t1/f1.pdf', { expirySeconds: 120 });
+    expect(fileStore.getUrl).toHaveBeenCalledWith('kyc/t1/f1.pdf', expect.objectContaining({ expirySeconds: 120 }));
   });
 
   it('getDownloadUrlByToken resolves the token, skips the tenant check, records via signed-link', async () => {
