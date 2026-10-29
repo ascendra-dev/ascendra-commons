@@ -2,12 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>File Storage — Admin Console Mocks</title>
+<title>File Storage Console</title>
 <style>
-  /* Tokens transcribed from ../ascendra-ui/app/globals.css (:root and .dark). Component
-     shadow/radius/gradient values transcribed from the real component source under
-     ../ascendra-ui/ascendra-ui/components/. Light is the base; dark mirrors globals.css's
-     .dark and is applied by the OS setting only (no toggle — zero JS). */
   :root {
     --background: oklch(1 0 0);
     --foreground: oklch(0.2928 0.0163 285.35);
@@ -18,9 +14,8 @@
     --card: oklch(1 0 0);
     --primary: oklch(0.5573 0.2543 283.67);
     --radius: 0.625rem;
-    --positive: #15892b; --negative: #e02e2e; --warning: #fd7224; --info: #236dd7; --dimmed: #adadb7;
-    --gray-50: #fafafb; --gray-700: #767684;
-    --shadow-xs: 0px 0px 2px 0px #00000014, 0px 1px 2px 0px #0000000f, 0px 0px 0px 1px #0000000a;
+    --positive: #15892b; --negative: #e02e2e; --warning: #fd7224; --info: #236dd7;
+    --gray-700: #767684;
     --text-caption: 0.6875rem; --text-label: 0.75rem; --text-body-sm: 0.875rem; --text-body: 1rem;
     --text-heading-sm: 1.125rem; --text-heading: 1.25rem; --text-heading-lg: 1.5rem;
     --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -28,420 +23,622 @@
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --background: oklch(0.2238 0.0077 285.76);
-      --foreground: oklch(0.9734 0.0013 286.37);
-      --muted: oklch(0.1785 0.0041 285.98);
-      --muted-foreground: oklch(0.7507 0.0142 286.05);
-      --secondary-foreground: oklch(0.985 0.001 106.423);
-      --border: oklch(0.2582 0.0093 285.73);
-      --card: oklch(0.216 0.006 285.76);
-      --primary: oklch(0.5573 0.2543 283.67);
-      --positive: #31c854; --negative: #f73d3d; --warning: #fd7224; --info: #307ff6; --dimmed: #5f5f6f;
-      --gray-50: #232328; --gray-700: #adadb7;
-      --shadow-xs: 0px 1.5px 2px 0px #00000052, 0px -1px 0px 0px #ffffff0a, 0px 0px 0px 1px #ffffff1f;
+      --background: oklch(0.2238 0.0077 285.76); --foreground: oklch(0.9734 0.0013 286.37);
+      --muted: oklch(0.1785 0.0041 285.98); --muted-foreground: oklch(0.7507 0.0142 286.05);
+      --secondary-foreground: oklch(0.985 0.001 106.423); --border: oklch(0.2582 0.0093 285.73);
+      --card: oklch(0.216 0.006 285.76); --primary: oklch(0.5573 0.2543 283.67);
+      --positive: #31c854; --negative: #f73d3d; --warning: #fd7224; --info: #307ff6; --gray-700: #adadb7;
     }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans);
-         font-size: var(--text-body-sm); line-height: 1.5; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); font-size: var(--text-body-sm); line-height: 1.5; }
   code, pre, .mono { font-family: var(--font-mono); }
-
   .shell { display: flex; min-height: 100vh; }
-  .sidebar { width: 248px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.25rem 0.75rem; }
-  .brand { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem; font-weight: 600; }
+  .sidebar { width: 248px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 1.25rem 0.75rem; background: var(--background); }
+  .brand { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem 1.25rem; font-weight: 600; font-size: var(--text-body-sm); }
   .brand span { width: 18px; height: 18px; border-radius: 5px; background: var(--primary); display: inline-block; }
   .nav-group { margin-bottom: 1rem; }
-  .nav-group-title { color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase;
-                     letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem; }
-  .nav-item { display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem; border-radius: 0.375rem;
-              color: var(--muted-foreground); font-size: var(--text-body-sm); text-decoration: none; position: relative; }
+  .nav-group-title { color: var(--muted-foreground); font-size: var(--text-caption); text-transform: uppercase; letter-spacing: 0.04em; padding: 0 0.875rem; margin-bottom: 0.375rem; }
+  .nav-item { display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.75rem; border-radius: 0.375rem; color: var(--muted-foreground); font-size: var(--text-body-sm); text-decoration: none; position: relative; }
   .nav-item.active { background: color-mix(in oklab, var(--foreground) 8%, transparent); color: var(--foreground); }
   .nav-item.active::before { content: ""; position: absolute; left: 2px; top: 6px; bottom: 6px; width: 1px; background: var(--foreground); }
-  .nav-item .pill { margin-left: auto; font-size: 9px; line-height: 11px; padding: 1px 4px; border-radius: 4px;
-                    background: color-mix(in oklab, var(--warning) 12%, transparent); color: var(--warning);
-                    text-transform: uppercase; letter-spacing: 0.02em; }
-
   .main { flex: 1; min-width: 0; padding: 1.75rem 2rem 4rem; max-width: 1180px; }
+  .page-head { margin-bottom: 0.375rem; }
   .page-title { font-size: var(--text-heading-lg); font-weight: 600; margin: 0; }
-  .page-sub { color: var(--muted-foreground); margin: 0.25rem 0 0; max-width: 74ch; }
-
-  .note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem;
-          background: color-mix(in oklab, var(--info) 6%, transparent);
-          border: 1px solid color-mix(in oklab, var(--info) 22%, transparent); margin: 1.25rem 0; }
+  .page-sub { color: var(--muted-foreground); margin: 0.25rem 0 0; max-width: 70ch; }
+  .note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; background: color-mix(in oklab, var(--info) 6%, transparent); border: 1px solid color-mix(in oklab, var(--info) 22%, transparent); color: var(--foreground); font-size: var(--text-body-sm); margin: 1.25rem 0; }
   .note b { color: var(--info); }
-
-  .cov { width: 100%; border-collapse: collapse; margin: 0.75rem 0 0.5rem; }
-  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
-            padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  .note.warn { background: color-mix(in oklab, var(--warning) 7%, transparent); border-color: color-mix(in oklab, var(--warning) 26%, transparent); }
+  .note.warn b { color: var(--warning); }
+  .cov { width: 100%; border-collapse: collapse; margin: 0.75rem 0 0.5rem; font-size: var(--text-body-sm); }
+  .cov th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
   .cov td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
   .cov td:first-child { font-weight: 500; white-space: nowrap; }
-
-  .screen { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin: 1.5rem 0; }
+  .screen { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin: 1.5rem 0; background: var(--background); }
   .screen-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-bottom: 0.25rem; }
   .screen-name { font-size: var(--text-heading); font-weight: 600; margin: 0; }
   .screen-purpose { color: var(--muted-foreground); margin: 0.25rem 0 1rem; }
-  .endpoint { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--text-caption);
-              padding: 0.15rem 0.45rem; border-radius: 4px; background: var(--muted); border: 1px solid var(--border); }
+  .endpoint { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: var(--text-caption); padding: 0.15rem 0.45rem; border-radius: 4px; background: var(--muted); border: 1px solid var(--border); color: var(--foreground); }
   .endpoint .m { font-weight: 700; color: var(--info); }
-  .status { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em;
-            padding: 0.1rem 0.35rem; border-radius: 4px; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .status { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
   .status.live { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 22%, transparent); }
-  .status.partial { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 24%, transparent); }
-  .status.proposed { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent); }
   .gating { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0 0 1rem; padding-left: 0.75rem; border-left: 2px solid var(--border); }
   .gating code { color: var(--foreground); }
-  .proposed-note { display: flex; gap: 0.5rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; margin: 0 0 1rem;
-                   background: color-mix(in oklab, var(--primary) 5%, transparent);
-                   border: 1px dashed color-mix(in oklab, var(--primary) 35%, transparent); }
-  .proposed-note b { color: var(--primary); }
-  .proposed-note .sig { font-family: var(--font-mono); font-size: var(--text-caption); }
-
   .filterbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
-  .field { height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--background);
-           font-size: var(--text-body-sm); display: inline-flex; align-items: center; gap: 0.35rem; }
+  .field { height: 2rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--background); color: var(--foreground); font-size: var(--text-body-sm); display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; }
   .field .lbl { color: var(--muted-foreground); }
-  .btn { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
-         font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary); position: relative; overflow: hidden;
-         box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16), 0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255); }
+  .field .val { color: var(--foreground); }
+  .btn { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer; font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--primary); position: relative; overflow: hidden; box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16), 0 4px 4px -2px rgba(255,255,255,0.024), 0 0 0 1px rgb(108,71,255); }
   .btn::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(255,255,255,0.2), transparent); }
-  .btn-secondary { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
-                   font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card);
-                   box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06), 0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1); }
-  .btn-danger { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer;
-                font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: #fff; background: var(--negative); position: relative; overflow: hidden;
-                box-shadow: inset 0 1px 1px 0 rgba(255,255,255,0.12), 0 2px 2px -1px rgba(0,0,0,0.16), 0 0 0 1px #f73d3d; }
-
-  .table { width: 100%; border-collapse: separate; border-spacing: 0; }
-  .table th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500;
-              padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .btn-secondary { height: 2rem; padding: 0 0.75rem; border: 0; border-radius: 0.375rem; cursor: pointer; font: 500 var(--text-body-sm)/1.25rem var(--font-sans); color: var(--foreground); background: var(--card); box-shadow: inset 0 1px 0.5px 0 rgba(255,255,255,0.05), 0 2px 2px -1px rgba(0,0,0,0.06), 0 4px 4px -2px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.1); }
+  .table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--text-body-sm); }
+  .table th { text-align: left; color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
   .table td { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); vertical-align: top; }
   .table tbody tr:hover { background: color-mix(in oklab, var(--gray-700) 4%, transparent); }
   .table .t-time { color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .table .t-id { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted-foreground); }
-  .table .num { text-align: right; font-variant-numeric: tabular-nums; }
-
-  .badge { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em;
-           padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
-  .badge.ok    { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 20%, transparent); }
-  .badge.fail  { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 20%, transparent); }
-  .badge.warn  { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 20%, transparent); }
-  .badge.info  { color: var(--info); background-color: color-mix(in oklab, var(--info) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 16%, transparent); }
-  .badge.neutral { color: var(--muted-foreground); background-color: color-mix(in oklab, var(--gray-700) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gray-700) 16%, transparent); }
-  .badge.brand { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent); }
-
-  .pagebar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.25rem 0; color: var(--muted-foreground); }
+  .table .t-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .badge { display: inline-flex; align-items: center; font-size: var(--text-caption); font-weight: 500; letter-spacing: 0.015em; padding: 0.1rem 0.35rem; border-radius: 4px; white-space: nowrap; background-image: linear-gradient(to top, rgba(0,0,0,0.02), transparent); }
+  .badge.action { color: var(--primary); background-color: color-mix(in oklab, var(--primary) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent); }
+  .badge.bad { color: var(--negative); background-color: color-mix(in oklab, var(--negative) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 16%, transparent); }
+  .pagebar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0.25rem 0; color: var(--muted-foreground); font-size: var(--text-body-sm); }
   .pagebar .pager { display: flex; gap: 0.25rem; }
-  .pagebar .pager span { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem;
-                         padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption); }
-
-  .empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1rem; padding: 2.5rem;
-           border: 1px dashed var(--border); border-radius: 0.75rem; color: var(--muted-foreground); }
-  .empty .ic { width: 3rem; height: 3rem; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;
-               background: color-mix(in oklab, var(--gray-700) 4%, transparent); box-shadow: inset 0 0 0 1px var(--border); font-size: 1.1rem; }
-
-  .drawer { position: relative; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
-            padding: 1.5rem; margin: 1.5rem 0 1.5rem 2rem; max-width: 600px; box-shadow: var(--shadow-xs); }
-  .drawer::before { content: attr(data-label); display: block; font-size: var(--text-caption); color: var(--muted-foreground);
-                    text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.875rem; }
-  .drawer > .x { position: absolute; top: 1.25rem; right: 1.25rem; color: var(--muted-foreground); font-size: 0.9rem; }
-
-  .sheet { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); padding: 1.5rem;
-           margin: 1rem 0 0 2rem; max-width: 540px; box-shadow: var(--shadow-xs); }
-  .sheet::before { content: attr(data-label); display: block; font-size: var(--text-caption); color: var(--muted-foreground);
-                   text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.75rem; }
-  .form-row { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.875rem; }
-  .form-row label { font-size: var(--text-label); color: var(--muted-foreground); }
-  .form-row .control { min-height: 2rem; border: 1px solid var(--border); border-radius: 0.375rem; padding: 0.35rem 0.6rem; display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem; }
-
-  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 0.4rem 1rem; margin: 0; }
-  .kv dt { color: var(--muted-foreground); }
-  .kv dd { margin: 0; word-break: break-word; }
-
-  .diff { margin: 1rem 0 0; border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; }
-  .diff > summary { cursor: pointer; padding: 0.5rem 0.75rem; font-size: var(--text-label); color: var(--secondary-foreground);
-                    background: var(--muted); list-style: none; }
-  .diff > summary::-webkit-details-marker { display: none; }
-  .diff pre { margin: 0; padding: 0.75rem; font-size: var(--text-caption); overflow-x: auto; }
-
+  .pagebar .pager span { display: inline-flex; align-items: center; justify-content: center; height: 1.75rem; min-width: 1.75rem; padding: 0 0.4rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: var(--text-caption); }
   .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
   .kpi { background: var(--muted); border-radius: 0.75rem; padding: 0.875rem 1rem; }
+  .kpi.alert { background: color-mix(in oklab, var(--negative) 6%, var(--muted)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 20%, transparent); }
   .kpi .k-label { color: var(--muted-foreground); font-size: var(--text-label); }
   .kpi .k-value { font-size: var(--text-heading); font-weight: 600; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
-
-  .bars { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding: 0.5rem 0; }
-  .bars .bar { flex: 1; background: color-mix(in oklab, var(--primary) 55%, transparent); border-radius: 3px 3px 0 0; }
-
+  .kpi.alert .k-value { color: var(--negative); }
   .timeline { position: relative; margin: 0; padding: 0 0 0 1.25rem; list-style: none; }
   .timeline::before { content: ""; position: absolute; left: 3px; top: 4px; bottom: 4px; width: 1px; background: var(--border); }
   .tl-item { position: relative; padding: 0 0 1.1rem; }
-  .tl-item::before { content: ""; position: absolute; left: -1.25rem; top: 5px; width: 7px; height: 7px; border-radius: 999px;
-                     background: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent); }
+  .tl-item::before { content: ""; position: absolute; left: -1.25rem; top: 5px; width: 7px; height: 7px; border-radius: 999px; background: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent); }
   .tl-time { color: var(--muted-foreground); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
   .tl-title { font-size: var(--text-body-sm); margin-top: 0.1rem; }
-
-  .breadcrumb { color: var(--muted-foreground); margin-bottom: 0.75rem; }
+  .breadcrumb { color: var(--muted-foreground); font-size: var(--text-body-sm); margin-bottom: 0.75rem; }
   .breadcrumb b { color: var(--foreground); font-weight: 500; }
   .scrollx { overflow-x: auto; }
   h3.sub { font-size: var(--text-heading-sm); font-weight: 600; margin: 1.5rem 0 0.5rem; }
-  .taglist { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .seg { display: inline-flex; padding: 2px; border-radius: 0.5rem; background: var(--muted); border: 1px solid var(--border); gap: 2px; }
+  .seg span { padding: 0.2rem 0.65rem; border-radius: 0.375rem; font-size: var(--text-label); color: var(--muted-foreground); }
+  .seg span.on { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+  .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+  .panel { border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.125rem; }
+  .panel h4 { margin: 0 0 0.75rem; font-size: var(--text-body-sm); font-weight: 600; }
+  .bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.625rem; }
+  .bars a { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.75rem; color: inherit; text-decoration: none; }
+  .bars .bar { grid-column: 1 / -1; height: 6px; border-radius: 999px; background: var(--muted); overflow: hidden; }
+  .bars .bar i { display: block; height: 100%; background: color-mix(in oklab, var(--negative) 70%, transparent); border-radius: 999px; }
+  .bars .n { font-variant-numeric: tabular-nums; font-weight: 500; }
+  .src { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .src:last-child { border-bottom: 0; }
+  .src .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .muted { color: var(--muted-foreground); }
+  .link { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: color-mix(in oklab, var(--primary) 40%, transparent); }
+  .empty { text-align: center; padding: 2.5rem 1rem; color: var(--muted-foreground); border: 1px dashed var(--border); border-radius: var(--radius); }
+  .empty b { display: block; color: var(--foreground); font-size: var(--text-body); margin-bottom: 0.25rem; }
+  .sheet { margin-left: auto; max-width: 420px; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; box-shadow: 0 12px 32px -12px rgba(0,0,0,0.25); }
+  .sheet h4 { margin: 0; font-size: var(--text-heading-sm); }
+  .sheet .desc { color: var(--muted-foreground); font-size: var(--text-label); margin: 0.25rem 0 1.25rem; }
+  .ann { font-size: var(--text-caption); color: var(--muted-foreground); margin: 0.5rem 0 0; }
+  .ann li { margin: 0.2rem 0; }
+  .vchart { display: flex; align-items: flex-end; gap: 3px; height: 96px; padding: 0.5rem 0 0; border-bottom: 1px solid var(--border); }
+  .vchart a { flex: 1; background: color-mix(in oklab, var(--negative) 65%, transparent); border-radius: 2px 2px 0 0; min-height: 1px; }
+  .vchart a.zero { background: var(--border); }
+  .vaxis { display: flex; justify-content: space-between; color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.25rem; }
+
+  .badge.good { color: var(--positive); background-color: color-mix(in oklab, var(--positive) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 16%, transparent); }
+  .badge.warn { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 16%, transparent); }
+  .badge.info { color: var(--info); background-color: color-mix(in oklab, var(--info) 4%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 16%, transparent); }
+  .kpi.warn { background: color-mix(in oklab, var(--warning) 6%, var(--muted)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 22%, transparent); }
+  .kpi.warn .k-value { color: var(--warning); }
+  .kpi .k-sub { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.1rem; }
+  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 0.4rem 1rem; margin: 0; font-size: var(--text-body-sm); }
+  .kv dt { color: var(--muted-foreground); }
+  .kv dd { margin: 0; word-break: break-word; }
+  .saved { margin-top: 1.25rem; border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; }
+  .saved .head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.75rem; background: var(--muted); font-size: var(--text-label); color: var(--secondary-foreground); }
+  .saved pre { margin: 0; padding: 0.75rem; font-size: var(--text-caption); overflow-x: auto; }
+  .saved .locked { padding: 0.75rem; color: var(--muted-foreground); font-size: var(--text-label); }
+  .variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1rem; align-items: start; }
+  .variants .sheet { margin: 0; max-width: none; }
+  .vlabel { font-size: var(--text-caption); color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 0.5rem; }
+  .bars .bar i.dup { background: color-mix(in oklab, var(--info) 65%, transparent); }
+  .pend { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .pend:last-child { border-bottom: 0; }
+  .pend .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .table .t-id { white-space: nowrap; }
+  .footnote { color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.75rem; }
+  .wire td .lst { display: flex; flex-direction: column; gap: 0.15rem; }
+  .wire td .lst span { white-space: nowrap; }
+  .check { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+  .kv pre, .err { margin: 0; padding: 0.75rem; font-size: var(--text-caption); background: var(--muted); border: 1px solid var(--border); border-radius: 0.5rem; overflow-x: auto; white-space: pre; }
+  .refs { list-style: none; margin: 0; padding: 0; font-family: var(--font-mono); font-size: var(--text-caption); }
+  .refs li { padding: 0.3rem 0; border-bottom: 1px solid var(--border); }
+  .refs li:last-child { border-bottom: 0; }
+  .jobrow { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; padding: 0.55rem 0; border-bottom: 1px solid var(--border); color: inherit; text-decoration: none; }
+  .jobrow:last-child { border-bottom: 0; }
+  .jobrow .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .header-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1rem; }
+  .toast { display: inline-flex; gap: 0.5rem; align-items: center; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 0.5rem; box-shadow: 0 8px 24px -12px rgba(0,0,0,0.25); font-size: var(--text-label); margin: 0.25rem 0.5rem 0.25rem 0; }
+  .vchart a { display: flex; flex-direction: column-reverse; background: color-mix(in oklab, var(--info) 55%, transparent); }
+  .vchart a i { display: block; background: color-mix(in oklab, var(--negative) 70%, transparent); }
+  .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+</style>
+<style>
+  .badge.scope-p { color: var(--warning); background-color: color-mix(in oklab, var(--warning) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--warning) 22%, transparent); }
+  .badge.muted { color: var(--muted-foreground); background-color: var(--muted); box-shadow: inset 0 0 0 1px var(--border); }
+  .badge.lapsed { color: var(--muted-foreground); text-decoration: line-through; background-color: var(--muted); box-shadow: inset 0 0 0 1px var(--border); }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+  .person { display: flex; flex-direction: column; }
+  .person .em { color: var(--muted-foreground); font-size: var(--text-caption); }
+  .persona-tag { display: inline-flex; gap: 0.35rem; align-items: center; font-size: var(--text-caption); color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem; align-items: start; }
+  .card { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .card .ch { padding: 0.9rem 1.125rem 0.5rem; }
+  .card .ch h4 { margin: 0; font-size: var(--text-body-sm); font-weight: 600; }
+  .card .ch p { margin: 0.15rem 0 0; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .card .cf { display: flex; gap: 0.5rem; padding: 0.6rem 1.125rem; color: var(--muted-foreground); font-size: var(--text-caption); border-top: 0; }
+  .card .table th, .card .table td { padding-left: 1.125rem; padding-right: 1.125rem; }
+  .modgroup { padding: 0.5rem 1.125rem 0.75rem; }
+  .modgroup .mt { font-size: var(--text-caption); color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; margin: 0.4rem 0 0.35rem; }
+  .act { display: grid; grid-template-columns: 1fr auto; gap: 0 0.75rem; padding: 0.3rem 0; border-bottom: 1px solid var(--border); }
+  .act:last-child { border-bottom: 0; }
+  .act .d { color: var(--muted-foreground); font-size: var(--text-caption); grid-column: 1 / -1; }
+  .verdict { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.75rem 0.9rem; border-radius: 0.5rem; margin: 0.75rem 0; }
+  .verdict.ok { background: color-mix(in oklab, var(--positive) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 22%, transparent); }
+  .verdict.no { background: color-mix(in oklab, var(--negative) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 22%, transparent); }
+  .verdict b { display: block; }
+  .picker { border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.35rem; max-width: 420px; box-shadow: 0 12px 32px -12px rgba(0,0,0,0.25); }
+  .picker .opt { display: grid; grid-template-columns: 1fr auto; gap: 0 0.5rem; padding: 0.45rem 0.6rem; border-radius: 0.375rem; }
+  .picker .opt.off { opacity: 0.55; }
+  .picker .opt .why { grid-column: 1 / -1; font-size: var(--text-caption); color: var(--muted-foreground); }
+  .picker .opt.hover { background: var(--muted); }
+  .proposed { color: var(--info); background-color: color-mix(in oklab, var(--info) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--info) 22%, transparent); }
+  .persona-cmp { width: 100%; border-collapse: collapse; font-size: var(--text-body-sm); margin: 0.5rem 0 0; }
+  .persona-cmp th, .persona-cmp td { text-align: left; padding: 0.45rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .persona-cmp th { color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; }
+</style>
+<style>
+  .chan { display: inline-flex; align-items: center; gap: 0.25rem; font-size: var(--text-caption); padding: 0.1rem 0.4rem; border-radius: 4px; background: var(--muted); box-shadow: inset 0 0 0 1px var(--border); white-space: nowrap; }
+  .grid-cred { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--text-body-sm); }
+  .grid-cred th, .grid-cred td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+  .grid-cred th { color: var(--secondary-foreground); font-size: var(--text-label); font-weight: 500; }
+  .cell { display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; }
+  .cell .s { font-size: var(--text-caption); color: var(--muted-foreground); }
+  .msg { border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.75rem 0.9rem; background: var(--muted); white-space: pre-wrap; font-size: var(--text-label); }
+  .msg .subj { font-weight: 600; margin-bottom: 0.4rem; }
+  .vars { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .var { font-family: var(--font-mono); font-size: var(--text-caption); padding: 0.1rem 0.35rem; border-radius: 4px; background: color-mix(in oklab, var(--primary) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 18%, transparent); color: var(--primary); }
+  .editor { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .ta { border: 1px solid var(--border); border-radius: 0.375rem; padding: 0.6rem; min-height: 120px; font-family: var(--font-mono); font-size: var(--text-caption); white-space: pre-wrap; background: var(--background); }
+  .ta .bad { text-decoration: underline wavy var(--negative); }
+  .err-line { color: var(--negative); font-size: var(--text-caption); margin-top: 0.35rem; }
+  .toggle { display: inline-block; width: 28px; height: 16px; border-radius: 999px; background: var(--border); position: relative; vertical-align: middle; }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 999px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+  .toggle.on { background: var(--primary); }
+  .toggle.on::after { left: 14px; }
+  .toggle.fixed { opacity: 0.5; }
+  .pref { display: grid; grid-template-columns: 1fr repeat(4, 84px); align-items: center; gap: 0.5rem; padding: 0.7rem 1.125rem; border-bottom: 1px solid var(--border); }
+  .pref.head { color: var(--secondary-foreground); font-size: var(--text-label); padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  .pref .na { color: var(--muted-foreground); font-size: var(--text-caption); }
+  .inbox-item { display: grid; grid-template-columns: 10px 1fr auto; gap: 0 0.75rem; padding: 0.75rem 1.125rem; border-bottom: 1px solid var(--border); }
+  .inbox-item .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--primary); margin-top: 0.45rem; }
+  .inbox-item.read .dot { background: transparent; }
+  .inbox-item.read .t { color: var(--muted-foreground); font-weight: 400; }
+  .inbox-item .t { font-weight: 600; }
+  .inbox-item .b { grid-column: 2 / 3; color: var(--muted-foreground); font-size: var(--text-label); }
+  .bell { position: relative; display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 0.5rem; }
+  .bell i { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; border-radius: 999px; background: var(--negative); color: #fff; font-size: 10px; font-style: normal; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; }
+  .stack { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--muted); }
+  .stack i { display: block; height: 100%; }
+  .stack .ok { background: color-mix(in oklab, var(--positive) 65%, transparent); }
+  .stack .wait { background: color-mix(in oklab, var(--info) 45%, transparent); border: 0; padding: 0; }
+  .stack .fail { background: color-mix(in oklab, var(--negative) 70%, transparent); }
+  .stack .skip { background: color-mix(in oklab, var(--gray-700) 35%, transparent); }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.75rem; color: var(--muted-foreground); font-size: var(--text-caption); margin-top: 0.4rem; }
+  .legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 0.3rem; vertical-align: -0.05em; }
+  .legend .ok::before { background: color-mix(in oklab, var(--positive) 65%, transparent); }
+  .legend .wait::before { background: color-mix(in oklab, var(--info) 45%, transparent); }
+  .legend .fail::before { background: color-mix(in oklab, var(--negative) 70%, transparent); }
+  .legend .skip::before { background: color-mix(in oklab, var(--gray-700) 35%, transparent); }
+  .rowx { display: grid; grid-template-columns: 1fr auto; gap: 0.3rem 0.75rem; padding: 0.6rem 1.125rem; border-bottom: 1px solid var(--border); }
+  .rowx:last-child { border-bottom: 0; }
+  .rowx > .var, .rowx > .chips, .rowx > .badge { justify-self: start; }
+  .rowx > .badge, .rowx > .chips { justify-self: end; }
+  .rowx .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; color: var(--muted-foreground); font-size: var(--text-caption); }
+  .lock { color: var(--muted-foreground); font-size: var(--text-label); padding: 0.75rem; border: 1px dashed var(--border); border-radius: 0.5rem; }
+</style>
+<style>
+  .bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--muted); }
+  .bar i { display: block; height: 100%; background: color-mix(in oklab, var(--primary) 55%, transparent); }
+  .bar i.full { background: color-mix(in oklab, var(--negative) 70%, transparent); }
+  .bar i.near { background: color-mix(in oklab, var(--warning) 70%, transparent); }
+  .file { display: flex; flex-direction: column; }
+  .file .em { color: var(--muted-foreground); font-size: var(--text-caption); }
+  .rule { display: grid; grid-template-columns: 9rem 1fr 1fr; gap: 0.25rem 1rem; padding: 0.55rem 1.125rem; border-bottom: 1px solid var(--border); font-size: var(--text-body-sm); align-items: start; }
+  .rule.head { color: var(--secondary-foreground); font-size: var(--text-label); padding-top: 0.45rem; padding-bottom: 0.45rem; }
+  .rule .lbl { color: var(--muted-foreground); }
+  .rule .tight { color: var(--primary); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .vchart a i.rej { background: color-mix(in oklab, var(--negative) 70%, transparent); }
 </style>
 </head>
 <body>
 <div class="shell">
   <nav class="sidebar">
-    <div class="brand"><span></span>Files Console</div>
+    <div class="brand"><span></span>Files</div>
     <div class="nav-group">
-      <div class="nav-group-title">Inventory</div>
-      <a class="nav-item active" href="#inventory">File Inventory</a>
-      <a class="nav-item" href="#usage">Storage Usage</a>
-      <a class="nav-item" href="#orphans">Orphans</a>
-    </div>
-    <div class="nav-group">
-      <div class="nav-group-title">Categories</div>
-      <a class="nav-item" href="#categories">Category Catalog</a>
-    </div>
-    <div class="nav-group">
-      <div class="nav-group-title">Insight &amp; Compliance</div>
-      <a class="nav-item" href="#overview">Overview <span class="pill">new API</span></a>
-      <a class="nav-item" href="#rejections">Rejected Uploads</a>
-      <a class="nav-item" href="#retention">Retention &amp; Legal Hold <span class="pill">new API</span></a>
+      <div class="nav-group-title">File console</div>
+      <a class="nav-item active" href="#overview">Overview</a>
+      <a class="nav-item" href="#files">Files</a>
+      <a class="nav-item" href="#file">· File sheet</a>
+      <a class="nav-item" href="#types">Upload types</a>
+      <a class="nav-item" href="#type">· Upload type page</a>
+      <a class="nav-item" href="#rejections">Refused uploads</a>
+      <a class="nav-item" href="#storage">Storage &amp; limits</a>
+      <a class="nav-item" href="#cleanup">Cleanup</a>
+      <a class="nav-item" href="#retention">Volume &amp; retention</a>
     </div>
   </nav>
 
   <main class="main">
-    <h1 class="page-title">File Storage — Admin Console</h1>
-    <p class="page-sub">Screen mocks for the <code>file-storage</code> module's ops / compliance admin surface,
-    each mapped to its endpoint. Reads gated <code>@RequiresAction('file.view')</code>; deletes
-    <code>'file.delete'</code>; category edits <code>'file.category.manage'</code>. Non-platform actors see and
-    edit only their own tenant. This is <b>not</b> the per-entity upload/view/download surface — that stays
-    in the vertical's controllers. Screens marked <b>Proposed</b> are legitimate but unserved.</p>
+    <div class="page-head">
+      <h1 class="page-title">File storage — Console</h1>
+      <p class="page-sub">
+        Screen mocks for the <code>file-storage</code> module's console — every file the app holds, what it is, whose,
+        how long it's kept, who opened it, and the rules uploads must pass. One console for two audiences: a
+        <b>platform admin</b> sees every tenant, sets storage limits and runs cleanup across buckets; a <b>tenant
+        admin</b> sees its own tenant's files and tightens its own upload rules — the API forces it, the screens just
+        don't offer the rest. Numbers are the sandbox's seeded data (30 days, Asia/Karachi).
+      </p>
+    </div>
 
-    <div class="note"><div><b>By design.</b> Infected files are rejected at <code>attach</code> and never
-    stored, so there's no quarantine. The blob has no RLS behind it — <code>AttachmentService</code> enforces
-    the tenant boundary on every path, and this console inherits that.</div></div>
+    <div class="note warn">
+      <div><b>Why this console exists.</b> Files pile up quietly and carry the most sensitive things the app holds —
+      passports, bank statements, contracts. Someone needs to see what is kept and for how long, who opened a
+      document, why uploads are being refused, which tenant is filling its space, and what can be cleaned up — and to
+      put a file beyond deletion when a dispute or investigation needs it kept.</div>
+    </div>
 
-    <h3 class="sub">Endpoint coverage map</h3>
-    <div class="scrollx">
-    <table class="cov">
-      <thead><tr><th>Screen</th><th>Endpoint</th><th>Status</th><th>Note</th></tr></thead>
+    <div class="note">
+      <div><b>The model.</b> The app <b>declares</b> its <b>upload types</b> (categories) in code — what a KYC document
+      or an invoice attachment may be: content types, extensions, a size band, the bucket, what to do with a file the
+      scanner can't read, and how long it is kept. A tenant may only <b>tighten</b> them. Every upload passes the
+      app-wide rules, the type's rules, a <b>check that its bytes are what it claims</b>, the tenant's <b>storage
+      limit</b> and a <b>malware scan</b>; a refusal is logged. A stored <b>file</b> is attached to one or more business
+      entities (an invoice, a dispute…); detached from all of them it is an <b>orphan</b>. Its <b>retention date</b> is
+      fixed at upload: before it, a tenant can't delete it; after it, the nightly <b>retention run</b> deletes it —
+      unless it is under <b>legal hold</b>.</div>
+    </div>
+
+    <h3 class="sub">Who sees what</h3>
+    <table class="persona-cmp">
+      <thead><tr><th></th><th>Platform admin</th><th>Tenant admin</th><th>Platform support</th></tr></thead>
       <tbody>
-        <tr><td>File Inventory</td><td><span class="endpoint"><span class="m">GET</span>/files</span></td><td><span class="status live">Live</span></td><td>Filter tenant / category / uploader / date / size. Keyset-paginated.</td></tr>
-        <tr><td>File Detail</td><td><span class="endpoint"><span class="m">GET</span>/files/:id</span> · <span class="endpoint"><span class="m">DELETE</span>/files/:id</span> · <span class="endpoint"><span class="m">DELETE</span>/files/:id/attachments/:aid</span></td><td><span class="status live">Live</span></td><td>Record + attachments + short URL; hard delete (cascade) or detach.</td></tr>
-        <tr><td>Access Log</td><td><span class="endpoint"><span class="m">GET</span>/files/:id/access-log</span></td><td><span class="status live">Live</span></td><td>Who fetched it, when, via actor or signed link.</td></tr>
-        <tr><td>Storage Usage</td><td><span class="endpoint"><span class="m">GET</span>/files/storage-usage</span></td><td><span class="status live">Live</span></td><td><code>SUM(bytes)</code> by tenant × category.</td></tr>
-        <tr><td>Orphans</td><td><span class="endpoint"><span class="m">GET</span>/files/orphans</span></td><td><span class="status live">Live</span></td><td>File records with zero attachments. No bulk action — delete one by one via <code>DELETE /files/:id</code>.</td></tr>
-        <tr><td>Category Catalog</td><td><span class="endpoint"><span class="m">GET</span>/files/categories</span> · <span class="endpoint"><span class="m">GET</span>/files/categories/:key</span></td><td><span class="status live">Live</span></td><td>Effective catalog + per-category counts.</td></tr>
-        <tr><td>Category Edit</td><td><span class="endpoint"><span class="m">PATCH</span>/files/categories/:key</span> · <span class="endpoint"><span class="m">DELETE</span>/files/categories/:key</span></td><td><span class="status live">Live</span></td><td>Upsert the tenant override (tightening only); deactivate.</td></tr>
-        <tr><td>Overview</td><td><span class="endpoint"><span class="m">GET</span>/files/stats</span></td><td><span class="status partial">Partial</span></td><td>Uploads-over-time and by-category breakdown are live. Scan-verdict counts are still unavailable — no <code>scan_verdict</code> column on <code>commons_file_record</code>; that's a schema migration, deferred.</td></tr>
-        <tr><td>Rejected Uploads</td><td><span class="endpoint"><span class="m">GET</span>/files/rejections</span></td><td><span class="status live">Live</span></td><td>Filter tenant / category / reason. Keyset-paginated. <code>AttachmentService.attach</code> now records each rejection via <code>FileUploadRejectionRecorder</code>.</td></tr>
-        <tr><td>Orphan reconciliation</td><td><span class="endpoint"><span class="m">POST</span>/files/orphans/sweep</span></td><td><span class="status proposed">Proposed</span></td><td>Also blob↔metadata drift (a blob with no <code>file_record</code>) — needs <code>FileStore.list</code>, noted as deferred in the module design.</td></tr>
-        <tr><td>Retention &amp; Legal Hold</td><td><span class="endpoint"><span class="m">GET</span>/files/retention</span> · <span class="endpoint"><span class="m">POST</span>/files/:id/hold</span></td><td><span class="status proposed">Proposed</span></td><td><code>retention</code> is declared on a category but nothing reads it; there's no legal hold (a <code>DELETE</code> can't be blocked pending litigation).</td></tr>
+        <tr><td>Scope</td><td>Every tenant; tenant picker in the header</td><td>Its own tenant — no picker</td><td>Every tenant, read-only</td></tr>
+        <tr><td>Files · access log · refused uploads</td><td>All</td><td>Its tenant's</td><td>All</td></tr>
+        <tr><td>Open a file (<code>file.view_content</code>, audited)</td><td>✓</td><td>✓ its own</td><td>—</td></tr>
+        <tr><td>Delete · detach (<code>file.delete</code>)</td><td>✓ — even inside retention (an erasure request; marked in the audit log)</td><td>✓ — only past the retention date</td><td>—</td></tr>
+        <tr><td>Legal hold (<code>file.hold</code>)</td><td>✓</td><td>✓ its own</td><td>—</td></tr>
+        <tr><td>Upload types (<code>file.category.manage</code>)</td><td>Turn a type off or back on for everyone; any tenant's override</td><td>Tighten its own override</td><td>Read</td></tr>
+        <tr><td>Storage limits (<code>file.quota.manage</code>)</td><td>Set / remove</td><td>Sees its own limit</td><td>Read</td></tr>
+        <tr><td>Orphans · duplicates</td><td>All — purge</td><td>Its own — purge</td><td>Read</td></tr>
+        <tr><td>Stray blobs · run retention now</td><td>✓</td><td>—</td><td>Read stray blobs</td></tr>
       </tbody>
     </table>
-    </div>
 
-    <!-- 1 · FILE INVENTORY -->
-    <section class="screen" id="inventory">
-      <div class="screen-head"><h2 class="screen-name">File Inventory</h2><span class="endpoint"><span class="m">GET</span>/files</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Every stored file — the compliance-officer "show me all KYC documents uploaded last month" view.</p>
-      <p class="gating">Gate: <code>file.view</code>. Non-platform actor → forced to <code>actor.tenantId</code>; platform admin may filter by any tenant.</p>
-      <div class="filterbar">
-        <span class="field"><span class="lbl">Tenant</span>t_kairos</span>
-        <span class="field"><span class="lbl">Category</span>kyc.identity-document</span>
-        <span class="field"><span class="lbl">Uploaded by</span>any</span>
-        <span class="field"><span class="lbl">After</span>2026-08-01</span>
-        <span class="field"><span class="lbl">Min size</span>—</span>
-        <button class="btn-secondary" type="button">Apply</button>
-      </div>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Uploaded</th><th>Category</th><th>Type</th><th class="num">Size</th><th>Uploaded by</th><th class="num">Attach.</th><th>Id</th></tr></thead>
-        <tbody>
-          <tr><td class="t-time">2026-09-06 15:47</td><td><span class="badge brand">kyc.identity-document</span></td><td>application/pdf</td><td class="num">1.9 MB</td><td>u_9f3a</td><td class="num">1</td><td class="t-id">f_0J9K2M</td></tr>
-          <tr><td class="t-time">2026-09-05 11:02</td><td><span class="badge brand">kyc.proof-of-address</span></td><td>image/jpeg</td><td class="num">640 KB</td><td>u_9f3a</td><td class="num">1</td><td class="t-id">f_1AA7QQ</td></tr>
-          <tr><td class="t-time">2026-09-03 14:20</td><td><span class="badge neutral">invoice.supporting-doc</span></td><td>application/pdf</td><td class="num">220 KB</td><td>u_2210</td><td class="num">2</td><td class="t-id">f_2ZK18P</td></tr>
-          <tr><td class="t-time">2026-08-28 09:10</td><td><span class="badge neutral">invoice.supporting-doc</span></td><td>application/pdf</td><td class="num">88 KB</td><td>svc_import</td><td class="num">0</td><td class="t-id">f_3PP04A</td></tr>
-        </tbody>
-      </table>
-      </div>
-      <div class="pagebar"><span>4 of ~18,400 · page size 50</span><span class="pager"><span>Newer</span><span>Older</span></span></div>
-    </section>
+    <h3 class="sub">Endpoint coverage</h3>
+    <table class="cov">
+      <thead><tr><th>Screen</th><th>Endpoints</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Overview</td><td><code>GET /files/stats?windowDays=&amp;tz=</code> · <code>/files/quotas</code> · <code>/files/retention</code> · <code>/files/duplicates</code> · <code>/files/orphans</code></td><td><span class="status live">Live</span></td></tr>
+        <tr><td>Files · file sheet</td><td><code>GET /files</code> · <code>/files/:id</code> · <code>/files/:id/access-log</code> · <code>POST /files/:id/download-url</code> · <code>DELETE /files/:id</code> · <code>DELETE /files/:id/attachments/:aid</code> · <code>PUT/DELETE /files/:id/hold</code></td><td><span class="status live">Live</span></td></tr>
+        <tr><td>Upload types · type page</td><td><code>GET /files/categories</code> · <code>/files/categories/:key</code> · <code>PATCH/DELETE /files/categories/:key</code></td><td><span class="status live">Live</span></td></tr>
+        <tr><td>Refused uploads</td><td><code>GET /files/rejections</code></td><td><span class="status live">Live</span></td></tr>
+        <tr><td>Storage &amp; limits</td><td><code>GET /files/storage-usage</code> · <code>GET/PUT/DELETE /files/quotas/:tenantId</code></td><td><span class="status live">Live</span></td></tr>
+        <tr><td>Cleanup</td><td><code>GET /files/orphans</code> · <code>POST /files/orphans/purge</code> · <code>GET /files/duplicates</code> · <code>GET/DELETE /files/stray-blobs</code></td><td><span class="status live">Live</span></td></tr>
+        <tr><td>Volume &amp; retention</td><td><code>GET /files/retention</code> · <code>POST /files/retention/run</code></td><td><span class="status live">Live</span></td></tr>
+      </tbody>
+    </table>
 
-    <!-- 2 · FILE DETAIL (drawer) -->
-    <div class="drawer" data-label="Drawer — File detail" id="file-detail">
-      <span class="x">✕</span>
-      <div class="screen-head" style="margin-bottom:0.5rem">
-        <h2 class="screen-name" style="font-size:var(--text-heading-sm)">File detail</h2>
-        <span class="endpoint"><span class="m">GET</span>/files/:id</span><span class="status live">Live</span>
-      </div>
-      <p class="screen-purpose" style="margin-bottom:0.875rem">Record + attachments + a short-lived in-app URL. Delete or detach from here.</p>
-      <dl class="kv">
-        <dt>File id</dt><dd class="mono">f_0J9K2M</dd>
-        <dt>Tenant</dt><dd>t_kairos</dd>
-        <dt>Category</dt><dd><span class="badge brand">kyc.identity-document</span></dd>
-        <dt>Content type</dt><dd>application/pdf · 1.9 MB</dd>
-        <dt>Content hash</dt><dd class="mono">sha256:9f2a…c1</dd>
-        <dt>Uploaded by</dt><dd>u_9f3a · 2026-09-06 15:47</dd>
-        <dt>URL</dt><dd><span class="badge info">expires in 5 min</span> https://…/signed</dd>
-      </dl>
-      <h3 class="sub" style="margin-top:1rem">Attachments</h3>
-      <table class="table">
-        <thead><tr><th>Attached to</th><th>Category</th><th></th></tr></thead>
-        <tbody>
-          <tr><td>issuer · iss_kairos</td><td>kyc_document</td><td class="t-time">detach</td></tr>
-        </tbody>
-      </table>
-      <details class="diff" open style="margin-top:1rem">
-        <summary>access log (recent)</summary>
-        <pre>2026-09-07 09:12  actor u_1c07     via actor        purpose in-app
-2026-09-06 16:03  actor u_9f3a     via actor        purpose in-app
-2026-09-06 15:59  —                via signed-link  purpose shareable-link</pre>
-      </details>
-      <div style="margin-top:1rem"><button class="btn-danger" type="button">Delete file (cascade)</button>
-        <span class="tl-time"> &nbsp;— removes the blob + all attachments + access log, one transaction. Audited (if configured) — <code>FileStorageApiModule.forRoot</code> defaults to a no-op audit emitter.</span></div>
-    </div>
-
-    <!-- 3 · STORAGE USAGE -->
-    <section class="screen" id="usage">
-      <div class="screen-head"><h2 class="screen-name">Storage Usage</h2><span class="endpoint"><span class="m">GET</span>/files/storage-usage</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Bytes and file count grouped by tenant and category — the "what's driving our storage bill / which tenant is huge" view.</p>
-      <p class="gating">Gate: <code>file.view</code>. Non-platform actor → their tenant only.</p>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Tenant</th><th>Category</th><th class="num">Files</th><th class="num">Total</th></tr></thead>
-        <tbody>
-          <tr><td>t_kairos</td><td><span class="badge brand">kyc.identity-document</span></td><td class="num">2,110</td><td class="num">3.8 GB</td></tr>
-          <tr><td>t_kairos</td><td><span class="badge neutral">invoice.supporting-doc</span></td><td class="num">14,900</td><td class="num">2.1 GB</td></tr>
-          <tr><td>t_meridian</td><td><span class="badge brand">kyc.identity-document</span></td><td class="num">402</td><td class="num">690 MB</td></tr>
-        </tbody>
-      </table>
-      </div>
-    </section>
-
-    <!-- 4 · ORPHANS -->
-    <section class="screen" id="orphans">
-      <div class="screen-head"><h2 class="screen-name">Orphans</h2><span class="endpoint"><span class="m">GET</span>/files/orphans</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">File records with zero attachments — usually a persistence write that half-failed, or an entity deleted without detaching its files. Storage cost, not a correctness bug.</p>
-      <p class="gating">Gate: <code>file.view</code>. Filter <code>olderThan</code> excludes a just-uploaded record mid-<code>attach</code>.</p>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Created</th><th>Category</th><th class="num">Size</th><th>fileRef</th><th></th></tr></thead>
-        <tbody>
-          <tr><td class="t-time">2026-08-28 09:10</td><td><span class="badge neutral">invoice.supporting-doc</span></td><td class="num">88 KB</td><td class="t-id">kyc/t_kairos/…</td><td class="t-time">delete</td></tr>
-          <tr><td class="t-time">2026-08-14 22:41</td><td><span class="badge neutral">export.temp</span></td><td class="num">4.2 MB</td><td class="t-id">exports/t_kairos/…</td><td class="t-time">delete</td></tr>
-        </tbody>
-      </table>
-      </div>
-      <div class="proposed-note"><div><b>Enhancement — Sweep.</b> Deleting orphans one at a time via <code>DELETE /files/:id</code> doesn't scale. Proposed: <span class="sig">POST /files/orphans/sweep</span> (dry-run first, audited) and a scheduled job. Separately, <b>blob↔metadata drift</b> (a blob with no record) needs <code>FileStore.list</code> — deferred in the module design.</div></div>
-    </section>
-
-    <!-- 5 · CATEGORY CATALOG -->
-    <section class="screen" id="categories">
-      <div class="screen-head"><h2 class="screen-name">Category Catalog</h2>
-        <span class="endpoint"><span class="m">GET</span>/files/categories</span>
-        <span class="endpoint"><span class="m">GET</span>/files/categories/:key</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">The single centralized view of every upload type the app accepts, its rules, and how much has come through it. Base definitions are developer-seeded; a tenant admin tightens them for their own tenant.</p>
-      <p class="gating">Read: <code>file.view</code> — effective catalog for the actor's tenant. Edit: <code>file.category.manage</code>, scoped to the actor's tenant (platform admin may target <code>?tenantId=</code> or the base row).</p>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Key</th><th>Accepts</th><th class="num">Max size</th><th>On unscannable</th><th>Override</th><th class="num">Files</th></tr></thead>
-        <tbody>
-          <tr><td><span class="badge brand">kyc.identity-document</span></td><td>pdf, jpg, png</td><td class="num">8 MB</td><td><span class="badge fail">reject</span></td><td><span class="badge warn">tenant: max 4 MB</span></td><td class="num">2,110</td></tr>
-          <tr><td><span class="badge brand">kyc.proof-of-address</span></td><td>pdf, jpg, png</td><td class="num">8 MB</td><td><span class="badge fail">reject</span></td><td>—</td><td class="num">1,880</td></tr>
-          <tr><td><span class="badge neutral">invoice.supporting-doc</span></td><td>pdf</td><td class="num">20 MB</td><td><span class="badge ok">allow</span></td><td>—</td><td class="num">14,900</td></tr>
-          <tr><td><span class="badge neutral">export.temp</span></td><td>any</td><td class="num">100 MB</td><td><span class="badge ok">allow</span></td><td>—</td><td class="num">204</td></tr>
-        </tbody>
-      </table>
-      </div>
-
-      <div class="sheet" data-label="Sheet — PATCH tenant override (tightening only)" id="category-edit">
-        <div class="form-row"><label>Category</label><div class="control">kyc.identity-document</div></div>
-        <div class="form-row"><label>Base rule</label><div class="control"><span class="badge neutral">pdf, jpg, png · 8 MB · reject unscannable</span></div></div>
-        <div class="form-row"><label>Max size (≤ base 8 MB)</label><div class="control">4 MB</div></div>
-        <div class="form-row"><label>Allowed content types (⊆ base)</label><div class="control"><span class="badge neutral">application/pdf</span> <span class="badge neutral">image/jpeg</span></div></div>
-        <div class="form-row"><label>On unscannable</label><div class="control">reject <span class="tl-time">(cannot loosen to "allow")</span></div></div>
-        <button class="btn" type="button">Save override</button>
-        <span class="tl-time"> &nbsp;— a value less restrictive than base → 422 <code>CategoryLooseningNotAllowedError</code></span>
-      </div>
-    </section>
-
-    <!-- 6 · OVERVIEW (partial) -->
+    <!-- ===================== OVERVIEW ===================== -->
     <section class="screen" id="overview">
-      <div class="screen-head"><h2 class="screen-name">Overview</h2><span class="endpoint"><span class="m">GET</span>/files/stats</span><span class="status partial">Partial</span></div>
-      <p class="screen-purpose">Upload activity at a glance — a spike in rejected uploads is a signal (a broken client, or a scanner outage) that the row-by-row log buries.</p>
-      <div class="proposed-note"><div><b>Partially live.</b> <span class="sig">GET /files/stats</span> now returns <code>{ uploadsByDay[], byCategory[] }</code>, tenant-scoped and windowed (<code>windowDays</code>, default 30) — the two KPI tiles and chart below backed by real data. <b>Still not available:</b> scan-verdict counts (Unscannable / Infected tiles below are illustrative only) — <code>commons_file_record</code> has no <code>scan_verdict</code> column, and adding one is a schema migration, deferred.</div></div>
+      <div class="screen-head"><h2 class="screen-name">Overview</h2><span class="endpoint"><span class="m">GET</span>/files/stats?windowDays=30&amp;tz=Asia/Karachi</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">What came in, what was turned away and why, which upload types carry the weight, who is running out of space, and what needs attention. Every number links to the list filtered to exactly what it counted.</p>
+      <p class="gating">Gate <code>file.view</code>. A tenant admin's numbers are its tenant's; a platform admin's every tenant's (tenant picker). Days are whole calendar days in the viewer's zone.</p>
+      <div class="header-actions"><span class="seg"><span>7d</span><span class="on">30d</span><span>90d</span></span><span class="field"><span class="lbl">Tenant</span><span class="val">All tenants</span></span></div>
       <div class="kpi-row">
-        <div class="kpi"><div class="k-label">Uploads (24h)</div><div class="k-value">486</div></div>
-        <div class="kpi"><div class="k-label">Rejected (24h)</div><div class="k-value">37</div></div>
-        <div class="kpi"><div class="k-label">Unscannable (24h) <span class="tl-time">— illustrative, not wired</span></div><div class="k-value">4</div></div>
-        <div class="kpi"><div class="k-label">Infected (blocked) <span class="tl-time">— illustrative, not wired</span></div><div class="k-value">1</div></div>
+        <div class="kpi"><div class="k-label">Uploaded</div><div class="k-value">252</div><div class="k-sub">files · 98.6 MB</div></div>
+        <div class="kpi alert"><div class="k-label">Refused</div><div class="k-value">24</div><div class="k-sub">15 broke a rule · 4 scan · 1 storage full</div></div>
+        <div class="kpi"><div class="k-label">Stored now</div><div class="k-value">695</div><div class="k-sub">253 MB across 3 tenants</div></div>
+        <div class="kpi warn"><div class="k-label">Unscanned</div><div class="k-value">1</div><div class="k-sub">stored though the scanner couldn't read it</div></div>
+        <div class="kpi"><div class="k-label">On legal hold</div><div class="k-value">2</div><div class="k-sub">can't be deleted</div></div>
       </div>
-      <h3 class="sub">Uploads by day (30d)</h3>
-      <div class="bars">
-        <div class="bar" style="height:44%"></div><div class="bar" style="height:58%"></div><div class="bar" style="height:50%"></div>
-        <div class="bar" style="height:66%"></div><div class="bar" style="height:60%"></div><div class="bar" style="height:26%"></div>
-        <div class="bar" style="height:22%"></div><div class="bar" style="height:54%"></div><div class="bar" style="height:70%"></div>
-        <div class="bar" style="height:78%"></div><div class="bar" style="height:72%"></div><div class="bar" style="height:56%"></div>
-        <div class="bar" style="height:46%"></div><div class="bar" style="height:84%"></div><div class="bar" style="height:100%"></div>
+      <div class="card"><div class="ch"><h4>Uploads per day</h4><p>Last 30 days, Asia/Karachi — refused on top</p></div>
+        <div style="padding:0 1.125rem 0.75rem"><div class="vchart">
+          <a style="height:62%"><i class="rej" style="height:9%"></i></a><a style="height:68%"></a><a style="height:75%"></a><a style="height:62%"><i class="rej" style="height:40%"></i></a><a style="height:25%"></a><a style="height:18%"><i class="rej" style="height:33%"></i></a><a style="height:75%"></a><a style="height:100%"></a><a style="height:50%"></a><a style="height:81%"></a><a style="height:68%"><i class="rej" style="height:9%"></i></a><a style="height:25%"></a><a style="height:19%"></a><a style="height:87%"><i class="rej" style="height:14%"></i></a><a style="height:93%"><i class="rej" style="height:7%"></i></a><a style="height:81%"><i class="rej" style="height:8%"></i></a><a style="height:62%"><i class="rej" style="height:20%"></i></a><a style="height:75%"></a><a style="height:19%"></a><a style="height:25%"></a><a style="height:75%"><i class="rej" style="height:8%"></i></a><a style="height:100%"><i class="rej" style="height:6%"></i></a><a style="height:44%"></a><a style="height:37%"><i class="rej" style="height:17%"></i></a><a style="height:62%"></a><a style="height:12%"></a><a style="height:12%"></a><a style="height:37%"><i class="rej" style="height:17%"></i></a><a style="height:44%"><i class="rej" style="height:14%"></i></a><a style="height:100%"><i class="rej" style="height:33%"></i></a>
+        </div><div class="vaxis"><span>30 Sep</span><span>today (partial)</span></div></div>
+      </div>
+      <div class="two" style="margin-top:1rem">
+        <div class="card"><div class="ch"><h4>By upload type</h4><p>Uploaded · size · refused, this period</p></div>
+          <div class="rowx"><span>Invoice supporting document</span><span class="t-num">125 · 40.0 MB</span><div class="meta"><a class="link">11 refused</a></div></div>
+          <div class="rowx"><span>Dispute evidence</span><span class="t-num">60 · 51.1 MB</span><div class="meta"><a class="link">2 refused</a></div></div>
+          <div class="rowx"><span>Report export</span><span class="t-num">39 · 5.8 MB</span></div>
+          <div class="rowx"><span>Customer import</span><span class="t-num">28 · 1.7 MB</span><div class="meta"><a class="link">4 refused</a></div></div>
+          <div class="rowx"><span>Profile photo</span><span class="t-num">0</span><div class="meta"><a class="link">3 refused</a> <span class="muted">— Globex turned photos off</span></div></div>
+          <div class="rowx"><span>Fax scan <span class="badge muted">retired</span></span><span class="t-num">0</span><div class="meta"><a class="link">2 refused</a> <span class="muted">— turned off for everyone</span></div></div>
+          <div class="rowx"><span class="mono">invoice.supporting-doc</span> <span class="badge warn">not a type</span><span class="t-num">0</span><div class="meta"><a class="link">2 refused</a> <span class="muted">— an integration sends a misspelled key</span></div></div>
+        </div>
+        <div class="card"><div class="ch"><h4>Why uploads were refused</h4><p>This period, by reason</p></div>
+          <div class="rowx"><span>Broke a rule — type, extension, size, or not what it claims to be</span><span class="t-num">15</span><div class="meta"><span class="badge bad">validation</span></div></div>
+          <div class="rowx"><span>Upload type unknown or turned off</span><span class="t-num">4</span><div class="meta"><span class="badge warn">category</span></div></div>
+          <div class="rowx"><span>Failed the malware scan, or couldn't be scanned where that's refused</span><span class="t-num">4</span><div class="meta"><span class="badge bad">scan</span></div></div>
+          <div class="rowx"><span>The tenant's storage is full</span><span class="t-num">1</span><div class="meta"><span class="badge warn">storage</span><span>Globex</span></div></div>
+          <div class="cf"><a class="link" href="#rejections">All refused uploads</a></div>
+        </div>
+      </div>
+      <div class="two" style="margin-top:1rem">
+        <div class="card"><div class="ch"><h4>Storage by tenant</h4><p>Used against the tenant's limit — platform admin</p></div>
+          <div class="rowx"><span>Acme Holdings <span class="muted">· 272 files</span></span><span class="t-num">93.2 MB <span class="muted">· no limit</span></span></div>
+          <div class="rowx"><span>Meridian Health <span class="muted">· 235 files</span></span><span class="t-num">90.8 MB of 5 GB</span><div class="meta" style="display:block"><div class="bar"><i style="width:2%"></i></div></div></div>
+          <div class="rowx"><span>Globex Corporation <span class="muted">· 188 files</span></span><span class="t-num badge bad">69.1 of 70 MB — 99%</span><div class="meta" style="display:block"><div class="bar"><i class="full" style="width:99%"></i></div></div></div>
+          <div class="cf"><a class="link" href="#storage">Storage &amp; limits</a></div>
+        </div>
+        <div class="card"><div class="ch"><h4>Needs attention</h4><p>What cleanup and retention are waiting on</p></div>
+          <div class="rowx"><span>Expiring in the next 30 days</span><span class="t-num">72</span><div class="meta">the retention run deletes them on their date — customer imports, exports</div></div>
+          <div class="rowx"><span>Orphaned files</span><span class="t-num">13 · 3.5 MB</span><div class="meta">attached to nothing — <a class="link" href="#cleanup">purge</a></div></div>
+          <div class="rowx"><span>Duplicate copies</span><span class="t-num">19 · 7.8 MB</span><div class="meta">the same bytes uploaded again — reported, never merged</div></div>
+          <div class="rowx"><span>Stray blobs</span><span class="badge warn">1 in invoices</span><div class="meta">stored bytes no file record holds — a failed upload left them</div></div>
+          <div class="rowx"><span>Held past their retention date</span><span class="t-num">1</span><div class="meta">a Meridian customer import — the run skips it</div></div>
+        </div>
+      </div>
+      <ul class="ann">
+        <li>Tiles: Uploaded → Files filtered to the period; Refused → Refused uploads; Stored now → Storage &amp; limits; Unscanned → Files where the scan verdict is <i>unscannable</i>; On legal hold → Files <code>?held=true</code>.</li>
+        <li>A tenant admin's Storage card shows only its own tenant with its limit (or "no limit").</li>
+      </ul>
+    </section>
+
+    <!-- ===================== FILES ===================== -->
+    <section class="screen" id="files">
+      <div class="screen-head"><h2 class="screen-name">Files</h2><span class="endpoint"><span class="m">GET</span>/files</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">Every stored file, newest first — "which documents did Acme upload last week", "what is under legal hold". Keyset-paginated; a focus-mode page. A row opens the file sheet.</p>
+      <p class="gating">Gate <code>file.view</code>, tenant-scoped. Filters: upload type, uploaded by, uploaded between, minimum size, on legal hold, filename search; tenant (platform).</p>
+      <div class="filterbar"><span class="field"><span class="lbl">Search</span><span class="val muted">Filename…</span></span><span class="field"><span class="lbl">Upload type</span><span class="val">Any</span></span><span class="field"><span class="lbl">Uploaded</span><span class="val">Any time</span></span><span class="btn-secondary">On legal hold</span><span class="btn-secondary">Columns</span></div>
+      <div class="scrollx"><table class="table">
+        <thead><tr><th>Uploaded</th><th>File</th><th class="t-num">Size</th><th>Uploaded by</th><th>Tenant</th><th>Kept until</th><th class="t-num">Attached to</th></tr></thead>
+        <tbody>
+          <tr><td class="t-time">29 Oct, 21:42</td><td><div class="file"><span>signed-contract.pdf</span><span class="em">Invoice supporting document</span></div></td><td class="t-num">120 KB</td><td>Meridian Admin</td><td>Meridian</td><td class="t-time">27 Oct 2033</td><td class="t-num">1</td></tr>
+          <tr><td class="t-time">29 Oct, 21:42</td><td><div class="file"><span>bank-statement-password.pdf <span class="badge warn">not scanned</span></span><span class="em">Dispute evidence</span></div></td><td class="t-num">1.2 MB</td><td>Acme Admin</td><td>Acme</td><td class="t-time">28 Oct 2028</td><td class="t-num">1</td></tr>
+          <tr><td class="t-time">29 Oct, 15:28</td><td><div class="file"><span>PO-4516.xlsx</span><span class="em">Invoice supporting document</span></div></td><td class="t-num">513 KB</td><td>Amara Jensen</td><td>Acme</td><td class="t-time">27 Oct 2033</td><td class="t-num">1</td></tr>
+          <tr><td class="t-time">29 Oct, 15:22</td><td><div class="file"><span>contract-1896.pdf</span><span class="em">Invoice supporting document</span></div></td><td class="t-num">72 KB</td><td>Rania Garcia</td><td>Meridian</td><td class="t-time">27 Oct 2033</td><td class="t-num"><span class="badge muted">orphan</span></td></tr>
+          <tr><td class="t-time">29 Oct, 14:01</td><td><div class="file"><span>statement-539.pdf</span><span class="em">Report export</span></div></td><td class="t-num">182 KB</td><td>Kofi Lopez</td><td>Globex</td><td class="t-time">27 Jan 2027</td><td class="t-num">1</td></tr>
+          <tr><td class="t-time">21 Oct, 15:56</td><td><div class="file"><span>chargeback-letter.pdf</span><span class="em">Dispute evidence</span></div></td><td class="t-num">1.3 MB</td><td>Nadia Rossi</td><td>Globex</td><td><span class="badge info">held</span></td><td class="t-num">1</td></tr>
+          <tr><td class="t-time">3 Aug, 06:22</td><td><div class="file"><span>customers-batch-142.csv</span><span class="em">Customer import</span></div></td><td class="t-num">48 KB</td><td>Ivan Okafor</td><td>Meridian</td><td><span class="badge info">held</span> <span class="muted">· was 2 Sep</span></td><td class="t-num">1</td></tr>
+          <tr><td class="t-time">13 Aug, 10:04</td><td><div class="file"><span>photo.jpg</span><span class="em">Profile photo</span></div></td><td class="t-num">96 KB</td><td>Priya Ito</td><td>Acme</td><td class="muted">indefinite</td><td class="t-num">1</td></tr>
+        </tbody>
+      </table></div>
+      <div class="pagebar"><span>1–50</span><span class="pager"><span>‹</span><span>›</span></span></div>
+      <ul class="ann">
+        <li>File: the uploader's own filename (cleaned) over its upload type's label; <i>not scanned</i> when the scanner couldn't read it and the type allowed it.</li>
+        <li>Kept until: the retention date fixed at upload; <i>held</i> replaces it while under legal hold; <i>indefinite</i> when the type keeps forever.</li>
+        <li>Attached to: how many entities hold it; <i>orphan</i> when none. A tenant admin's has no Tenant column.</li>
+      </ul>
+    </section>
+
+    <!-- ===================== FILE SHEET ===================== -->
+    <section class="screen" id="file">
+      <div class="screen-head"><h2 class="screen-name">File sheet</h2><span class="endpoint"><span class="m">GET</span>/files/:id · /access-log</span><span class="endpoint"><span class="m">POST</span>/files/:id/download-url</span><span class="endpoint"><span class="m">PUT/DELETE</span>/files/:id/hold</span><span class="endpoint"><span class="m">DELETE</span>/files/:id</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">One file in full: what it is, where it's attached, how long it's kept, and who opened it — and what you may do with it: open it, hold it, detach it, delete it.</p>
+      <div class="variants">
+        <div>
+          <p class="vlabel">Tenant admin — a file under legal hold</p>
+          <div class="sheet">
+            <h4>chargeback-letter.pdf</h4>
+            <p class="desc">Dispute evidence · Globex · 1.3 MB · PDF</p>
+            <div class="verdict no"><div><b>On legal hold</b>Chargeback DSP-2291 — keep until the bank closes the case. Placed by Globex Admin, 29 Oct 21:42. Nobody can delete it, and retention skips it.</div></div>
+            <dl class="kv"><dt>Uploaded</dt><dd>21 Oct 2026, 15:56 by Nadia Rossi</dd><dt>Kept until</dt><dd>20 Oct 2028 <span class="muted">· two years, fixed at upload</span></dd><dt>Scan</dt><dd><span class="badge good">clean</span></dd><dt>SHA-256</dt><dd class="mono muted">46eee446…00fe952</dd></dl>
+            <div class="saved"><div class="head"><span>Attached to</span></div>
+              <div class="rowx"><span>Dispute <span class="mono">dsp_globex_12</span></span><span class="muted">since 21 Oct</span></div></div>
+            <div class="header-actions" style="margin-top:1rem"><button class="btn">Open</button><button class="btn-secondary">Release hold</button><button class="btn-secondary" disabled>Delete</button></div>
+            <p class="footnote">Open makes a 5-minute link and logs who opened it. Delete is off while held — "Release the hold first".</p>
+          </div>
+        </div>
+        <div>
+          <p class="vlabel">Tenant admin — inside its retention period</p>
+          <div class="sheet">
+            <h4>passport-malik.pdf</h4>
+            <p class="desc">KYC identity document · Acme · 612 KB · PDF</p>
+            <dl class="kv"><dt>Uploaded</dt><dd>3 Aug 2026 by Acme Admin</dd><dt>Kept until</dt><dd>2 Aug 2031 <span class="muted">· five years</span></dd><dt>Scan</dt><dd><span class="badge good">clean</span></dd></dl>
+            <div class="saved"><div class="head"><span>Opened</span><span class="muted">access log</span></div>
+              <div class="rowx"><span>Acme Admin <span class="muted">· in the app</span></span><span class="t-time">29 Oct, 21:42</span></div>
+              <div class="rowx"><span>Priya Ito <span class="muted">· in the app</span></span><span class="t-time">4 Aug, 11:05</span></div></div>
+            <div class="header-actions" style="margin-top:1rem"><button class="btn">Open</button><button class="btn-secondary">Place legal hold</button><button class="btn-secondary" disabled>Delete</button></div>
+            <p class="footnote">Delete is off until 2 Aug 2031 — "Kept until 2 Aug 2031 (KYC: five years)". A platform admin's Delete stays on, with a confirm: "Delete before its retention date? Record why — this is an erasure."</p>
+          </div>
+        </div>
+      </div>
+      <div class="variants" style="margin-top:1rem">
+        <div>
+          <p class="vlabel">Place legal hold — dialog</p>
+          <div class="sheet">
+            <h4>Place a legal hold</h4>
+            <p class="desc">While held, nobody can delete this file and retention skips it. You can release it later.</p>
+            <div class="ta" style="min-height:64px">Data-protection investigation INV-77 — do not delete</div>
+            <p class="footnote">A reason is required — it shows on the file and in the audit log.</p>
+            <div class="header-actions"><button class="btn">Place hold</button><button class="btn-secondary">Cancel</button></div>
+          </div>
+        </div>
+        <div>
+          <p class="vlabel">States</p>
+          <ul class="ann">
+            <li><b>Platform support</b> — no Open, no Hold, no Delete: "Opening a file takes <code>file.view_content</code>".</li>
+            <li><b>Shared link</b> rows in the access log — "via a shared link" (no person).</li>
+            <li><b>Several attachments</b> — each with <i>Detach</i>; detaching the last makes it an orphan (the file stays).</li>
+            <li><b>Not scanned</b> — "The scanner couldn't read this file (password-protected?). Dispute evidence allows that." beside the scan row.</li>
+            <li><b>Deleted file</b> — its id now 404s: "This file was deleted" (the audit log says by whom and why).</li>
+          </ul>
+        </div>
       </div>
     </section>
 
-    <!-- 7 · REJECTED UPLOADS -->
+    <!-- ===================== UPLOAD TYPES ===================== -->
+    <section class="screen" id="types">
+      <div class="screen-head"><h2 class="screen-name">Upload types</h2><span class="endpoint"><span class="m">GET</span>/files/categories</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">Every kind of file the app accepts — the one place that says what a valid KYC document or invoice attachment is, how long it's kept, and how much of it there is. A tenant admin sees its effective rules (with its own tightening marked).</p>
+      <p class="gating">Gate <code>file.view</code>. Types are declared in code — there's no "New type".</p>
+      <div class="scrollx"><table class="table">
+        <thead><tr><th>Upload type</th><th>Accepts</th><th class="t-num">Max size</th><th>Kept</th><th>If unscannable</th><th class="t-num">Files</th><th>Last upload</th></tr></thead>
+        <tbody>
+          <tr><td><div class="file"><span>Invoice supporting document <span class="badge info">tightened</span></span><span class="em mono">invoice.supporting-document</span></div></td><td>PDF, JPEG, PNG, XLSX</td><td class="t-num">10 MB <span class="muted">of 20</span></td><td>7 years</td><td>refuse</td><td class="t-num">358 · 108 MB</td><td class="t-time">29 Oct</td></tr>
+          <tr><td><div class="file"><span>Dispute evidence</span><span class="em mono">dispute.evidence</span></div></td><td>PDF, JPEG, PNG, MP4</td><td class="t-num">50 MB</td><td>2 years</td><td>store</td><td class="t-num">146 · 117 MB</td><td class="t-time">29 Oct</td></tr>
+          <tr><td><div class="file"><span>Report export</span><span class="em mono">report.export</span></div></td><td>PDF, CSV</td><td class="t-num">20 MB</td><td>90 days</td><td>store</td><td class="t-num">125 · 18 MB</td><td class="t-time">29 Oct</td></tr>
+          <tr><td><div class="file"><span>Customer import</span><span class="em mono">customer.import</span></div></td><td>CSV</td><td class="t-num">5 MB</td><td>30 days</td><td>store</td><td class="t-num">29 · 1.8 MB</td><td class="t-time">29 Oct</td></tr>
+          <tr><td><div class="file"><span>Profile photo</span><span class="em mono">user.avatar</span></div></td><td>JPEG, PNG, WebP</td><td class="t-num">2 MB</td><td>indefinite</td><td>store</td><td class="t-num">20 · 1.8 MB</td><td class="t-time">13 Aug</td></tr>
+          <tr><td><div class="file"><span>KYC identity document</span><span class="em mono">kyc.identity-document</span></div></td><td>PDF, JPEG, PNG</td><td class="t-num">10 MB</td><td>5 years</td><td>refuse</td><td class="t-num">8 · 3.6 MB</td><td class="t-time">3 Aug</td></tr>
+          <tr><td><div class="file"><span>Fax scan <span class="badge muted">off for everyone</span></span><span class="em mono">legacy.fax-scan</span></div></td><td>TIFF, PDF</td><td class="t-num">10 MB</td><td>7 years</td><td>refuse</td><td class="t-num">9 · 2 MB</td><td class="t-time">21 Aug</td></tr>
+        </tbody>
+      </table></div>
+      <ul class="ann">
+        <li>Platform admin, all tenants: the base rules. With a tenant picked: that tenant's effective rules, as a tenant admin sees them.</li>
+        <li><i>tightened</i> — this tenant narrowed it; <i>off for this tenant</i> — the tenant turned it off (Globex: Profile photo); <i>off for everyone</i> — the platform turned it off.</li>
+      </ul>
+    </section>
+
+    <!-- ===================== UPLOAD TYPE PAGE ===================== -->
+    <section class="screen" id="type">
+      <div class="screen-head"><h2 class="screen-name">Upload type page</h2><span class="endpoint"><span class="m">GET</span>/files/categories/:key</span><span class="endpoint"><span class="m">PATCH/DELETE</span>/files/categories/:key</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">One type's rules — the base the app declares beside this tenant's tightening — and the edit that may only narrow them.</p>
+      <p class="gating">Edit gated <code>file.category.manage</code>. A loosening is refused with the field named ("may only be more restrictive than the base").</p>
+      <div class="variants">
+        <div>
+          <p class="vlabel">Tenant admin (Acme) — Invoice supporting document</p>
+          <div class="sheet" style="padding:0">
+            <div class="rule head"><span></span><span>The app's rule</span><span>Acme</span></div>
+            <div class="rule"><span class="lbl">Content types</span><span>PDF, JPEG, PNG, XLSX, DOCX</span><span class="tight">PDF, JPEG, PNG, XLSX</span></div>
+            <div class="rule"><span class="lbl">Extensions</span><span>pdf jpg jpeg png xlsx docx</span><span class="tight">pdf jpg jpeg png xlsx</span></div>
+            <div class="rule"><span class="lbl">Size</span><span>up to 20 MB</span><span class="tight">up to 10 MB</span></div>
+            <div class="rule"><span class="lbl">If unscannable</span><span>refuse</span><span class="muted">inherits</span></div>
+            <div class="rule"><span class="lbl">Shared links last</span><span>1 hour (the app's default)</span><span class="muted">inherits</span></div>
+            <div class="rule"><span class="lbl">Kept</span><span>7 years</span><span class="muted">the app's — not a tenant's to change</span></div>
+            <div class="rule"><span class="lbl">Bucket</span><span class="mono">invoices</span><span class="muted">—</span></div>
+            <div class="header-actions" style="padding:0.75rem 1.125rem"><button class="btn">Edit Acme's rules</button><button class="btn-secondary">Turn off for Acme</button><button class="btn-secondary">Go back to the app's rules</button></div>
+          </div>
+        </div>
+        <div>
+          <p class="vlabel">Edit — a loosening refused</p>
+          <div class="sheet">
+            <h4>Acme's rules — Invoice supporting document</h4>
+            <dl class="kv"><dt>Content types</dt><dd><div class="chips"><span class="chan">PDF ×</span><span class="chan">JPEG ×</span><span class="chan">PNG ×</span><span class="chan">XLSX ×</span></div><span class="muted" style="font-size:var(--text-caption)">Only from the app's list</span></dd><dt>Max size</dt><dd>25 MB<div class="err-line">May only be smaller than the app's 20 MB.</div></dd><dt>If unscannable</dt><dd>refuse <span class="muted">(the app's — can't be loosened to "store")</span></dd></dl>
+            <div class="header-actions"><button class="btn" disabled>Save</button><button class="btn-secondary">Cancel</button></div>
+          </div>
+          <ul class="ann">
+            <li>Platform admin, no tenant picked: the base row — <i>Turn off for everyone</i> / <i>Turn back on</i>; its rules are code.</li>
+            <li>Every save and turn-off is audited with what it was before.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== REFUSED UPLOADS ===================== -->
     <section class="screen" id="rejections">
-      <div class="screen-head"><h2 class="screen-name">Rejected Uploads</h2><span class="endpoint"><span class="m">GET</span>/files/rejections</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">Uploads that <code>attach</code> refused — wrong type, too large, failed scan, unknown category. A cluster ("40 KYC docs rejected for wrong type this week") is a UX or client-config problem the support team should see.</p>
-      <p class="gating">Gate: <code>file.view</code>. Non-platform actor → their tenant only. Filters: <code>category</code>, <code>reason</code>. Keyset-paginated.</p>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Attempted</th><th>Category</th><th>Reason</th><th>By</th><th>Filename</th></tr></thead>
+      <div class="screen-head"><h2 class="screen-name">Refused uploads</h2><span class="endpoint"><span class="m">GET</span>/files/rejections</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">"Why can't I upload this?" — every refused attempt, newest first, with the reason in plain words. Nothing was stored for these. Kept 90 days (they carry filenames).</p>
+      <p class="gating">Gate <code>file.view</code>, tenant-scoped. Filters: reason, upload type; tenant (platform).</p>
+      <div class="filterbar"><span class="field"><span class="lbl">Reason</span><span class="val">Any</span></span><span class="field"><span class="lbl">Upload type</span><span class="val">Any</span></span></div>
+      <div class="scrollx"><table class="table">
+        <thead><tr><th>When</th><th>File</th><th>Upload type</th><th>By</th><th>Tenant</th><th>Why</th></tr></thead>
         <tbody>
-          <tr><td class="t-time">2026-09-07 10:22</td><td><span class="badge brand">kyc.identity-document</span></td><td><span class="badge warn">content type image/heic not accepted</span></td><td>u_7788</td><td class="mono">passport.heic</td></tr>
-          <tr><td class="t-time">2026-09-07 09:41</td><td><span class="badge brand">kyc.proof-of-address</span></td><td><span class="badge warn">12 MB &gt; category max 8 MB</span></td><td>u_5521</td><td class="mono">statement.pdf</td></tr>
-          <tr><td class="t-time">2026-09-06 18:15</td><td><span class="badge neutral">invoice.supporting-doc</span></td><td><span class="badge fail">failed malware scan</span></td><td>svc_import</td><td class="mono">receipt.zip</td></tr>
+          <tr><td class="t-time">29 Oct, 21:42</td><td><div class="file"><span>chargeback-response.pdf</span><span class="em">400 KB · PDF</span></div></td><td>Dispute evidence</td><td>Globex Admin</td><td>Globex</td><td><span class="badge warn">storage full</span> <span class="muted">69.1 of 70 MB used</span></td></tr>
+          <tr><td class="t-time">29 Oct, 21:42</td><td><div class="file"><span>terms.docx</span><span class="em">DOCX</span></div></td><td>Invoice supporting document</td><td>Acme Admin</td><td>Acme</td><td><span class="badge bad">rule</span> <span class="muted">Word files aren't accepted (Acme's rule)</span></td></tr>
+          <tr><td class="t-time">29 Oct, 21:42</td><td><div class="file"><span>fax-404.tif</span><span class="em">TIFF</span></div></td><td>Fax scan</td><td>Meridian Admin</td><td>Meridian</td><td><span class="badge warn">type off</span> <span class="muted">fax scans are retired</span></td></tr>
+          <tr><td class="t-time">29 Oct, 21:42</td><td><div class="file"><span>remittance.pdf</span><span class="em">2 KB · "PDF"</span></div></td><td>Invoice supporting document</td><td>Acme Admin</td><td>Acme</td><td><span class="badge bad">rule</span> <span class="muted">not a PDF — its content is HTML</span></td></tr>
+          <tr><td class="t-time">29 Oct, 21:42</td><td><div class="file"><span>invoice-copy.pdf</span><span class="em">PDF</span></div></td><td>Invoice supporting document</td><td>Globex Admin</td><td>Globex</td><td><span class="badge bad">scan</span> <span class="muted">failed the malware scan</span></td></tr>
+          <tr><td class="t-time">29 Oct, 21:42</td><td><div class="file"><span>bank-statement-password.pdf</span><span class="em">PDF</span></div></td><td>Dispute evidence</td><td>Meridian Admin</td><td>Meridian</td><td><span class="badge bad">scan</span> <span class="muted">couldn't be scanned — Meridian refuses those</span></td></tr>
+          <tr><td class="t-time">28 Oct, 12:44</td><td><div class="file"><span>scan.heic</span><span class="em">1.8 MB · HEIC</span></div></td><td>Invoice supporting document</td><td>Globex Admin</td><td>Globex</td><td><span class="badge bad">rule</span> <span class="muted">HEIC isn't accepted</span></td></tr>
         </tbody>
-      </table>
+      </table></div>
+      <ul class="ann"><li>Why: the reason badge, then the message in plain words — the API's message is kept verbatim on hover/expand.</li></ul>
+    </section>
+
+    <!-- ===================== STORAGE & LIMITS ===================== -->
+    <section class="screen" id="storage">
+      <div class="screen-head"><h2 class="screen-name">Storage &amp; limits</h2><span class="endpoint"><span class="m">GET</span>/files/storage-usage · /files/quotas</span><span class="endpoint"><span class="m">PUT/DELETE</span>/files/quotas/:tenantId</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">Who uses how much, of what — and each tenant's limit. An upload that would pass the limit is refused (and shows in Refused uploads).</p>
+      <p class="gating">Gate <code>file.view</code>; setting a limit <code>file.quota.manage</code> — platform admins only. A tenant admin sees its own usage and limit.</p>
+      <div class="scrollx"><table class="table">
+        <thead><tr><th>Tenant</th><th class="t-num">Files</th><th class="t-num">Used</th><th>Limit</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>Acme Holdings</td><td class="t-num">272</td><td class="t-num">93.2 MB</td><td class="muted">no limit</td><td><a class="link">Set a limit</a></td></tr>
+          <tr><td>Meridian Health</td><td class="t-num">235</td><td class="t-num">90.8 MB</td><td><div class="bar" style="width:160px"><i style="width:2%"></i></div><span class="muted">of 5 GB — 2%</span></td><td><a class="link">Change</a></td></tr>
+          <tr><td>Globex Corporation</td><td class="t-num">188</td><td class="t-num">69.1 MB</td><td><div class="bar" style="width:160px"><i class="full" style="width:99%"></i></div><span class="badge bad">of 70 MB — 99%</span></td><td><a class="link">Change</a></td></tr>
+        </tbody>
+      </table></div>
+      <div class="card" style="margin-top:1rem"><div class="ch"><h4>By upload type — Globex</h4><p>A tenant row expands to its types</p></div>
+        <div class="rowx"><span>Dispute evidence</span><span class="t-num">39.5 MB · 47 files</span></div>
+        <div class="rowx"><span>Invoice supporting document</span><span class="t-num">24.6 MB · 96 files</span></div>
+        <div class="rowx"><span>Report export</span><span class="t-num">4.1 MB · 33 files</span></div>
+        <div class="rowx"><span>Customer import, KYC, photos</span><span class="t-num">0.9 MB · 12 files</span></div>
+      </div>
+      <ul class="ann"><li>Set / change a limit: a dialog with the size (MB / GB) and the current use; removing it asks to confirm. Audited with before and after.</li></ul>
+    </section>
+
+    <!-- ===================== CLEANUP ===================== -->
+    <section class="screen" id="cleanup">
+      <div class="screen-head"><h2 class="screen-name">Cleanup</h2><span class="endpoint"><span class="m">GET</span>/files/orphans · /duplicates · /stray-blobs</span><span class="endpoint"><span class="m">POST</span>/files/orphans/purge</span><span class="endpoint"><span class="m">DELETE</span>/files/stray-blobs</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">Three kinds of leftover, three tabs: files attached to nothing, the same bytes stored twice, and bytes in storage with no file record at all.</p>
+      <div class="header-actions"><span class="seg"><span class="on">Orphaned files · 13</span><span>Duplicates · 19</span><span>Stray blobs</span></span></div>
+      <div class="variants">
+        <div>
+          <p class="vlabel">Orphaned files</p>
+          <div class="scrollx"><table class="table">
+            <thead><tr><th>Uploaded</th><th>File</th><th class="t-num">Size</th><th>Tenant</th></tr></thead>
+            <tbody>
+              <tr><td class="t-time">27 Oct</td><td><div class="file"><span>delivery-note-0914.png</span><span class="em">Invoice supporting document</span></div></td><td class="t-num">288 KB</td><td>Acme</td></tr>
+              <tr><td class="t-time">29 Oct</td><td><div class="file"><span>contract-1896.pdf</span><span class="em">Invoice supporting document</span></div></td><td class="t-num">72 KB</td><td>Meridian</td></tr>
+            </tbody>
+          </table></div>
+          <div class="header-actions" style="margin-top:0.75rem"><button class="btn-secondary">Purge orphans older than 30 days…</button></div>
+          <p class="footnote">Held files and files inside their retention date are skipped — the confirm says how many will go and how many stay.</p>
+        </div>
+        <div>
+          <p class="vlabel">Duplicates · Stray blobs</p>
+          <div class="card"><div class="ch"><h4>Same content, stored more than once</h4><p>Reported, never merged — each copy has its own attachments, retention and hold</p></div>
+            <div class="rowx"><span>2 copies · <span class="mono muted">f1c82a…</span></span><span class="t-num">900 KB wasted</span><div class="meta">Meridian · 7 Aug · <a class="link">open the copies</a></div></div>
+            <div class="rowx"><span>2 copies · <span class="mono muted">4465d3…</span></span><span class="t-num">580 KB wasted</span><div class="meta">Acme · <a class="link">open the copies</a></div></div>
+          </div>
+          <div class="card" style="margin-top:1rem"><div class="ch"><h4>Stray blobs — invoices</h4><p>Bytes no record holds, older than an hour — platform admin; bucket picker</p></div>
+            <div class="rowx"><span class="mono">invoices/tenant_acme/…/87f91d9f</span><span class="t-num">80 KB</span><div class="meta">written 26 Oct · <a class="link">Delete</a></div></div>
+            <div class="cf">A failed upload left these. Deleting re-checks first.</div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- 8 · RETENTION & LEGAL HOLD (proposed) -->
+    <!-- ===================== VOLUME & RETENTION ===================== -->
     <section class="screen" id="retention">
-      <div class="screen-head"><h2 class="screen-name">Retention &amp; Legal Hold</h2>
-        <span class="endpoint"><span class="m">GET</span>/files/retention</span>
-        <span class="endpoint"><span class="m">POST</span>/files/:id/hold</span><span class="status proposed">Proposed</span></div>
-      <p class="screen-purpose">Files past their category's declared <code>keepForDays</code> — candidates for a lifecycle job — and files under legal hold that must not be deleted regardless.</p>
-      <div class="proposed-note"><div><b>Missing API.</b> <code>FileCategory.retention</code> is stored and never read. Proposed: <span class="sig">GET /files/retention</span> → records past their retention window (grouped by category), a lifecycle job that acts on them, and a <b>legal hold</b> flag — <span class="sig">POST /files/:id/hold</span> / <span class="sig">DELETE /files/:id/hold</span> — that makes <code>DELETE /files/:id</code> and any sweep refuse.</div></div>
-      <h3 class="sub">Past retention window</h3>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>Category</th><th>Retention</th><th class="num">Past window</th><th class="num">Bytes</th></tr></thead>
-        <tbody>
-          <tr><td><span class="badge neutral">export.temp</span></td><td>keepForDays 7</td><td class="num">180</td><td class="num">740 MB</td></tr>
-          <tr><td><span class="badge neutral">invoice.supporting-doc</span></td><td>keepForDays 2555</td><td class="num">0</td><td class="num">—</td></tr>
-          <tr><td><span class="badge brand">kyc.identity-document</span></td><td>indefinite</td><td class="num">n/a</td><td class="num">—</td></tr>
-        </tbody>
-      </table>
+      <div class="screen-head"><h2 class="screen-name">Volume &amp; retention</h2><span class="endpoint"><span class="m">GET</span>/files/retention</span><span class="endpoint"><span class="m">POST</span>/files/retention/run</span><span class="status live">Live</span></div>
+      <p class="screen-purpose">What the nightly retention run is working on: files reaching their date, what's held back, and how long the logs keep their rows.</p>
+      <p class="gating">Gate <code>file.view</code>, tenant-scoped; <i>Run now</i> — platform admins (it spans every tenant).</p>
+      <div class="kpi-row">
+        <div class="kpi"><div class="k-label">Files</div><div class="k-value">695</div><div class="k-sub">253 MB · oldest 1 Aug</div></div>
+        <div class="kpi"><div class="k-label">Expiring in 30 days</div><div class="k-value">72</div><div class="k-sub">deleted on their date</div></div>
+        <div class="kpi"><div class="k-label">Past their date</div><div class="k-value">0</div><div class="k-sub">the next run deletes these</div></div>
+        <div class="kpi"><div class="k-label">Kept indefinitely</div><div class="k-value">20</div><div class="k-sub">types without a retention</div></div>
+        <div class="kpi"><div class="k-label">On legal hold</div><div class="k-value">2</div><div class="k-sub">skipped by retention</div></div>
       </div>
-      <h3 class="sub">Under legal hold</h3>
-      <div class="scrollx">
-      <table class="table">
-        <thead><tr><th>File</th><th>Placed</th><th>By</th><th>Matter</th></tr></thead>
-        <tbody>
-          <tr><td class="t-id">f_2ZK18P</td><td class="t-time">2026-08-11</td><td>u_1c07</td><td>Dispute #4471 — deletion blocked</td></tr>
-        </tbody>
-      </table>
+      <div class="two">
+        <div class="card"><div class="ch"><h4>Logs</h4><p>Rows the run trims</p></div>
+          <div class="rowx"><span>Access log — who opened what</span><span class="t-num">583 rows</span><div class="meta">kept 365 days · oldest 1 Aug</div></div>
+          <div class="rowx"><span>Refused uploads</span><span class="t-num">58 rows</span><div class="meta">kept 90 days · oldest 1 Aug</div></div>
+        </div>
+        <div class="card"><div class="ch"><h4>The retention run</h4><p>Daily at 03:40, and at start-up — <code>file-retention</code> in Background jobs</p></div>
+          <div class="rowx"><span>Last run</span><span class="t-num">today 21:42</span><div class="meta">44 files deleted · 1 abandoned upload dropped</div></div>
+          <div class="cf"><button class="btn-secondary">Run now</button> <a class="link">Its runs in Background jobs</a></div>
+        </div>
       </div>
-    </section>
-
-    <!-- EMPTY STATE -->
-    <section class="screen">
-      <div class="screen-head"><h2 class="screen-name">File Inventory — empty state</h2><span class="endpoint"><span class="m">GET</span>/files</span><span class="status live">Live</span></div>
-      <p class="screen-purpose">No file matches the filter — distinct from "this tenant has stored nothing".</p>
-      <div class="empty">
-        <div class="ic">📄</div>
-        <div><div style="color:var(--foreground);font-weight:500">No files match these filters</div>
-        <div>Widen the date range or clear the category filter.</div></div>
-        <button class="btn-secondary" type="button">Clear filters</button>
-      </div>
+      <ul class="ann"><li>"Last run" is background-jobs' (<code>GET /jobs/file-retention</code>) — the console links there rather than keeping its own history.</li></ul>
     </section>
   </main>
 </div>
