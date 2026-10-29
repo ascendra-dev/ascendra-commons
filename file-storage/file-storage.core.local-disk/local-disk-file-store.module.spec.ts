@@ -32,7 +32,9 @@ async function body(stream: Readable): Promise<string> {
 describe('LocalDiskFileStoreModule.forRoot', () => {
   it('refuses a relative root, a missing URL or a short secret', () => {
     expect(() => LocalDiskFileStoreModule.forRoot({ ...config(), rootDir: 'rel' })).toThrow(/absolute rootDir/);
-    expect(() => LocalDiskFileStoreModule.forRoot({ ...config(), publicBaseUrl: '/local-files' })).toThrow(/publicBaseUrl/);
+    expect(() => LocalDiskFileStoreModule.forRoot({ ...config(), publicBaseUrl: 'local-files' })).toThrow(/publicBaseUrl/);
+    expect(() => LocalDiskFileStoreModule.forRoot({ ...config(), publicBaseUrl: '//evil.test/x' })).toThrow(/publicBaseUrl/);
+    expect(() => LocalDiskFileStoreModule.forRoot({ ...config(), publicBaseUrl: '/api/local-files' })).not.toThrow();
     expect(() => LocalDiskFileStoreModule.forRoot({ ...config(), signingSecret: 'short' })).toThrow(/32 characters/);
   });
 

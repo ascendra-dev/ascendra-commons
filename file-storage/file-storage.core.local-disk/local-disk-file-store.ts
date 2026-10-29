@@ -18,7 +18,11 @@ import { LOCAL_DISK_OPTIONS } from './tokens';
 export interface LocalDiskOptions {
   /** Absolute directory the buckets live under — one sub-directory per bucket. */
   rootDir: string;
-  /** Where `LocalDiskBlobController` is reachable, e.g. `http://localhost:3010/local-files` — a URL is `${publicBaseUrl}/${token}`. */
+  /**
+   * Where `LocalDiskBlobController` is reachable — `http://localhost:3010/local-files`, or a path from the
+   * site root (`/api/local-files`) when the browser reaches the API through the app's own origin (a proxy):
+   * the URL then works from whatever host the page was opened on. A URL is `${publicBaseUrl}/${token}`.
+   */
   publicBaseUrl: string;
   /** HMAC secret for download tokens — at least 32 characters. */
   signingSecret: string;

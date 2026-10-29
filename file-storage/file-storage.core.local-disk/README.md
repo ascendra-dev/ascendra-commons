@@ -34,7 +34,7 @@ the other is a `fileStoreToken` change.
 ```typescript
 LocalDiskFileStoreModule.forRoot({
   rootDir: resolve('var/files'),                        // absolute
-  publicBaseUrl: 'http://localhost:3010/local-files',   // where routePath is reachable
+  publicBaseUrl: 'http://localhost:3010/local-files',   // where routePath is reachable — or '/api/local-files' behind the app's proxy
   signingSecret: process.env.FILES_SIGNING_SECRET!,     // ≥ 32 characters
   fileStoreConfig: { buildObjectKey: ({ tenantId, category }) => `${tenantId}/${category}/${randomUUID()}` },
   routeDecorators: [Public()],                          // your auth guard's "no login" marker — the token is the grant

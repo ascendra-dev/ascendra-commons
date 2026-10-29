@@ -30,8 +30,10 @@ export class LocalDiskFileStoreModule {
     if (!config?.rootDir || !isAbsolute(config.rootDir)) {
       throw new Error('LocalDiskFileStoreModule.forRoot() requires an absolute rootDir');
     }
-    if (!config.publicBaseUrl || !/^https?:\/\//.test(config.publicBaseUrl)) {
-      throw new Error('LocalDiskFileStoreModule.forRoot() requires publicBaseUrl — the http(s) URL its route is reachable at');
+    if (!config.publicBaseUrl || !/^(https?:\/\/|\/(?!\/))/.test(config.publicBaseUrl)) {
+      throw new Error(
+        'LocalDiskFileStoreModule.forRoot() requires publicBaseUrl — the http(s) URL its route is reachable at, or a path from the site root',
+      );
     }
     if (!config.signingSecret || config.signingSecret.length < 32) {
       throw new Error('LocalDiskFileStoreModule.forRoot() requires a signingSecret of at least 32 characters');
