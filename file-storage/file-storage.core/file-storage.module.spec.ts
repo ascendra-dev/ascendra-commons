@@ -6,6 +6,7 @@ import { AttachmentService } from './attachment.service';
 import { RegistryAttachmentAuthorizer } from './attachment-authorizer';
 import { MissingSignedLinkResolverError } from './signed-link-resolver.port';
 import { AUTHORIZER } from '../../authorization/authorization.core';
+import { ENTITY_ACCESS_CHECKERS } from './tokens';
 import {
   ATTACHMENT_STORE,
   FILE_ACCESS_RECORDER,
@@ -99,5 +100,23 @@ describe('FileStorageModule.forRoot — token wiring', () => {
 
     await (ref.get(FILE_UPLOAD_REJECTION_RECORDER) as { record: () => Promise<unknown> }).record();
     expect(record).toHaveBeenCalled();
+  });
+
+  it('entity checkers may be objects or DI tokens — a token resolves to its provider', async () => {
+    const USER_CHECKER = Symbol('USER_CHECKER');
+    const userChecker = { canAccess: vi.fn().mockResolvedValue(true) };
+    const invoiceChecker = { canAccess: vi.fn().mockResolvedValue(true) };
+    @Module({ providers: [{ provide: USER_CHECKER, useValue: userChecker }], exports: [USER_CHECKER] })
+    class CheckerModule {}
+    const ref = await Test.createTestingModule({
+      imports: [
+        FileStorageModule.forRoot({
+          ...base,
+          entityAccessCheckers: { invoice: invoiceChecker, user: USER_CHECKER },
+          imports: [FakeInfraModule, CheckerModule],
+        }),
+      ],
+    }).compile();
+    expect(ref.get(ENTITY_ACCESS_CHECKERS)).toEqual({ invoice: invoiceChecker, user: userChecker });
   });
 });

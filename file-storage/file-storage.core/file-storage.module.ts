@@ -76,8 +76,11 @@ export interface FileStorageModuleConfig {
   /** Download-URL expiry defaults (seconds). Default `{ inApp: 300, shareableLink: 3600 }`. */
   downloadUrlExpiry?: Partial<DownloadUrlExpiry>;
 
-  /** For `RegistryAttachmentAuthorizer` (a tool the vertical's own controllers use). Omit → `{}`. */
-  entityAccessCheckers?: Record<string, EntityAccessChecker>;
+  /**
+   * For `RegistryAttachmentAuthorizer` (a tool the vertical's own controllers use): entity type → its checker, or
+   * the DI token of one (a checker that reads a repository). Omit → `{}` — every entity type refused.
+   */
+  entityAccessCheckers?: Record<string, EntityAccessChecker | OverrideToken>;
 
   /**
    * Modules exporting the providers behind the three required tokens, plus —
@@ -149,7 +152,7 @@ export class FileStorageModule {
             uploadUrlExpirySeconds: config.uploadUrlExpirySeconds,
           }),
         },
-        { provide: ENTITY_ACCESS_CHECKERS, useValue: config.entityAccessCheckers ?? {} },
+        entityCheckersProvider(config.entityAccessCheckers ?? {}),
 
         AttachmentService,
         FileRetentionService,
@@ -167,4 +170,23 @@ export class FileStorageModule {
       ],
     };
   }
+}
+
+/**
+ * `ENTITY_ACCESS_CHECKERS` — each entry a checker object, or the DI token of one (a checker that needs a repository
+ * is a provider like any other; list its module in `imports`).
+ */
+function entityCheckersProvider(checkers: Record<string, EntityAccessChecker | OverrideToken>): Provider {
+  const isChecker = (v: unknown): v is EntityAccessChecker =>
+    typeof v === 'object' && v !== null && typeof (v as EntityAccessChecker).canAccess === 'function';
+  const entries = Object.entries(checkers);
+  const tokens = entries.filter(([, v]) => !isChecker(v)) as Array<[string, OverrideToken]>;
+  return {
+    provide: ENTITY_ACCESS_CHECKERS,
+    useFactory: (...resolved: EntityAccessChecker[]) => ({
+      ...Object.fromEntries(entries.filter(([, v]) => isChecker(v))),
+      ...Object.fromEntries(tokens.map(([type], i) => [type, resolved[i]])),
+    }),
+    inject: tokens.map(([, token]) => token),
+  };
 }
