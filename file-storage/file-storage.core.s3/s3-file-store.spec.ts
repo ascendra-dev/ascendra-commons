@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { DeleteObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { S3FileStore } from './s3-file-store';
 import { S3FileStoreModule } from './s3-file-store.module';
 import { S3_FILE_STORE } from './tokens';
@@ -60,6 +60,40 @@ describe('S3FileStore', () => {
     const c = client();
     vi.spyOn(c, 'send').mockRejectedValue(Object.assign(new Error('At least one of the pre-conditions failed'), { name: 'PreconditionFailed' }));
     await expect(new S3FileStore(c, config, {}).upload(Buffer.from('x'), meta)).rejects.toThrow(/s3 upload failed: PreconditionFailed/);
+  });
+});
+
+describe('S3FileStore direct uploads', () => {
+  it('presigns a PUT bound to the type, the length, no-overwrite and SSE — and returns exactly those headers', async () => {
+    const store = new S3FileStore(client(), config, { serverSideEncryption: 'AES256' });
+    const ref = store.reserveRef({ tenantId: 't1', category: 'kyc', filename: 'a.pdf', bucket: 'files' });
+    expect(ref).toBe('files/t1/kyc/obj');
+    const target = await store.createUploadUrl(ref, { contentType: 'application/pdf', sizeBytes: 1234, expirySeconds: 900 });
+    expect(target.method).toBe('PUT');
+    expect(target.headers).toEqual({
+      'content-type': 'application/pdf',
+      'content-length': '1234',
+      'if-none-match': '*',
+      'x-amz-server-side-encryption': 'AES256',
+    });
+    const url = new URL(target.url);
+    expect(url.pathname).toBe('/t1/kyc/obj');
+    expect(url.searchParams.get('X-Amz-Expires')).toBe('900');
+    const signed = url.searchParams.get('X-Amz-SignedHeaders')!.split(';');
+    expect(signed).toEqual(expect.arrayContaining(['content-length', 'content-type', 'host', 'if-none-match', 'x-amz-server-side-encryption']));
+  });
+
+  it('stat is the object size, or null when nothing is there; read returns the bytes', async () => {
+    const c = client();
+    const send = vi.spyOn(c, 'send')
+      .mockResolvedValueOnce({ ContentLength: 42 } as never)
+      .mockRejectedValueOnce(Object.assign(new Error('Not Found'), { name: 'NotFound', $metadata: { httpStatusCode: 404 } }))
+      .mockResolvedValueOnce({ Body: { transformToByteArray: async () => new Uint8Array([37, 80, 68, 70]) } } as never);
+    const store = new S3FileStore(c, config, {});
+    expect(await store.stat('files/a')).toEqual({ sizeBytes: 42 });
+    expect(send.mock.calls[0][0]).toBeInstanceOf(HeadObjectCommand);
+    expect(await store.stat('files/missing')).toBeNull();
+    expect((await store.read('files/a')).toString()).toBe('%PDF');
   });
 });
 

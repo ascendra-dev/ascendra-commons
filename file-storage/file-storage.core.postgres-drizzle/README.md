@@ -19,6 +19,13 @@ change is the next numbered file, together with the schema and the adapter SQL.
 | `commons_file_category` | seed + `PostgresFileCategoryAdminService` | two-layer: `tenant_id IS NULL` = base (seeded), non-NULL = per-tenant override; partial unique indexes |
 | `commons_file_access` | `PostgresFileAccessRecorder` | one row per download URL handed out; reads only. No foreign key — deleting a file keeps its access log |
 
+## Direct uploads
+
+`PostgresPendingUploadModule.forRoot({ sqlExecutorToken, imports })` binds
+`PostgresPendingUploadStore` → `POSTGRES_PENDING_UPLOAD_STORE`
+(`commons_file_pending_upload`, migration 0008); point
+`FileStorageModule.forRoot({ pendingUploadStoreToken })` at it.
+
 ## Retention
 
 `PostgresFileRetentionModule.forRoot({ sqlExecutorToken, imports })` binds
@@ -55,6 +62,13 @@ point `FileStorageModule.forRoot({ fileAccessRecorderToken })` at it) and
 `FILE_STORAGE_OBSERVABILITY_PORT` (consumed by `file-storage.api`):
 `listFiles` / `getFile` / `storageUsage` / `listOrphanedFileRecords` /
 `getAccessLog` / `categoryUsage`, keyset-paginated where large.
+
+## Direct uploads
+
+`PostgresPendingUploadModule.forRoot({ sqlExecutorToken, imports })` binds
+`PostgresPendingUploadStore` → `POSTGRES_PENDING_UPLOAD_STORE`
+(`commons_file_pending_upload`, migration 0008); point
+`FileStorageModule.forRoot({ pendingUploadStoreToken })` at it.
 
 ## Retention
 

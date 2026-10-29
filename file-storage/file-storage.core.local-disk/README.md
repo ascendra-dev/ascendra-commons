@@ -21,6 +21,13 @@ the other is a `fileStoreToken` change.
   - `Content-Disposition` carries the record's filename (RFC 6266, UTF-8 safe);
   - a forged or expired token is a 403.
 - `delete` of an object already gone is not an error (as Supabase's `remove`).
+- **Direct uploads** (`DirectUploadFileStore`): `createUploadUrl` signs a `put`
+  token (a download token can't upload, nor the reverse) served at
+  `PUT /{routePath}/:token`. The client sends `Content-Type:
+  application/octet-stream` (the returned headers say so — the app's JSON and
+  form body parsers then leave the stream alone). The body goes to a temporary
+  file, is refused past the declared size (413), and is linked into place —
+  atomic, never over an existing object (409).
 
 ## Wiring
 

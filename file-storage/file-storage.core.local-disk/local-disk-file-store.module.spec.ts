@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ForbiddenException, SetMetadata } from '@nestjs/common';
+import { ConflictException, ForbiddenException, PayloadTooLargeException, SetMetadata, UnsupportedMediaTypeException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { LocalDiskFileStoreModule } from './local-disk-file-store.module';
 import { LocalDiskFileStore } from './local-disk-file-store';
@@ -59,6 +59,15 @@ describe('LocalDiskFileStoreModule.forRoot', () => {
     htmlFile.getStream().destroy();
 
     await expect(controller.serve('forged.token')).rejects.toBeInstanceOf(ForbiddenException);
+
+    const up = controller as unknown as { upload(t: string, req: Readable & { body?: unknown }): Promise<void> };
+    const newRef = store.reserveRef({ tenantId: 't', category: 'c', filename: 'n.pdf', bucket: 'b' });
+    const putToken = (await store.createUploadUrl(newRef, { contentType: 'application/pdf', sizeBytes: 4, expirySeconds: 60 })).url.split('/').pop()!;
+    await expect(up.upload(putToken, Object.assign(Readable.from([Buffer.from('12345')]), { body: {} }))).rejects.toBeInstanceOf(PayloadTooLargeException);
+    await up.upload(putToken, Object.assign(Readable.from([Buffer.from('%PDF')]), { body: {} }));
+    await expect(up.upload(putToken, Readable.from([Buffer.from('%PDF')]))).rejects.toBeInstanceOf(ConflictException);
+    await expect(up.upload(putToken, Object.assign(Readable.from([]), { body: { parsed: true } }))).rejects.toBeInstanceOf(UnsupportedMediaTypeException);
+    await expect(up.upload('forged.token', Readable.from([]))).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('contentDisposition keeps a UTF-8 name and an ASCII fallback without quotes', () => {

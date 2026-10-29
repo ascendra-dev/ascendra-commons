@@ -1,9 +1,13 @@
-import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { link, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import type { Readable } from 'node:stream';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   FILE_STORE_CONFIG,
   FileStoreError,
+  type DirectUploadFileStore,
   type FileStoreConfig,
   type ListableFileStore,
   type StoredObject,
@@ -33,7 +37,7 @@ const BUCKET = /^[a-z0-9][a-z0-9._-]{0,62}$/i;
  * built from user input can't climb out (`../`), and a bucket is one segment.
  */
 @Injectable()
-export class LocalDiskFileStore implements ListableFileStore {
+export class LocalDiskFileStore implements ListableFileStore, DirectUploadFileStore {
   private readonly root: string;
   private readonly signer: LocalDiskSigner;
 
@@ -73,6 +77,93 @@ export class LocalDiskFileStore implements ListableFileStore {
       filename: opts?.filename ?? undefined,
       contentType: opts?.contentType,
     });
+    return this.urlFor(token);
+  }
+
+  reserveRef(meta: { tenantId: string; category: string; filename: string; bucket: string }): string {
+    const fileRef = `${meta.bucket}/${this.config.buildObjectKey(meta)}`;
+    this.pathOf(fileRef);
+    return fileRef;
+  }
+
+  /**
+   * A `PUT` URL served by `LocalDiskBlobController`. The client sends
+   * `Content-Type: application/octet-stream` whatever the file is — the app's
+   * JSON / form body parsers then leave the stream alone; the record keeps the
+   * real type.
+   */
+  async createUploadUrl(
+    fileRef: string,
+    opts: { contentType: string; sizeBytes: number; expirySeconds: number },
+  ): Promise<{ url: string; method: 'PUT'; headers: Record<string, string> }> {
+    this.pathOf(fileRef);
+    const token = this.signer.sign({
+      fileRef,
+      expiresAt: Math.floor(Date.now() / 1000) + opts.expirySeconds,
+      op: 'put',
+      maxBytes: opts.sizeBytes,
+    });
+    return { url: this.urlFor(token), method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' } };
+  }
+
+  async stat(fileRef: string): Promise<{ sizeBytes: number } | null> {
+    const info = await stat(this.pathOf(fileRef)).catch(() => null);
+    return info?.isFile() ? { sizeBytes: info.size } : null;
+  }
+
+  async read(fileRef: string): Promise<Buffer> {
+    try {
+      return await readFile(this.pathOf(fileRef));
+    } catch (e) {
+      throw new FileStoreError(`local-disk read failed: ${(e as Error).message}`);
+    }
+  }
+
+  /**
+   * Writes an upload's body for a `put` token: to a temporary file, refusing
+   * more than the token's `maxBytes`, then linked into place — atomic, and
+   * never over an existing object.
+   */
+  async receive(token: string, body: Readable): Promise<'stored' | 'invalid' | 'too-large' | 'exists'> {
+    const grant = this.signer.verify(token, 'put');
+    if (!grant) return 'invalid';
+    let path: string;
+    try {
+      path = this.pathOf(grant.fileRef);
+    } catch {
+      return 'invalid';
+    }
+    await mkdir(dirname(path), { recursive: true });
+    const temp = `${path}.part-${randomUUID()}`;
+    const max = grant.maxBytes ?? 0;
+    let received = 0;
+    try {
+      await new Promise<void>((resolveWrite, rejectWrite) => {
+        const out = createWriteStream(temp, { flags: 'wx' });
+        body.on('data', (chunk: Buffer) => {
+          received += chunk.length;
+          if (received > max) body.destroy(new Error('too-large'));
+        });
+        body.on('error', (e) => {
+          out.destroy();
+          rejectWrite(e);
+        });
+        out.on('error', rejectWrite);
+        out.on('finish', () => resolveWrite());
+        body.pipe(out);
+      });
+      await link(temp, path);
+      return 'stored';
+    } catch (e) {
+      if ((e as Error).message === 'too-large') return 'too-large';
+      if ((e as NodeJS.ErrnoException).code === 'EEXIST') return 'exists';
+      throw new FileStoreError(`local-disk upload failed: ${(e as Error).message}`);
+    } finally {
+      await rm(temp, { force: true });
+    }
+  }
+
+  private urlFor(token: string): string {
     return `${this.options.publicBaseUrl.replace(/\/+$/, '')}/${token}`;
   }
 
@@ -90,6 +181,7 @@ export class LocalDiskFileStore implements ListableFileStore {
    * directory on every call — fine for the sizes a local disk serves; a store
    * with millions of objects lists through its provider's own paging.
    */
+  /** Ignores an upload still being written (`*.part-*`). */
   async listObjects(bucket: string, opts: { cursor?: string; limit: number }): Promise<{ objects: StoredObject[]; nextCursor: string | null }> {
     if (!BUCKET.test(bucket)) throw new FileStoreError(`not a bucket: ${bucket.slice(0, 64)}`);
     const bucketDir = resolve(this.root, bucket);
@@ -98,7 +190,7 @@ export class LocalDiskFileStore implements ListableFileStore {
       throw new FileStoreError(`local-disk list failed: ${e.message}`);
     });
     const refs = entries
-      .filter((e) => e.isFile())
+      .filter((e) => e.isFile() && !/\.part-[0-9a-f-]{36}$/.test(e.name))
       .map((e) => `${bucket}/${relative(bucketDir, resolve(e.parentPath, e.name)).split(sep).join('/')}`)
       .filter((ref) => opts.cursor === undefined || ref > opts.cursor)
       .sort();
@@ -114,7 +206,7 @@ export class LocalDiskFileStore implements ListableFileStore {
 
   /** Verifies a download token → the path to stream and how to serve it; `null` when forged, expired or gone. */
   async open(token: string): Promise<{ path: string; size: number; filename?: string; contentType?: string } | null> {
-    const grant = this.signer.verify(token);
+    const grant = this.signer.verify(token, 'get');
     if (!grant) return null;
     let path: string;
     try {

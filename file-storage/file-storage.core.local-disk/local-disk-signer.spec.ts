@@ -8,7 +8,7 @@ describe('LocalDiskSigner', () => {
   it('round-trips a grant', () => {
     const signer = new LocalDiskSigner(secret);
     const grant = { fileRef: 'kyc/t1/a', expiresAt: future(), filename: 'ünïcode.pdf', contentType: 'application/pdf' };
-    expect(signer.verify(signer.sign(grant))).toEqual(grant);
+    expect(signer.verify(signer.sign(grant))).toEqual({ ...grant, op: 'get', maxBytes: undefined });
   });
 
   it('refuses an expired, forged or malformed token', () => {
@@ -16,11 +16,19 @@ describe('LocalDiskSigner', () => {
     expect(signer.verify(signer.sign({ fileRef: 'a/b', expiresAt: Math.floor(Date.now() / 1000) - 1 }))).toBeNull();
     const token = signer.sign({ fileRef: 'a/b', expiresAt: future() });
     const [payload, mac] = token.split('.');
-    const otherPayload = Buffer.from(JSON.stringify(['a/other', future(), null, null])).toString('base64url');
+    const otherPayload = Buffer.from(JSON.stringify(['a/other', future(), null, null, 'get', null])).toString('base64url');
     expect(signer.verify(`${otherPayload}.${mac}`)).toBeNull();
     expect(new LocalDiskSigner('y'.repeat(32)).verify(token)).toBeNull();
     expect(signer.verify(payload)).toBeNull();
     expect(signer.verify(`${token}.x`)).toBeNull();
     expect(signer.verify('')).toBeNull();
+  });
+
+  it('a download token is no good for an upload, and the other way round', () => {
+    const signer = new LocalDiskSigner(secret);
+    const put = signer.sign({ fileRef: 'a/b', expiresAt: future(), op: 'put', maxBytes: 10 });
+    expect(signer.verify(put, 'get')).toBeNull();
+    expect(signer.verify(put, 'put')).toMatchObject({ op: 'put', maxBytes: 10 });
+    expect(signer.verify(signer.sign({ fileRef: 'a/b', expiresAt: future() }), 'put')).toBeNull();
   });
 });

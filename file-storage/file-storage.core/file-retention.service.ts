@@ -6,12 +6,14 @@ import type { FileRetentionStore, FileRetentionVolume } from './file-retention-s
 import type { FileStorageAuditEmitter } from './file-storage-audit.port';
 import type { FileStorageOptions } from './file-storage.options';
 import { isListableFileStore, type FileStore, type StoredObject } from './file-store.port';
+import type { PendingUploadStore } from './direct-upload.port';
 import {
   ATTACHMENT_STORE,
   FILE_RETENTION_STORE,
   FILE_STORAGE_AUDIT_EMITTER,
   FILE_STORAGE_OPTIONS,
   FILE_STORE,
+  PENDING_UPLOAD_STORE,
 } from './tokens';
 
 /** Who a retention run's audit events name. */
@@ -46,6 +48,8 @@ export interface FileRetentionRunResult {
   blobDeleteFailures: number;
   accessLogRowsDeleted: number;
   rejectionRowsDeleted: number;
+  /** Direct uploads begun and never completed before their URL expired — removed with whatever was uploaded. */
+  expiredUploadsDropped: number;
 }
 
 /**
@@ -55,7 +59,9 @@ export interface FileRetentionRunResult {
  *   - files past their `retainUntil` (fixed at upload) are deleted — record,
  *     attachments, blob — unless held; each is audited `file.deleted`, cause `retention`;
  *   - access-log rows older than `logRetention.accessLogDays` and rejection
- *     rows older than `logRetention.rejectionLogDays` are deleted.
+ *     rows older than `logRetention.rejectionLogDays` are deleted;
+ *   - direct uploads begun and never completed are dropped once their URL
+ *     expired, with whatever was uploaded.
  *
  * `purgeOrphans` is the console's cleanup of files with no attachment.
  *
@@ -72,6 +78,7 @@ export class FileRetentionService {
     @Inject(FILE_STORE) private readonly fileStore: FileStore,
     @Inject(FILE_STORAGE_AUDIT_EMITTER) private readonly audit: FileStorageAuditEmitter,
     @Inject(FILE_STORAGE_OPTIONS) private readonly options: FileStorageOptions,
+    @Inject(PENDING_UPLOAD_STORE) private readonly pending: PendingUploadStore,
   ) {}
 
   /** One retention pass. `maxFiles` bounds the file deletes per run (default 5,000); the logs are pruned in full. */
@@ -84,6 +91,7 @@ export class FileRetentionService {
       blobDeleteFailures: 0,
       accessLogRowsDeleted: 0,
       rejectionRowsDeleted: 0,
+      expiredUploadsDropped: 0,
     };
 
     while (result.filesDeleted < maxFiles) {
@@ -101,10 +109,20 @@ export class FileRetentionService {
 
     const { accessLogDays, rejectionLogDays } = this.options.logRetention;
     result.accessLogRowsDeleted = await this.retention.pruneAccessLog(new Date(now.getTime() - accessLogDays * DAY_MS), DEFAULT_LOG_BATCH);
+    for (;;) {
+      const expired = await this.pending.findExpired(now, DEFAULT_BATCH);
+      for (const upload of expired) {
+        if (!(await this.pending.delete(upload.id))) continue;
+        result.expiredUploadsDropped += 1;
+        await this.fileStore.delete(upload.fileRef).catch(() => undefined); // nothing may have been uploaded
+      }
+      if (expired.length < DEFAULT_BATCH) break;
+    }
     result.rejectionRowsDeleted = await this.retention.pruneRejections(new Date(now.getTime() - rejectionLogDays * DAY_MS), DEFAULT_LOG_BATCH);
     this.logger.log(
       `retention: ${result.filesDeleted} files (${result.bytesFreed} bytes), ` +
-        `${result.accessLogRowsDeleted} access rows, ${result.rejectionRowsDeleted} rejection rows`,
+        `${result.accessLogRowsDeleted} access rows, ${result.rejectionRowsDeleted} rejection rows, ` +
+        `${result.expiredUploadsDropped} expired uploads`,
     );
     return result;
   }
@@ -122,7 +140,14 @@ export class FileRetentionService {
       tenantId: input.tenantId,
       limit: Math.min(Math.max(1, input.limit ?? 1_000), 1_000),
     });
-    const result: FileRetentionRunResult = { filesDeleted: 0, bytesFreed: 0, blobDeleteFailures: 0, accessLogRowsDeleted: 0, rejectionRowsDeleted: 0 };
+    const result: FileRetentionRunResult = {
+      filesDeleted: 0,
+      bytesFreed: 0,
+      blobDeleteFailures: 0,
+      accessLogRowsDeleted: 0,
+      rejectionRowsDeleted: 0,
+      expiredUploadsDropped: 0,
+    };
     for (const record of found) {
       const early = record.retainUntil !== null && record.retainUntil > now;
       if (early) continue;

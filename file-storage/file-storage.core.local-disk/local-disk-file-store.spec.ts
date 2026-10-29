@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { Readable } from 'node:stream';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -84,5 +85,39 @@ describe('LocalDiskFileStore.listObjects', () => {
   it('an empty or missing bucket lists nothing; a bad bucket name is refused', async () => {
     expect(await make().listObjects('nothing-here', { limit: 10 })).toEqual({ objects: [], nextCursor: null });
     await expect(make().listObjects('../x', { limit: 10 })).rejects.toBeInstanceOf(FileStoreError);
+  });
+});
+
+describe('LocalDiskFileStore direct uploads', () => {
+  const tokenOf = (url: string) => url.split('/').pop()!;
+
+  it('reserves a ref, signs a PUT, receives the body, then stat and read see it', async () => {
+    const store = make();
+    const ref = store.reserveRef({ tenantId: 't1', category: 'kyc', filename: 'a.pdf', bucket: 'kyc' });
+    expect(await store.stat(ref)).toBeNull();
+    const target = await store.createUploadUrl(ref, { contentType: 'application/pdf', sizeBytes: 8, expirySeconds: 60 });
+    expect(target).toMatchObject({ method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' } });
+    expect(await store.receive(tokenOf(target.url), Readable.from([Buffer.from('%PDF'), Buffer.from('-1.4')]))).toBe('stored');
+    expect(await store.stat(ref)).toEqual({ sizeBytes: 8 });
+    expect((await store.read(ref)).toString()).toBe('%PDF-1.4');
+  });
+
+  it('refuses more bytes than declared and leaves nothing behind', async () => {
+    const store = make();
+    const ref = store.reserveRef({ tenantId: 't1', category: 'kyc', filename: 'a.pdf', bucket: 'kyc' });
+    const { url } = await store.createUploadUrl(ref, { contentType: 'x', sizeBytes: 3, expirySeconds: 60 });
+    expect(await store.receive(tokenOf(url), Readable.from([Buffer.from('four')]))).toBe('too-large');
+    expect(await store.stat(ref)).toBeNull();
+    expect(await readdir(join(root, 'kyc', 't1', 'kyc'))).toEqual([]);
+  });
+
+  it('never overwrites, and a download token cannot upload', async () => {
+    const store = make();
+    const ref = store.reserveRef({ tenantId: 't1', category: 'kyc', filename: 'a.pdf', bucket: 'kyc' });
+    const { url } = await store.createUploadUrl(ref, { contentType: 'x', sizeBytes: 10, expirySeconds: 60 });
+    expect(await store.receive(tokenOf(url), Readable.from([Buffer.from('one')]))).toBe('stored');
+    expect(await store.receive(tokenOf(url), Readable.from([Buffer.from('two')]))).toBe('exists');
+    expect((await store.read(ref)).toString()).toBe('one');
+    expect(await store.receive(tokenOf(await store.getUrl(ref)), Readable.from([Buffer.from('x')]))).toBe('invalid');
   });
 });

@@ -37,6 +37,9 @@ export const FILE_RETENTION_STORE = Symbol('FILE_RETENTION_STORE');
 /** Per-tenant storage limits — `file-storage.core.postgres-drizzle`'s, or the consumer's own. Defaults to `NoStorageQuotas`. */
 export const STORAGE_QUOTA_STORE = Symbol('STORAGE_QUOTA_STORE');
 
+/** Begun direct uploads — `file-storage.core.postgres-drizzle`'s, or the consumer's own. Defaults to `MissingPendingUploadStore`. */
+export const PENDING_UPLOAD_STORE = Symbol('PENDING_UPLOAD_STORE');
+
 /** Resolved `FileStorageOptions` — `isPlatformAdmin` predicate + download-URL expiry defaults. */
 export const FILE_STORAGE_OPTIONS = Symbol('FILE_STORAGE_OPTIONS');
 

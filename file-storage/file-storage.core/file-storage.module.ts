@@ -16,6 +16,7 @@ import { NoopFileUploadRejectionRecorder } from './file-upload-rejection-recorde
 import { MissingSignedLinkResolver } from './signed-link-resolver.port';
 import { MissingFileRetentionStore } from './file-retention-store.port';
 import { NoStorageQuotas } from './storage-quota.port';
+import { MissingPendingUploadStore } from './direct-upload.port';
 import { FileRetentionService } from './file-retention.service';
 import {
   ATTACHMENT_STORE,
@@ -24,6 +25,7 @@ import {
   FILE_CATEGORY_REGISTRY,
   FILE_RETENTION_STORE,
   STORAGE_QUOTA_STORE,
+  PENDING_UPLOAD_STORE,
   FILE_SCANNER,
   FILE_STORAGE_AUDIT_EMITTER,
   FILE_STORAGE_OPTIONS,
@@ -64,6 +66,10 @@ export interface FileStorageModuleConfig {
   logRetention?: Partial<LogRetention>;
   /** `StorageQuotaStore` — per-tenant storage limits checked on every upload. Omit → `NoStorageQuotas` (no limits). */
   storageQuotaStoreToken?: OverrideToken;
+  /** `PendingUploadStore` — begun direct uploads (`beginUpload` / `completeUpload`). Omit → `MissingPendingUploadStore` (direct uploads throw). */
+  pendingUploadStoreToken?: OverrideToken;
+  /** How long a direct-upload URL stays valid, in seconds (60–86400). Default 900. */
+  uploadUrlExpirySeconds?: number;
 
   /** Platform-admin predicate — exempt from tenant isolation. Default `actor.tenantId === null`. */
   isPlatformAdmin?: (actor: Actor) => boolean | Promise<boolean>;
@@ -132,6 +138,7 @@ export class FileStorageModule {
         optional(FILE_STORAGE_AUDIT_EMITTER, config.auditEmitterToken, NoopFileStorageAuditEmitter),
         optional(FILE_RETENTION_STORE, config.fileRetentionStoreToken, MissingFileRetentionStore),
         optional(STORAGE_QUOTA_STORE, config.storageQuotaStoreToken, NoStorageQuotas),
+        optional(PENDING_UPLOAD_STORE, config.pendingUploadStoreToken, MissingPendingUploadStore),
 
         {
           provide: FILE_STORAGE_OPTIONS,
@@ -139,6 +146,7 @@ export class FileStorageModule {
             isPlatformAdmin: config.isPlatformAdmin,
             downloadUrlExpiry: config.downloadUrlExpiry,
             logRetention: config.logRetention,
+            uploadUrlExpirySeconds: config.uploadUrlExpirySeconds,
           }),
         },
         { provide: ENTITY_ACCESS_CHECKERS, useValue: config.entityAccessCheckers ?? {} },

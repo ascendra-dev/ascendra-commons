@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ConflictException, ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, GoneException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { AttachmentService, cleanFilename, retainUntil } from './attachment.service';
 import type { Actor } from '../../authorization/authorization.core';
 import type { AttachmentStore } from './attachment-store.port';
@@ -7,6 +7,7 @@ import type { FileCategoryRegistry, ResolvedFileCategory } from './file-category
 import type { FileScanner, ScanVerdict } from './file-scanner.port';
 import type { FileStore } from './file-store.port';
 import { RuleBasedFileValidator } from './file-validator.port';
+import { DirectUploadUnsupportedError, type DirectUploadFileStore, type PendingUploadStore } from './direct-upload.port';
 import { resolveFileStorageOptions } from './file-storage.options';
 import type { FileRecord } from './file-record.interface';
 
@@ -47,7 +48,7 @@ function fileRecord(over: Partial<FileRecord> = {}): FileRecord {
 
 function makeService(over: {
   store?: Partial<AttachmentStore>;
-  fileStore?: Partial<FileStore>;
+  fileStore?: Partial<DirectUploadFileStore>;
   registry?: Partial<FileCategoryRegistry>;
   scanVerdict?: ScanVerdict;
   signedLink?: { fileRecordId: string } | null;
@@ -55,6 +56,8 @@ function makeService(over: {
   rejectionRecord?: () => Promise<void>;
   quota?: { tenantId: string; maxBytes: number; updatedAt: Date; updatedBy: string };
   used?: number;
+  pendingUpload?: Record<string, unknown> | null;
+  pendingDeleted?: boolean;
 } = {}) {
   const fileStore: FileStore = {
     upload: vi.fn().mockResolvedValue({ fileRef: 'kyc/t1/f1.pdf' }),
@@ -89,6 +92,12 @@ function makeService(over: {
     clearQuota: vi.fn(),
     listQuotas: vi.fn(),
   };
+  const pending = {
+    create: vi.fn(async (u: Record<string, unknown>) => ({ ...u, id: 'up1', createdAt: new Date() })),
+    get: vi.fn().mockResolvedValue(over.pendingUpload ?? null),
+    delete: vi.fn().mockResolvedValue(over.pendingDeleted ?? true),
+    findExpired: vi.fn().mockResolvedValue([]),
+  } as unknown as PendingUploadStore & { [K in keyof PendingUploadStore]: ReturnType<typeof vi.fn> };
   const signedLinks = {
     resolve: vi.fn().mockResolvedValue('signedLink' in over ? over.signedLink : { fileRecordId: 'f1' }),
   };
@@ -105,8 +114,9 @@ function makeService(over: {
     audit,
     resolveFileStorageOptions({}),
     quotas,
+    pending,
   );
-  return { service, fileStore, store, registry, scanner, accessRecorder, rejectionRecorder, audit, signedLinks, quotas };
+  return { service, fileStore, store, registry, scanner, accessRecorder, rejectionRecorder, audit, signedLinks, quotas, pending };
 }
 
 const goodUpload = {
@@ -469,5 +479,82 @@ describe('AttachmentService.attach — storage limit', () => {
     const { service, quotas } = makeService();
     await service.attach(goodUpload);
     expect(quotas.usage).not.toHaveBeenCalled();
+  });
+});
+
+describe('AttachmentService direct uploads', () => {
+  const pdf = Buffer.from('%PDF-1.4 hello');
+  const direct = (over: { size?: number; data?: Buffer; exists?: boolean } = {}) => ({
+    reserveRef: vi.fn(({ bucket, tenantId }: { bucket: string; tenantId: string }) => `${bucket}/${tenantId}/new`),
+    createUploadUrl: vi.fn().mockResolvedValue({ url: 'https://up', method: 'PUT', headers: { 'Content-Type': 'application/pdf' } }),
+    stat: vi.fn().mockResolvedValue(over.exists === false ? null : { sizeBytes: over.size ?? pdf.length }),
+    read: vi.fn().mockResolvedValue(over.data ?? pdf),
+  });
+  const begun = (over: Record<string, unknown> = {}) => ({
+    id: 'up1', tenantId: 't1', actorId: 'u1', category: 'kyc.identity-document', attachedToType: 'issuer', attachedToId: 'iss-1',
+    filename: 'id.pdf', contentType: 'application/pdf', sizeBytes: pdf.length, fileRef: 'kyc/t1/new',
+    expiresAt: new Date(Date.now() + 60_000), createdAt: new Date(), ...over,
+  });
+  const meta = { contentType: 'application/pdf', filename: 'id.pdf', sizeBytes: pdf.length };
+
+  it('begin checks the metadata, reserves a key, records the upload and hands out a URL with its headers', async () => {
+    const { service, pending } = makeService({ fileStore: direct() });
+    const res = await service.beginUpload({ file: meta, category: 'kyc.identity-document', attachedTo: { type: 'issuer', id: 'iss-1' }, actor: issuer });
+    expect(pending.create).toHaveBeenCalledWith(expect.objectContaining({ fileRef: 'kyc/t1/new', sizeBytes: pdf.length, actorId: 'u1' }));
+    expect(res).toMatchObject({ uploadId: 'up1', url: 'https://up', method: 'PUT', headers: { 'Content-Type': 'application/pdf' } });
+  });
+
+  it('begin refuses what the metadata already rules out — no URL', async () => {
+    const fs = direct();
+    const { service } = makeService({ fileStore: fs });
+    await expect(service.beginUpload({ file: { ...meta, contentType: 'image/png' }, category: 'kyc.identity-document', attachedTo: { type: 'i', id: '1' }, actor: issuer }))
+      .rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(fs.createUploadUrl).not.toHaveBeenCalled();
+  });
+
+  it('a store that cannot take direct uploads says so', async () => {
+    await expect(makeService().service.beginUpload({ file: meta, category: 'kyc.identity-document', attachedTo: { type: 'i', id: '1' }, actor: issuer }))
+      .rejects.toBeInstanceOf(DirectUploadUnsupportedError);
+  });
+
+  it('complete reads the bytes back, scans, persists with the hash, and claims the upload once', async () => {
+    const fs = direct();
+    const { service, store, scanner, pending } = makeService({ fileStore: fs, pendingUpload: begun() });
+    await service.completeUpload({ uploadId: 'up1', actor: issuer });
+    expect(fs.read).toHaveBeenCalledWith('kyc/t1/new');
+    expect(scanner.scan).toHaveBeenCalledWith(pdf, expect.anything());
+    expect(pending.delete).toHaveBeenCalledWith('up1');
+    expect(store.attach).toHaveBeenCalledWith(expect.objectContaining({
+      fileRecord: expect.objectContaining({ fileRef: 'kyc/t1/new', contentHash: expect.stringMatching(/^[0-9a-f]{64}$/), filename: 'id.pdf' }),
+      attachment: expect.objectContaining({ attachedToType: 'issuer', attachedToId: 'iss-1' }),
+    }));
+  });
+
+  it("complete: someone else's upload is a 404; an expired one is a 410; nothing uploaded is a 409", async () => {
+    await expect(makeService({ fileStore: direct(), pendingUpload: begun({ actorId: 'other' }) }).service.completeUpload({ uploadId: 'up1', actor: issuer }))
+      .rejects.toBeInstanceOf(NotFoundException);
+    await expect(makeService({ fileStore: direct(), pendingUpload: begun({ expiresAt: new Date(0) }) }).service.completeUpload({ uploadId: 'up1', actor: issuer }))
+      .rejects.toBeInstanceOf(GoneException);
+    await expect(makeService({ fileStore: direct({ exists: false }), pendingUpload: begun() }).service.completeUpload({ uploadId: 'up1', actor: issuer }))
+      .rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('complete: a size that differs, or bytes that are not the declared type, deletes the object and records the refusal', async () => {
+    const { service, rejectionRecorder, store, fileStore } = makeService({ fileStore: direct({ size: 999 }), pendingUpload: begun() });
+    await expect(service.completeUpload({ uploadId: 'up1', actor: issuer })).rejects.toThrow(/999 bytes; 14 were declared/);
+    expect(fileStore.delete).toHaveBeenCalledWith('kyc/t1/new');
+    expect(store.attach).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(rejectionRecorder.record).toHaveBeenCalledWith(expect.objectContaining({ reason: 'validation-failed' })));
+
+    const html = Buffer.from('<html><body>hi!!</body></html>').subarray(0, pdf.length);
+    const second = makeService({ fileStore: direct({ data: html }), pendingUpload: begun() });
+    await expect(second.service.completeUpload({ uploadId: 'up1', actor: issuer })).rejects.toThrow(/doesn't start the way one does/);
+    expect(second.fileStore.delete).toHaveBeenCalledWith('kyc/t1/new');
+  });
+
+  it('complete: a second complete for the same upload loses the claim — 404, no second record', async () => {
+    const { service, store } = makeService({ fileStore: direct(), pendingUpload: begun(), pendingDeleted: false });
+    await expect(service.completeUpload({ uploadId: 'up1', actor: issuer })).rejects.toBeInstanceOf(NotFoundException);
+    expect(store.attach).not.toHaveBeenCalled();
   });
 });

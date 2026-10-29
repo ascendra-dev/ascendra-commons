@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   type S3Client,
@@ -11,6 +12,7 @@ import {
   downloadHeaders,
   FILE_STORE_CONFIG,
   FileStoreError,
+  type DirectUploadFileStore,
   type FileStoreConfig,
   type ListableFileStore,
   type StoredObject,
@@ -47,10 +49,14 @@ function splitFileRef(fileRef: string): { Bucket: string; Key: string } {
  *   `Content-Disposition` on the response: inline for the safe few types,
  *   an attachment otherwise, with the record's filename.
  * - `listObjects` → `ListObjectsV2` (the stray-blob check).
+ * - Direct uploads: a presigned `PutObject` signed with the content type, the
+ *   exact length, `If-None-Match: *` and the SSE headers — the client must
+ *   send exactly the returned `headers`, so it can't send more bytes, another
+ *   type, or overwrite. `stat` → `HeadObject`; `read` → `GetObject`.
  * - Provider errors become `FileStoreError`, never the raw SDK error.
  */
 @Injectable()
-export class S3FileStore implements ListableFileStore {
+export class S3FileStore implements ListableFileStore, DirectUploadFileStore {
   constructor(
     @Inject(S3_CLIENT) private readonly client: S3Client,
     @Inject(FILE_STORE_CONFIG) private readonly config: FileStoreConfig,
@@ -107,6 +113,57 @@ export class S3FileStore implements ListableFileStore {
       .filter((o) => o.Key)
       .map((o) => ({ fileRef: `${bucket}/${o.Key}`, sizeBytes: Number(o.Size ?? 0), modifiedAt: o.LastModified ?? new Date(0) }));
     return { objects, nextCursor: page.IsTruncated && objects.length ? objects[objects.length - 1].fileRef : null };
+  }
+
+  reserveRef(meta: { tenantId: string; category: string; filename: string; bucket: string }): string {
+    return `${meta.bucket}/${this.config.buildObjectKey(meta)}`;
+  }
+
+  async createUploadUrl(
+    fileRef: string,
+    opts: { contentType: string; sizeBytes: number; expirySeconds: number },
+  ): Promise<{ url: string; method: 'PUT'; headers: Record<string, string> }> {
+    const headers: Record<string, string> = { 'content-type': opts.contentType, 'content-length': String(opts.sizeBytes) };
+    if (this.options.preventOverwrite !== false) headers['if-none-match'] = '*';
+    if (this.options.serverSideEncryption) headers['x-amz-server-side-encryption'] = this.options.serverSideEncryption;
+    if (this.options.kmsKeyId) headers['x-amz-server-side-encryption-aws-kms-key-id'] = this.options.kmsKeyId;
+    const url = await this.call('createUploadUrl', () =>
+      getSignedUrl(
+        this.client,
+        new PutObjectCommand({
+          ...splitFileRef(fileRef),
+          ContentType: opts.contentType,
+          ContentLength: opts.sizeBytes,
+          ...(headers['if-none-match'] ? { IfNoneMatch: '*' } : {}),
+          ...(this.options.serverSideEncryption ? { ServerSideEncryption: this.options.serverSideEncryption } : {}),
+          ...(this.options.kmsKeyId ? { SSEKMSKeyId: this.options.kmsKeyId } : {}),
+        }),
+        {
+          expiresIn: opts.expirySeconds,
+          // Signed as headers, not query parameters — the bucket refuses a PUT without exactly these.
+          signableHeaders: new Set(Object.keys(headers)),
+          unhoistableHeaders: new Set(Object.keys(headers).filter((h) => h.startsWith('x-amz-'))),
+        },
+      ),
+    );
+    return { url, method: 'PUT', headers };
+  }
+
+  async stat(fileRef: string): Promise<{ sizeBytes: number } | null> {
+    try {
+      const head = await this.client.send(new HeadObjectCommand(splitFileRef(fileRef)));
+      return { sizeBytes: Number(head.ContentLength ?? 0) };
+    } catch (e) {
+      const status = (e as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+      if ((e as Error).name === 'NotFound' || status === 404) return null;
+      throw new FileStoreError(`s3 stat failed: ${(e as Error).name}: ${(e as Error).message}`);
+    }
+  }
+
+  async read(fileRef: string): Promise<Buffer> {
+    const object = await this.call('read', () => this.client.send(new GetObjectCommand(splitFileRef(fileRef))));
+    if (!object.Body) throw new FileStoreError(`s3 read failed: no body for ${fileRef.slice(0, 120)}`);
+    return Buffer.from(await object.Body.transformToByteArray());
   }
 
   private async call<T>(op: string, run: () => Promise<T>): Promise<T> {

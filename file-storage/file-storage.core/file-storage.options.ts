@@ -25,19 +25,27 @@ export interface FileStorageOptions {
   isPlatformAdmin: (actor: Actor) => boolean | Promise<boolean>;
   downloadUrlExpiry: DownloadUrlExpiry;
   logRetention: LogRetention;
+  /** How long a direct-upload URL (`beginUpload`) stays valid, in seconds. Default 900. */
+  uploadUrlExpirySeconds: number;
 }
 
 export function resolveFileStorageOptions(config: {
   isPlatformAdmin?: (actor: Actor) => boolean | Promise<boolean>;
   downloadUrlExpiry?: Partial<DownloadUrlExpiry>;
   logRetention?: Partial<LogRetention>;
+  uploadUrlExpirySeconds?: number;
 }): FileStorageOptions {
   const days = (name: string, value: number | undefined, fallback: number) => {
     if (value === undefined) return fallback;
     if (!Number.isSafeInteger(value) || value < 1) throw new Error(`FileStorageModule: logRetention.${name} must be a whole number of days, at least 1`);
     return value;
   };
+  const uploadUrlExpirySeconds = config.uploadUrlExpirySeconds ?? 900;
+  if (!Number.isSafeInteger(uploadUrlExpirySeconds) || uploadUrlExpirySeconds < 60 || uploadUrlExpirySeconds > 86_400) {
+    throw new Error('FileStorageModule: uploadUrlExpirySeconds must be a whole number of seconds from 60 to 86400');
+  }
   return {
+    uploadUrlExpirySeconds,
     logRetention: {
       accessLogDays: days('accessLogDays', config.logRetention?.accessLogDays, 365),
       rejectionLogDays: days('rejectionLogDays', config.logRetention?.rejectionLogDays, 90),

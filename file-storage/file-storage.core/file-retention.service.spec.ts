@@ -10,7 +10,13 @@ const rec = (id: string, over: Partial<FileRecord> = {}): FileRecord => ({
   legalHold: null, createdAt: new Date(0), ...over,
 });
 
-function make(over: { expired?: FileRecord[][]; orphans?: FileRecord[]; deleteReturns?: (id: string) => FileRecord | null; blobFails?: boolean } = {}) {
+function make(over: {
+  expired?: FileRecord[][];
+  orphans?: FileRecord[];
+  deleteReturns?: (id: string) => FileRecord | null;
+  blobFails?: boolean;
+  expiredUploads?: Array<{ id: string; fileRef: string }>;
+} = {}) {
   const batches = [...(over.expired ?? [])];
   const retention = {
     findExpiredFiles: vi.fn(async () => batches.shift() ?? []),
@@ -22,8 +28,12 @@ function make(over: { expired?: FileRecord[][]; orphans?: FileRecord[]; deleteRe
   const store = { deleteFileCascade: vi.fn(async (id: string) => (over.deleteReturns ? over.deleteReturns(id) : rec(id))) };
   const fileStore = { delete: vi.fn(over.blobFails ? () => Promise.reject(new Error('gone')) : () => Promise.resolve()) };
   const audit = { emit: vi.fn().mockResolvedValue(undefined) };
-  const svc = new FileRetentionService(retention as never, store as never, fileStore as never, audit, resolveFileStorageOptions({ logRetention: { accessLogDays: 10 } }));
-  return { svc, retention, store, fileStore, audit };
+  const pending = {
+    findExpired: vi.fn(async () => over.expiredUploads?.splice(0) ?? []),
+    delete: vi.fn().mockResolvedValue(true),
+  };
+  const svc = new FileRetentionService(retention as never, store as never, fileStore as never, audit, resolveFileStorageOptions({ logRetention: { accessLogDays: 10 } }), pending as never);
+  return { svc, retention, store, fileStore, audit, pending };
 }
 
 describe('FileRetentionService.run', () => {
@@ -36,7 +46,15 @@ describe('FileRetentionService.run', () => {
     expect(audit.emit).toHaveBeenCalledWith(expect.objectContaining({ kind: 'file.deleted', cause: 'retention', actor: RETENTION_ACTOR }));
     expect(retention.pruneAccessLog).toHaveBeenCalledWith(new Date(now.getTime() - 10 * DAY), expect.any(Number));
     expect(retention.pruneRejections).toHaveBeenCalledWith(new Date(now.getTime() - 90 * DAY), expect.any(Number));
-    expect(res).toEqual({ filesDeleted: 2, bytesFreed: 20, blobDeleteFailures: 0, accessLogRowsDeleted: 7, rejectionRowsDeleted: 3 });
+    expect(res).toEqual({ filesDeleted: 2, bytesFreed: 20, blobDeleteFailures: 0, accessLogRowsDeleted: 7, rejectionRowsDeleted: 3, expiredUploadsDropped: 0 });
+  });
+
+  it('drops expired direct uploads and whatever was uploaded to them', async () => {
+    const { svc, fileStore, pending } = make({ expiredUploads: [{ id: 'p1', fileRef: 'b/p1' }] });
+    const res = await svc.run();
+    expect(pending.delete).toHaveBeenCalledWith('p1');
+    expect(fileStore.delete).toHaveBeenCalledWith('b/p1');
+    expect(res.expiredUploadsDropped).toBe(1);
   });
 
   it('skips a file held since it was found, and stops when a whole batch made no progress', async () => {
@@ -109,7 +127,7 @@ describe('FileRetentionService stray blobs', () => {
         : {}),
     };
     const audit = { emit: vi.fn().mockResolvedValue(undefined) };
-    const svc = new FileRetentionService(retention as never, {} as never, fileStore as never, audit, resolveFileStorageOptions({}));
+    const svc = new FileRetentionService(retention as never, {} as never, fileStore as never, audit, resolveFileStorageOptions({}), {} as never);
     return { svc, retention, fileStore, audit };
   }
 

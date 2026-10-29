@@ -35,3 +35,6 @@ export const POSTGRES_FILE_RETENTION_STORE = Symbol('POSTGRES_FILE_RETENTION_STO
 
 /** `PostgresStorageQuotaStore`. Point `FileStorageModule.forRoot({ storageQuotaStoreToken })` at this. */
 export const POSTGRES_STORAGE_QUOTA_STORE = Symbol('POSTGRES_STORAGE_QUOTA_STORE');
+
+/** `PostgresPendingUploadStore`. Point `FileStorageModule.forRoot({ pendingUploadStoreToken })` at this. */
+export const POSTGRES_PENDING_UPLOAD_STORE = Symbol('POSTGRES_PENDING_UPLOAD_STORE');

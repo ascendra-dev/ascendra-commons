@@ -71,6 +71,42 @@ signed-link expiry, retention intent). Two layers:
 the caller's tenant plus live per-category counts — the single centralized view
 of every accepted upload type.
 
+## Direct uploads — the bytes go to the bucket, not through the API
+
+For a store that implements `DirectUploadFileStore` (S3, local-disk; not
+Supabase yet), a vertical can let the client upload straight to storage:
+
+```typescript
+// 1. the vertical's own endpoint, after its own authorization
+const target = await attachments.beginUpload({
+  file: { filename, contentType, sizeBytes },          // declared by the client
+  category: 'invoice.supporting-document',
+  attachedTo: { type: 'invoice', id: invoiceId },
+  actor,
+});
+// → { uploadId, url, method: 'PUT', headers, expiresAt } — the client PUTs the bytes with exactly `headers`
+
+// 2. once the client says it's done
+const { fileRecord } = await attachments.completeUpload({ uploadId, actor });
+```
+
+- `beginUpload` checks everything it can without the bytes — category, type,
+  extension, size, the tenant's storage limit — before any URL exists, and
+  records the upload (`PendingUploadStore`, migration 0008).
+- The URL is bound to the declared size and type and never overwrites
+  (`uploadUrlExpirySeconds`, default 900).
+- `completeUpload` — only by the actor who began it — requires the object to
+  be there at exactly the declared size, reads it back for the content
+  signature check, the scan and the hash, checks the category and the limit
+  again, and only then writes the record. Any refusal deletes the object and
+  is recorded as a rejection; a second complete is a 404.
+- An upload never completed is dropped, object and all, by the retention run
+  once its URL has expired.
+
+The bytes are still read back once (to check, scan and hash them) — what
+leaves the API is the upload itself: the client's connection, its slowness,
+and its size limits.
+
 ## Retention and legal hold
 
 Every file's `retainUntil` is fixed at upload from its category's

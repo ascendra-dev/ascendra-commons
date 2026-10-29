@@ -6,6 +6,7 @@ export {
   fileAccessTable,
   fileRejectionTable,
   tenantQuotaTable,
+  pendingUploadTable,
 } from './persistence';
 export type { SqlExecutor } from './persistence/sql-executor';
 
@@ -37,6 +38,11 @@ export { PostgresStorageQuotaStore } from './quota/postgres-storage-quota-store'
 export { PostgresStorageQuotaModule } from './quota/postgres-storage-quota.module';
 export type { PostgresStorageQuotaModuleConfig } from './quota/postgres-storage-quota.module';
 
+/* direct uploads */
+export { PostgresPendingUploadStore } from './pending-upload/postgres-pending-upload-store';
+export { PostgresPendingUploadModule } from './pending-upload/postgres-pending-upload.module';
+export type { PostgresPendingUploadModuleConfig } from './pending-upload/postgres-pending-upload.module';
+
 /* rejected uploads */
 export { PostgresFileUploadRejectionRecorder } from './rejections/postgres-file-upload-rejection-recorder';
 
@@ -51,4 +57,5 @@ export {
   POSTGRES_FILE_STORAGE_OBSERVABILITY,
   POSTGRES_FILE_RETENTION_STORE,
   POSTGRES_STORAGE_QUOTA_STORE,
+  POSTGRES_PENDING_UPLOAD_STORE,
 } from './tokens';

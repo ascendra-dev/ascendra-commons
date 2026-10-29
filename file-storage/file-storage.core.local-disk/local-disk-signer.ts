@@ -9,6 +9,10 @@ export interface LocalDiskGrant {
   fileRef: string;
   /** Unix seconds. */
   expiresAt: number;
+  /** A download (`get`) or an upload (`put`) — a token for one is never good for the other. Default `get`. */
+  op?: 'get' | 'put';
+  /** For `put`: the most bytes the upload may carry. */
+  maxBytes?: number;
   filename?: string;
   contentType?: string;
 }
@@ -24,13 +28,20 @@ export class LocalDiskSigner {
 
   sign(grant: LocalDiskGrant): string {
     const payload = Buffer.from(
-      JSON.stringify([grant.fileRef, grant.expiresAt, grant.filename ?? null, grant.contentType ?? null]),
+      JSON.stringify([
+        grant.fileRef,
+        grant.expiresAt,
+        grant.filename ?? null,
+        grant.contentType ?? null,
+        grant.op ?? 'get',
+        grant.maxBytes ?? null,
+      ]),
     ).toString('base64url');
     return `${payload}.${this.mac(payload)}`;
   }
 
-  /** The grant, or `null` when the token is malformed, forged or expired. */
-  verify(token: string, now = Date.now()): LocalDiskGrant | null {
+  /** The grant, or `null` when the token is malformed, forged, expired, or for the other operation. */
+  verify(token: string, op: 'get' | 'put' = 'get', now = Date.now()): LocalDiskGrant | null {
     const dot = token.indexOf('.');
     if (dot <= 0 || dot !== token.lastIndexOf('.')) return null;
     const payload = token.slice(0, dot);
@@ -39,13 +50,15 @@ export class LocalDiskSigner {
     if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
     try {
       const parsed: unknown = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-      if (!Array.isArray(parsed) || parsed.length !== 4) return null;
-      const [fileRef, expiresAt, filename, contentType] = parsed as unknown[];
-      if (typeof fileRef !== 'string' || typeof expiresAt !== 'number') return null;
+      if (!Array.isArray(parsed) || parsed.length !== 6) return null;
+      const [fileRef, expiresAt, filename, contentType, tokenOp, maxBytes] = parsed as unknown[];
+      if (typeof fileRef !== 'string' || typeof expiresAt !== 'number' || tokenOp !== op) return null;
       if (expiresAt * 1000 <= now) return null;
       return {
         fileRef,
         expiresAt,
+        op,
+        maxBytes: typeof maxBytes === 'number' ? maxBytes : undefined,
         filename: typeof filename === 'string' ? filename : undefined,
         contentType: typeof contentType === 'string' ? contentType : undefined,
       };

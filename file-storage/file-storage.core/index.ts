@@ -35,6 +35,15 @@ export { MissingSignedLinkResolver, MissingSignedLinkResolverError } from './sig
 export type { FileStorageAuditEmitter, FileStorageAuditEvent } from './file-storage-audit.port';
 export { NoopFileStorageAuditEmitter } from './file-storage-audit.port';
 
+/* direct uploads */
+export type { DirectUploadFileStore, PendingUpload, PendingUploadStore } from './direct-upload.port';
+export {
+  isDirectUploadFileStore,
+  MissingPendingUploadStore,
+  MissingPendingUploadStoreError,
+  DirectUploadUnsupportedError,
+} from './direct-upload.port';
+
 /* storage limits */
 export type { StorageQuotaStore, TenantQuota, TenantQuotaUsage } from './storage-quota.port';
 export { NoStorageQuotas } from './storage-quota.port';
@@ -124,6 +133,7 @@ export {
   FILE_STORAGE_AUDIT_EMITTER,
   FILE_RETENTION_STORE,
   STORAGE_QUOTA_STORE,
+  PENDING_UPLOAD_STORE,
   FILE_STORAGE_OPTIONS,
   FILE_STORE_CONFIG,
   ENTITY_ACCESS_CHECKERS,

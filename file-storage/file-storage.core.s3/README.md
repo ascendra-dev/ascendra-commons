@@ -15,6 +15,12 @@ API (MinIO, Cloudflare R2, …), through the app's own `S3Client`. Same
   filename — an uploaded HTML or SVG never renders on the bucket's origin.
 - `delete` → `DeleteObject` (succeeds for a key already gone).
 - `listObjects` → `ListObjectsV2` — the stray-blob check works on S3.
+- **Direct uploads** (`DirectUploadFileStore`): `createUploadUrl` presigns a
+  `PutObject` with the content type, the exact `Content-Length`,
+  `If-None-Match: *` and the SSE headers *signed as headers* — the client must
+  send exactly the returned `headers`, so it can't send more bytes, another
+  type, or overwrite. `stat` → `HeadObject`, `read` → `GetObject`. The bucket
+  needs a CORS rule allowing `PUT` from the app's origin with those headers.
 - Provider errors become `FileStoreError`, never the raw SDK error.
 
 Build trigger, met: Supabase Storage's limits (object size, egress, region
