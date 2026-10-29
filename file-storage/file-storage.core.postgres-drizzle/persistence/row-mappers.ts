@@ -12,6 +12,12 @@ export function toFileRecord(r: Record<string, unknown>): FileRecord {
     sizeBytes: Number(r.size_bytes),
     contentHash: (r.content_hash as string | null) ?? null,
     uploadedBy: r.uploaded_by as string,
+    filename: (r.filename as string | null) ?? null,
+    scanVerdict: (r.scan_verdict as 'clean' | 'unscannable' | null) ?? null,
+    retainUntil: r.retain_until ? new Date(r.retain_until as string) : null,
+    legalHold: r.held_at
+      ? { heldAt: new Date(r.held_at as string), heldBy: r.held_by as string, reason: (r.hold_reason as string | null) ?? '' }
+      : null,
     createdAt: new Date(r.created_at as string),
   };
 }

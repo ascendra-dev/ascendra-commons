@@ -1,5 +1,4 @@
 import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { fileRecordTable } from './file-record.schema';
 
 /**
  * The reference `commons_file_access` table — one row per download URL handed
@@ -8,15 +7,16 @@ import { fileRecordTable } from './file-record.schema';
  *
  * Reads only. Uploads and deletes are carried by the optional
  * `FileStorageAuditEmitter` as domain audit events, not here.
+ *
+ * No foreign key (dropped in migration 0006): deleting a file keeps its access
+ * log — "who downloaded this" must outlive the file.
  */
 export const fileAccessTable = pgTable(
   'commons_file_access',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    fileRecordId: uuid('file_record_id')
-      .notNull()
-      .references(() => fileRecordTable.id, { onDelete: 'cascade' }),
-    tenantId: uuid('tenant_id').notNull(),
+    fileRecordId: uuid('file_record_id').notNull(),
+    tenantId: text('tenant_id').notNull(),
     /** NULL for a signed-link fetch — no authenticated actor. */
     actorId: text('actor_id'),
     via: text('via').$type<'actor' | 'signed-link'>().notNull(),

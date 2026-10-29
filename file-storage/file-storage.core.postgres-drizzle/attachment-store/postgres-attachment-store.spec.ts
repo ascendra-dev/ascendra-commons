@@ -24,7 +24,10 @@ describe('PostgresAttachmentStore.attach', () => {
     ]);
     const store = new PostgresAttachmentStore(db);
     const res = await store.attach({
-      fileRecord: { tenantId: 't1', fileRef: 'kyc/f1', category: 'kyc', contentType: 'application/pdf', sizeBytes: 12, contentHash: 'h', uploadedBy: 'u1' },
+      fileRecord: {
+        tenantId: 't1', fileRef: 'kyc/f1', category: 'kyc', contentType: 'application/pdf', sizeBytes: 12, contentHash: 'h',
+        uploadedBy: 'u1', filename: 'a.pdf', scanVerdict: 'clean', retainUntil: null,
+      },
       attachment: { attachedToType: 'invoice', attachedToId: 'inv1', category: 'kyc' },
     });
 
@@ -35,11 +38,22 @@ describe('PostgresAttachmentStore.attach', () => {
     expect(res.fileRecord.id).toBe('f1');
     expect(res.fileRecord.sizeBytes).toBe(12);
     expect(res.attachment.id).toBe('a1');
+    expect(q.params).toEqual(expect.arrayContaining(['a.pdf', 'clean']));
+  });
+});
+
+describe('PostgresAttachmentStore.findByEntity', () => {
+  it('filters by tenant when asked', async () => {
+    const db = fakeDb([]);
+    await new PostgresAttachmentStore(db).findByEntity('invoice', 'i1', { tenantId: 't1' });
+    const q = rendered(db)[0];
+    expect(q.sql).toMatch(/and f\.tenant_id = /);
+    expect(q.params).toEqual(['invoice', 'i1', 't1']);
   });
 });
 
 describe('PostgresAttachmentStore.deleteFileCascade', () => {
-  it('deletes access + attachment rows then the file record, one statement', async () => {
+  it('deletes the attachment rows then the file record, one statement — the access log stays', async () => {
     const db = fakeDb([
       { id: 'f1', tenant_id: 't1', file_ref: 'kyc/f1', category: 'kyc', content_type: 'application/pdf', size_bytes: 1, content_hash: null, uploaded_by: 'u', created_at: '2026-09-07T00:00:00Z' },
     ]);
@@ -47,8 +61,8 @@ describe('PostgresAttachmentStore.deleteFileCascade', () => {
     const removed = await store.deleteFileCascade('f1');
 
     const q = rendered(db)[0];
-    expect(q.sql).toMatch(/with del_access as \(delete from commons_file_access/i);
-    expect(q.sql).toMatch(/del_attach as \(delete from commons_attachment/i);
+    expect(q.sql).not.toMatch(/commons_file_access/i);
+    expect(q.sql).toMatch(/with del_attach as \(delete from commons_attachment/i);
     expect(q.sql).toMatch(/delete from commons_file_record where id = /i);
     expect(removed?.fileRef).toBe('kyc/f1');
   });

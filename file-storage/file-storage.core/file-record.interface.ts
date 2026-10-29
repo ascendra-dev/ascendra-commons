@@ -17,5 +17,23 @@ export interface FileRecord {
    */
   readonly contentHash: string | null;
   readonly uploadedBy: string;
+  /** The uploader's name for the file, cleaned — no path, no control characters, at most 255. `null` for older rows. */
+  readonly filename: string | null;
+  /** What the scanner said — an infected file is never stored. `null` for older rows. */
+  readonly scanVerdict: 'clean' | 'unscannable' | null;
+  /**
+   * Fixed at upload from the category's `keepForDays` (a later catalog change
+   * doesn't move it): the file can't be deleted before this date, and the
+   * retention run deletes it after. `null` = indefinite.
+   */
+  readonly retainUntil: Date | null;
+  /** Legal hold — while set, nobody deletes the file and retention skips it. */
+  readonly legalHold: LegalHold | null;
   readonly createdAt: Date;
+}
+
+export interface LegalHold {
+  readonly heldAt: Date;
+  readonly heldBy: string;
+  readonly reason: string;
 }

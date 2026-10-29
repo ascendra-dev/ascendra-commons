@@ -13,7 +13,7 @@ export const fileRejectionTable = pgTable(
   'commons_file_rejection',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    tenantId: uuid('tenant_id').notNull(),
+    tenantId: text('tenant_id').notNull(),
     actorId: text('actor_id').notNull(),
     /** The requested `FileCategory` key — may not resolve to a real/active category. */
     category: text('category').notNull(),

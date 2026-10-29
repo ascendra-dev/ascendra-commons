@@ -11,7 +11,7 @@ picture.
   the file's `FileCategory`), not derived here.
 - **`AttachmentStore`** (`attachment-store.port.ts`) — the metadata port:
   `attach` (atomic FileRecord + first Attachment), `link`, `detach`,
-  `getFileRecordById` / `getAttachmentById`, `findByEntity`, `deleteFileCascade`.
+  `getFileRecordById` / `getAttachmentById`, `findByEntity` (optionally tenant-filtered), `deleteFileCascade`.
 - **`FileRecord`** / **`Attachment`** — two rows on purpose: a blob exists vs.
   it's linked to an entity. `FileRecord` carries a passive `contentHash`.
 - **`FileCategory`** / **`ResolvedFileCategory`** / **`FileCategoryRegistry`** —

@@ -2,7 +2,7 @@
 export type { FileStore } from './file-store.port';
 export type { FileStoreConfig } from './file-store-config';
 export { FileStoreError } from './file-store.error';
-export type { FileRecord } from './file-record.interface';
+export type { FileRecord, LegalHold } from './file-record.interface';
 export type { Attachment } from './attachment.interface';
 export type { AttachmentStore } from './attachment-store.port';
 export type { EntityAccessChecker } from './entity-access-checker.interface';

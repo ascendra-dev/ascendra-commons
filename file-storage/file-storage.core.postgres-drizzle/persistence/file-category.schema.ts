@@ -22,7 +22,7 @@ export const fileCategoryTable = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     key: text('key').notNull(),
     /** NULL = base definition. */
-    tenantId: uuid('tenant_id'),
+    tenantId: text('tenant_id'),
 
     /* base-only */
     label: text('label'),

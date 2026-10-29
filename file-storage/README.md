@@ -86,7 +86,7 @@ of every accepted upload type.
 
     SupabaseFileStoreModule.forRoot({
       supabaseClientToken: SUPABASE_CLIENT,
-      fileStoreConfig: { buildObjectKey: ({ filename }) => `${randomUUID()}-${filename}` },
+      fileStoreConfig: { buildObjectKey: ({ tenantId, category }) => `${tenantId}/${category}/${randomUUID()}` }, // never the client's filename
       imports: [DatabaseModule],
     }),
     PostgresAttachmentStoreModule.forRoot({ sqlExecutorToken: DATABASE_CONNECTION, imports: [DatabaseModule] }),

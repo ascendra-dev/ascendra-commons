@@ -20,7 +20,7 @@ declares `@RequiresAction('file.*')`.
 | `GET /files/:id/access-log` | `file.view` | who fetched it, when |
 | `GET /files/storage-usage` | `file.view` | `SUM(bytes)` grouped by tenant + category |
 | `GET /files/orphans` | `file.view` | file records with zero attachments |
-| `DELETE /files/:id` | `file.delete` | hard delete (blob + all metadata, cascade) — delegates to `AttachmentService.deleteFile` |
+| `DELETE /files/:id` | `file.delete` | hard delete (blob, record and attachments; the access log stays) — delegates to `AttachmentService.deleteFile` |
 | `DELETE /files/:id/attachments/:attachmentId` | `file.delete` | detach one link, keep the file |
 | `GET /files/categories` | `file.view` | the effective catalog for the caller's tenant + live per-category counts |
 | `GET /files/categories/:key` | `file.view` | base + override, shown separately |

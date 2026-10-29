@@ -4,8 +4,8 @@ The Postgres/Drizzle **metadata** backend for `file-storage` — everything that
 isn't the blob. Three independently-wired concerns.
 
 This library never runs migrations (`MODULE-STANDARD.md` dimension 7). Apply
-`migrations/` (`0001_file_record` … `0005_file_rejection`, in order — attachment
-and file access reference file record) with the consuming project's own
+`migrations/` (`0001_file_record` … `0006_file_record_facts`, in order — attachment
+references file record) with the consuming project's own
 migration tool, once `ascendra-commons.js` has delivered them; never re-export
 the schema tables to `drizzle-kit` too, or it generates them a second time. Released migrations are never edited — a schema
 change is the next numbered file, together with the schema and the adapter SQL.
@@ -14,10 +14,10 @@ change is the next numbered file, together with the schema and the adapter SQL.
 
 | Table | Written by | Notes |
 |---|---|---|
-| `commons_file_record` | `PostgresAttachmentStore` | one row per blob; passive `content_hash`; indexes for `(tenant, category, created_at)`, cleanup, dedupe |
+| `commons_file_record` | `PostgresAttachmentStore` | one row per blob: cleaned `filename`, `scan_verdict`, `retain_until` (fixed at upload), legal hold (`held_at`/`held_by`/`hold_reason`), passive `content_hash`; text `tenant_id` |
 | `commons_attachment` | `PostgresAttachmentStore` | polymorphic link to a business entity; `ON DELETE CASCADE` from `file_record` |
 | `commons_file_category` | seed + `PostgresFileCategoryAdminService` | two-layer: `tenant_id IS NULL` = base (seeded), non-NULL = per-tenant override; partial unique indexes |
-| `commons_file_access` | `PostgresFileAccessRecorder` | one row per download URL handed out; reads only |
+| `commons_file_access` | `PostgresFileAccessRecorder` | one row per download URL handed out; reads only. No foreign key — deleting a file keeps its access log |
 
 ## Modules
 

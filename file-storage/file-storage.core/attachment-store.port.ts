@@ -14,7 +14,7 @@ import type { FileRecord } from './file-record.interface';
  */
 export interface AttachmentStore {
   attach(input: {
-    fileRecord: Omit<FileRecord, 'id' | 'createdAt'>;
+    fileRecord: Omit<FileRecord, 'id' | 'createdAt' | 'legalHold'>;
     attachment: Omit<Attachment, 'id' | 'fileRecordId' | 'createdAt'>;
   }): Promise<{ fileRecord: FileRecord; attachment: Attachment }>;
 
@@ -27,9 +27,11 @@ export interface AttachmentStore {
 
   getAttachmentById(id: string): Promise<Attachment | null>;
 
+  /** An entity's attachments, newest first. `tenantId` set → only that tenant's files (`AttachmentService.listForEntity` always sets it for a tenant actor). */
   findByEntity(
     attachedToType: string,
     attachedToId: string,
+    opts?: { tenantId?: string },
   ): Promise<Array<Attachment & { fileRecord: FileRecord }>>;
 
   detach(attachmentId: string): Promise<void>;

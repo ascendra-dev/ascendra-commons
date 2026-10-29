@@ -10,7 +10,7 @@ import {
 import type { Actor } from '../../authorization/authorization.core';
 import type { AttachmentStore } from './attachment-store.port';
 import type { Attachment } from './attachment.interface';
-import { assertFileMatchesCategory, type FileCategoryRegistry } from './file-category';
+import { assertFileMatchesCategory, type FileCategoryRegistry, type Retention } from './file-category';
 import type { FileAccessRecorder } from './file-access-recorder.port';
 import type { FileRecord } from './file-record.interface';
 import type { FileScanner } from './file-scanner.port';
@@ -170,6 +170,9 @@ export class AttachmentService {
           sizeBytes: input.file.sizeBytes,
           contentHash: createHash('sha256').update(input.file.data).digest('hex'),
           uploadedBy: input.actor.id,
+          filename: cleanFilename(input.file.filename),
+          scanVerdict: verdict,
+          retainUntil: retainUntil(category.retention, new Date()),
         },
         attachment: {
           attachedToType: input.attachedTo.type,
@@ -193,7 +196,11 @@ export class AttachmentService {
     return result;
   }
 
-  /** Attach an existing FileRecord to another entity — a second Attachment row, no new blob. */
+  /**
+   * Attach an existing FileRecord to another entity — a second Attachment row,
+   * no new blob. `category` is resolved like `attach`'s: unknown or inactive
+   * for the file's tenant → `ForbiddenException`.
+   */
   async link(input: {
     fileRecordId: string;
     attachedTo: { type: string; id: string };
@@ -202,6 +209,10 @@ export class AttachmentService {
   }): Promise<Attachment> {
     const record = await this.requireFileRecord(input.fileRecordId);
     await this.assertTenantAccess(input.actor, record);
+    const category = await this.categories.resolve(record.tenantId, input.category);
+    if (!category || !category.active) {
+      throw new ForbiddenException(`file category '${input.category}' is not available`);
+    }
 
     const attachment = await this.store.link({
       fileRecordId: record.id,
@@ -221,6 +232,22 @@ export class AttachmentService {
       actor: input.actor,
     });
     return attachment;
+  }
+
+  /**
+   * An entity's files, newest first — what a vertical's "documents on this
+   * invoice" panel lists. A tenant actor only ever sees their own tenant's
+   * files, whatever the entity id; a platform admin sees all.
+   */
+  async listForEntity(input: {
+    attachedTo: { type: string; id: string };
+    actor: Actor;
+  }): Promise<Array<Attachment & { fileRecord: FileRecord }>> {
+    const platform = await this.options.isPlatformAdmin(input.actor);
+    if (!platform && input.actor.tenantId === null) return [];
+    return this.store.findByEntity(input.attachedTo.type, input.attachedTo.id, {
+      tenantId: platform ? undefined : (input.actor.tenantId ?? undefined),
+    });
   }
 
   /** Remove one association. The FileRecord (and blob) are retained. */
@@ -350,4 +377,30 @@ export class AttachmentService {
       /* best-effort */
     }
   }
+}
+
+/** Longest stored filename — the uploader's name for the file, not a storage path. */
+const MAX_FILENAME = 255;
+
+/**
+ * The uploader's name for the file as it's stored and shown: the last path
+ * segment (a browser on Windows may send `C:\\fakepath\\x.pdf`), control
+ * characters removed, trimmed, at most 255 characters keeping the extension.
+ * `null` when nothing is left. Never a storage key — `buildObjectKey` decides that.
+ */
+export function cleanFilename(name: string): string | null {
+  const base = name.split(/[\\/]/).pop() ?? '';
+  // eslint-disable-next-line no-control-regex
+  const clean = base.replace(/[\u0000-\u001f\u007f]/g, '').trim();
+  if (!clean) return null;
+  if (clean.length <= MAX_FILENAME) return clean;
+  const dot = clean.lastIndexOf('.');
+  const ext = dot > 0 && clean.length - dot <= 16 ? clean.slice(dot) : '';
+  return clean.slice(0, MAX_FILENAME - ext.length) + ext;
+}
+
+/** The date a file of this retention may be deleted from — `null` for indefinite. */
+export function retainUntil(retention: Retention, from: Date): Date | null {
+  if (retention === 'indefinite') return null;
+  return new Date(from.getTime() + retention.keepForDays * 86_400_000);
 }

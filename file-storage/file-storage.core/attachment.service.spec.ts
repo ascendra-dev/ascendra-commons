@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ForbiddenException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { AttachmentService } from './attachment.service';
+import { AttachmentService, cleanFilename, retainUntil } from './attachment.service';
 import type { Actor } from '../../authorization/authorization.core';
 import type { AttachmentStore } from './attachment-store.port';
 import type { FileCategoryRegistry, ResolvedFileCategory } from './file-category';
@@ -36,6 +36,10 @@ function fileRecord(over: Partial<FileRecord> = {}): FileRecord {
     sizeBytes: 100,
     contentHash: 'abc',
     uploadedBy: 'u1',
+    filename: 'id.pdf',
+    scanVerdict: 'clean',
+    retainUntil: null,
+    legalHold: null,
     createdAt: new Date(),
     ...over,
   };
@@ -112,7 +116,14 @@ describe('AttachmentService.attach', () => {
     );
     expect(store.attach).toHaveBeenCalledWith(
       expect.objectContaining({
-        fileRecord: expect.objectContaining({ tenantId: 't1', uploadedBy: 'u1', contentHash: expect.any(String) }),
+        fileRecord: expect.objectContaining({
+          tenantId: 't1',
+          uploadedBy: 'u1',
+          contentHash: expect.any(String),
+          filename: 'id.pdf',
+          scanVerdict: 'clean',
+          retainUntil: null,
+        }),
       }),
     );
     expect(audit.emit).toHaveBeenCalledWith(expect.objectContaining({ kind: 'file.attached' }));
@@ -283,5 +294,82 @@ describe('AttachmentService.detach / deleteFile', () => {
   it('deleteFile refuses a cross-tenant actor', async () => {
     const { service } = makeService({ store: { getFileRecordById: vi.fn().mockResolvedValue(fileRecord({ tenantId: 't2' })) } });
     await expect(service.deleteFile({ fileRecordId: 'f1', actor: issuer })).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe('AttachmentService.attach — what is recorded', () => {
+  it('stores the scan verdict of an unscannable file the category allows', async () => {
+    const { service, store } = makeService({
+      scanVerdict: 'unscannable',
+      registry: { resolve: vi.fn().mockResolvedValue({ ...category, onUnscannable: 'allow' }) },
+    });
+    await service.attach(goodUpload);
+    expect(store.attach).toHaveBeenCalledWith(expect.objectContaining({ fileRecord: expect.objectContaining({ scanVerdict: 'unscannable' }) }));
+  });
+
+  it("fixes retainUntil from the category's keepForDays", async () => {
+    const { service, store } = makeService({
+      registry: { resolve: vi.fn().mockResolvedValue({ ...category, retention: { keepForDays: 10 } }) },
+    });
+    const before = Date.now();
+    await service.attach(goodUpload);
+    const until = (store.attach as ReturnType<typeof vi.fn>).mock.calls[0][0].fileRecord.retainUntil as Date;
+    expect(until.getTime() - before).toBeGreaterThanOrEqual(10 * 86_400_000);
+    expect(until.getTime() - before).toBeLessThan(10 * 86_400_000 + 5_000);
+  });
+});
+
+describe('cleanFilename', () => {
+  it.each([
+    ['C:\\fakepath\\scan.pdf', 'scan.pdf'],
+    ['../../etc/passwd', 'passwd'],
+    ['  bad\u0000name\u001f.png ', 'badname.png'],
+    ['', null],
+    ['/', null],
+  ])('%j → %j', (input, out) => expect(cleanFilename(input)).toBe(out));
+
+  it('cuts a long name to 255, keeping the extension', () => {
+    const name = cleanFilename(`${'a'.repeat(400)}.pdf`)!;
+    expect(name).toHaveLength(255);
+    expect(name.endsWith('.pdf')).toBe(true);
+  });
+});
+
+describe('retainUntil', () => {
+  it('is null for indefinite and from + N days otherwise', () => {
+    const from = new Date('2026-01-01T00:00:00Z');
+    expect(retainUntil('indefinite', from)).toBeNull();
+    expect(retainUntil({ keepForDays: 30 }, from)?.toISOString()).toBe('2026-01-31T00:00:00.000Z');
+  });
+});
+
+describe('AttachmentService.link', () => {
+  it('links under a category that resolves for the file tenant', async () => {
+    const { service, store, registry } = makeService();
+    await service.link({ fileRecordId: 'f1', attachedTo: { type: 'invoice', id: 'i1' }, category: 'kyc.identity-document', actor: issuer });
+    expect(registry.resolve).toHaveBeenCalledWith('t1', 'kyc.identity-document');
+    expect(store.link).toHaveBeenCalled();
+  });
+
+  it('refuses an unknown or inactive category — never free text', async () => {
+    const { service, store } = makeService({ registry: { resolve: vi.fn().mockResolvedValue(null) } });
+    await expect(
+      service.link({ fileRecordId: 'f1', attachedTo: { type: 'invoice', id: 'i1' }, category: 'anything', actor: issuer }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(store.link).not.toHaveBeenCalled();
+  });
+});
+
+describe('AttachmentService.listForEntity', () => {
+  it("scopes a tenant actor to their own tenant's files", async () => {
+    const { service, store } = makeService();
+    await service.listForEntity({ attachedTo: { type: 'invoice', id: 'i1' }, actor: issuer });
+    expect(store.findByEntity).toHaveBeenCalledWith('invoice', 'i1', { tenantId: 't1' });
+  });
+
+  it('a platform admin sees every tenant', async () => {
+    const { service, store } = makeService();
+    await service.listForEntity({ attachedTo: { type: 'invoice', id: 'i1' }, actor: platformAdmin });
+    expect(store.findByEntity).toHaveBeenCalledWith('invoice', 'i1', { tenantId: undefined });
   });
 });
