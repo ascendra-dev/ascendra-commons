@@ -16,6 +16,8 @@ export { assertFileMatchesCategory } from './file-category';
 /* validation / scanning / access */
 export type { FileValidator, FileValidationTarget, FileValidationDefaults } from './file-validator.port';
 export { RuleBasedFileValidator, FileValidationError, extensionOf } from './file-validator.port';
+export { checkContentSignature, SIGNATURE_CHECKED_TYPES } from './content-signature';
+export type { ContentSignatureVerdict } from './content-signature';
 export type { FileScanner, ScanVerdict } from './file-scanner.port';
 export { NoopFileScanner } from './file-scanner.port';
 export type { FileAccessRecorder, FileAccessEvent } from './file-access-recorder.port';

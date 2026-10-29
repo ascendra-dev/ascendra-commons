@@ -98,6 +98,7 @@ export class AttachmentService {
       sizeBytes: input.file.sizeBytes,
       contentType: input.file.contentType,
       filename: input.file.filename,
+      data: input.file.data,
     };
     try {
       this.validator.validate(target);

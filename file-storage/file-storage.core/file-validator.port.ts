@@ -1,3 +1,5 @@
+import { checkContentSignature } from './content-signature';
+
 /**
  * The **app-global** upload gate: a hard size ceiling and a MIME/extension
  * denylist that apply to every upload regardless of category. A per-category
@@ -17,6 +19,8 @@ export interface FileValidationTarget {
   sizeBytes: number;
   contentType: string;
   filename: string;
+  /** The bytes, when the validator should look at them (`AttachmentService` always passes them). */
+  data?: Buffer;
 }
 
 export interface FileValidationDefaults {
@@ -26,6 +30,12 @@ export interface FileValidationDefaults {
   deniedContentTypes?: string[];
   /** Extensions never accepted, with or without the leading dot (e.g. `exe`, `.sh`). Case-insensitive. */
   deniedExtensions?: string[];
+  /**
+   * Check the bytes against the declared type (`checkContentSignature`): a
+   * "PDF" that doesn't start `%PDF-`, or a native executable declared as a
+   * document or image, is refused. Default `true`.
+   */
+  verifyContentSignature?: boolean;
 }
 
 /** Thrown by a `FileValidator` and by `assertFileMatchesCategory`. `AttachmentService` maps it to a 422. */
@@ -71,6 +81,16 @@ export class RuleBasedFileValidator implements FileValidator {
     const ext = extensionOf(target.filename);
     if (ext && this.deniedExtensions.has(ext)) {
       throw new FileValidationError(`file extension '.${ext}' is not allowed`);
+    }
+    if (target.data && this.defaults.verifyContentSignature !== false) {
+      const verdict = checkContentSignature(target.data, target.contentType);
+      if (!verdict.ok) {
+        throw new FileValidationError(
+          verdict.reason === 'executable'
+            ? `the file is a program, not '${target.contentType}'`
+            : `the file's content is not '${target.contentType}' — it doesn't start the way one does`,
+        );
+      }
     }
   }
 }

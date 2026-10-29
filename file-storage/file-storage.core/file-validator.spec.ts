@@ -67,3 +67,16 @@ describe('assertFileMatchesCategory', () => {
     expect(() => assertFileMatchesCategory({ sizeBytes: 400, contentType: 'anything/goes', filename: 'x.bin' }, open)).not.toThrow();
   });
 });
+
+describe('RuleBasedFileValidator — content signature', () => {
+  const pdf = { sizeBytes: 10, contentType: 'application/pdf', filename: 'a.pdf' };
+  it('refuses bytes that are not the declared type', () => {
+    expect(() => new RuleBasedFileValidator().validate({ ...pdf, data: Buffer.from('<html>') })).toThrow(/doesn't start the way one does/);
+    expect(() => new RuleBasedFileValidator().validate({ ...pdf, data: Buffer.from('MZ\x90') })).toThrow(/is a program/);
+  });
+  it('passes matching bytes, and skips the check with no bytes or when turned off', () => {
+    expect(() => new RuleBasedFileValidator().validate({ ...pdf, data: Buffer.from('%PDF-1.4') })).not.toThrow();
+    expect(() => new RuleBasedFileValidator().validate(pdf)).not.toThrow();
+    expect(() => new RuleBasedFileValidator({ verifyContentSignature: false }).validate({ ...pdf, data: Buffer.from('<html>') })).not.toThrow();
+  });
+});
