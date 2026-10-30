@@ -31,6 +31,14 @@ export class FileRetentionApiService {
     return this.retention.run();
   }
 
+  /** What a purge with these bounds would delete and leave — the console's confirm says it before anything goes. */
+  async previewOrphanPurge(actor: Actor, query: { olderThanDays: number; tenantId?: string }) {
+    return this.retention.previewOrphanPurge({
+      olderThan: new Date(Date.now() - query.olderThanDays * DAY_MS),
+      tenantId: await this.scopeTenant(actor, query.tenantId),
+    });
+  }
+
   async purgeOrphans(actor: Actor, body: { olderThanDays: number; tenantId?: string }) {
     return this.retention.purgeOrphans({
       actor,

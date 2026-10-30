@@ -24,6 +24,8 @@ export type FileStorageAuditEvent =
       overrodeRetention: boolean;
       /** Who asked: a person (`request`), the retention run, or an orphan purge. */
       cause: 'request' | 'retention' | 'orphan-purge';
+      /** Why the person deleted it — `file-storage.api` requires one for an early delete (an erasure). */
+      reason?: string;
     }
   | { kind: 'file.stray_blob_deleted'; fileRef: string; sizeBytes: number; actor: Actor }
   | { kind: 'file.hold_placed'; fileRecordId: string; tenantId: string; actor: Actor; reason: string }

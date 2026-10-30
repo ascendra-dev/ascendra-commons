@@ -108,9 +108,17 @@ export class FileInventoryApiService {
     return { ...page, rows: page.rows.map((r) => ({ ...r, actorName: names.get(r.actorId) ?? null })) };
   }
 
-  /** 409 while held or (for a tenant actor) inside retention — see `AttachmentService.deleteFile`. */
-  async deleteFile(actor: Actor, id: string): Promise<void> {
-    await this.attachments.deleteFile({ fileRecordId: id, actor });
+  /**
+   * 409 while held or (for a tenant actor) inside retention — see `AttachmentService.deleteFile`. A platform admin's
+   * delete before the retention date is an erasure: it needs a `reason`, which the audit event carries.
+   */
+  async deleteFile(actor: Actor, id: string, reason?: string): Promise<void> {
+    const { fileRecord } = await this.requireVisible(actor, id);
+    const early = !!fileRecord.retainUntil && fileRecord.retainUntil.getTime() > Date.now();
+    if (early && !fileRecord.legalHold && !reason?.trim() && (await this.options.isPlatformAdmin(actor))) {
+      throw new BadRequestException(`"reason" is required — this file is kept until ${fileRecord.retainUntil!.toISOString()}; say why it goes early`);
+    }
+    await this.attachments.deleteFile({ fileRecordId: id, actor, reason });
   }
 
   /** The attachment must belong to this file — `/files/A/attachments/<B's attachment>` is a 404, not a detach of B's. */

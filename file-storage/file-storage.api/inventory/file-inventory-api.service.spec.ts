@@ -104,6 +104,22 @@ describe('FileInventoryApiService mutations', () => {
     expect(audit.record).not.toHaveBeenCalled();
   });
 
+  it("a platform admin's early delete is an erasure — it needs a reason, which goes to AttachmentService", async () => {
+    const future = new Date(Date.now() + 86_400_000);
+    const { svc, attachments } = make({ getFile: { fileRecord: { id: 'f1', tenantId: 't1', retainUntil: future, legalHold: null }, attachments: [] } });
+    await expect(svc.deleteFile(platformAdmin, 'f1')).rejects.toBeInstanceOf(BadRequestException);
+    expect(attachments.deleteFile).not.toHaveBeenCalled();
+    await svc.deleteFile(platformAdmin, 'f1', 'erasure request #88');
+    expect(attachments.deleteFile).toHaveBeenCalledWith({ fileRecordId: 'f1', actor: platformAdmin, reason: 'erasure request #88' });
+  });
+
+  it("a tenant admin's early delete goes to AttachmentService, which refuses it (409) — no reason asked first", async () => {
+    const future = new Date(Date.now() + 86_400_000);
+    const { svc, attachments } = make({ getFile: { fileRecord: { id: 'f1', tenantId: 't1', retainUntil: future, legalHold: null }, attachments: [] } });
+    await svc.deleteFile(tenantAdmin, 'f1');
+    expect(attachments.deleteFile).toHaveBeenCalled();
+  });
+
   it("detach 404s an attachment that isn't on this file", async () => {
     const { svc, attachments } = make();
     await expect(svc.detach(tenantAdmin, 'f1', 'other')).rejects.toBeInstanceOf(NotFoundException);

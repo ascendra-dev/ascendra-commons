@@ -55,6 +55,7 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
     if (query.minSizeBytes !== undefined) where.push(sql`f.size_bytes >= ${query.minSizeBytes}`);
     if (query.held !== undefined) where.push(query.held ? sql`f.held_at is not null` : sql`f.held_at is null`);
     if (query.search) where.push(sql`f.filename ilike ${`%${escapeLike(query.search)}%`}`);
+    if (query.scanVerdict) where.push(sql`f.scan_verdict = ${query.scanVerdict}`);
     if (query.cursor) where.push(after(sql`f.created_at`, sql`f.id`, query.cursor));
 
     const { rows } = await this.db.execute(sql`
@@ -285,6 +286,8 @@ export class PostgresFileStorageObservabilityService implements FileStorageObser
     if (query.tenantId) where.push(sql`tenant_id = ${query.tenantId}`);
     if (query.category) where.push(sql`category = ${query.category}`);
     if (query.reason) where.push(sql`reason = ${query.reason}`);
+    if (query.occurredAfter) where.push(sql`occurred_at >= ${query.occurredAfter}`);
+    if (query.occurredBefore) where.push(sql`occurred_at < ${query.occurredBefore}`);
     if (query.cursor) where.push(after(sql`occurred_at`, sql`id`, query.cursor));
 
     const { rows } = await this.db.execute(sql`

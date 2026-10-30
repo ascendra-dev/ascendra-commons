@@ -49,6 +49,7 @@ export class FileInventoryController {
     @Query('minSizeBytes') minSizeBytes?: string,
     @Query('held') held?: string,
     @Query('search') search?: string,
+    @Query('scanVerdict') scanVerdict?: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ) {
@@ -61,6 +62,7 @@ export class FileInventoryController {
       minSizeBytes: intParam('minSizeBytes', minSizeBytes, 0, MAX_SIZE),
       held: held === undefined || held === '' ? undefined : flagParam('held', held),
       search: textParam('search', search || undefined, 200),
+      scanVerdict: enumParam('scanVerdict', scanVerdict, ['clean', 'unscannable'] as const),
       limit: intParam('limit', limit, 1, MAX_LIMIT),
       cursor: cursorParam(cursor),
     });
@@ -113,6 +115,8 @@ export class FileInventoryController {
     @Query('tenantId') tenantId?: string,
     @Query('category') category?: string,
     @Query('reason') reason?: string,
+    @Query('occurredAfter') occurredAfter?: string,
+    @Query('occurredBefore') occurredBefore?: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ) {
@@ -120,6 +124,8 @@ export class FileInventoryController {
       tenantId: idParam('tenantId', tenantId, true),
       category: idParam('category', category, true),
       reason: enumParam('reason', reason, FILE_REJECTION_REASONS),
+      occurredAfter: dateParam('occurredAfter', occurredAfter),
+      occurredBefore: dateParam('occurredBefore', occurredBefore),
       limit: intParam('limit', limit, 1, MAX_LIMIT),
       cursor: cursorParam(cursor),
     });
@@ -168,12 +174,15 @@ export class FileInventoryController {
     return cursorList(page.rows, page.nextCursor ?? undefined);
   }
 
-  /** 409 while the file is held, or — for a tenant actor — before its retention date. */
+  /**
+   * 409 while the file is held, or — for a tenant actor — before its retention date. `?reason=` — required (400)
+   * when a platform admin deletes before the retention date; audited with the event.
+   */
   @Delete(':id')
   @HttpCode(204)
   @RequiresAction(FILE_STORAGE_ACTIONS.DELETE)
-  deleteFile(@CurrentActor() actor: Actor, @Param('id') id: string) {
-    return this.service.deleteFile(actor, uuidParam('id', id));
+  deleteFile(@CurrentActor() actor: Actor, @Param('id') id: string, @Query('reason') reason?: string) {
+    return this.service.deleteFile(actor, uuidParam('id', id), textParam('reason', reason || undefined, 500));
   }
 
   @Delete(':id/attachments/:attachmentId')

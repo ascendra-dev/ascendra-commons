@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql, type SQL } from 'drizzle-orm';
-import type { FileRecord, FileRetentionStore, FileRetentionVolume } from '../../file-storage.core';
+import type { FileRecord, FileRetentionStore, FileRetentionVolume, OrphanPurgePreview } from '../../file-storage.core';
 import type { SqlExecutor } from '../persistence/sql-executor';
 import { toFileRecord } from '../persistence/row-mappers';
 import { textArray } from '../persistence/sql-helpers';
@@ -38,6 +38,27 @@ export class PostgresFileRetentionStore implements FileRetentionStore {
       limit ${query.limit}
     `);
     return rows.map(toFileRecord);
+  }
+
+  async previewOrphanPurge(query: { olderThan: Date; now: Date; tenantId?: string }): Promise<OrphanPurgePreview> {
+    // The same bounds `findPurgeableOrphans` applies — a held file stays first, then one inside its date.
+    const { rows } = await this.db.execute(sql`
+      select
+        count(*) filter (where f.held_at is null and (f.retain_until is null or f.retain_until <= ${query.now})) as purgeable,
+        coalesce(sum(f.size_bytes) filter (where f.held_at is null and (f.retain_until is null or f.retain_until <= ${query.now})), 0) as purgeable_bytes,
+        count(*) filter (where f.held_at is not null) as held,
+        count(*) filter (where f.held_at is null and f.retain_until > ${query.now}) as retained
+      from commons_file_record f
+      where f.created_at < ${query.olderThan}
+        ${query.tenantId !== undefined ? sql`and f.tenant_id = ${query.tenantId}` : sql``}
+        and not exists (select 1 from commons_file_attachment a where a.file_record_id = f.id)
+    `);
+    const r = rows[0] ?? {};
+    return {
+      purgeable: { count: Number(r.purgeable ?? 0), bytes: Number(r.purgeable_bytes ?? 0) },
+      held: Number(r.held ?? 0),
+      retained: Number(r.retained ?? 0),
+    };
   }
 
   async findRecordedRefs(fileRefs: string[]): Promise<Set<string>> {

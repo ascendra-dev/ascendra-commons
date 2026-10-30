@@ -26,6 +26,16 @@ describe('PostgresFileRetentionStore', () => {
     expect(q.sql).toMatch(/f\.tenant_id = /);
   });
 
+  it('previews an orphan purge with the same bounds — what goes, what stays held, what stays retained', async () => {
+    const execute = vi.fn().mockResolvedValue({ rows: [{ purgeable: '3', purgeable_bytes: '300', held: '1', retained: '9' }] });
+    const preview = await new PostgresFileRetentionStore({ execute } as never).previewOrphanPurge({ olderThan: new Date(), now: new Date(), tenantId: 't1' });
+    expect(preview).toEqual({ purgeable: { count: 3, bytes: 300 }, held: 1, retained: 9 });
+    const q = queries(execute)[0];
+    expect(q.sql).toMatch(/not exists \(select 1 from commons_file_attachment/);
+    expect(q.sql).toMatch(/f\.tenant_id = /);
+    expect(q.sql).not.toMatch(/delete/i);
+  });
+
   it('prunes a log in batches until a short batch', async () => {
     const execute = vi.fn()
       .mockResolvedValueOnce({ rows: [{ id: 1 }, { id: 2 }] })

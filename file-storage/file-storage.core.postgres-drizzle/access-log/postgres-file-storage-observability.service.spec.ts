@@ -23,6 +23,14 @@ describe('PostgresFileStorageObservabilityService', () => {
     expect(q.params).toContain(21);
   });
 
+  it('listFiles filters by what the scanner said', async () => {
+    const execute = vi.fn().mockResolvedValue({ rows: [] });
+    await new PostgresFileStorageObservabilityService({ execute } as SqlExecutor).listFiles({ scanVerdict: 'unscannable' });
+    const q = lastQuery(execute);
+    expect(q.sql).toMatch(/f\.scan_verdict = /);
+    expect(q.params).toContain('unscannable');
+  });
+
   it('listFiles returns a nextCursor only when the extra row is present', async () => {
     const rows = Array.from({ length: 3 }, (_, i) => ({
       id: `f${i}`, tenant_id: 't1', category: 'kyc', content_type: 'application/pdf',
@@ -94,6 +102,16 @@ describe('PostgresFileStorageObservabilityService', () => {
     expect(q.sql).toMatch(/reason = /);
     expect(q.sql).toMatch(/order by occurred_at desc, id desc/i);
     expect(q.params).toContain(11);
+  });
+
+  it('listRejections bounds when — from inclusive, to exclusive — the window the stats counted', async () => {
+    const execute = vi.fn().mockResolvedValue({ rows: [] });
+    const from = new Date('2026-10-01T00:00:00Z');
+    const to = new Date('2026-10-31T00:00:00Z');
+    await new PostgresFileStorageObservabilityService({ execute } as SqlExecutor).listRejections({ occurredAfter: from, occurredBefore: to });
+    const q = lastQuery(execute);
+    expect(q.sql).toMatch(/occurred_at >= \$\d+/);
+    expect(q.sql).toMatch(/occurred_at < \$\d+/);
   });
 
   it('listRejections returns a nextCursor only when the extra row is present', async () => {

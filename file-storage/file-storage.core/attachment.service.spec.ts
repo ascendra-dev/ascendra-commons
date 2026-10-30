@@ -418,6 +418,12 @@ describe('AttachmentService.deleteFile — retention and legal hold', () => {
     expect(audit.emit).toHaveBeenCalledWith(expect.objectContaining({ kind: 'file.deleted', overrodeRetention: true, before: record }));
   });
 
+  it("carries the deleter's reason on the audit event", async () => {
+    const { service, audit } = makeService({ store: { getFileRecordById: vi.fn().mockResolvedValue(fileRecord({ retainUntil: future })) } });
+    await service.deleteFile({ fileRecordId: 'f1', actor: platformAdmin, reason: '  GDPR erasure #88 ' });
+    expect(audit.emit).toHaveBeenCalledWith(expect.objectContaining({ kind: 'file.deleted', overrodeRetention: true, reason: 'GDPR erasure #88' }));
+  });
+
   it('a file past its retainUntil deletes normally', async () => {
     const { service, audit } = makeService({ store: { getFileRecordById: vi.fn().mockResolvedValue(fileRecord({ retainUntil: new Date(Date.now() - 1000) })) } });
     await service.deleteFile({ fileRecordId: 'f1', actor: issuer });

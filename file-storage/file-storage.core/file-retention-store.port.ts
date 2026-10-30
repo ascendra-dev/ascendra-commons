@@ -16,6 +16,9 @@ export interface FileRetentionStore {
    */
   findPurgeableOrphans(query: { olderThan: Date; now: Date; tenantId?: string; limit: number }): Promise<FileRecord[]>;
 
+  /** What an orphan purge with these bounds would do — how many go, and how many it leaves and why. Reads only. */
+  previewOrphanPurge(query: { olderThan: Date; now: Date; tenantId?: string }): Promise<OrphanPurgePreview>;
+
   /** Which of these `fileRef`s a `FileRecord` holds — the rest are stray blobs. */
   findRecordedRefs(fileRefs: string[]): Promise<Set<string>>;
 
@@ -27,6 +30,13 @@ export interface FileRetentionStore {
 
   /** What retention is working on — for the console's Volume & retention screen. `tenantId` set → that tenant's rows only. */
   volume(now: Date, tenantId?: string): Promise<FileRetentionVolume>;
+}
+
+/** Orphans older than the purge's bound: those it deletes, and those it leaves (held; inside their retention date). */
+export interface OrphanPurgePreview {
+  purgeable: { count: number; bytes: number };
+  held: number;
+  retained: number;
 }
 
 export interface FileRetentionVolume {
@@ -62,6 +72,9 @@ export class MissingFileRetentionStore implements FileRetentionStore {
     throw new MissingFileRetentionStoreError();
   }
   async findPurgeableOrphans(): Promise<never> {
+    throw new MissingFileRetentionStoreError();
+  }
+  async previewOrphanPurge(): Promise<never> {
     throw new MissingFileRetentionStoreError();
   }
   async findRecordedRefs(): Promise<never> {

@@ -17,6 +17,8 @@ export interface FileInventoryQuery {
   held?: boolean;
   /** Case-insensitive substring of the stored filename. */
   search?: string;
+  /** What the scanner said — `unscannable` finds files stored though the scanner couldn't read them. */
+  scanVerdict?: 'clean' | 'unscannable';
   limit?: number;
   /** A cursor this list issued — anything else throws `InvalidFileCursorError`. */
   cursor?: string;
@@ -188,6 +190,10 @@ export interface FileRejectionQuery {
   tenantId?: string;
   category?: string;
   reason?: FileUploadRejectionReason;
+  /** Refused at or after this instant. */
+  occurredAfter?: Date;
+  /** Refused before this instant (exclusive) — with `occurredAfter`, the same window the stats counted. */
+  occurredBefore?: Date;
   limit?: number;
   cursor?: string;
 }

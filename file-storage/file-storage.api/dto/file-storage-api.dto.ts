@@ -17,6 +17,7 @@ export interface FileInventoryQueryDto {
   minSizeBytes?: number;
   held?: boolean;
   search?: string;
+  scanVerdict?: 'clean' | 'unscannable';
   limit?: number;
   cursor?: string;
 }
@@ -48,6 +49,8 @@ export interface FileRejectionQueryDto {
   tenantId?: string;
   category?: string;
   reason?: FileRejectionReasonParam;
+  occurredAfter?: Date;
+  occurredBefore?: Date;
   limit?: number;
   cursor?: string;
 }

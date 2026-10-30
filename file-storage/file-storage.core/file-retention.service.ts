@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Actor } from '../../authorization/authorization.core';
 import type { AttachmentStore } from './attachment-store.port';
 import type { FileRecord } from './file-record.interface';
-import type { FileRetentionStore, FileRetentionVolume } from './file-retention-store.port';
+import type { FileRetentionStore, FileRetentionVolume, OrphanPurgePreview } from './file-retention-store.port';
 import type { FileStorageAuditEmitter } from './file-storage-audit.port';
 import type { FileStorageOptions } from './file-storage.options';
 import { isListableFileStore, type FileStore, type StoredObject } from './file-store.port';
@@ -132,6 +132,11 @@ export class FileRetentionService {
    * held files and files inside their retention period. `tenantId` scopes it
    * (the `.api` forces a tenant actor's own). Audited per file, cause `orphan-purge`.
    */
+  /** What `purgeOrphans` with the same bounds would delete, and what it would leave — for the console's confirm. */
+  async previewOrphanPurge(input: { olderThan: Date; tenantId?: string }): Promise<OrphanPurgePreview> {
+    return this.retention.previewOrphanPurge({ olderThan: input.olderThan, now: new Date(), tenantId: input.tenantId });
+  }
+
   async purgeOrphans(input: { actor: Actor; olderThan: Date; tenantId?: string; limit?: number }): Promise<{ deleted: number; bytesFreed: number }> {
     const now = new Date();
     const found = await this.retention.findPurgeableOrphans({

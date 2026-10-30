@@ -16,7 +16,7 @@ the guard (`AuthorizationEnforcedGuard`).
 
 | Method | Gate | |
 |---|---|---|
-| `GET /files` | `file.view` | inventory — filter by tenant / category / uploader / date / size / `held` / filename `search`; keyset-paginated |
+| `GET /files` | `file.view` | inventory — filter by tenant / category / uploader / date / size / `held` / `scanVerdict` / filename `search`; keyset-paginated |
 | `GET /files/:id` | `file.view` | one file: record + attachments — metadata only, no URL |
 | `POST /files/:id/download-url` | `file.view_content` | `{ url, expiresAt }` — a short-lived in-app URL; access-logged and audited (`file.content_viewed`) |
 | `GET /files/:id/access-log` | `file.view` | who fetched it, when |
@@ -24,13 +24,14 @@ the guard (`AuthorizationEnforcedGuard`).
 | `GET /files/orphans` | `file.view` | file records with zero attachments |
 | `GET /files/stats` | `file.view` | the Overview — whole calendar days (`windowDays` 1–366, default 30) in `?tz=` (IANA, default UTC): uploads and refusals per day, by category, by scan verdict, refusals by reason; totals |
 | `GET /files/duplicates` | `file.view` | same-content files within a tenant (SHA-256), most wasted bytes first — reported, never merged |
-| `GET /files/rejections` | `file.view` | refused uploads — filter by category / reason |
+| `GET /files/rejections` | `file.view` | refused uploads — filter by category / reason / `occurredAfter`–`occurredBefore` (the stats' window) |
 | `GET /files/retention` | `file.view` | Volume & retention: files (past retention, expiring in 30 days, indefinite, held), both logs, the log policy |
 | `POST /files/retention/run` | `file.delete` | one retention pass now — platform admins only (it spans every tenant) |
 | `GET /files/stray-blobs?bucket=` | `file.view` | objects in a bucket with no file record (older than an hour) — one store page per call, follow `nextCursor`. Platform only; 501 when the store can't list (Supabase today) |
 | `DELETE /files/stray-blobs?fileRef=` | `file.delete` | delete one stray blob; 409 if a record holds it. Platform only |
+| `GET /files/orphans/purge-preview` | `file.view` | `?olderThanDays=&tenantId=` — what the purge would delete, and how many held or still-retained orphans it leaves. Reads only |
 | `POST /files/orphans/purge` | `file.delete` | body `{ olderThanDays, tenantId? }` — delete files with no attachment; held or retained files stay. Tenant-scoped |
-| `DELETE /files/:id` | `file.delete` | hard delete (blob, record and attachments; the access log stays). 409 while held, or — for a tenant actor — before its retention date |
+| `DELETE /files/:id` | `file.delete` | hard delete (blob, record and attachments; the access log stays). 409 while held, or — for a tenant actor — before its retention date. A platform admin's early delete (an erasure) needs `?reason=` (400 without); the audit event carries it |
 | `DELETE /files/:id/attachments/:attachmentId` | `file.delete` | detach one link, keep the file; 404 if the attachment isn't on this file |
 | `PUT /files/:id/hold` | `file.hold` | place a legal hold — body `{ reason }`; 409 when already held |
 | `DELETE /files/:id/hold` | `file.hold` | release it; 409 when not held |

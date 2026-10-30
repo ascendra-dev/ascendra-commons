@@ -30,6 +30,15 @@ export class FileRetentionController {
     return this.service.runNow(actor);
   }
 
+  /** `?olderThanDays=&tenantId=` — what the purge below would delete, and how many held or still-retained orphans it leaves. */
+  @Get('orphans/purge-preview')
+  @RequiresAction(FILE_STORAGE_ACTIONS.VIEW)
+  previewOrphanPurge(@CurrentActor() actor: Actor, @Query('olderThanDays') olderThanDays?: string, @Query('tenantId') tenantId?: string) {
+    const days = intParam('olderThanDays', olderThanDays, 1, MAX_ORPHAN_DAYS);
+    if (days === undefined) throw new BadRequestException(`"olderThanDays" is required — a whole number from 1 to ${MAX_ORPHAN_DAYS}`);
+    return this.service.previewOrphanPurge(actor, { olderThanDays: days, tenantId: idParam('tenantId', tenantId, true) });
+  }
+
   /** Body `{ olderThanDays, tenantId? }` — files with no attachment, older than that; held or retained files stay. */
   @Post('orphans/purge')
   @HttpCode(200)

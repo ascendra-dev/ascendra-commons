@@ -289,9 +289,9 @@ export class AttachmentService {
    * Refused (409) while the file is under legal hold — for everyone — and,
    * for anyone but a platform admin, before its `retainUntil`. A platform
    * admin's early delete (an erasure request) is marked `overrodeRetention`
-   * in the audit event.
+   * in the audit event, with the `reason` given.
    */
-  async deleteFile(input: { fileRecordId: string; actor: Actor }): Promise<void> {
+  async deleteFile(input: { fileRecordId: string; actor: Actor; reason?: string }): Promise<void> {
     const record = await this.requireFileRecord(input.fileRecordId);
     await this.assertTenantAccess(input.actor, record);
     if (record.legalHold) {
@@ -313,6 +313,7 @@ export class AttachmentService {
       before: record,
       overrodeRetention: early,
       cause: 'request',
+      ...(input.reason?.trim() ? { reason: input.reason.trim() } : {}),
     });
   }
 

@@ -49,7 +49,7 @@ export type { StorageQuotaStore, TenantQuota, TenantQuotaUsage } from './storage
 export { NoStorageQuotas } from './storage-quota.port';
 
 /* retention */
-export type { FileRetentionStore, FileRetentionVolume } from './file-retention-store.port';
+export type { FileRetentionStore, FileRetentionVolume, OrphanPurgePreview } from './file-retention-store.port';
 export { MissingFileRetentionStore, MissingFileRetentionStoreError } from './file-retention-store.port';
 export {
   FileRetentionService,
